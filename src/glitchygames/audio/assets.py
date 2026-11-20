@@ -1,9 +1,13 @@
 """Sound files: the v1 TOML schema, v0 recipes and the short-name index.
 
 A sound file is TOML with a ``[glitchygames]`` header (``kind = "sounds"``, ``version = 1``) and
-any number of ``[waves.*]``, ``[instruments.*]`` and ``[sounds.*]`` tables (impl spec 6.1). A
-file without a header whose tables are ``[recipes.<name>]`` is a version 0 recipe file. Games refer
-to a sound by short name (``'coin'``) or by path (``'sounds/pickups.toml#coin'``, feature spec 3.2).
+any number of ``[waves.*]``, ``[instruments.*]``, ``[sounds.*]`` and ``[effects.*]`` tables (impl
+spec 6.1). An ``[effects.<name>]`` table is a synthetic sound effect (``audio/effects.py``: tones
+mixed straight) under a short name, checked as strictly as the other tables, and played at its
+own volume. A file without a header whose tables are ``[recipes.<name>]`` is an older file of
+effects, read leniently (unknown fields warned about) and also played at each one's volume. Games
+refer to a sound by short name (``'coin'``) or by path (``'sounds/pickups.toml#coin'``, feature
+spec 3.2).
 
 ``load_sound_file`` reads and validates one file; it builds the file's waves and instruments but
 registers and compiles nothing (compiling and caching are the library's job).
@@ -22,7 +26,7 @@ import tomllib
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final, Self, cast
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Final, Literal, Self, cast
 
 from pydantic import (
     BaseModel,
@@ -36,7 +40,8 @@ from pydantic import (
 )
 from pydantic_core import PydanticCustomError
 
-from glitchygames.audio.exceptions import SoundAssetError, SoundRecipeError
+from glitchygames.audio.effects import Effect, Tone, Tremolo
+from glitchygames.audio.exceptions import EffectError, SoundAssetError
 from glitchygames.audio.instrument import (
     DRIVE_HIGHEST,
     MAXIMUM_SOURCES,
@@ -47,8 +52,14 @@ from glitchygames.audio.instrument import (
     PitchCurve,
     Source,
 )
+from glitchygames.audio.live_controls import (
+    DEFAULT_SMOOTHING_MS,
+    Parameter,
+    Route,
+    checked_curve,
+    checked_destination,
+)
 from glitchygames.audio.pitch import PitchLike, Tuning, resolve_pitch
-from glitchygames.audio.recipes import SoundRecipe, Tone
 from glitchygames.audio.spec import (
     ENVELOPE_CURVE_PATTERN,
     ENVELOPE_PRESETS,
@@ -81,8 +92,8 @@ log: logging.Logger = logging.getLogger('game.audio.assets')
 
 CURRENT_SCHEMA_VERSION: Final[int] = 1
 LEGACY_SCHEMA_VERSION: Final[int] = 0
-# The fields a version 0 recipe and tone are read from (the keys SoundRecipe.to_dict writes)
-LEGACY_RECIPE_FIELDS: Final[frozenset[str]] = frozenset({'volume', 'peak', 'tones'})
+# The fields a version 0 recipe and tone are read from (the keys Effect.to_dict writes)
+LEGACY_RECIPE_FIELDS: Final[frozenset[str]] = frozenset({'volume', 'peak', 'tones', 'normalize'})
 LEGACY_TONE_FIELDS: Final[frozenset[str]] = frozenset(
     field_info.name for field_info in dataclasses.fields(Tone)
 )
@@ -106,11 +117,8 @@ FOLLOW_THE_NOTE: Final[str] = 'pitch'  # an LFSR rate that follows the note
 # refused with "<field> arrives in <milestone>" instead of a plain unknown-field error. A field
 # that a table does accept now (``bits`` of an LFSR, ``loop`` of a sound) never reaches this table.
 FIELDS_ARRIVING_LATER: Final[Mapping[str, str]] = MappingProxyType({
-    'live': 'M2',
     'bits': 'M2',
     'sample_rate_reduction': 'M2',
-    'parameters': 'M2',
-    'routes': 'M2',
     'vibrato': 'M4',
     'lfos': 'M4',
     'glide': 'M4',
@@ -130,6 +138,10 @@ FIELDS_ARRIVING_LATER: Final[Mapping[str, str]] = MappingProxyType({
     'root': 'M4',
     'loop': 'M4',
 })
+# A sound's own later fields: its starting live parameters (an instrument's exposed ones exist)
+SOUND_FIELDS_ARRIVING_LATER: Final[Mapping[str, str]] = MappingProxyType(
+    dict(FIELDS_ARRIVING_LATER) | {'parameters': 'M2'}
+)
 # A filter's own later fields (its ``envelope`` is not the instrument's, which exists now)
 FILTER_FIELDS_ARRIVING_LATER: Final[Mapping[str, str]] = MappingProxyType({
     'resonance': 'M2',
@@ -555,8 +567,125 @@ class SourceTable(_Table):
         return self
 
 
+def _first_reason(error: ValidationError) -> str:
+    """The first reason a model refused its values, as a table's own reason.
+
+    Returns:
+        The message, without pydantic's ``Value error,`` prefix.
+    """
+    return error.errors()[0]['msg'].removeprefix('Value error, ')
+
+
+class TremoloTable(_Table):
+    """A live instrument's ``tremolo = { rate_hz, depth }`` (an effect tone's own form)."""
+
+    rate_hz: Annotated[float, Field(gt=0.0)]
+    depth: Annotated[float, Field(ge=0.0, le=1.0)]
+
+    def to_tremolo(self) -> Tremolo:
+        """Convert to the instrument form.
+
+        Returns:
+            The tremolo.
+        """
+        return Tremolo(rate_hz=self.rate_hz, depth=self.depth)
+
+
+class ParameterTable(_Table):
+    """``[instruments.<name>.parameters.<parameter>]``.
+
+    Its fields are ``range``, ``default``, ``smoothing_ms`` and ``unit``.
+    """
+
+    range: tuple[float, float]
+    default: float
+    smoothing_ms: Annotated[float, Field(ge=0.0)] = DEFAULT_SMOOTHING_MS
+    glide: Literal['one_pole', 'linear'] = 'one_pole'
+    unit: str = ''
+
+    @model_validator(mode='after')
+    def _a_usable_parameter(self) -> Self:
+        try:
+            self.to_parameter()
+        except ValidationError as error:
+            raise ValueError(_first_reason(error)) from None
+        return self
+
+    def to_parameter(self) -> Parameter:
+        """Convert to the instrument form (``live_controls.Parameter``, which validates).
+
+        Returns:
+            The parameter.
+        """
+        return Parameter(
+            range=self.range,
+            default=self.default,
+            smoothing_ms=self.smoothing_ms,
+            glide=self.glide,
+            unit=self.unit,
+        )
+
+
+def _route_output(value: object) -> object:
+    """Refuse note names in a route's output: they would resolve without the game's tuning.
+
+    Returns:
+        The value, for the number check that follows.
+
+    Raises:
+        ValueError: For an output holding a string.
+    """
+    written: object = value  # checked under its own name, so the value's type stays object
+    if isinstance(written, list) and any(
+        isinstance(end, str) for end in cast('list[object]', written)
+    ):
+        message = 'route outputs are numbers (hertz for pitch); note names are later work'
+        raise ValueError(message)
+    return value
+
+
+class RouteTable(_Table):
+    """``[[instruments.<name>.routes]]``: ``from``, ``to``, ``curve`` and ``output``.
+
+    The spec's names; ``live_controls.Route`` calls them source and destination.
+    """
+
+    source: str = Field(alias='from')
+    destination: str = Field(alias='to')
+    curve: str = 'linear'
+    output: Annotated[tuple[float, float], BeforeValidator(_route_output)]
+
+    @field_validator('destination')
+    @classmethod
+    def _a_known_destination(cls, value: str) -> str:
+        return checked_destination(value)
+
+    @field_validator('curve')
+    @classmethod
+    def _a_known_curve(cls, value: str) -> str:
+        return checked_curve(value)
+
+    @model_validator(mode='after')
+    def _a_usable_route(self) -> Self:
+        try:
+            self.to_route()
+        except ValidationError as error:
+            raise ValueError(_first_reason(error)) from None
+        return self
+
+    def to_route(self) -> Route:
+        """Convert to the instrument form (``live_controls.Route``, which validates).
+
+        Returns:
+            The route.
+        """
+        return Route(
+            source=self.source, destination=self.destination, curve=self.curve, output=self.output
+        )
+
+
 class InstrumentTable(_Table):
-    """An ``[instruments.<name>]`` table (the M1 fields)."""
+    """An ``[instruments.<name>]`` table (M1's fields, and M2's live ones)."""
 
     profile: str = 'hybrid'
     envelope: Annotated[EnvelopeTable, BeforeValidator(_envelope_from_preset)] = Field(
@@ -569,6 +698,11 @@ class InstrumentTable(_Table):
     filter: FilterTable | None = None
     drive: Annotated[float, Field(ge=0.0, le=DRIVE_HIGHEST)] = 0.0
     sources: dict[str, SourceTable] = Field(default_factory=dict, validate_default=True)
+    live: bool = False
+    chunk_seconds: float | None = None
+    tremolo: TremoloTable | None = None
+    parameters: dict[str, ParameterTable] = Field(default_factory=dict)
+    routes: list[RouteTable] = Field(default_factory=list)
 
     @field_validator('profile')
     @classmethod
@@ -594,6 +728,8 @@ class InstrumentTable(_Table):
 
 class SoundTable(_Table):
     """A ``[sounds.<name>]`` table: an instrument or recorded file plus identity and playback."""
+
+    arriving_later: ClassVar[Mapping[str, str]] = SOUND_FIELDS_ARRIVING_LATER
 
     instrument: str | None = None
     file: str | None = None
@@ -680,6 +816,7 @@ class DefinitionsTable(_Table):
     waves: dict[str, WaveTable] = Field(default_factory=dict)
     instruments: dict[str, InstrumentTable] = Field(default_factory=dict)
     sounds: dict[str, object] = Field(default_factory=dict)
+    effects: dict[str, object] = Field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -697,7 +834,7 @@ class SoundEntry:
         length: Seconds per note or chord before release, or None for the default.
         transpose: Semitones to shift notes or a chord.
         playback_defaults: The playback defaults, overridable in ``.play()``.
-        legacy_recipe: The v0 recipe, or None.
+        effect: The v0 recipe, or None.
         source_path: The sound file that defines this entry.
     """
 
@@ -711,7 +848,7 @@ class SoundEntry:
     length: float | None = None
     transpose: float = 0.0
     playback_defaults: PlaybackDefaults = field(default_factory=PlaybackDefaults)
-    legacy_recipe: SoundRecipe | None = None
+    effect: Effect | None = None
     source_path: Path | None = None
 
 
@@ -1054,8 +1191,17 @@ def _build_instruments(
                 seed=table.seed,
                 normalize=table.normalize,
                 hard_edges=table.hard_edges,
+                live=table.live,
+                chunk_seconds=table.chunk_seconds,
+                tremolo=table.tremolo.to_tremolo() if table.tremolo is not None else None,
+                parameters={
+                    name: parameter.to_parameter() for name, parameter in table.parameters.items()
+                },
+                routes=[route.to_route() for route in table.routes],
             )
-        except ValueError as error:  # pragma: no cover - the tables already enforce every rule
+        except ValueError as error:
+            # The rules across fields: controls only on a live instrument, routes from its
+            # parameters and to its sources, one route to pitch, ... (Instrument._check_controls)
             problems.append(_Problem(location, str(error)))
     return instruments
 
@@ -1273,7 +1419,7 @@ def _load_version_zero(definitions: _Definitions) -> SoundFile:
     """Load a ``[recipes.<name>]`` file: each recipe is a short name.
 
     Returns:
-        The file, with a ``legacy_recipe`` entry per recipe. An invalid recipe, or a
+        The file, with a ``effect`` entry per recipe. An invalid recipe, or a
         ``recipes`` that is not a table, is a ``SoundAssetError``.
     """
     path = definitions.path
@@ -1290,11 +1436,16 @@ def _load_version_zero(definitions: _Definitions) -> SoundFile:
     sounds: dict[str, SoundEntry] = {}
     for name, data in definitions.document['recipes'].items():
         try:
-            recipe = SoundRecipe.from_dict(name, data)
-        except (SoundRecipeError, KeyError, TypeError, ValueError, AttributeError) as error:
+            recipe = Effect.from_dict(name, data)
+        except (EffectError, KeyError, TypeError, ValueError, AttributeError) as error:
             problems.append(_Problem(f'recipes.{name}', f'{type(error).__name__}: {error}'))
             continue
-        sounds[name] = SoundEntry(name=name, legacy_recipe=recipe, source_path=path)
+        sounds[name] = SoundEntry(
+            name=name,
+            effect=recipe,
+            playback_defaults=PlaybackDefaults(volume=recipe.volume),
+            source_path=path,
+        )
     if problems:
         error = _asset_error(path, problems)
         raise error
@@ -1336,6 +1487,24 @@ def _load_version_one(definitions: _Definitions, *, boundary: Path) -> SoundFile
         )
         if entry is not None:
             sounds[name] = entry
+    for name, raw_effect in definitions.tables.effects.items():
+        if name in definitions.tables.sounds:
+            problems.append(
+                _Problem(
+                    f'effects.{name}',
+                    f'{name!r} is both [sounds.{name}] and [effects.{name}]; '
+                    'a short name names one',
+                )
+            )
+            continue
+        effect = _effect_from_table(name, raw_effect, problems=problems)
+        if effect is not None:
+            sounds[name] = SoundEntry(
+                name=name,
+                effect=effect,
+                playback_defaults=PlaybackDefaults(volume=effect.volume),
+                source_path=path,
+            )
     if problems:
         error = _asset_error(path, problems)
         raise error
@@ -1347,6 +1516,45 @@ def _load_version_one(definitions: _Definitions, *, boundary: Path) -> SoundFile
         sounds=MappingProxyType(sounds),
         modification_times=tuple(dependencies.items()),
     )
+
+
+def _effect_from_table(name: str, raw: object, *, problems: list[_Problem]) -> Effect | None:
+    """Build one ``[effects.<name>]`` table, refusing fields it does not read (with a suggestion).
+
+    Returns:
+        The effect, or None when it is not valid (the reasons are added to ``problems``).
+    """
+    location = f'effects.{name}'
+    if not isinstance(raw, dict):
+        problems.append(_Problem(location, f'must be a table, got {type(raw).__name__}'))
+        return None
+    fields = cast('dict[str, Any]', raw)
+    unknown = [
+        _Problem(
+            f'{location}.{key}', f'unknown field{_suggestion(key, sorted(LEGACY_RECIPE_FIELDS))}'
+        )
+        for key in fields
+        if key not in LEGACY_RECIPE_FIELDS
+    ]
+    tones = fields.get('tones', [])
+    for index, tone in enumerate(cast('list[Any]', tones) if isinstance(tones, list) else []):
+        if isinstance(tone, dict):
+            unknown.extend(
+                _Problem(
+                    f'{location}.tones[{index}].{key}',
+                    f'unknown field{_suggestion(key, sorted(LEGACY_TONE_FIELDS))}',
+                )
+                for key in cast('dict[str, Any]', tone)
+                if key not in LEGACY_TONE_FIELDS
+            )
+    if unknown:
+        problems.extend(unknown)
+        return None
+    try:
+        return Effect.from_dict(name, fields)
+    except (EffectError, KeyError, TypeError, ValueError, AttributeError) as error:
+        problems.append(_Problem(location, f'{type(error).__name__}: {error}'))
+        return None
 
 
 def _sound_entry(  # ruff: ignore[too-many-arguments] - one call site

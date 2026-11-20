@@ -17,6 +17,12 @@ from hypothesis import settings
 # has it, and only there: every client gets "not installed" unless a test names an install
 os.environ.setdefault('GLITCHYGAMES_AI_INSTALL_ROOT', '/nonexistent/glitchygames-ai-service')
 
+# No test writes to the user's sound cache folder: an empty root turns cache disk's disk layer off
+# (glitchygames/audio/disk_cache.py, rule 6), so disk runs as ram. Set, not defaulted, so a value
+# exported in a developer's shell never reaches the suite. A test of the disk layer asks for the
+# disk_sound_cache fixture (tests/disk_sound_cache.py), which points it at the test's own folder
+os.environ['GLITCHYGAMES_SOUND_CACHE_ROOT'] = ''
+
 # Importing tests.sdl_defaults defaults the SDL drivers to dummy (keeping any value the invoker
 # set); it must come before pygame is imported/initialized in any test worker
 from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
@@ -30,19 +36,20 @@ from glitchygames.audio.voices import release_channels
 from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
+from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
-from glitchygames.events import ResourceManager
+from glitchygames.events.base import SHARED_INSTANCES_SLOT, UNHANDLED_EVENT_TYPES_SLOT
 from glitchygames.fonts import FontManager
+from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
 from glitchygames.input.state import reset_current_input
+from glitchygames.performance.adaptive_clamping import PERFORMANCE_MANAGERS_SLOT
 from glitchygames.recording import reset_internal_post_tracking
 from glitchygames.scenes import Scene, SceneManager
-from glitchygames.sprites import (
-    FocusableSingletonBitmappySprite,
-    Singleton,
-    SingletonBitmappySprite,
-)
+from glitchygames.sprites.bitmappy_sprite import SINGLETONS_SLOT
+from glitchygames.sprites.sprite import SPRITE_COUNTERS_SLOT
 from glitchygames.user_files import install_user_files
 from tests.ai_service_stand_in import CONTROL_SCRIPT_NAME, python_twin
+from tests.child_process_guard import ChildProcessGuard, controller_sweep_lines
 from tests.display_canvas import (
     CANVAS_PATTERN,
     TEST_DISPLAY_SIZE,
@@ -284,14 +291,36 @@ def pytest_configure(config):
     )
 
 
+@pytest.hookimpl(trylast=True)
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Kill and list what the run's tests left running when a worker died outright.
+
+    The controller sweeps the run's temporary directory once every worker has ended
+    (tests/child_process_guard.py ``controller_sweep_lines``): the backstop for a worker killed
+    without unwinding, where neither its tests' cleanup nor ``no_child_process_left_running``
+    ran (BUGS.md #275).
+
+    Args:
+        terminalreporter: Where the summary is written.
+        exitstatus: The run's exit status (unused).
+        config: pytest's configuration.
+
+    """
+    del exitstatus
+    left_running = controller_sweep_lines(config=config)
+    if left_running:
+        terminalreporter.section('processes left running by this run (now killed)')
+        for line in left_running:
+            terminalreporter.line(line)
+
+
 def _reset_all_singleton_instances():
     """Reset every singleton and shared cache so no test sees another test's instances.
 
     Scene managers live in the engine context (a slot, not a class attribute), so
-    SceneManager._reset() clears the current context's managers. The ResourceManager instances
-    and FontManager's caches are cleared next. The remaining singletons keep their instance in
-    a class attribute, __instance__, which Python sets on the class that made the instance:
-    each singleton base and each of its direct subclasses is reset (BUGS.md #228 items 17, 22).
+    SceneManager._reset() clears the current context's managers. The default context's
+    ResourceManager instances (a slot too) and FontManager's caches are cleared next, then the
+    default context's singleton sprites (BUGS.md #228 items 17, 22).
     """
     SceneManager._reset()
     # The context's audio engine (glitchygames/audio/engine.py) is forgotten, not closed: its
@@ -304,20 +333,24 @@ def _reset_all_singleton_instances():
     # Sound.play() raise "IndexError: invalid channel index" after another test restarted pygame
     # (tests/test_logging.py). No engine outlives a test here, so nothing needs to keep one
     release_channels()
+    # No engine is current until a test makes one (glitchygames.engine.game_engine)
+    default_context().reset_value(slot=CURRENT_ENGINE_SLOT)
+    # A fresh performance manager each test (glitchygames.performance.adaptive_clamping)
+    default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
 
-    # Reset ResourceManager singleton instances (FontManager, event managers, etc.)
-    ResourceManager.__instances__.clear()
+    # Reset ResourceManager singleton instances (FontManager, event managers, etc.): the default
+    # context's (glitchygames.events.base)
+    default_context().reset_value(slot=SHARED_INSTANCES_SLOT)
+
+    # The default context's font options (glitchygames.fonts.font_manager; audit C13)
+    default_context().reset_value(slot=FONT_OPTIONS_SLOT)
 
     # Reset FontManager class-level caches that may hold mock objects
     FontManager._font_cache.clear()
     FontManager.OPTIONS.clear()
 
-    # Reset all singleton base classes and their subclasses
-    for singleton_base in (Singleton, SingletonBitmappySprite, FocusableSingletonBitmappySprite):
-        singleton_base.__instance__ = None
-        for subclass in singleton_base.__subclasses__():
-            if hasattr(subclass, '__instance__'):
-                subclass.__instance__ = None
+    # The default context's singletons (glitchygames.sprites.bitmappy_sprite; audit C15)
+    default_context().reset_value(slot=SINGLETONS_SLOT)
 
 
 # What an inner pytest run (pytester) gets, whatever the outer run's options: pytest-randomly
@@ -352,6 +385,27 @@ def restore_signal_handlers():
     """
     with preserved_signal_handlers():
         yield
+
+
+@pytest.fixture(autouse=True)
+def no_child_process_left_running():
+    """Fail a test that leaves a process running, after stopping it (tests/child_process_guard.py).
+
+    Every child the test starts is recorded; at teardown, after the test's own fixtures stopped
+    what they started, each child still running, every process in a group one led, and every
+    descendant of either is killed and named. A test killed without unwinding (a worker's
+    SIGTERM) once left such processes running for days (BUGS.md #266, #275).
+    """
+    guard = ChildProcessGuard()
+    guard.start_recording()
+    yield
+    leftovers = guard.stop_leftovers()
+    if leftovers:
+        named = '\n'.join(f'  pid {process.pid}: {process.command}' for process in leftovers)
+        pytest.fail(
+            f'the test left {len(leftovers)} process(es) running (now killed):\n{named}',
+            pytrace=False,
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -427,9 +481,9 @@ def empty_engine_sound_cache():
 def restore_game_engine_class_state(mocker):
     """Restore the GameEngine class attributes that engine code writes, after each test.
 
-    GameEngine.__init__ stores its game in the class attribute `game` and its parsed options
-    in `OPTIONS`, and GameEngine.initialize_icon stores the icon in `icon`. A test that runs
-    them with mocks (a Mock game, a mocked pygame.image.load) would otherwise leave the mocks
+    GameEngine.initialize_icon stores the icon in the class attribute `icon` (each engine keeps
+    its own game: `GameEngine.game` is a read-only view). A test that runs
+    it with mocks (a mocked pygame.image.load) would otherwise leave the mock
     there for every later test on the worker: a real GameEngine then fails in
     initialize_system_icons with "Argument to set_icon must be a Surface". GameEngine.__init__
     also sets `USE_FASTEVENTS` on a (mocked) old pygame, which would make every later engine on
@@ -438,9 +492,7 @@ def restore_game_engine_class_state(mocker):
     which would make every later engine warn.
     """
     for attribute_name in (
-        'game',
         'icon',
-        'OPTIONS',
         'USE_FASTEVENTS',
         'PYGAME_FOUND_WITH_SDL_SIGNAL_HANDLERS',
     ):
@@ -468,8 +520,8 @@ def reset_engine_sources():
     reset_sources() tells the installed sources (on_uninstalled), which is where a replay stops
     tracking code-posted events (Task 12), so no tracking leaks into the next test. The frame's
     polled input (glitchygames/input/state.py) is reset too: reset_sources() leaves it alone.
-    So is the internal-post tracker (glitchygames/recording.py: no owners, nothing pending),
-    so a recorder a test left open cannot keep tracking into the next test.
+    So is the internal-post tracker, per engine context (glitchygames.recording: no owners,
+    nothing pending), so a recorder a test left open cannot keep tracking into the next test.
     """
     sources.reset_sources()
     reset_current_input()
@@ -511,6 +563,23 @@ def reset_singletons():
     _reset_all_singleton_instances()
     yield
     _reset_all_singleton_instances()
+
+
+@pytest.fixture(autouse=True)
+def reset_engine_bookkeeping():
+    """Start and end each test with none of the engine's bookkeeping kept in the default context.
+
+    The event types --debug-events has logged as unhandled (glitchygames.events.base; audit C17)
+    are logged once per engine context; without this, a type one test logged would stay silent
+    in every later test on the worker. The sprite counters and breakpoints
+    (glitchygames.sprites.sprite; audit C18) likewise: a breakpoint one test registered would
+    stop every later test's sprites in the debugger.
+    """
+    default_context().reset_value(slot=UNHANDLED_EVENT_TYPES_SLOT)
+    default_context().reset_value(slot=SPRITE_COUNTERS_SLOT)
+    yield
+    default_context().reset_value(slot=UNHANDLED_EVENT_TYPES_SLOT)
+    default_context().reset_value(slot=SPRITE_COUNTERS_SLOT)
 
 
 @pytest.fixture
@@ -666,7 +735,9 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
     if pygame.mixer.get_init() is not None:
         pygame.mixer.stop()
     restore_run_sdl_drivers(
-        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+        run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+        run_state=run_sdl_driver_state,
+        hides_windows=TEST_WINDOWS_HIDDEN,
     )
     with contextlib.suppress(pygame.error):
         surface = pygame.display.get_surface() if pygame.get_init() else None
@@ -678,12 +749,26 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
 
 
 @pytest.fixture
+def per_context_object_resets(reset_singletons, reset_engine_bookkeeping):
+    """Group the resets of the objects and bookkeeping a context holds, for the leak check.
+
+    A group of its own inside per_context_state_resets, which would otherwise take more
+    arguments than the lint allows.
+
+    Args:
+        reset_singletons: Requested only to be torn down after the leak check.
+        reset_engine_bookkeeping: Requested only to be torn down after the leak check.
+
+    """
+
+
+@pytest.fixture
 def per_context_state_resets(
     fresh_random_streams,
     reset_engine_sources,
     reset_default_snap_mode,
     reset_default_background_pattern,
-    reset_singletons,
+    per_context_object_resets,
 ):
     """Group the resets of the state the engine context holds (its slots), for the leak check.
 
@@ -692,7 +777,7 @@ def per_context_state_resets(
         reset_engine_sources: Requested only to be torn down after the leak check.
         reset_default_snap_mode: Requested only to be torn down after the leak check.
         reset_default_background_pattern: Requested only to be torn down after the leak check.
-        reset_singletons: Requested only to be torn down after the leak check.
+        per_context_object_resets: Requested only to be torn down after the leak check.
 
     """
 

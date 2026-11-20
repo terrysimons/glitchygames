@@ -36,8 +36,11 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import sys
+import tempfile
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, TextIO
 
 import pytest
@@ -66,11 +69,11 @@ from glitchygames.testing.frame_fingerprints import (
     SEED_VARIABLE,
     FrameImageRequest,
 )
+from tests.child_process_guard import sweep_processes_naming
 from tests.sdl_defaults import SDL_DRIVER_VARIABLES, SDL_VARIABLES_DEFAULTED_AT_STARTUP
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
-    from pathlib import Path
 
 DUMMY_ONLY_OPTION = '--dummy-only'
 # Names the video driver to compare with instead of the native one (dummy checks the comparison
@@ -217,7 +220,12 @@ def split_workers(*, workers: int) -> tuple[int, int]:
 
 
 def child_pytest_command(
-    *, arguments: Sequence[str], workers: int | None, coverage_loaded: bool, directory: Path
+    *,
+    arguments: Sequence[str],
+    workers: int | None,
+    coverage_loaded: bool,
+    directory: Path,
+    basetemp: Path,
 ) -> list[str]:
     """Build a child pytest command that writes its results to a directory.
 
@@ -226,6 +234,9 @@ def child_pytest_command(
         workers: Its xdist worker count, or None when xdist is not loaded.
         coverage_loaded: pytest-cov is loaded (the child measures no coverage: ``--no-cov``).
         directory: The child's directory (JUnit XML, cache).
+        basetemp: Its temporary directory (``--basetemp``), its own, so what its tests leave
+            running can be found by it once it ends (``run_temporary_directory``,
+            ``sweep_processes_naming``).
 
     Returns:
         The command: this interpreter running pytest with the arguments, then the child's
@@ -238,12 +249,50 @@ def child_pytest_command(
         f'--junitxml={directory / "junit.xml"}',
         '-o',
         f'cache_dir={directory / "cache"}',
+        f'--basetemp={basetemp}',
     ]
     return [
         sys.executable,
         '-m',
         'pytest',
         *with_options_appended(arguments=arguments, appended=appended),
+    ]
+
+
+def run_temporary_directory(*, label: str) -> Path:
+    """Make a fresh temporary directory for a child run (its ``--basetemp``).
+
+    Under the system's temporary directory, not the comparison's output: test-results/ sits in
+    the checkout, which a sync client may copy file by file (plans/future-work.md, Developer
+    environment: Dropbox syncing test artefacts made the suite ten times slower). It is removed
+    once the run is swept (``sweep_lines``).
+
+    Args:
+        label: The run's label (in the directory's name).
+
+    Returns:
+        The directory.
+
+    """
+    return Path(tempfile.mkdtemp(prefix=f'glitchygames-{label}-'))
+
+
+def sweep_lines(*, label: str, temporary: Path) -> list[str]:
+    """Kill what an ended child run's tests left running, remove its temporary directory.
+
+    Args:
+        label: The run's label (for the lines).
+        temporary: The run's ``--basetemp``.
+
+    Returns:
+        One summary line per process found (now killed), naming it.
+
+    """
+    swept = sweep_processes_naming(directory=temporary)
+    shutil.rmtree(temporary, ignore_errors=True)
+    return [
+        f'left running by the {label} run (now killed): pid {process.pid}: {process.command}'
+        for process in swept
     ]
 
 
@@ -319,6 +368,8 @@ class DriverComparison:
         self.native_process: RunningProcess[str] | None = None
         self.native_log: TextIO | None = None
         self.native_started = 0.0
+        # The native run's --basetemp while it is unswept (sweep_native_run)
+        self.native_temporary: Path | None = None
         self.summary_lines: list[str] = []
         # A driver difference or a failed native run: this run fails
         self.failed = False
@@ -333,12 +384,14 @@ class DriverComparison:
         shutil.rmtree(self.output, ignore_errors=True)
         self.native_directory.mkdir(parents=True)
         self.dummy_directory.mkdir(parents=True)
+        self.native_temporary = run_temporary_directory(label=self.native_label)
         command = with_options_appended(
             arguments=child_pytest_command(
                 arguments=self.config.invocation_params.args,
                 workers=self.native_workers,
                 coverage_loaded=self.coverage_loaded,
                 directory=self.native_directory,
+                basetemp=self.native_temporary,
             ),
             appended=[
                 f'{FINGERPRINTS_OPTION}={self.native_directory}',
@@ -366,7 +419,10 @@ class DriverComparison:
             return
         if exitstatus == pytest.ExitCode.INTERRUPTED:
             self.stop_native_run()
-            self.summary_lines = [f'stopped: the run was interrupted ({self.native_label} run too)']
+            self.summary_lines = [
+                f'stopped: the run was interrupted ({self.native_label} run too)',
+                *self.sweep_native_run(),
+            ]
             return
         try:
             returncode = process.wait(timeout=NATIVE_RUN_TIMEOUT_SECONDS)
@@ -375,7 +431,11 @@ class DriverComparison:
             returncode = None
         native_seconds = time.monotonic() - self.native_started
         self.close_native_log()
-        self.summary_lines = self.compare(returncode=returncode, native_seconds=native_seconds)
+        left_running = self.sweep_native_run()
+        self.summary_lines = [
+            *self.compare(returncode=returncode, native_seconds=native_seconds),
+            *left_running,
+        ]
         if self.failed and session.exitstatus == pytest.ExitCode.OK:
             session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
@@ -438,10 +498,11 @@ class DriverComparison:
             (DUMMY_DRIVER, NativeDrivers(video=DUMMY_DRIVER, audio=DUMMY_DRIVER)),
             (self.native_label, self.native),
         ]
-        processes: list[tuple[RunningProcess[str], TextIO]] = []
+        processes: list[tuple[str, RunningProcess[str], TextIO, Path]] = []
         for label, drivers in reruns:
             directory = self.output / f'{label}-images'
             directory.mkdir(parents=True)
+            temporary = run_temporary_directory(label=f'{label}-images')
             command = child_pytest_command(
                 arguments=[
                     f'{IMAGES_REQUEST_OPTION}={request_path}',
@@ -452,36 +513,66 @@ class DriverComparison:
                 workers=workers,
                 coverage_loaded=self.coverage_loaded,
                 directory=directory,
+                basetemp=temporary,
             )
             log = (directory / 'pytest.log').open('w', encoding='utf-8')
             processes.append((
+                label,
                 start_command(
                     command=command,
                     environment=driver_environment(environment=os.environ, drivers=drivers),
                     output=log,
                 ),
                 log,
+                temporary,
             ))
-        for process, log in processes:
+        left_running: list[str] = []
+        for label, process, log, temporary in processes:
             try:
                 process.wait(timeout=IMAGE_RUN_TIMEOUT_SECONDS)
             except TimeoutExpired:
-                stop_command(process=process)
+                # As Ctrl-C, so its tests' cleanup runs (stop_native_run)
+                stop_command(process=process, first_signal=signal.SIGINT)
             log.close()
-        return images_report(
+            left_running.extend(sweep_lines(label=f'{label} image re-run', temporary=temporary))
+        report = images_report(
             request=request,
             baseline=LabelledRun(label=DUMMY_DRIVER, directory=self.output / 'dummy-images'),
             candidate=LabelledRun(
                 label=self.native_label, directory=self.output / f'{self.native_label}-images'
             ),
             output=self.output / 'differences',
-        ).splitlines()
+        )
+        return [*report.splitlines(), *left_running]
 
     def stop_native_run(self) -> None:
-        """Stop the native run (with its workers) if it is still running."""
+        """Stop the native run (with its workers) if it is still running.
+
+        As Ctrl-C stops a pytest run: SIGINT to its group first, which every worker turns into
+        an orderly KeyboardInterrupt, so each test's ``finally`` and fixture teardown stop what
+        the test started; SIGTERM (no handler in pytest) killed the workers at once and left a
+        test's child in a session of its own running (BUGS.md #275). SIGTERM, then SIGKILL,
+        follow a run that does not end (``stop_command``).
+        """
         if self.native_process is not None:
-            stop_command(process=self.native_process)
+            stop_command(process=self.native_process, first_signal=signal.SIGINT)
         self.close_native_log()
+
+    def sweep_native_run(self) -> list[str]:
+        """Kill what the ended native run's tests left running; remove its temporary directory.
+
+        The backstop for a worker that died hard (SIGKILL, a crash): its tests' cleanup and the
+        guard (tests/child_process_guard.py) never ran there. Once only, the first time it is
+        called after the run ended.
+
+        Returns:
+            One summary line per process found (now killed).
+
+        """
+        if self.native_temporary is None:
+            return []
+        temporary, self.native_temporary = self.native_temporary, None
+        return sweep_lines(label=self.native_label, temporary=temporary)
 
     def close_native_log(self) -> None:
         """Close the native run's log file, if open."""
@@ -490,8 +581,14 @@ class DriverComparison:
             self.native_log = None
 
     def pytest_unconfigure(self) -> None:
-        """Never leave the native run behind (an error or Ctrl-C ended this run early)."""
+        """Never leave the native run behind (an error or Ctrl-C ended this run early).
+
+        Stopped, then swept; what the sweep finds is written to standard error (the terminal
+        summary has been written by now).
+        """
         self.stop_native_run()
+        for line in self.sweep_native_run():
+            sys.stderr.write(f'{line}\n')
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

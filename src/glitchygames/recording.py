@@ -114,7 +114,10 @@ where the code that posted them posts them again. The rule:
   a replay serves from the recording. When the replayed code posts it again (a supervisor the
   game's own setup() added), that copy is dropped, so it arrives once either way.
 - A type at or above ``pygame.USEREVENT`` (FPSEVENT, GAMEEVENT, MENUEVENT, any
-  ``pygame.event.custom_type()``) is internal: SDL never generates those.
+  ``pygame.event.custom_type()``) is internal: SDL never generates those. So a run's start
+  drops the ones still queued from an earlier run in the process
+  (``discard_custom_events_queued_before_the_run``, BUGS.md #276): they would be taken for
+  the run's own.
 - An SDL-type event posted through ``post_event()`` (every post in the engine goes through
   it, such as the QUIT that ``quit_game()`` posts) is internal: while recording,
   ``post_event`` remembers each event it posted, and the next pump matches it (same type and
@@ -254,6 +257,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, cast
 import numpy as np
 import pygame
 
+from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.events.base import LEGACY_CUSTOM_EVENT_TYPES, NAMED_CUSTOM_EVENT_TYPES
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.recording_history import (
@@ -354,6 +358,8 @@ EVENT_ORIGIN_FIELD = 'origin'
 EVENT_ATTRIBUTES_FIELD = 'attributes'
 EXTERNAL_ORIGIN = 'external'
 INTERNAL_ORIGIN = 'internal'
+# Every custom event type (FPSEVENT, any pygame.event.custom_type()): SDL generates none of them
+CUSTOM_EVENT_TYPES = tuple(range(pygame.USEREVENT, pygame.NUMEVENTS))
 
 # Tags for attribute values JSON has no direct form for
 LIST_TAG = '__list__'
@@ -408,6 +414,9 @@ class UnrepresentableValue:
 class InternalEventPosts:
     """Events engine or game code posted (``post_event``) that no pump has returned yet.
 
+    One per engine context; where its posts go (SDL's one queue) is sub-plan 6's
+    (plans/2026-10-25-engine-context.md).
+
     Attributes:
         owner_count: How many owners want posts tracked: each open ``GameplayRecorder``, and a
             replay's sources while installed (``start_tracking_internal_posts``).
@@ -435,7 +444,61 @@ class InternalEventPosts:
         return self.owner_count > 0
 
 
-_INTERNAL_POSTS = InternalEventPosts()
+# Each engine context's internal-post tracker (glitchygames.engine_context)
+INTERNAL_POSTS_SLOT: ContextSlot[InternalEventPosts] = ContextSlot(
+    name='glitchygames.recording.internal_posts', factory=InternalEventPosts
+)
+
+
+def _internal_posts() -> InternalEventPosts:
+    """Return the current engine context's internal-post tracker.
+
+    Returns:
+        The tracker (made with no owners and nothing pending on first read).
+
+    """
+    return current_context().value(slot=INTERNAL_POSTS_SLOT)
+
+
+@dataclasses.dataclass
+class PrivateEventQueue:
+    """An inner context's own event queue (audit rows S5 and S6).
+
+    SDL has one queue for the process, and the context that owns the window reads it. While
+    ``enabled``, this context's posts (``post_event``, ``post_input_event``) go here instead,
+    and its replay doors drain this instead of SDL's queue (and never block real input at SDL,
+    which belongs to the context that owns the window), so an inner game never takes an event
+    another context posted, nor leaves one for it to take.
+
+    An enabled queue accepts every post: SDL's blocking of an event type (``set_blocked``) does
+    not apply to it, and every post is reported as posted. Only replay doors drain it
+    (``ReplaySources``), so only a replaying context may enable it, or its posts would pile up
+    undrained: ``InnerGame`` (glitchygames/inner_game.py), the one that enables it, only replays.
+
+    Attributes:
+        enabled: True when the context posts to and drains this queue (an inner game's start
+            turns it on); False: SDL's queue is used, as for every ordinary game.
+        events: The posted events no drain has taken yet, in posting order.
+
+    """
+
+    enabled: bool = False
+    events: list[pygame.event.Event] = dataclasses.field(default_factory=list)
+
+
+PRIVATE_EVENT_QUEUE_SLOT: ContextSlot[PrivateEventQueue] = ContextSlot(
+    name='glitchygames.recording.private_event_queue', factory=PrivateEventQueue
+)
+
+
+def private_event_queue() -> PrivateEventQueue:
+    """Return the current engine context's private event queue.
+
+    Returns:
+        The queue (``enabled`` False on first read: SDL's queue is used).
+
+    """
+    return current_context().value(slot=PRIVATE_EVENT_QUEUE_SLOT)
 
 
 def start_tracking_internal_posts() -> None:
@@ -444,25 +507,67 @@ def start_tracking_internal_posts() -> None:
     A ``GameplayRecorder`` owns it while open, and a replay's sources while installed, so
     closing a recorder never switches tracking off under a live replay.
     """
-    _INTERNAL_POSTS.owner_count += 1
+    _internal_posts().owner_count += 1
 
 
 def stop_tracking_internal_posts() -> None:
     """Give up one ownership; at zero owners tracking stops and pending posts are forgotten."""
-    _INTERNAL_POSTS.owner_count = max(0, _INTERNAL_POSTS.owner_count - 1)
-    if _INTERNAL_POSTS.owner_count == 0:
-        _INTERNAL_POSTS.pending.clear()
-        _INTERNAL_POSTS.live_game_posts.clear()
-        _INTERNAL_POSTS.input_posts.clear()
+    internal_posts = _internal_posts()
+    internal_posts.owner_count = max(0, internal_posts.owner_count - 1)
+    if internal_posts.owner_count == 0:
+        internal_posts.pending.clear()
+        internal_posts.live_game_posts.clear()
+        internal_posts.input_posts.clear()
 
 
 def reset_internal_post_tracking() -> None:
     """Forget every owner and every pending post (a new run, or a test)."""
-    _INTERNAL_POSTS.owner_count = 0
-    _INTERNAL_POSTS.pending.clear()
-    _INTERNAL_POSTS.live_game_code_running = False
-    _INTERNAL_POSTS.live_game_posts.clear()
-    _INTERNAL_POSTS.input_posts.clear()
+    internal_posts = _internal_posts()
+    internal_posts.owner_count = 0
+    internal_posts.pending.clear()
+    internal_posts.live_game_code_running = False
+    internal_posts.live_game_posts.clear()
+    internal_posts.input_posts.clear()
+
+
+def discard_custom_events_queued_before_the_run() -> None:
+    """Drop every custom-type event already in SDL's queue as a run starts (BUGS.md #276).
+
+    A type at or above ``pygame.USEREVENT`` is internal by type alone (``event_origin``), so
+    one an earlier run in this process left queued (a test's, a finished game's) was recorded
+    as this run's own internal event, or taken by a replay for one its code posted: either way
+    a divergence at frame 0. ``GameEngine.__init__`` calls this as it starts tracking the run's
+    posts, before any of the run's code can post. SDL-type events stay, in their order: they
+    are input, which a recording keeps as external and a replay serves.
+
+    An inner game's context drains a private queue, never SDL's (whose events belong to the
+    context that owns the window), and with no display there is no queue: neither discards.
+    """
+    if private_event_queue().enabled or not pygame.display.get_init():
+        return
+    pygame.event.get(eventtype=CUSTOM_EVENT_TYPES, pump=False)
+
+
+def discard_events_left_at_the_runs_end() -> None:
+    """Empty the run's event queue as its teardown ends (BUGS.md #276).
+
+    Whatever is left is the ending run's own (a QUIT or custom event it posted and never
+    pumped, input it never read): none of it is a later run's. Quitting pygame empties SDL's
+    queue as well, but a host that keeps pygame running between runs (the test harness, a
+    program running games one after another) would otherwise hand the next run a stale QUIT,
+    which ends it at once, or a custom event it takes for its own (see
+    ``discard_custom_events_queued_before_the_run``, which still guards against events
+    posted between runs).
+
+    An inner game's context empties its private queue and leaves SDL's to the context that
+    owns the window; with no display there is no queue to empty.
+    """
+    queue = private_event_queue()
+    if queue.enabled:
+        queue.events.clear()
+        return
+    if pygame.display.get_init():
+        pygame.event.clear()
 
 
 def forget_pending_posts() -> None:
@@ -471,8 +576,9 @@ def forget_pending_posts() -> None:
     The live game's posts made inside a playback scope (``live_game_posts``) are not touched:
     the scope sorts those out itself.
     """
-    _INTERNAL_POSTS.pending.clear()
-    _INTERNAL_POSTS.input_posts.clear()
+    internal_posts = _internal_posts()
+    internal_posts.pending.clear()
+    internal_posts.input_posts.clear()
 
 
 def pending_internal_posts() -> list[tuple[int, dict[str, Any]]]:
@@ -485,7 +591,7 @@ def pending_internal_posts() -> list[tuple[int, dict[str, Any]]]:
         (type, attributes) of each pending post, in posting order.
 
     """
-    return _INTERNAL_POSTS.pending
+    return _internal_posts().pending
 
 
 def live_game_code_running() -> bool:
@@ -495,7 +601,7 @@ def live_game_code_running() -> bool:
         ``InternalEventPosts.live_game_code_running``.
 
     """
-    return _INTERNAL_POSTS.live_game_code_running
+    return _internal_posts().live_game_code_running
 
 
 def set_live_game_code_running(*, running: bool) -> None:
@@ -508,7 +614,7 @@ def set_live_game_code_running(*, running: bool) -> None:
         running: True while a supervisor or handler the live game added runs in a scope.
 
     """
-    _INTERNAL_POSTS.live_game_code_running = running
+    _internal_posts().live_game_code_running = running
 
 
 def live_game_posts() -> list[tuple[int, dict[str, Any]]]:
@@ -523,7 +629,7 @@ def live_game_posts() -> list[tuple[int, dict[str, Any]]]:
         The entries, in posting order.
 
     """
-    return _INTERNAL_POSTS.live_game_posts
+    return _internal_posts().live_game_posts
 
 
 def is_input_post(*, post: tuple[int, dict[str, Any]]) -> bool:
@@ -536,7 +642,7 @@ def is_input_post(*, post: tuple[int, dict[str, Any]]) -> bool:
         True when it is one of the input posts (by identity, not equality).
 
     """
-    return any(post is input_post for input_post in _INTERNAL_POSTS.input_posts)
+    return any(post is input_post for input_post in _internal_posts().input_posts)
 
 
 def pending_code_post_count() -> int:
@@ -550,7 +656,7 @@ def pending_code_post_count() -> int:
         The number of pending posts not made through ``post_input_event``.
 
     """
-    return sum(1 for post in _INTERNAL_POSTS.pending if not is_input_post(post=post))
+    return sum(1 for post in _internal_posts().pending if not is_input_post(post=post))
 
 
 def is_live_game_post(*, post: tuple[int, dict[str, Any]]) -> bool:
@@ -563,7 +669,7 @@ def is_live_game_post(*, post: tuple[int, dict[str, Any]]) -> bool:
         True when it is one of ``live_game_posts()`` (by identity, not equality).
 
     """
-    return any(post is live_game_post for live_game_post in _INTERNAL_POSTS.live_game_posts)
+    return any(post is live_game_post for live_game_post in _internal_posts().live_game_posts)
 
 
 def post_event(event: pygame.event.Event) -> bool:
@@ -617,14 +723,21 @@ def _post_tracked(*, event: pygame.event.Event, is_input: bool) -> bool:
         True if pygame queued the event.
 
     """
-    was_posted = bool(pygame.event.post(event))
-    if was_posted and _INTERNAL_POSTS.is_tracking:
+    # An inner context's posts go to its own queue, never SDL's (audit row S5)
+    queue = private_event_queue()
+    if queue.enabled:
+        queue.events.append(event)
+        was_posted = True
+    else:
+        was_posted = bool(pygame.event.post(event))
+    internal_posts = _internal_posts()
+    if was_posted and internal_posts.is_tracking:
         post = (event.type, dict(event.dict))
-        _INTERNAL_POSTS.pending.append(post)
+        internal_posts.pending.append(post)
         if is_input:
-            _INTERNAL_POSTS.input_posts.append(post)
-        if _INTERNAL_POSTS.live_game_code_running:
-            _INTERNAL_POSTS.live_game_posts.append(post)
+            internal_posts.input_posts.append(post)
+        if internal_posts.live_game_code_running:
+            internal_posts.live_game_posts.append(post)
     return was_posted
 
 
@@ -1283,7 +1396,7 @@ class GameplayRecorder:
                 None classifies the batch with the internal-post tracker.
 
         """
-        pending = _INTERNAL_POSTS.pending
+        pending = _internal_posts().pending
         batch = event_batch_records(raw_events=raw_events, pending=pending, origins=origins)
         if origins is None and pending:
             # Posted but not returned: the queue was cleared or the type is blocked

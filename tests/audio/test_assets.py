@@ -19,9 +19,9 @@ from glitchygames.audio.assets import (
     load_sound_file,
     require_recorded_file,
 )
+from glitchygames.audio.effects import Effect
 from glitchygames.audio.exceptions import GlitchyGamesAudioError, SoundAssetError
 from glitchygames.audio.instrument import Instrument, Noise
-from glitchygames.audio.recipes import SoundRecipe
 from glitchygames.audio.spec import ENVELOPE_PRESETS, EnvelopeSpec, PlaybackDefaults
 from glitchygames.audio.waves import Harmonics, Wave, current_wave_registry
 from glitchygames.engine_context import EngineContext
@@ -96,7 +96,7 @@ def test_the_pickup_example_loads():
         attack=0.002, decay=0.04, sustain=0.0, release=0.02, curve='steps(16)'
     )
     assert coin.file is None
-    assert coin.legacy_recipe is None
+    assert coin.effect is None
 
 
 def test_every_field_of_the_extras_file_reaches_its_object():
@@ -253,10 +253,11 @@ def test_a_v0_recipe_file_loads_each_recipe_as_a_short_name():
     assert sound_file.version == 0
     assert set(sound_file.sounds) == {'crunch_one', 'sugar_rush', 'camera_flash'}
     entry = sound_file.sounds['sugar_rush']
-    assert isinstance(entry.legacy_recipe, SoundRecipe)
-    assert entry.legacy_recipe.name == 'sugar_rush'
+    assert isinstance(entry.effect, Effect)
+    assert entry.effect.name == 'sugar_rush'
     assert entry.instrument is None
-    assert entry.playback_defaults == PlaybackDefaults()
+    # An effect plays at its own volume (plans/2026-11-14-sound-migration.md, decision 2)
+    assert entry.playback_defaults == PlaybackDefaults(volume=entry.effect.volume)
     assert not sound_file.waves
     assert not sound_file.instruments
 
@@ -353,13 +354,14 @@ def test_a_typo_suggests_the_field():
 
 def test_a_later_milestone_field_says_when_it_arrives():
     """A later milestone field says when it arrives."""
-    with pytest.raises(SoundAssetError, match='routes arrives in M2'):
-        load_sound_file(MALFORMED / 'routes_in_m1.toml')
+    with pytest.raises(SoundAssetError, match='vibrato arrives in M4'):
+        load_sound_file(MALFORMED / 'vibrato_in_m2.toml')
 
 
 def test_every_later_milestone_field_names_its_milestone():
-    """Every later milestone field names its milestone."""
-    assert FIELDS_ARRIVING_LATER['routes'] == 'M2'
+    """Every later milestone field names its milestone; M2's live fields have landed."""
+    assert FIELDS_ARRIVING_LATER['bits'] == 'M2'
+    assert not {'live', 'parameters', 'routes'} & set(FIELDS_ARRIVING_LATER)
     assert FIELDS_ARRIVING_LATER['wavetable'] == 'M4'
     assert FIELDS_ARRIVING_LATER['reverb'] == 'M5'
 
@@ -878,3 +880,219 @@ def test_an_envelope_curve_with_a_trailing_newline_is_refused(curve):
         EnvelopeSpec(attack=0.0, decay=0.0, sustain=1.0, release=0.0, curve=curve)
     with pytest.raises(ValueError, match='unknown envelope curve'):
         EnvelopeTable(attack=0.0, decay=0.0, sustain=1.0, release=0.0, curve=curve)
+
+
+EFFECT_TABLE = (
+    '[effects.jump]\nvolume = 0.35\nnormalize = false\n\n'
+    '[[effects.jump.tones]]\nwaveform = "sine"\nstart_frequency = 220.0\nend_frequency = 660.0\n'
+    'duration = 0.12\nenvelope = { attack = 0.005, decay = 0.0, sustain_level = 1.0, '
+    'release = 0.08 }\n'
+)
+
+
+def test_an_effects_table_in_a_sound_file_is_a_short_name(tmp_path):
+    """[effects.<name>] is one of a sound file's tables; its entry carries the effect."""
+    sound_file = load_sound_file(_write(tmp_path, 'effects.toml', VALID_HEADER + EFFECT_TABLE))
+
+    entry = sound_file.sounds['jump']
+    assert entry.effect is not None
+    assert entry.effect.name == 'jump'
+    assert entry.effect.normalize is False
+    assert entry.effect.tones[0].end_frequency == 660.0
+
+
+def test_an_effect_plays_at_its_own_volume_by_default(tmp_path):
+    """An effect's volume is its default playback volume (overridable in .play())."""
+    sound_file = load_sound_file(_write(tmp_path, 'effects.toml', VALID_HEADER + EFFECT_TABLE))
+
+    assert sound_file.sounds['jump'].playback_defaults.volume == 0.35
+
+
+def test_a_recipe_file_plays_each_effect_at_its_own_volume_too():
+    """The older [recipes.*] files keep loading, as effects, at their own volumes."""
+    sound_file = load_sound_file(FIXTURES / 'sounds' / 'legacy_recipes.toml')
+
+    for entry in sound_file.sounds.values():
+        assert entry.effect is not None
+        assert entry.playback_defaults.volume == entry.effect.volume
+
+
+def test_an_unknown_field_in_an_effect_is_refused_with_a_suggestion(tmp_path):
+    """The current format refuses what it does not read, as its other tables do."""
+    text = VALID_HEADER + EFFECT_TABLE.replace('volume = 0.35', 'volumme = 0.35')
+
+    with pytest.raises(SoundAssetError, match=r"effects\.jump.*volumme.*did you mean 'volume'"):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+def test_an_unknown_field_in_an_effects_tone_is_refused_with_a_suggestion(tmp_path):
+    """A tone's fields are checked the same way."""
+    text = VALID_HEADER + EFFECT_TABLE.replace('end_frequency', 'end_frequncy')
+
+    with pytest.raises(
+        SoundAssetError,
+        match=r"effects\.jump\.tones\[0\].*end_frequncy.*did you mean 'end_frequency'",
+    ):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+def test_a_name_that_is_both_a_sound_and_an_effect_is_refused(tmp_path):
+    """Short names are unique within a file."""
+    text = VALID_HEADER + VALID_INSTRUMENT + '[sounds.jump]\ninstrument = "beep"\n\n' + EFFECT_TABLE
+
+    with pytest.raises(SoundAssetError, match=r'jump.*both.*\[sounds\.jump\].*\[effects\.jump\]'):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+def test_an_invalid_effect_is_refused_naming_it(tmp_path):
+    """A bad value (a negative duration) names the effect."""
+    text = VALID_HEADER + EFFECT_TABLE.replace('duration = 0.12', 'duration = -1.0')
+
+    with pytest.raises(SoundAssetError, match=r'effects\.jump.*duration must be > 0'):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+def test_an_effect_that_is_not_a_table_is_refused(tmp_path):
+    """An effects entry that is a number, not a table, is no effect."""
+    text = VALID_HEADER + '[effects]\njump = 3\n'
+
+    with pytest.raises(SoundAssetError, match=r'effects\.jump.*must be a table, got int'):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+def test_a_tone_that_is_not_a_table_is_refused(tmp_path):
+    """An effect's tones are tables; a number among them names the effect."""
+    text = VALID_HEADER + '[effects.jump]\nvolume = 0.35\ntones = [3]\n'
+
+    with pytest.raises(SoundAssetError, match=r'effects\.jump'):
+        load_sound_file(_write(tmp_path, 'effects.toml', text))
+
+
+LIVE_MOTOR = """
+[instruments.motor]
+live = true
+chunk_seconds = 0.05
+tremolo = { rate_hz = 8.0, depth = 0.4 }
+
+[instruments.motor.sources.main]
+wave = "saw"
+
+[instruments.motor.filter]
+type = "low_pass"
+cutoff = 900.0
+
+[instruments.motor.parameters.speed]
+range = [0.0, 1.0]
+default = 0.25
+smoothing_ms = 60
+glide = "linear"
+unit = "fraction"
+
+[[instruments.motor.routes]]
+from = "speed"
+to = "pitch"
+curve = "exponential"
+output = [45.0, 110.0]
+
+[[instruments.motor.routes]]
+from = "speed"
+to = "filter.cutoff"
+output = [300.0, 900.0]
+
+[sounds.motor]
+instrument = "motor"
+"""
+
+
+def test_a_live_instrument_loads_with_its_tremolo_parameters_and_routes(tmp_path):
+    """The spec's schema (implementation spec 6.1, feature spec 5.4): routes say from and to."""
+    from glitchygames.audio.effects import Tremolo
+    from glitchygames.audio.live_controls import Parameter, Route
+
+    motor = load_sound_file(_write(tmp_path, 'motor.toml', VALID_HEADER + LIVE_MOTOR)).instruments[
+        'motor'
+    ]
+
+    assert motor.live
+    assert motor.chunk_seconds == 0.05
+    assert motor.tremolo == Tremolo(rate_hz=8.0, depth=0.4)
+    assert dict(motor.parameters) == {
+        'speed': Parameter(
+            range=(0.0, 1.0), default=0.25, smoothing_ms=60.0, glide='linear', unit='fraction'
+        )
+    }
+    assert motor.routes == (
+        Route(source='speed', destination='pitch', curve='exponential', output=(45.0, 110.0)),
+        Route(source='speed', destination='filter.cutoff', output=(300.0, 900.0)),
+    )
+
+
+@pytest.mark.parametrize(
+    ('change', 'path', 'reason'),
+    [
+        (
+            ('default = 0.25', 'default = 2.0'),
+            'instruments.motor.parameters.speed',
+            'outside the range',
+        ),
+        (
+            ('range = [0.0, 1.0]', 'range = [1.0, 0.0]'),
+            'instruments.motor.parameters.speed',
+            'low to high',
+        ),
+        (
+            ('smoothing_ms = 60', 'smoothing_ms = -1'),
+            'instruments.motor.parameters.speed.smoothing_ms',
+            'greater than or equal',
+        ),
+        (
+            ('to = "pitch"', 'to = "volume"'),
+            'instruments.motor.routes[0].to',
+            'unknown destination',
+        ),
+        (
+            ('curve = "exponential"', 'curve = "wobbly"'),
+            'instruments.motor.routes[0].curve',
+            'unknown curve',
+        ),
+        (
+            ('output = [45.0, 110.0]', 'output = ["A1", "E3"]'),
+            'instruments.motor.routes[0].output',
+            'numbers',
+        ),
+        (
+            ('from = "speed"\nto = "pitch"', 'from = "rpm"\nto = "pitch"'),
+            'instruments.motor',
+            'no parameter named',
+        ),
+        (('to = "filter.cutoff"', 'to = "pitch"'), 'instruments.motor', 'one route to pitch'),
+        (
+            ('output = [45.0, 110.0]', 'output = [0.0, 110.0]'),
+            'instruments.motor.routes[0]',
+            'positive output ends',
+        ),
+        (('chunk_seconds = 0.05', 'chunk_seconds = 0.01'), 'instruments.motor', 'chunk_seconds'),
+        (
+            ('glide = "linear"', 'glide = "wobbly"'),
+            'instruments.motor.parameters.speed.glide',
+            'linear',
+        ),
+        (('depth = 0.4', 'depth = 1.5'), 'instruments.motor.tremolo.depth', 'less than or equal'),
+        (('rate_hz = 8.0', 'rate_hz = 0.0'), 'instruments.motor.tremolo.rate_hz', 'greater than'),
+        (('live = true', 'live = false'), 'instruments.motor', 'only on a live instrument'),
+    ],
+    ids=lambda value: value if isinstance(value, str) else None,
+)
+def test_a_live_instrument_that_cannot_work_is_refused_where_it_goes_wrong(
+    tmp_path, change, path, reason
+):
+    """Each problem names its place in the file and why."""
+    old, new = change
+    assert LIVE_MOTOR.count(old) == 1
+    text = VALID_HEADER + LIVE_MOTOR.replace(old, new)
+
+    with pytest.raises(SoundAssetError) as raised:
+        load_sound_file(_write(tmp_path, 'motor.toml', text))
+
+    assert path in str(raised.value)
+    assert reason in str(raised.value)

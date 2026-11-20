@@ -44,6 +44,7 @@ from glitchygames.interfaces import SceneInterface, SpriteInterface
 from glitchygames.opacity import OPAQUE, make_opaque
 from glitchygames.pixel_snap import PixelSnapMode, set_active_default_snap_mode
 from glitchygames.randomness import restore_stream_states
+from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViews
 from glitchygames.recording import (
     SCENE_START_DEVICES_HEADER_FIELD,
     is_input_post,
@@ -56,6 +57,7 @@ from glitchygames.recording import (
     post_input_event,
     set_live_game_code_running,
 )
+from glitchygames.render_target import display_surface, is_inner_context
 from glitchygames.scene_start import (
     ResumeBridge,
     SceneStartCapture,
@@ -80,11 +82,12 @@ from glitchygames.timing import DEFAULT_TARGET_FPS
 from glitchygames.world import aim_camera, is_world_positioned, position_world_sprites
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
     from pathlib import Path
 
     from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.audio.engine import AudioEngine
+    from glitchygames.audio.library import SoundSource
     from glitchygames.audio.live import LiveAudio
     from glitchygames.engine import GameEngine
     from glitchygames.input.input_devices import InputDevice
@@ -246,7 +249,38 @@ def _scene_manager_for_class(*, scene_manager_class: type[SceneManager]) -> Scen
     return None
 
 
-class SceneManager(SceneInterface, events.EventManager):
+def release_live_voices_in_the_current_context() -> None:
+    """Silence the current context's live voices and give their channels back.
+
+    For an inner game's finish, and a build that failed (glitchygames/inner_game.py, rule 6):
+    looked up without making a scene manager, so nothing happens without one.
+    """
+    scene_manager = _scene_manager_for_class(scene_manager_class=SceneManager)
+    if scene_manager is not None:
+        scene_manager.release_live_voices()
+
+
+def _current_engine_options(owner: type) -> dict[str, Any] | None:
+    """Return the current context's manager's engine options (``SceneManager.OPTIONS`` on a class).
+
+    Looked up along the class's MRO (``_scene_manager_for_class``), so reading never makes a
+    manager.
+
+    Args:
+        owner: The class read through: SceneManager or a subclass, as the view is declared in
+            SceneManager's body.
+
+    Returns:
+        The manager's ``engine_options``, or None when the context has no manager of the class.
+
+    """
+    manager = _scene_manager_for_class(scene_manager_class=cast('type[SceneManager]', owner))
+    if manager is None:
+        return None
+    return manager.engine_options
+
+
+class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews):
     """Glitchy Games Scene Manager.
 
     The scene manager is responsible for managing the active scene,
@@ -254,7 +288,15 @@ class SceneManager(SceneInterface, events.EventManager):
     """
 
     log: ClassVar[logging.Logger] = LOG
-    OPTIONS: ClassVar[dict[str, Any]] = {}
+    # The engine's options, one per manager (audit C7: the game_engine setter sets
+    # engine_options, so a second context's engine never replaces the first's); a read-only
+    # view of engine_options. Read on the class, the current context's manager of the class
+    # read through, never making one (None when there is none)
+    OPTIONS = ReadOnlyView[dict[str, Any] | None, dict[str, Any]](
+        read_current=_current_engine_options,
+        read_own=lambda manager: manager.engine_options,
+        write_instead="the manager's own: manager.engine_options (the game_engine setter sets it)",
+    )
     # True once __init__ ran: SceneManager() returns the singleton, whose __init__ runs again
     _initialized: bool = False
 
@@ -277,8 +319,11 @@ class SceneManager(SceneInterface, events.EventManager):
         super().__init__()
 
         # None until the display is initialized (set later); get_surface() never raises
-        self.screen = pygame.display.get_surface()
+        self.screen = display_surface()
         self.update_type: str = 'update'
+        # The engine's options (the game_engine setter sets them: the engine's own dict);
+        # empty until an engine is set
+        self.engine_options: dict[str, Any] = {}
         self.fps_log_interval_ms: int = 1000
         self.target_fps: float = 0.0
         self.dt: float = 0.0
@@ -318,6 +363,12 @@ class SceneManager(SceneInterface, events.EventManager):
         # The live game's rumble controller while a playback scope plays on its own
         self._live_rumble_behind_scope: RumbleController | None = None
         self._live_audio: LiveAudio | None = None
+        # This context's performance manager (glitchygames.performance.adaptive_clamping): the
+        # scene manager and it are both per engine context, so it is looked up once here and
+        # every frame's tracking skips the slot read (AdaptiveClamping() is a slot read)
+        from glitchygames.performance import AdaptiveClamping
+
+        self.performance_manager: AdaptiveClamping = AdaptiveClamping()
 
         # Jitter tracking attributes
         self._jitter_samples: list[int] = []
@@ -384,7 +435,7 @@ class SceneManager(SceneInterface, events.EventManager):
     def update_screen(self) -> None:
         """Update the screen reference when display becomes available."""
         if self.screen is None:
-            self.screen = pygame.display.get_surface()
+            self.screen = display_surface()
 
     @property
     def game_engine(self: Self) -> GameEngine | None:
@@ -400,16 +451,16 @@ class SceneManager(SceneInterface, events.EventManager):
     def game_engine(self: Self, new_engine: GameEngine | None) -> None:
         self._game_engine = new_engine
         if self._game_engine:
-            SceneManager.OPTIONS = self._game_engine.OPTIONS  # pyright: ignore[reportConstantRedefinition]
-            self.update_type = self.OPTIONS['update_type']
-            self.fps_log_interval_ms = self.OPTIONS['fps_log_interval_ms']
-            self.target_fps = self.OPTIONS.get('target_fps', DEFAULT_TARGET_FPS)
-            self.screen_shake.intensity = self.OPTIONS.get('screen_shake_intensity', 1.0)
-            self.rumble.intensity = self.OPTIONS.get('rumble_intensity', 1.0)
+            self.engine_options = self._game_engine.options
+            self.update_type = self.engine_options['update_type']
+            self.fps_log_interval_ms = self.engine_options['fps_log_interval_ms']
+            self.target_fps = self.engine_options.get('target_fps', DEFAULT_TARGET_FPS)
+            self.screen_shake.intensity = self.engine_options.get('screen_shake_intensity', 1.0)
+            self.rumble.intensity = self.engine_options.get('rumble_intensity', 1.0)
             # --sound-diagnostics opens the overlay too (its Audio panel: sound engine impl 10.5)
-            sound_diagnostics = bool(self.OPTIONS.get('sound_diagnostics', False))
+            sound_diagnostics = bool(self.engine_options.get('sound_diagnostics', False))
             self.debug_overlay.is_visible = bool(
-                self.OPTIONS.get('debug_overlay', False) or sound_diagnostics
+                self.engine_options.get('debug_overlay', False) or sound_diagnostics
             )
             if sound_diagnostics:
                 self.debug_overlay.panel = DebugPanel.AUDIO
@@ -418,10 +469,8 @@ class SceneManager(SceneInterface, events.EventManager):
         self.log.info('Target FPS: %s', self.target_fps)
 
         # Configure performance manager with the same log interval and target FPS
-        from glitchygames.performance import performance_manager
-
-        performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
-        performance_manager.set_target_fps(self.target_fps)
+        self.performance_manager.set_fps_log_interval(self.fps_log_interval_ms)
+        self.performance_manager.set_target_fps(self.target_fps)
 
     @property
     def input_devices(self: Self) -> InputDevices:
@@ -654,7 +703,7 @@ class SceneManager(SceneInterface, events.EventManager):
         game_engine = self.game_engine
         self._instant_replay_journal = InstantReplayJournal(
             scene=scene,
-            game=game_engine.game if game_engine is not None else None,
+            game=game_engine.running_game.instance if game_engine is not None else None,
             scene_start_devices=scene_start_devices_record(input_devices=self.input_devices),
         )
 
@@ -1261,7 +1310,7 @@ class SceneManager(SceneInterface, events.EventManager):
             devices=list if self.in_playback_scope else self._rumble_devices,
         )
 
-        if self._live_audio is None and audio_engine is None:
+        if audio_engine is None:
             return
         # The pending transition counts: a ride creates its motor before transition_to starts it
         pending_transition = (
@@ -1282,23 +1331,15 @@ class SceneManager(SceneInterface, events.EventManager):
                 if owner is not None
             ]
         )
-        if self._live_audio is not None:
-            self._live_audio.update(
-                active_scene=self.active_scene,
-                previous_scene=self.previous_scene,
-                active_transitions=active_transitions,
-                paused_owners=paused_owners,
-            )
-        if audio_engine is not None:
-            # The library's voices follow the same owner rules, moved by the frame's served dt
-            # (glitchygames/audio/engine.py; sound engine impl spec 4.2)
-            audio_engine.update(
-                dt=self.dt,
-                active_scene=self.active_scene,
-                previous_scene=self.previous_scene,
-                active_transitions=active_transitions,
-                paused_owners=paused_owners,
-            )
+        # The live voices and the library's follow the owner rules, the library's moved by the
+        # frame's served dt (glitchygames/audio/engine.py; sound engine impl spec 4.2)
+        audio_engine.update(
+            dt=self.dt,
+            active_scene=self.active_scene,
+            previous_scene=self.previous_scene,
+            active_transitions=active_transitions,
+            paused_owners=paused_owners,
+        )
 
     def _rumble_devices(self: Self) -> list[RumbleDevice]:
         """Return every device the game sees (``input_devices``): each can be rumbled.
@@ -1339,11 +1380,14 @@ class SceneManager(SceneInterface, events.EventManager):
         from glitchygames.audio.engine import (
             BYTES_PER_MEGABYTE,
             DEFAULT_CACHE_MEMORY_MEGABYTES,
+            DEFAULT_SOUND_CACHE,
+            NO_GAME_CACHE_FOLDER,
             AudioEngine,
             default_channel_partition,
             install_audio_engine,
         )
         from glitchygames.audio.library import CacheMode
+        from glitchygames.replay.tools.identity import game_package
 
         audio_engine = _existing_audio_engine()
         if audio_engine is not None:
@@ -1353,11 +1397,16 @@ class SceneManager(SceneInterface, events.EventManager):
             if game_engine is None
             else game_engine.reserved_channel_partition()
         )
-        options: Mapping[str, Any] = {} if game_engine is None else game_engine.OPTIONS
+        options: Mapping[str, Any] = {} if game_engine is None else game_engine.options
+        game = None if game_engine is None else game_engine.game
         return install_audio_engine(
             engine=AudioEngine(
                 partition=partition,
-                cache=CacheMode(options.get('sound_cache', CacheMode.RAM.value)),
+                cache=CacheMode(options.get('sound_cache', DEFAULT_SOUND_CACHE.value)),
+                # Each game keeps its own disk cache folder (the owner, 2026-11-15)
+                game_name=NO_GAME_CACHE_FOLDER if game is None else game_package(game=game),
+                # Live sounds start on this scene manager's own live pool
+                live_pool=self._live_pool,
                 memory_limit_bytes=int(
                     options.get('sound_cache_memory', DEFAULT_CACHE_MEMORY_MEGABYTES)
                 )
@@ -1377,9 +1426,15 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         return self._scene_in_setup if self._scene_in_setup is not None else self.active_scene
 
-    @property
-    def live_audio(self: Self) -> LiveAudio:
-        """Live synth voices, created on first use from the engine's reserved channels."""
+    def _live_pool(self: Self) -> LiveAudio:
+        """The live pool ``Sound.start()`` plays on, made on first use from the engine's channels.
+
+        Private since sound migration step 7: a game starts live sounds through
+        ``audio.sound(Instrument(..., live=True)).start()``, never on the pool itself.
+
+        Returns:
+            The pool.
+        """
         if self._live_audio is None:
             from glitchygames.audio.live import LiveAudio
 
@@ -1387,6 +1442,14 @@ class SceneManager(SceneInterface, events.EventManager):
             channels = game_engine.live_voice_channels if game_engine is not None else ()
             self._live_audio = LiveAudio(channel_indices=channels)
         return self._live_audio
+
+    def release_live_voices(self: Self) -> None:
+        """Silence every live voice and give its channel back (an inner game's finish).
+
+        Nothing happens when no live voice was ever asked for.
+        """
+        if self._live_audio is not None:
+            self._live_audio.release_every_voice()
 
     def _debug_frame_info(
         self: Self, *, shake_offset: tuple[float, float], inspected_scene_label: str | None
@@ -1476,13 +1539,18 @@ class SceneManager(SceneInterface, events.EventManager):
         """Present the frame just run, unless the doors present frames themselves.
 
         A watched replay's frames are presented by its viewer's outer tick instead
-        (``EngineSources.presents_frames``; ``_present_held_frame``).
+        (``EngineSources.presents_frames``; ``_present_held_frame``). An inner context's frames
+        are never presented, whatever its doors say (a headless replay's present every frame):
+        its host shows the render target, which ``_show_frame`` only makes opaque.
 
         Args:
             full_update: True to flip the whole display (transitions); False to use the
                 configured update type.
 
         """
+        if is_inner_context():
+            self._show_frame(full_update=full_update)
+            return
         if active_sources().presents_frames:
             present_started_seconds = clock.measured_seconds()
             self._show_frame(full_update=full_update)
@@ -1504,6 +1572,10 @@ class SceneManager(SceneInterface, events.EventManager):
         the debug overlay or the doors' own overlay (a watched replay's status bar, drawn last:
         ``EngineSources.draw_overlay``).
 
+        An inner context's frame (glitchygames/render_target.py) is only made opaque: its host
+        shows the render target, so nothing here touches the window (decision 6 of
+        plans/2026-11-12-arcade-3-inner-game.md).
+
         Args:
             full_update: True to flip the whole display (transitions); False to use the
                 configured update type.
@@ -1512,8 +1584,11 @@ class SceneManager(SceneInterface, events.EventManager):
         if self.screen is not None:
             # Every presented frame is opaque: on a display with per-pixel alpha (cocoa) the
             # window shows alpha 0 as black, so a pixel copied from a surface carrying alpha 0
-            # would be a black hole only on macOS (glitchygames/opacity.py, BUGS.md #142)
+            # would be a black hole only on macOS (glitchygames/opacity.py, BUGS.md #142). A
+            # render target in the display's format has that alpha too, and its host copies it
             make_opaque(surface=self.screen)
+        if is_inner_context():
+            return
         # The overlay also draws during transitions (it reflects active_scene); captures stay clean
         offset_x, offset_y = self.screen_shake.offset
         pixel_offset = (round(offset_x), round(offset_y))
@@ -1610,10 +1685,10 @@ class SceneManager(SceneInterface, events.EventManager):
             scene: The scene made active.
 
         """
-        from glitchygames.performance import performance_manager
+        from glitchygames.performance import AdaptiveClamping
 
         if scene:  # Only track performance for real scenes, not None
-            performance_manager.set_current_scene(scene.NAME)
+            AdaptiveClamping().set_current_scene(scene.NAME)
 
     def _clear_outgoing_scene_pending_switch(self: Self) -> None:
         """Clear the pending switch of the scene being switched away from.
@@ -1754,7 +1829,7 @@ class SceneManager(SceneInterface, events.EventManager):
             # 16.67 ms cadence would be measured as 17, 17, 16 ms (58.8, 58.8, 62.5 FPS).
             # _finish_frame measures with raw_counter_seconds() instead (BUGS.md #26).
             # Optional jitter logging
-            if self.OPTIONS.get('log_timer_jitter', False):
+            if self.engine_options.get('log_timer_jitter', False):
                 self._log_jitter_stats(timer, wake_ns, deadline_ns)
         elif timer is not None and paced_seconds is not None:
             # A positive paced period shorter than half a nanosecond rounds to a 0 ns period:
@@ -1776,8 +1851,6 @@ class SceneManager(SceneInterface, events.EventManager):
             processing_time: Actual processing time in seconds
 
         """
-        from glitchygames.performance import performance_manager
-
         # Deliberately NOT self.pacing_fallback_clock.get_fps(). pygame's Clock.get_fps():
         #   1. recomputes only every 10 tick() calls, so each value repeats for 10 frames,
         #   2. is 10000 / (milliseconds for the last 10 ticks), so values are quantized
@@ -1789,7 +1862,7 @@ class SceneManager(SceneInterface, events.EventManager):
         # (_performance_frame_seconds).
         performance_frame_seconds = self._performance_frame_seconds()
         current_fps = (1.0 / performance_frame_seconds) if performance_frame_seconds > 0 else 0.0
-        performance_manager.track_fps_from_event(current_fps, processing_time)
+        self.performance_manager.track_fps_from_event(current_fps, processing_time)
 
     def start(self: Self) -> None:
         """Start the scene manager.
@@ -1877,10 +1950,14 @@ class SceneManager(SceneInterface, events.EventManager):
                 else round(paced_seconds * 1_000_000_000)
             )
 
+        # The frame's work starts here. A paced frame starts where the last one closed (after
+        # its pacing sleep); an unpaced one now: the outer driver's wait since the last step's
+        # closing reading is this frame's pacing, in its dt but never in its processing time
+        work_start_seconds = frame_start_seconds if paced else clock.raw_counter_seconds()
         self._run_frame()
 
         # The frame's processing time: its work, without the pacing sleep that follows
-        processing_seconds = clock.raw_counter_seconds() - frame_start_seconds
+        processing_seconds = clock.raw_counter_seconds() - work_start_seconds
 
         return self._finish_frame(
             frame_start_seconds=frame_start_seconds,
@@ -2303,7 +2380,7 @@ class SceneManager(SceneInterface, events.EventManager):
             kind=PLAYBACK_KIND, data={'source': request.kind, 'frames': request.frame_count}
         )
         scene = rebuild_scene(
-            start=request.start, scene_class=request.scene_class, options=self.OPTIONS
+            start=request.start, scene_class=request.scene_class, options=self.engine_options
         )
         self._clear_frame_effects()
         # Made active by the steps a switch takes (the live scene is stashed, not cleaned up)
@@ -2777,7 +2854,7 @@ class SceneManager(SceneInterface, events.EventManager):
         """
         # Update FPS measurements at half the log interval for better accuracy
         # but still log at the specified interval
-        update_interval_ms = float(self.OPTIONS['fps_log_interval_ms']) / 2.0
+        update_interval_ms = float(self.engine_options['fps_log_interval_ms']) / 2.0
         return (current_time - previous_fps_time) * 1000 >= update_interval_ms
 
     def _post_fps_event(self) -> None:
@@ -2969,6 +3046,10 @@ class SceneManager(SceneInterface, events.EventManager):
             # No NAME: the version alone, without a leading space
             caption = f'{caption} v{self.active_scene.VERSION}'.strip()
 
+        # The window's caption is its owner's: an inner context never sets it (row S2 of
+        # plans/2026-10-25-engine-context.md; glitchygames/render_target.py)
+        if is_inner_context():
+            return
         pygame.display.set_caption(caption, caption)
 
     def _configure_scene_fps(self) -> None:
@@ -2976,7 +3057,7 @@ class SceneManager(SceneInterface, events.EventManager):
         assert self.active_scene is not None
         # Command line FPS takes precedence over scene FPS
         # Set the scene's target_fps to match the scene manager's target_fps
-        # (which comes from OPTIONS)
+        # (which comes from the engine's options)
         self.active_scene.target_fps = self.target_fps
 
     def _log_scene_rendering_info(self) -> None:
@@ -3014,7 +3095,7 @@ class SceneManager(SceneInterface, events.EventManager):
     def _apply_scene_fps(self) -> None:
         """Apply scene-specific FPS configuration."""
         # Don't override the scene manager's target_fps with the scene's target_fps
-        # The scene manager's target_fps comes from OPTIONS and should be maintained
+        # The scene manager's target_fps comes from the engine's options and should be maintained
         # The scene's target_fps is already set by _configure_scene_fps()
 
 
@@ -3051,6 +3132,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # A game's preferred default target FPS (0.0 = uncapped); None uses the engine default.
     # An explicit --target-fps on the command line always wins.
     TARGET_FPS: ClassVar[float | None] = None
+    # How many inner games (Arcade tiles, glitchygames/inner_game.py) this game runs at once as a
+    # host. Its engine declares their mixer channels with its own partition at construction, in
+    # one growth before anything plays (glitchygames.audio.reserve_inner_game_channels, Arcade
+    # sub-plan 4, decision 4); never declare them in setup(), after the CRT power-on's sound
+    # started. 0: no inner games.
+    INNER_GAMES: ClassVar[int] = 0
     # The longest frame time (seconds) this scene's dt_tick and camera aim receive; after a
     # hitch (a window drag, focus loss) they advance at most this much, so physics cannot
     # tunnel. None passes the real frame time. Pacing, FPS statistics and the frame services
@@ -3077,6 +3164,16 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # package directory (an absolute path is used as is), or None for no short names
     # (glitchygames/audio/engine.py; sound engine feature spec 3.2)
     SOUND_DIRECTORY: ClassVar[str | None] = 'sounds'
+    # Every sound the game plays, on the class it hands GameEngine: compiled when the game
+    # starts, in the CRT power-on's idle time, so none compiles mid-frame (and under
+    # --sound-cache disk a later launch reads them back). Complete sounds only: effects, a sound
+    # file's 'path#name' entries, mixes (a score on catalog instruments: audio/mix.py), live
+    # instruments (which compile nothing) and unpitched ones. A short name resolves through a
+    # scene, and none is active yet; a pitched instrument that is not live needs a pitch, which
+    # only a sound file's entry or a mix's part gives here (refused otherwise).
+    # Empty: a game that declares none makes no audio engine for them
+    # (glitchygames/audio/startup.py; plans/2026-11-14-sound-migration.md decision 6)
+    SOUNDS: ClassVar[Sequence[SoundSource]] = ()
 
     def __init__(
         self: Self,
@@ -3141,7 +3238,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # make every scene a reference cycle that only the cycle collector frees)
         self.next_scene: Scene | None = None
         self.rects = None
-        self.screen = pygame.display.get_surface()
+        self.screen = display_surface()
         assert self.screen is not None
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
@@ -3156,7 +3253,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         # Initial screen state.
 
-        self.screen = pygame.display.get_surface()
+        self.screen = display_surface()
         assert self.screen is not None
         # In the display's format (BUGS.md #143: convert() returns the converted surface)
         self.background = pygame.Surface(self.screen.get_size()).convert()

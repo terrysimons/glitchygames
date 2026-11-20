@@ -36,6 +36,16 @@ The comparison is off, and the summary says why, in CI (`CI=true`), with `--dumm
 iteration), when `SDL_VIDEODRIVER` or `SDL_AUDIODRIVER` is set (that driver runs alone), and on a
 Linux machine without a display.
 
+!!! warning "Stopping a child run leaves nothing running"
+    The native run and the image re-runs are stopped (an interrupted run, a timeout, the end of the
+    session) as Ctrl-C stops a pytest run: SIGINT to the run's process group first, which every
+    xdist worker turns into an orderly `KeyboardInterrupt`, so each test's cleanup runs; SIGTERM,
+    then SIGKILL, follow a run that does not end. SIGTERM first, as before, killed the workers at
+    once, and a child a test had started in a session of its own was left running (BUGS.md #275).
+    Each child run also has a temporary directory of its own (`--basetemp`, under the system's
+    temporary directory); when it ends, any process naming it, left by a worker that died outright,
+    is killed and listed in the summary (`left running by the cocoa run (now killed): ...`).
+
 ## Tests whose frames vary
 
 A test whose frames are not expected to match between runs or drivers is marked
@@ -58,7 +68,14 @@ N-way matrix (`scripts/driver_configurations.py` lists them and finds which run 
 | `x11-linux` | x11 in the Linux container of `nox -s test-linux-x11`, forwarded to XQuartz over TCP | macOS, XQuartz (TCP enabled), Docker |
 
 The runs go one after another with four workers each (the container's too), so the machine stays
-usable. `nox -s compare-drivers -- --drivers dummy,cocoa,x11-macos` chooses configurations
+usable; `-- --workers N` sets another count, and `-- --workers auto` uses every core. The pre-push
+hook passes `--workers auto`: a push is waited for, and on a 16-core Mac its three runs took 10
+minutes instead of 19, with every configuration agreeing and nothing more varying between the dummy
+runs (measured 2026-11-13). It also passes `--skip-when-frames-cannot-change`: a push that changes
+only plans, docs, the replay ledger's rows, CI configuration or Markdown at the repository's root
+cannot change a frame a test presents, so the comparison is skipped and says why (an allowlist:
+any other path, a new directory included, is compared; outside a push it always runs).
+`nox -s compare-drivers -- --drivers dummy,cocoa,x11-macos` chooses configurations
 (`dummy` is always added: it is the baseline; one that cannot run here is refused with the
 reason), and other arguments select tests (`-- tests/scenes`). The tests that differ anywhere are
 re-run on every configuration saving their differing frames, and every differing pair gets both
@@ -104,36 +121,49 @@ Both x11 configurations draw on XQuartz, a real X server with a window manager, 
 see what a real desktop does and the dummy driver never shows (measured 2026-10-23, SDL 2.32.10,
 XQuartz 2.8):
 
-- **Slow windows**: creating a window on XQuartz takes about 0.75 s, so `x11-macos` ran the
-  suite in 872 s (dummy 46 s, cocoa 110 s) and `x11-linux`, over TCP, in 552 s.
-- **Smallest window**: XQuartz's window manager widens a window narrower than 72 pixels (a
-  64x48 window becomes 72x48), so pygame warns "Requested window was forcibly resized by the
-  OS" (an error in this suite). Tests open windows at least 96 pixels wide.
-- **Late resizes**: resizing an existing window is asynchronous on x11. SDL waits 100 ms for
-  the window manager, then keeps the old size (pygame warns as above) and the new size arrives
-  on a later pump. On a loaded machine every resize came late (over TCP from the container, 8
-  processes resizing at once: 0.8-3.4 s), so a window changed from 800x600 to 800x480 reported
-  the old size. The engine and the tests set the display mode through
-  `glitchygames.display_mode.set_display_mode`, which pumps until the size changes and warns
-  only if the window ends at another size than the requested one.
-- **Real window events**: the X server sends focus, exposure and move events for the real
-  window; a recording made on x11 holds them, and tests that assume only the dummy driver's
-  window events see them. Its raw messages (pygame's `SYSWMEVENT`) stay blocked unless a game
-  opts in (`NATIVE_WINDOW_MESSAGES`); before 2026-10-23 the engine's allow-all enabled them,
-  filling queues, recordings and instant-replay journals.
-- **No OpenGL** (`x11-macos`): with OpenGL, SDL on macOS marks every window OpenGL, loading
-  XQuartz's libGL and Apple's Xplugin into the process, and draws window surfaces through an
-  OpenGL texture. Under load that ended pytest workers without a traceback (`GLXBadContext` in
-  `X_GLXMakeCurrent` through Xlib's default error handler; a crash in SkyLight on Xplugin's event
-  thread). The build leaves OpenGL out (`--disable-video-opengl`), so window surfaces are drawn
-  in software, as in the container, which has no libGL.
-- **Root in the container** (`x11-linux`): the container runs as root, who can read a file
-  without read permission, so `tests/templates/test_template_errors.py`'s permission test is
-  skipped there (an outcome difference, not a failure). It runs with an init process (`docker
-  run --init`) that reaps orphaned processes, as on a real system.
-- **Pixels**: no passing test drew different pixels on x11 than on dummy or cocoa; every x11
-  difference was a window size or a test's outcome (the two x11 configurations' pixels differed
-  only in the final frames of tests that had already failed on the widened window).
+Slow windows
+:   Creating a window on XQuartz takes about 0.75 s, so `x11-macos` ran the
+    suite in 872 s (dummy 46 s, cocoa 110 s) and `x11-linux`, over TCP, in 552 s.
+
+Smallest window
+:   XQuartz's window manager widens a window narrower than 72 pixels (a
+    64x48 window becomes 72x48), so pygame warns "Requested window was forcibly resized by the
+    OS" (an error in this suite). Tests open windows at least 96 pixels wide.
+
+Late resizes
+:   Resizing an existing window is asynchronous on x11. SDL waits 100 ms for
+    the window manager, then keeps the old size (pygame warns as above) and the new size arrives
+    on a later pump. On a loaded machine every resize came late (over TCP from the container, 8
+    processes resizing at once: 0.8-3.4 s), so a window changed from 800x600 to 800x480 reported
+    the old size. The engine and the tests set the display mode through
+    `glitchygames.display_mode.set_display_mode`, which pumps until the size changes and warns
+    only if the window ends at another size than the requested one.
+
+Real window events
+:   The X server sends focus, exposure and move events for the real
+    window; a recording made on x11 holds them, and tests that assume only the dummy driver's
+    window events see them. Its raw messages (pygame's `SYSWMEVENT`) stay blocked unless a game
+    opts in (`NATIVE_WINDOW_MESSAGES`); before 2026-10-23 the engine's allow-all enabled them,
+    filling queues, recordings and instant-replay journals.
+
+No OpenGL (`x11-macos`)
+:   With OpenGL, SDL on macOS marks every window OpenGL, loading
+    XQuartz's libGL and Apple's Xplugin into the process, and draws window surfaces through an
+    OpenGL texture. Under load that ended pytest workers without a traceback (`GLXBadContext` in
+    `X_GLXMakeCurrent` through Xlib's default error handler; a crash in SkyLight on Xplugin's event
+    thread). The build leaves OpenGL out (`--disable-video-opengl`), so window surfaces are drawn
+    in software, as in the container, which has no libGL.
+
+Root in the container (`x11-linux`)
+:   The container runs as root, who can read a file
+    without read permission, so `tests/templates/test_template_errors.py`'s permission test is
+    skipped there (an outcome difference, not a failure). It runs with an init process (`docker
+    run --init`) that reaps orphaned processes, as on a real system.
+
+Pixels
+:   No passing test drew different pixels on x11 than on dummy or cocoa; every x11
+    difference was a window size or a test's outcome (the two x11 configurations' pixels differed
+    only in the final frames of tests that had already failed on the widened window).
 
 ## Linux in Docker: `nox -s test-linux-x11`
 
@@ -153,10 +183,10 @@ plays theirs through PulseAudio too.
 
 `nox -s test-linux-x11` runs the suite on Linux for its drivers; `nox -s test-linux-ci` runs it
 the way CircleCI's Linux job does, to reproduce that job's failures here. It reads the job
-(`build-and-test-linux`) from `.circleci/config.yml`: its image (`cimg/python` at
-`PYTHON_LATEST_VERSION`), its resource class's memory and CPUs (`small`: 2 GB, no swap, and one
+(`test-python-3-15-linux`) from `.circleci/config.yml`: its image (`cimg/python` at
+`PYTHON_VERSION`), its resource class's memory and CPUs (`small`: 2 GB, no swap, and one
 CPU, given to `docker run` as `--memory`, `--memory-swap` and `--cpus`) and its environment
-(`PYTEST_WORKERS=0`: one serial process; `GLITCHYGAMES_TEST_RSS_LIMIT_MB=1600`:
+(`PYTEST_WORKERS=0`: one serial process; `GLITCHYGAMES_TEST_RSS_LIMIT_MB=1750`:
 `tests/memory_guard.py` stops the run past it, naming the test), with `CI=true` and
 `CIRCLECI=true`. The container gets what git would commit from this checkout: tracked files and
 untracked ones that are not ignored, uncommitted changes included, never an ignored file (the

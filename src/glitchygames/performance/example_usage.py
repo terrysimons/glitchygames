@@ -2,7 +2,7 @@
 
 import logging
 
-from glitchygames.performance import performance_manager
+from glitchygames.performance import AdaptiveClamping
 
 LOG = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class ExampleGameObject:
     def dt_tick(self, dt: float) -> None:
         """Update with adaptive delta time adjustment."""
         # Get adaptively adjusted delta time for consistent speed
-        dt = performance_manager.get_adaptive_dt(dt)
+        dt = AdaptiveClamping().get_adaptive_dt(dt)
 
         # Use the adjusted dt for movement
         self.x += self.speed * dt
@@ -32,7 +32,7 @@ class ExampleGameObject:
             str: The performance info.
 
         """
-        stats = performance_manager.get_performance_stats()
+        stats = AdaptiveClamping().get_performance_stats()
         return f'Avg FPS: {stats["avg_fps"]:.1f}, History: {stats["history_length"]} frames'
 
 

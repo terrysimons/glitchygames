@@ -33,12 +33,16 @@ class RenderedFrame:
         animation_index: Index of the animation (film strip) this frame belongs to
         frame_index: Index of the frame within its animation
         png_base64: Base64-encoded PNG data for this frame
+        duration_seconds: How long the frame shows, as the sprite loader read it
+            (``SpriteFrame.duration``: the frame's ``frame_interval``, else its animation's,
+            else the default); None when not known
 
     """
 
     animation_index: int
     frame_index: int
     png_base64: str
+    duration_seconds: float | None = None
 
 
 @dataclass
@@ -169,7 +173,10 @@ class RendererService:
                 sprite_path=temp_path, scale=scale, render_all_frames=render_all_frames
             )
         except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
-            LOG.exception('Failed to render sprite')
+            # A file that is not a sprite: the result says why, so one line here (the traceback
+            # only at debug level, for anyone investigating)
+            LOG.warning('Failed to render sprite: %s', e)
+            LOG.debug('Failed to render sprite', exc_info=e)
             return RenderResult(
                 success=False,
                 error=f'Failed to render sprite: {e}',
@@ -232,10 +239,10 @@ class RendererService:
         else:
             LOG.info('Sprite has no frame count method, type=%s', type(sprite).__name__)
 
-        # Render all frames if requested and sprite is animated
+        # Render all frames if requested: a sprite of one frame gives that one, with its duration
         rendered_frames = []
         LOG.info('render_all_frames=%s, frame_count=%s', render_all_frames, frame_count)
-        if render_all_frames and frame_count > 1:
+        if render_all_frames and frame_count >= 1:
             all_frames_base64, rendered_frames = self._render_all_frames(sprite, scale)
             LOG.info('Rendered %s frames', len(all_frames_base64))
         else:
@@ -374,6 +381,8 @@ class RendererService:
                             animation_index=animation_index,
                             frame_index=frame_index,
                             png_base64=png_base64,
+                            # Read as the frame's image is: any frame-like object
+                            duration_seconds=getattr(sprite_frame, 'duration', None),
                         ),
                     )
                 else:

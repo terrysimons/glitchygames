@@ -16,6 +16,7 @@ from collections.abc import Mapping
 import pygame
 import pytest
 
+from glitchygames.engine_context import EngineContext
 from glitchygames.events import (
     ALL_EVENTS,
     EVENT_CLASSES,
@@ -1121,6 +1122,24 @@ class TestResourceManager:
         assert second_manager is not first_manager
         assert second_manager.proxies[0].game is second_game
 
+    def test_each_context_has_its_own_shared_managers(self):
+        """A shared manager is shared within its context only (audit C12)."""
+        first = EngineContext(name='first')
+        second = EngineContext(name='second')
+        first_game = GameWithOptions(options={})
+        second_game = GameWithOptions(options={})
+        with first.active():
+            first_manager = MouseEventManager(game=first_game)
+        with second.active():
+            second_manager = MouseEventManager(game=second_game)
+            ResourceManager.release_shared_instances()
+        with first.active():
+            first_again = MouseEventManager()
+
+        assert second_manager is not first_manager
+        assert first_again is first_manager
+        assert first_again.proxies[0].game is first_game
+
 
 class TestCustomEventTypes:
     """FPSEVENT, GAMEEVENT and MENUEVENT come from pygame.event.custom_type() (BUGS.md #197)."""
@@ -1296,10 +1315,22 @@ class TestEventSystemUtilities:
         """Every call shares one scan of pygame's event names, and answers as before.
 
         The module's own calls at import already scanned them: the cache is emptied first, so
-        the count starts at none, and again after, so no later call keeps the spied scan.
+        the count starts at none, and again after, so no later call keeps the counted scan.
+
+        The scan is counted, not spied: a spy records each of its 65,535 calls, which raised the
+        test process's memory by about 70 MiB and pushed CircleCI's 2 GB Linux job past its
+        memory limit (2026-11-17).
         """
+        real_event_name = pygame.event.event_name
+        calls = 0
+
+        def counted_event_name(event_type: int) -> str:
+            nonlocal calls
+            calls += 1
+            return real_event_name(event_type)
+
         pygame_event_names.cache_clear()
-        scan = mocker.spy(pygame.event, 'event_name')
+        mocker.patch.object(pygame.event, 'event_name', new=counted_event_name)
         try:
             keyboard_events = supported_events(like='KEY.*?')
             every_event = supported_events()
@@ -1307,7 +1338,7 @@ class TestEventSystemUtilities:
         finally:
             pygame_event_names.cache_clear()
 
-        assert scan.call_count == pygame.NUMEVENTS
+        assert calls == pygame.NUMEVENTS
         assert sorted(keyboard_events) == sorted(KEYBOARD_EVENTS)
         assert sorted(every_event) == sorted(ALL_EVENTS)
         assert sorted(mouse_events) == sorted(MOUSE_EVENTS)
@@ -1355,10 +1386,6 @@ class TestEventSystemUtilities:
 
     def test_unhandled_event_debug_events_true(self, mocker):
         """Test unhandled_event with debug_events=True logs once per event type."""
-        from glitchygames.events import base as events_base
-
-        events_base._unhandled_event_types.discard(pygame.KEYDOWN)
-
         game = GameWithOptions(options={'debug_events': True, 'no_unhandled_events': False})
 
         event_to_report = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
@@ -1369,12 +1396,27 @@ class TestEventSystemUtilities:
 
         # Logs as warning (not error) with the event type name
         mock_log.warning.assert_called_once()
-        assert pygame.KEYDOWN in events_base._unhandled_event_types
 
         # Calling again with the same event type should NOT log again
         mock_log.warning.reset_mock()
         unhandled_event(game, event_to_report)
         mock_log.warning.assert_not_called()
+
+    def test_each_context_logs_an_unhandled_event_type_once(self, caplog):
+        """--debug-events logs each type once per context: a second game logs its own (C17)."""
+        game = GameWithOptions(options={'debug_events': True, 'no_unhandled_events': False})
+        event_to_report = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)
+        with caplog.at_level(logging.WARNING, logger='game.events'):
+            with EngineContext(name='first').active():
+                unhandled_event(game, event_to_report)
+                unhandled_event(game, event_to_report)
+            with EngineContext(name='second').active():
+                unhandled_event(game, event_to_report)
+
+        warnings = [
+            record for record in caplog.records if record.getMessage().startswith('Unhandled Event')
+        ]
+        assert len(warnings) == 2
 
     def test_unhandled_event_debug_events_none(self, mocker):
         """Test unhandled_event with debug_events=None logs error about missing option."""
@@ -1402,6 +1444,20 @@ class TestEventSystemUtilities:
         mock_log.warning.assert_not_called()
         mock_log.error.assert_not_called()
 
+    def test_unhandled_event_without_debug_events_reads_no_context_slot(self, mocker):
+        """Without --debug-events (the normal case) an unhandled event reads no context slot.
+
+        The logged-types set is read only to log, so a game that leaves a common type
+        unhandled (MOUSEMOTION) pays no slot read per event.
+        """
+        game = GameWithOptions(options={'debug_events': False, 'no_unhandled_events': False})
+        event_to_report = HashableEvent(pygame.MOUSEMOTION, pos=(1, 2), rel=(0, 0), buttons=())
+        context_lookup = mocker.spy(events_base, 'current_context')
+
+        unhandled_event(game, event_to_report)
+
+        context_lookup.assert_not_called()
+
     def test_unhandled_event_no_unhandled_events_none(self, mocker):
         """Test unhandled_event logs error when no_unhandled_events is None."""
         game = GameWithOptions(options={'debug_events': False, 'no_unhandled_events': None})
@@ -1421,10 +1477,6 @@ class TestEventSystemUtilities:
 
         Tests when debug_events=True and no_unhandled_events=False.
         """
-        from glitchygames.events import base as events_base
-
-        events_base._unhandled_event_types.discard(pygame.KEYDOWN)
-
         game = GameWithOptions(options={'debug_events': True, 'no_unhandled_events': False})
 
         event_to_report = HashableEvent(pygame.KEYDOWN, key=pygame.K_SPACE)

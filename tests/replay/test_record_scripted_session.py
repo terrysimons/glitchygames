@@ -78,6 +78,7 @@ def test_both_brave_adventurer_games_are_replayed_by_the_launcher():
         ('clockwork_keep', 'clockwork-keep'),
         ('paddleslap', 'paddleslap'),
         ('drawing_fire', 'drawing-fire'),
+        ('zombies_aint_my_neighbors', 'zombies-aint-my-neighbors'),
     ],
 )
 def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures(
@@ -93,15 +94,29 @@ def test_a_member_games_fixture_is_directly_in_the_members_replay_fixtures(
 
 
 @pytest.mark.parametrize(
-    ('game_key', 'golden'),
-    [('brave_adventurer', 'golden-classic'), ('brave_adventurer_papyrus', 'golden-papyrus')],
+    ('game_key', 'member_directory', 'golden'),
+    [
+        ('brave_adventurer', 'brave-adventurer', 'golden-classic'),
+        ('brave_adventurer_papyrus', 'brave-adventurer', 'golden-papyrus'),
+        (
+            'zombies_aint_my_neighbors_neighborhood',
+            'zombies-aint-my-neighbors',
+            'golden-neighborhood',
+        ),
+    ],
 )
-def test_the_games_of_a_member_with_several_name_their_goldens_apart(game_key, golden):
-    """Brave Adventurer's two games share their member's fixtures: golden-<game>.jsonl.gz."""
+def test_the_games_of_a_member_with_several_name_their_goldens_apart(
+    game_key, member_directory, golden
+):
+    """A member's goldens share its fixtures directory, so each is named golden-<game>.jsonl.gz.
+
+    Brave Adventurer holds one per edition; Zombies Ain't My Neighbors one for its title
+    (golden.jsonl.gz) and one for its neighborhood.
+    """
     path = fixture_path(game_key=game_key)
 
     assert path.relative_to(PROJECT_ROOT).as_posix() == (
-        f'src/games/brave-adventurer/tests/fixtures/replays/{golden}.jsonl.gz'
+        f'src/games/{member_directory}/tests/fixtures/replays/{golden}.jsonl.gz'
     )
     assert path.is_file()
 

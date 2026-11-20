@@ -118,6 +118,31 @@ def save_altered(*, mocker, find: str, replace: str) -> None:
     mocker.patch.object(AnimatedSprite, 'save', altered_save)
 
 
+class TestValuesMatchTheSchema:
+    """check_values_match_the_schema: the loaders' schema, checked on a shipped file."""
+
+    def test_a_valid_sprite_passes(self, tmp_path):
+        """Every value of the right type and range."""
+        sprite_file = write_sprite(directory=tmp_path, name='good.toml', text=STATIC_SPRITE)
+
+        sprite_files.check_values_match_the_schema(sprite_file=sprite_file)
+
+    def test_a_bad_value_fails_naming_the_file_and_field(self, tmp_path):
+        """A frame_interval of text: the assertion names the file and the field."""
+        sprite_file = write_sprite(
+            directory=tmp_path,
+            name='fast.toml',
+            text=(
+                '[sprite]\nname = "x"\n\n[[animation]]\nframe_interval = "fast"\n\n'
+                '[[animation.frame]]\npixels = "#"\n\n[colors."#"]\nred = 1\ngreen = 2\n'
+                'blue = 3\n'
+            ),
+        )
+
+        with pytest.raises(AssertionError, match=r'fast\.toml.*animation\.0\.frame_interval'):
+            sprite_files.check_values_match_the_schema(sprite_file=sprite_file)
+
+
 class TestRowsHaveEqualLengths:
     """check_rows_have_equal_lengths."""
 

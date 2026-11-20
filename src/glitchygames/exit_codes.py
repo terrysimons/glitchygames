@@ -2,7 +2,7 @@
 
 ``ExitCode`` is shared by the engine (``glitchygames/engine/game_engine.py``;
 ``glitchygames.engine`` re-exports it, so games and scripts can import it from the engine), the
-replay driver and audit (``glitchygames/replay/``) and the sprite API client
+replay driver and audit (``glitchygames/replay/``) and the sprite client
 (``glitchygames/api/client.py``). Every exit
 code is an ``ExitCode`` member; no code or test writes the number itself.
 
@@ -15,9 +15,10 @@ Code  Member                       Meaning
                                    it itself)
 3     ``AUDIT_NONDETERMINISTIC``   ``--audit``'s two runs differ from each other or from the
                                    recording
-4     ``GENERATION_REJECTED``      The API server rejected the client's sprite generation (an
-                                   error status, or a response that says it failed)
-5     ``EXTRACTION_REJECTED``      The API server rejected the client's frame extraction
+4     ``GENERATION_REJECTED``      The sprite client's generation failed (the AI's answer was not
+                                   a valid sprite, or nothing could be rendered)
+5     ``EXTRACTION_REJECTED``      The sprite client's frame extraction failed (not an APNG or a
+                                   sprite)
 6     ``AUDIO_DROPOUT_RISK``       ``scripts/audio_glitch_probe.py`` found a risk of audio
                                    dropouts
 7     ``REBASELINE_INPUT_LOST``    ``--rebaseline`` wrote the new recording, but the run never
@@ -29,9 +30,10 @@ Code  Member                       Meaning
                                    run)
 65    ``UNUSABLE_INPUT``           The recording or input data is unusable (another game's
                                    recording, an unsupported format version, a corrupt or
-                                   unreadable file, a bad server response)
+                                   unreadable file, a malformed response)
 66    ``MISSING_INPUT``            The input file does not exist
-69    ``SERVICE_UNAVAILABLE``      A required service (the API server) cannot be reached
+69    ``SERVICE_UNAVAILABLE``      A required service (the local AI service) is not installed,
+                                   cannot be reached, or answered an error
 70    ``INTERNAL_ERROR``           An internal error: an uncaught exception during a run (or in
                                    its teardown), or an audit that could not run (a replay child
                                    crashed, timed out or wrote no digests)
@@ -108,12 +110,11 @@ class ExitCode(enum.IntEnum):
     # --audit's two replay runs differ from each other or from the recording
     AUDIT_NONDETERMINISTIC = 3
 
-    # The API server rejected the client's sprite generation (an error status, or a response that
-    # says it failed)
+    # The sprite client's generation failed (the AI's answer was not a valid sprite, or nothing
+    # could be rendered)
     GENERATION_REJECTED = 4
 
-    # The API server rejected the client's frame extraction (an error status, or a response that
-    # says it failed)
+    # The sprite client's frame extraction failed (the file is not an APNG or a sprite)
     EXTRACTION_REJECTED = 5
 
     # scripts/audio_glitch_probe.py found a risk of audio dropouts
@@ -138,7 +139,8 @@ class ExitCode(enum.IntEnum):
     # The input file does not exist. Same value as Python's os.EX_NOINPUT (sysexits.h EX_NOINPUT)
     MISSING_INPUT = 66
 
-    # A required service (the API server) cannot be reached. Same value as Python's
+    # A required service (the local AI service) is not installed, cannot be reached, or answered
+    # an error. Same value as Python's
     # os.EX_UNAVAILABLE (sysexits.h EX_UNAVAILABLE)
     SERVICE_UNAVAILABLE = 69
 

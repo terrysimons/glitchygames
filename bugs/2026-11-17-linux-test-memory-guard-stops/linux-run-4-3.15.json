@@ -1,0 +1,1864 @@
+[
+ {
+  "file": "tests/ai/test_local_service.py",
+  "kept": 7.7,
+  "peak_rise": 7.8,
+  "after": 518.5,
+  "after_trim": 510.1
+ },
+ {
+  "file": "tests/ai/test_sprite_generator.py",
+  "kept": 1.2,
+  "peak_rise": 1.2,
+  "after": 511.4,
+  "after_trim": 510.5
+ },
+ {
+  "file": "tests/animation/test_animation.py",
+  "kept": 0.5,
+  "peak_rise": 0.5,
+  "after": 511.0,
+  "after_trim": 511.0
+ },
+ {
+  "file": "tests/animation/test_animation_hardware.py",
+  "kept": 24.2,
+  "peak_rise": 24.2,
+  "after": 535.1,
+  "after_trim": 513.6
+ },
+ {
+  "file": "tests/animation/test_animation_system_audit.py",
+  "kept": 2.0,
+  "peak_rise": 2.0,
+  "after": 515.6,
+  "after_trim": 515.5
+ },
+ {
+  "file": "tests/animation/test_animation_timing.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 515.5,
+  "after_trim": 515.5
+ },
+ {
+  "file": "tests/animation/test_animation_visual.py",
+  "kept": 19.9,
+  "peak_rise": 19.9,
+  "after": 535.4,
+  "after_trim": 513.8
+ },
+ {
+  "file": "tests/api/test_api_client.py",
+  "kept": 5.4,
+  "peak_rise": 5.4,
+  "after": 519.2,
+  "after_trim": 516.4
+ },
+ {
+  "file": "tests/api/test_api_dependencies.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 516.5,
+  "after_trim": 516.4
+ },
+ {
+  "file": "tests/api/test_api_main.py",
+  "kept": 6.1,
+  "peak_rise": 6.2,
+  "after": 522.6,
+  "after_trim": 520.6
+ },
+ {
+  "file": "tests/api/test_api_routes_sprites.py",
+  "kept": 0.9,
+  "peak_rise": 0.9,
+  "after": 521.5,
+  "after_trim": 521.4
+ },
+ {
+  "file": "tests/api/test_sprite_models.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 521.4,
+  "after_trim": 521.4
+ },
+ {
+  "file": "tests/api/test_sprite_routes.py",
+  "kept": 3.6,
+  "peak_rise": 3.6,
+  "after": 525.0,
+  "after_trim": 523.0
+ },
+ {
+  "file": "tests/audio/test_assets.py",
+  "kept": 1.5,
+  "peak_rise": 1.5,
+  "after": 524.6,
+  "after_trim": 524.5
+ },
+ {
+  "file": "tests/audio/test_audio_accounting.py",
+  "kept": 1.1,
+  "peak_rise": 1.1,
+  "after": 525.5,
+  "after_trim": 525.3
+ },
+ {
+  "file": "tests/audio/test_audio_engine.py",
+  "kept": 38.5,
+  "peak_rise": 38.5,
+  "after": 563.8,
+  "after_trim": 530.3
+ },
+ {
+  "file": "tests/audio/test_audio_engine_goldens.py",
+  "kept": 4.4,
+  "peak_rise": 4.4,
+  "after": 534.8,
+  "after_trim": 530.3
+ },
+ {
+  "file": "tests/audio/test_audio_engine_integration.py",
+  "kept": 33.1,
+  "peak_rise": 78.4,
+  "after": 563.4,
+  "after_trim": 553.7
+ },
+ {
+  "file": "tests/audio/test_buses.py",
+  "kept": 1.8,
+  "peak_rise": 1.8,
+  "after": 555.5,
+  "after_trim": 555.5
+ },
+ {
+  "file": "tests/audio/test_channel_fades.py",
+  "kept": 16.3,
+  "peak_rise": 16.3,
+  "after": 571.8,
+  "after_trim": 556.1
+ },
+ {
+  "file": "tests/audio/test_channel_partition.py",
+  "kept": 10.5,
+  "peak_rise": 10.5,
+  "after": 566.6,
+  "after_trim": 557.5
+ },
+ {
+  "file": "tests/audio/test_controller_audio.py",
+  "kept": 0.3,
+  "peak_rise": 0.3,
+  "after": 557.8,
+  "after_trim": 557.8
+ },
+ {
+  "file": "tests/audio/test_diagnostics.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 558.0,
+  "after_trim": 557.9
+ },
+ {
+  "file": "tests/audio/test_disk_cache.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 558.0,
+  "after_trim": 558.0
+ },
+ {
+  "file": "tests/audio/test_effects.py",
+  "kept": 4.0,
+  "peak_rise": 4.0,
+  "after": 562.0,
+  "after_trim": 558.6
+ },
+ {
+  "file": "tests/audio/test_instrument_catalog.py",
+  "kept": 197.8,
+  "peak_rise": 197.8,
+  "after": 756.4,
+  "after_trim": 589.2
+ },
+ {
+  "file": "tests/audio/test_live.py",
+  "kept": 1.3,
+  "peak_rise": 1.3,
+  "after": 590.5,
+  "after_trim": 589.4
+ },
+ {
+  "file": "tests/audio/test_live_controls.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 589.5,
+  "after_trim": 589.4
+ },
+ {
+  "file": "tests/audio/test_live_instrument.py",
+  "kept": 1.7,
+  "peak_rise": 2.6,
+  "after": 591.1,
+  "after_trim": 588.3
+ },
+ {
+  "file": "tests/audio/test_offline.py",
+  "kept": 11.1,
+  "peak_rise": 11.1,
+  "after": 599.5,
+  "after_trim": 588.7
+ },
+ {
+  "file": "tests/audio/test_pitch.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 588.7,
+  "after_trim": 588.7
+ },
+ {
+  "file": "tests/audio/test_render_aliasing.py",
+  "kept": 10.6,
+  "peak_rise": 10.6,
+  "after": 599.3,
+  "after_trim": 588.7
+ },
+ {
+  "file": "tests/audio/test_render_effects.py",
+  "kept": 14.8,
+  "peak_rise": 14.8,
+  "after": 603.5,
+  "after_trim": 588.9
+ },
+ {
+  "file": "tests/audio/test_render_envelopes.py",
+  "kept": 5.4,
+  "peak_rise": 5.4,
+  "after": 594.3,
+  "after_trim": 589.0
+ },
+ {
+  "file": "tests/audio/test_render_fuzz.py",
+  "kept": 11.3,
+  "peak_rise": 11.3,
+  "after": 600.3,
+  "after_trim": 597.6
+ },
+ {
+  "file": "tests/audio/test_render_layers.py",
+  "kept": 13.4,
+  "peak_rise": 13.4,
+  "after": 611.0,
+  "after_trim": 597.6
+ },
+ {
+  "file": "tests/audio/test_render_noise.py",
+  "kept": 1.3,
+  "peak_rise": 1.3,
+  "after": 599.0,
+  "after_trim": 597.6
+ },
+ {
+  "file": "tests/audio/test_render_notes_and_chords.py",
+  "kept": 14.3,
+  "peak_rise": 14.3,
+  "after": 611.9,
+  "after_trim": 597.6
+ },
+ {
+  "file": "tests/audio/test_render_pitch_accuracy.py",
+  "kept": 14.1,
+  "peak_rise": 14.1,
+  "after": 611.7,
+  "after_trim": 597.6
+ },
+ {
+  "file": "tests/audio/test_render_pitch_curves.py",
+  "kept": 13.9,
+  "peak_rise": 13.9,
+  "after": 611.6,
+  "after_trim": 597.7
+ },
+ {
+  "file": "tests/audio/test_route.py",
+  "kept": 8.0,
+  "peak_rise": 8.0,
+  "after": 605.7,
+  "after_trim": 597.7
+ },
+ {
+  "file": "tests/audio/test_sound_cache.py",
+  "kept": 17.1,
+  "peak_rise": 17.1,
+  "after": 614.9,
+  "after_trim": 600.0
+ },
+ {
+  "file": "tests/audio/test_sound_handles.py",
+  "kept": 1.9,
+  "peak_rise": 1.9,
+  "after": 601.9,
+  "after_trim": 600.4
+ },
+ {
+  "file": "tests/audio/test_sound_library.py",
+  "kept": 12.6,
+  "peak_rise": 13.5,
+  "after": 613.1,
+  "after_trim": 600.5
+ },
+ {
+  "file": "tests/audio/test_sound_library_replays.py",
+  "kept": 36.3,
+  "peak_rise": 36.3,
+  "after": 636.9,
+  "after_trim": 606.8
+ },
+ {
+  "file": "tests/audio/test_sound_names.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 606.9,
+  "after_trim": 606.8
+ },
+ {
+  "file": "tests/audio/test_sound_spec.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 607.0,
+  "after_trim": 606.8
+ },
+ {
+  "file": "tests/audio/test_startup_sounds.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 606.9,
+  "after_trim": 606.8
+ },
+ {
+  "file": "tests/audio/test_synth.py",
+  "kept": 3.5,
+  "peak_rise": 3.5,
+  "after": 610.4,
+  "after_trim": 606.9
+ },
+ {
+  "file": "tests/audio/test_tts.py",
+  "kept": 1.4,
+  "peak_rise": 1.4,
+  "after": 608.3,
+  "after_trim": 607.6
+ },
+ {
+  "file": "tests/audio/test_voice_assistant.py",
+  "kept": 0.9,
+  "peak_rise": 0.9,
+  "after": 608.6,
+  "after_trim": 608.1
+ },
+ {
+  "file": "tests/audio/test_voices.py",
+  "kept": 12.5,
+  "peak_rise": 12.5,
+  "after": 620.6,
+  "after_trim": 608.3
+ },
+ {
+  "file": "tests/audio/test_waves.py",
+  "kept": 2.7,
+  "peak_rise": 2.7,
+  "after": 611.0,
+  "after_trim": 610.8
+ },
+ {
+  "file": "tests/benchmarks/test_benchmarks.py",
+  "kept": 30.2,
+  "peak_rise": 31.2,
+  "after": 641.0,
+  "after_trim": 632.6
+ },
+ {
+  "file": "tests/benchmarks/test_channel_fade_relations.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 632.6,
+  "after_trim": 632.6
+ },
+ {
+  "file": "tests/benchmarks/test_engine_context_benchmarks.py",
+  "kept": 35.6,
+  "peak_rise": 35.6,
+  "after": 668.3,
+  "after_trim": 648.0
+ },
+ {
+  "file": "tests/benchmarks/test_logging_cost.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 648.1,
+  "after_trim": 648.0
+ },
+ {
+  "file": "tests/collision/test_ball_paddle_collision.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 648.3,
+  "after_trim": 648.1
+ },
+ {
+  "file": "tests/collision/test_ball_visible_walls.py",
+  "kept": 1.1,
+  "peak_rise": 1.1,
+  "after": 649.3,
+  "after_trim": 649.1
+ },
+ {
+  "file": "tests/collision/test_collision.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 649.1,
+  "after_trim": 649.1
+ },
+ {
+  "file": "tests/collision/test_solids.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 649.1,
+  "after_trim": 649.1
+ },
+ {
+  "file": "tests/color/test_constants.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 649.1,
+  "after_trim": 649.1
+ },
+ {
+  "file": "tests/color/test_palette.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 649.4,
+  "after_trim": 649.2
+ },
+ {
+  "file": "tests/debug/test_audio_panel.py",
+  "kept": 5.3,
+  "peak_rise": 5.3,
+  "after": 654.5,
+  "after_trim": 651.5
+ },
+ {
+  "file": "tests/debug/test_manager_overlay.py",
+  "kept": 4.5,
+  "peak_rise": 4.5,
+  "after": 656.1,
+  "after_trim": 651.7
+ },
+ {
+  "file": "tests/debug/test_overlay_state.py",
+  "kept": 1.1,
+  "peak_rise": 1.1,
+  "after": 652.8,
+  "after_trim": 651.7
+ },
+ {
+  "file": "tests/debug/test_panels_hud.py",
+  "kept": 3.4,
+  "peak_rise": 3.4,
+  "after": 655.2,
+  "after_trim": 651.8
+ },
+ {
+  "file": "tests/debug/test_panels_world.py",
+  "kept": 0.7,
+  "peak_rise": 0.7,
+  "after": 652.6,
+  "after_trim": 652.0
+ },
+ {
+  "file": "tests/effects/test_easing.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 652.2,
+  "after_trim": 652.1
+ },
+ {
+  "file": "tests/effects/test_shake.py",
+  "kept": 7.5,
+  "peak_rise": 7.5,
+  "after": 659.6,
+  "after_trim": 652.2
+ },
+ {
+  "file": "tests/effects/test_tween.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 652.2,
+  "after_trim": 652.2
+ },
+ {
+  "file": "tests/effects/test_tween_composition.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 652.3,
+  "after_trim": 652.2
+ },
+ {
+  "file": "tests/effects/test_tween_manager.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 652.3,
+  "after_trim": 652.3
+ },
+ {
+  "file": "tests/engine/test_engine_ai_connection.py",
+  "kept": 10.4,
+  "peak_rise": 10.5,
+  "after": 662.7,
+  "after_trim": 654.9
+ },
+ {
+  "file": "tests/engine/test_engine_contexts_side_by_side.py",
+  "kept": 5.5,
+  "peak_rise": 5.5,
+  "after": 660.5,
+  "after_trim": 655.0
+ },
+ {
+  "file": "tests/engine/test_engine_event_system.py",
+  "kept": 3.4,
+  "peak_rise": 3.4,
+  "after": 658.4,
+  "after_trim": 655.3
+ },
+ {
+  "file": "tests/engine/test_engine_initialization.py",
+  "kept": 3.6,
+  "peak_rise": 3.6,
+  "after": 658.9,
+  "after_trim": 655.5
+ },
+ {
+  "file": "tests/engine/test_engine_lifecycle.py",
+  "kept": 14.4,
+  "peak_rise": 14.4,
+  "after": 670.0,
+  "after_trim": 657.4
+ },
+ {
+  "file": "tests/engine/test_engine_properties.py",
+  "kept": 2.1,
+  "peak_rise": 2.1,
+  "after": 659.5,
+  "after_trim": 657.4
+ },
+ {
+  "file": "tests/engine/test_engine_sources.py",
+  "kept": 1.8,
+  "peak_rise": 1.8,
+  "after": 659.2,
+  "after_trim": 657.4
+ },
+ {
+  "file": "tests/engine/test_every_game_powers_on.py",
+  "kept": 53.1,
+  "peak_rise": 53.1,
+  "after": 710.6,
+  "after_trim": 662.3
+ },
+ {
+  "file": "tests/engine/test_game_engine.py",
+  "kept": 31.1,
+  "peak_rise": 31.1,
+  "after": 693.4,
+  "after_trim": 666.7
+ },
+ {
+  "file": "tests/engine/test_inner_engine.py",
+  "kept": 2.9,
+  "peak_rise": 2.9,
+  "after": 669.5,
+  "after_trim": 666.8
+ },
+ {
+  "file": "tests/engine/test_inner_game.py",
+  "kept": 22.2,
+  "peak_rise": 22.2,
+  "after": 689.0,
+  "after_trim": 670.5
+ },
+ {
+  "file": "tests/engine/test_startup_options_block.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 670.5,
+  "after_trim": 670.5
+ },
+ {
+  "file": "tests/engine/test_timer_args.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 670.5,
+  "after_trim": 670.5
+ },
+ {
+  "file": "tests/events/test_app_events.py",
+  "kept": 5.5,
+  "peak_rise": 5.5,
+  "after": 676.0,
+  "after_trim": 672.3
+ },
+ {
+  "file": "tests/events/test_audio_events.py",
+  "kept": 5.6,
+  "peak_rise": 5.6,
+  "after": 677.9,
+  "after_trim": 672.3
+ },
+ {
+  "file": "tests/events/test_controller_events.py",
+  "kept": 18.8,
+  "peak_rise": 18.8,
+  "after": 691.2,
+  "after_trim": 683.4
+ },
+ {
+  "file": "tests/events/test_drop_events.py",
+  "kept": 3.7,
+  "peak_rise": 3.7,
+  "after": 687.1,
+  "after_trim": 683.4
+ },
+ {
+  "file": "tests/events/test_event_stubs.py",
+  "kept": 0.5,
+  "peak_rise": 0.5,
+  "after": 683.9,
+  "after_trim": 683.7
+ },
+ {
+  "file": "tests/events/test_events_core.py",
+  "kept": 5.5,
+  "peak_rise": 5.5,
+  "after": 689.3,
+  "after_trim": 685.5
+ },
+ {
+  "file": "tests/events/test_events_font_events.py",
+  "kept": 4.1,
+  "peak_rise": 4.1,
+  "after": 689.6,
+  "after_trim": 685.7
+ },
+ {
+  "file": "tests/events/test_events_integration.py",
+  "kept": 10.0,
+  "peak_rise": 10.0,
+  "after": 695.8,
+  "after_trim": 685.8
+ },
+ {
+  "file": "tests/events/test_game_events.py",
+  "kept": 4.1,
+  "peak_rise": 4.1,
+  "after": 690.0,
+  "after_trim": 686.2
+ },
+ {
+  "file": "tests/events/test_joystick_events.py",
+  "kept": 12.9,
+  "peak_rise": 12.9,
+  "after": 699.1,
+  "after_trim": 687.2
+ },
+ {
+  "file": "tests/events/test_keyboard_events.py",
+  "kept": 7.4,
+  "peak_rise": 7.4,
+  "after": 694.7,
+  "after_trim": 687.3
+ },
+ {
+  "file": "tests/events/test_midi_events.py",
+  "kept": 5.6,
+  "peak_rise": 5.6,
+  "after": 693.0,
+  "after_trim": 687.5
+ },
+ {
+  "file": "tests/events/test_mouse_events.py",
+  "kept": 16.9,
+  "peak_rise": 16.9,
+  "after": 704.4,
+  "after_trim": 688.1
+ },
+ {
+  "file": "tests/events/test_text_events.py",
+  "kept": 3.7,
+  "peak_rise": 3.7,
+  "after": 691.9,
+  "after_trim": 688.2
+ },
+ {
+  "file": "tests/events/test_touch_events.py",
+  "kept": 3.9,
+  "peak_rise": 3.9,
+  "after": 692.1,
+  "after_trim": 688.4
+ },
+ {
+  "file": "tests/events/test_voice.py",
+  "kept": 1.6,
+  "peak_rise": 1.6,
+  "after": 690.1,
+  "after_trim": 689.7
+ },
+ {
+  "file": "tests/events/test_voice_backends.py",
+  "kept": 0.4,
+  "peak_rise": 0.4,
+  "after": 690.3,
+  "after_trim": 689.8
+ },
+ {
+  "file": "tests/events/test_voice_miniaudio.py",
+  "kept": 0.5,
+  "peak_rise": 0.5,
+  "after": 690.3,
+  "after_trim": 689.8
+ },
+ {
+  "file": "tests/events/test_voice_portaudio.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 690.0,
+  "after_trim": 689.9
+ },
+ {
+  "file": "tests/events/test_window_events.py",
+  "kept": 3.8,
+  "peak_rise": 3.8,
+  "after": 693.7,
+  "after_trim": 690.0
+ },
+ {
+  "file": "tests/fonts/test_font_manager.py",
+  "kept": 1.5,
+  "peak_rise": 1.5,
+  "after": 691.6,
+  "after_trim": 690.5
+ },
+ {
+  "file": "tests/game_objects/test_ball.py",
+  "kept": 47.3,
+  "peak_rise": 47.3,
+  "after": 737.9,
+  "after_trim": 700.8
+ },
+ {
+  "file": "tests/game_objects/test_ball_bounce_configuration.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 700.9,
+  "after_trim": 700.9
+ },
+ {
+  "file": "tests/game_objects/test_ball_boundary_physics.py",
+  "kept": 0.2,
+  "peak_rise": 0.1,
+  "after": 701.1,
+  "after_trim": 701.0
+ },
+ {
+  "file": "tests/game_objects/test_ball_collision_energy_transfer.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 701.1,
+  "after_trim": 701.1
+ },
+ {
+  "file": "tests/game_objects/test_ball_collision_physics.py",
+  "kept": 0.3,
+  "peak_rise": 0.3,
+  "after": 701.4,
+  "after_trim": 701.3
+ },
+ {
+  "file": "tests/game_objects/test_ball_combined_speedup.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 701.4,
+  "after_trim": 701.3
+ },
+ {
+  "file": "tests/game_objects/test_ball_direction_preservation.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 701.4,
+  "after_trim": 701.4
+ },
+ {
+  "file": "tests/game_objects/test_ball_dt_tick.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 701.5,
+  "after_trim": 701.4
+ },
+ {
+  "file": "tests/game_objects/test_ball_exponential_speedup.py",
+  "kept": 0.4,
+  "peak_rise": 0.4,
+  "after": 701.9,
+  "after_trim": 701.7
+ },
+ {
+  "file": "tests/game_objects/test_ball_linear_speedup.py",
+  "kept": 0.3,
+  "peak_rise": 0.3,
+  "after": 702.0,
+  "after_trim": 702.0
+ },
+ {
+  "file": "tests/game_objects/test_ball_logarithmic_speedup.py",
+  "kept": 0.3,
+  "peak_rise": 0.3,
+  "after": 702.3,
+  "after_trim": 702.3
+ },
+ {
+  "file": "tests/game_objects/test_ball_math_fast.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 702.3,
+  "after_trim": 702.3
+ },
+ {
+  "file": "tests/game_objects/test_ball_speed_behavior.py",
+  "kept": 0.1,
+  "peak_rise": 0.0,
+  "after": 702.4,
+  "after_trim": 696.0
+ },
+ {
+  "file": "tests/game_objects/test_ball_speed_up.py",
+  "kept": 15.3,
+  "peak_rise": 15.3,
+  "after": 711.3,
+  "after_trim": 711.3
+ },
+ {
+  "file": "tests/game_objects/test_ball_speed_up_modes.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 711.4,
+  "after_trim": 711.4
+ },
+ {
+  "file": "tests/game_objects/test_ball_trajectory.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 711.4,
+  "after_trim": 711.4
+ },
+ {
+  "file": "tests/game_objects/test_collision_edge_cases.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 711.4,
+  "after_trim": 711.4
+ },
+ {
+  "file": "tests/game_objects/test_collision_physics.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 711.4,
+  "after_trim": 711.4
+ },
+ {
+  "file": "tests/game_objects/test_collision_scenarios.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 711.6,
+  "after_trim": 711.6
+ },
+ {
+  "file": "tests/game_objects/test_diagonal_collision.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 711.6,
+  "after_trim": 711.6
+ },
+ {
+  "file": "tests/game_objects/test_game_over_scene.py",
+  "kept": 45.5,
+  "peak_rise": 45.5,
+  "after": 757.1,
+  "after_trim": 712.0
+ },
+ {
+  "file": "tests/game_objects/test_multi_ball_ball_collision_bounce.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 712.0,
+  "after_trim": 710.2
+ },
+ {
+  "file": "tests/game_objects/test_multi_ball_ball_collision_clip.py",
+  "kept": 1.8,
+  "peak_rise": 1.8,
+  "after": 712.0,
+  "after_trim": 710.2
+ },
+ {
+  "file": "tests/game_objects/test_multi_ball_bounce_trajectories.py",
+  "kept": 2.4,
+  "peak_rise": 2.4,
+  "after": 712.6,
+  "after_trim": 710.7
+ },
+ {
+  "file": "tests/game_objects/test_multi_ball_no_bounce.py",
+  "kept": 1.8,
+  "peak_rise": 1.8,
+  "after": 712.6,
+  "after_trim": 710.7
+ },
+ {
+  "file": "tests/game_objects/test_multi_ball_wall_bounce.py",
+  "kept": 1.9,
+  "peak_rise": 1.9,
+  "after": 712.7,
+  "after_trim": 710.7
+ },
+ {
+  "file": "tests/game_objects/test_paddle.py",
+  "kept": 21.3,
+  "peak_rise": 21.3,
+  "after": 732.1,
+  "after_trim": 712.8
+ },
+ {
+  "file": "tests/game_objects/test_paddle_dt_tick.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 712.8,
+  "after_trim": 712.8
+ },
+ {
+  "file": "tests/game_objects/test_zero_speed.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 712.8,
+  "after_trim": 712.8
+ },
+ {
+  "file": "tests/input/test_action_map.py",
+  "kept": 0.3,
+  "peak_rise": 0.3,
+  "after": 713.2,
+  "after_trim": 713.1
+ },
+ {
+  "file": "tests/input/test_device_listing.py",
+  "kept": 0.3,
+  "peak_rise": 0.3,
+  "after": 713.5,
+  "after_trim": 713.4
+ },
+ {
+  "file": "tests/input/test_devices.py",
+  "kept": 1.0,
+  "peak_rise": 1.0,
+  "after": 714.5,
+  "after_trim": 714.2
+ },
+ {
+  "file": "tests/input/test_input_devices.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 714.4,
+  "after_trim": 714.3
+ },
+ {
+  "file": "tests/input/test_input_state.py",
+  "kept": 1.0,
+  "peak_rise": 1.0,
+  "after": 715.4,
+  "after_trim": 715.0
+ },
+ {
+  "file": "tests/input/test_rumble.py",
+  "kept": 0.5,
+  "peak_rise": 0.5,
+  "after": 715.6,
+  "after_trim": 715.4
+ },
+ {
+  "file": "tests/interfaces/test_interfaces_meta.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 715.5,
+  "after_trim": 715.4
+ },
+ {
+  "file": "tests/interfaces/test_interfaces_scene.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 715.5,
+  "after_trim": 715.4
+ },
+ {
+  "file": "tests/interfaces/test_interfaces_sprite.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 715.7,
+  "after_trim": 715.5
+ },
+ {
+  "file": "tests/movement/test_movement.py",
+  "kept": 0.4,
+  "peak_rise": 0.4,
+  "after": 716.0,
+  "after_trim": 715.7
+ },
+ {
+  "file": "tests/movement/test_movement_horizontal.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 715.8,
+  "after_trim": 715.7
+ },
+ {
+  "file": "tests/movement/test_movement_integration.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 715.9,
+  "after_trim": 715.8
+ },
+ {
+  "file": "tests/movement/test_movement_speed.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 716.0,
+  "after_trim": 715.9
+ },
+ {
+  "file": "tests/movement/test_movement_vertical.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 716.0,
+  "after_trim": 715.9
+ },
+ {
+  "file": "tests/performance/test_adaptive_clamping.py",
+  "kept": 8.1,
+  "peak_rise": 17.0,
+  "after": 724.1,
+  "after_trim": 719.0
+ },
+ {
+  "file": "tests/performance/test_example_usage.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 719.0,
+  "after_trim": 719.0
+ },
+ {
+  "file": "tests/physics/test_physics.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 719.1,
+  "after_trim": 719.1
+ },
+ {
+  "file": "tests/pixels/test_pixels.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 719.2,
+  "after_trim": 719.1
+ },
+ {
+  "file": "tests/replay/test_a_golden_replay_compares.py",
+  "kept": 25.3,
+  "peak_rise": 25.3,
+  "after": 744.5,
+  "after_trim": 721.8
+ },
+ {
+  "file": "tests/replay/test_bundled_demos.py",
+  "kept": 12.0,
+  "peak_rise": 12.0,
+  "after": 733.9,
+  "after_trim": 721.9
+ },
+ {
+  "file": "tests/replay/test_committed_recordings_present_every_frame.py",
+  "kept": 55.0,
+  "peak_rise": 80.2,
+  "after": 777.0,
+  "after_trim": 749.5
+ },
+ {
+  "file": "tests/replay/test_controls.py",
+  "kept": 0.1,
+  "peak_rise": 0.3,
+  "after": 749.7,
+  "after_trim": 748.6
+ },
+ {
+  "file": "tests/replay/test_ghosts.py",
+  "kept": 2.1,
+  "peak_rise": 2.1,
+  "after": 750.7,
+  "after_trim": 750.6
+ },
+ {
+  "file": "tests/replay/test_golden_replays.py",
+  "kept": 15.8,
+  "peak_rise": 15.8,
+  "after": 766.6,
+  "after_trim": 750.9
+ },
+ {
+  "file": "tests/replay/test_instant_replay.py",
+  "kept": 43.1,
+  "peak_rise": 43.1,
+  "after": 794.0,
+  "after_trim": 751.7
+ },
+ {
+  "file": "tests/replay/test_playback_scope.py",
+  "kept": 49.1,
+  "peak_rise": 49.1,
+  "after": 800.8,
+  "after_trim": 751.8
+ },
+ {
+  "file": "tests/replay/test_processing_comparison.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 752.0,
+  "after_trim": 751.9
+ },
+ {
+  "file": "tests/replay/test_rebaseline_across_logical_modules.py",
+  "kept": 0.8,
+  "peak_rise": 0.8,
+  "after": 752.8,
+  "after_trim": 751.9
+ },
+ {
+  "file": "tests/replay/test_rebuild.py",
+  "kept": 0.7,
+  "peak_rise": 0.7,
+  "after": 752.6,
+  "after_trim": 752.1
+ },
+ {
+  "file": "tests/replay/test_record_scripted_session.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 752.2,
+  "after_trim": 752.1
+ },
+ {
+  "file": "tests/replay/test_recording_logical_names.py",
+  "kept": 29.4,
+  "peak_rise": 38.7,
+  "after": 781.6,
+  "after_trim": 768.0
+ },
+ {
+  "file": "tests/replay/test_removed_sprites_are_freed.py",
+  "kept": -0.0,
+  "peak_rise": 0.0,
+  "after": 768.0,
+  "after_trim": 767.9
+ },
+ {
+  "file": "tests/replay/test_replay_plugin.py",
+  "kept": 4.9,
+  "peak_rise": 4.9,
+  "after": 772.9,
+  "after_trim": 766.2
+ },
+ {
+  "file": "tests/replay/test_replays_log_quietly.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 766.3,
+  "after_trim": 766.2
+ },
+ {
+  "file": "tests/replay/test_reseeded_replays.py",
+  "kept": 12.6,
+  "peak_rise": 12.6,
+  "after": 778.9,
+  "after_trim": 766.4
+ },
+ {
+  "file": "tests/replay/test_viewer.py",
+  "kept": 26.3,
+  "peak_rise": 43.5,
+  "after": 792.9,
+  "after_trim": 781.7
+ },
+ {
+  "file": "tests/replay/tools/test_an_unseen_game.py",
+  "kept": 0.6,
+  "peak_rise": 0.6,
+  "after": 782.4,
+  "after_trim": 781.8
+ },
+ {
+  "file": "tests/replay/tools/test_children.py",
+  "kept": 1.0,
+  "peak_rise": 1.0,
+  "after": 782.9,
+  "after_trim": 781.9
+ },
+ {
+  "file": "tests/replay/tools/test_command_crash_boundary.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 782.2,
+  "after_trim": 782.1
+ },
+ {
+  "file": "tests/replay/tools/test_compare_trace.py",
+  "kept": 18.7,
+  "peak_rise": 18.7,
+  "after": 800.9,
+  "after_trim": 785.4
+ },
+ {
+  "file": "tests/replay/tools/test_golden_trace_harness.py",
+  "kept": 19.1,
+  "peak_rise": 19.1,
+  "after": 804.6,
+  "after_trim": 785.4
+ },
+ {
+  "file": "tests/replay/tools/test_identity.py",
+  "kept": 8.4,
+  "peak_rise": 8.4,
+  "after": 793.8,
+  "after_trim": 785.5
+ },
+ {
+  "file": "tests/replay/tools/test_measure.py",
+  "kept": 0.9,
+  "peak_rise": 0.9,
+  "after": 786.4,
+  "after_trim": 786.2
+ },
+ {
+  "file": "tests/replay/tools/test_performance_pages.py",
+  "kept": 0.4,
+  "peak_rise": 0.4,
+  "after": 786.7,
+  "after_trim": 786.6
+ },
+ {
+  "file": "tests/replay/tools/test_provenance.py",
+  "kept": 1.4,
+  "peak_rise": 1.4,
+  "after": 788.0,
+  "after_trim": 786.6
+ },
+ {
+  "file": "tests/replay/tools/test_random_seed.py",
+  "kept": 5.0,
+  "peak_rise": 5.0,
+  "after": 791.7,
+  "after_trim": 786.7
+ },
+ {
+  "file": "tests/replay/tools/test_recordings.py",
+  "kept": 0.6,
+  "peak_rise": 0.6,
+  "after": 787.4,
+  "after_trim": 786.7
+ },
+ {
+  "file": "tests/replay/tools/test_registry.py",
+  "kept": 0.6,
+  "peak_rise": 0.6,
+  "after": 787.4,
+  "after_trim": 786.7
+ },
+ {
+  "file": "tests/replay/tools/test_report.py",
+  "kept": 0.4,
+  "peak_rise": 0.4,
+  "after": 787.3,
+  "after_trim": 786.8
+ },
+ {
+  "file": "tests/replay/tools/test_scripted_sessions.py",
+  "kept": 31.5,
+  "peak_rise": 31.5,
+  "after": 818.5,
+  "after_trim": 787.2
+ },
+ {
+  "file": "tests/replay/tools/test_settings.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 787.4,
+  "after_trim": 787.2
+ },
+ {
+  "file": "tests/replay/tools/test_sound_tools.py",
+  "kept": 2.3,
+  "peak_rise": 2.3,
+  "after": 789.6,
+  "after_trim": 787.5
+ },
+ {
+  "file": "tests/replay/tools/test_stored_paths.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 787.7,
+  "after_trim": 787.6
+ },
+ {
+  "file": "tests/replay/tools/test_verify.py",
+  "kept": 1.1,
+  "peak_rise": 1.1,
+  "after": 788.7,
+  "after_trim": 787.7
+ },
+ {
+  "file": "tests/scenes/builtin_scenes/test_pause_screen.py",
+  "kept": 48.4,
+  "peak_rise": 48.4,
+  "after": 836.3,
+  "after_trim": 787.7
+ },
+ {
+  "file": "tests/scenes/test_dirty_rect_drawing.py",
+  "kept": 5.5,
+  "peak_rise": 5.5,
+  "after": 793.3,
+  "after_trim": 787.7
+ },
+ {
+  "file": "tests/scenes/test_scene.py",
+  "kept": 38.7,
+  "peak_rise": 38.7,
+  "after": 826.5,
+  "after_trim": 788.3
+ },
+ {
+  "file": "tests/scenes/test_scene_events.py",
+  "kept": 25.9,
+  "peak_rise": 25.9,
+  "after": 814.3,
+  "after_trim": 788.3
+ },
+ {
+  "file": "tests/scenes/test_scene_focus.py",
+  "kept": 23.8,
+  "peak_rise": 23.8,
+  "after": 812.1,
+  "after_trim": 788.3
+ },
+ {
+  "file": "tests/scenes/test_scene_lifecycle.py",
+  "kept": 28.4,
+  "peak_rise": 28.4,
+  "after": 816.7,
+  "after_trim": 788.3
+ },
+ {
+  "file": "tests/scenes/test_scene_manager.py",
+  "kept": 16.1,
+  "peak_rise": 16.1,
+  "after": 804.4,
+  "after_trim": 788.4
+ },
+ {
+  "file": "tests/scenes/test_scene_mouse_events.py",
+  "kept": 37.8,
+  "peak_rise": 37.8,
+  "after": 826.3,
+  "after_trim": 788.4
+ },
+ {
+  "file": "tests/scenes/test_scene_rendering.py",
+  "kept": 37.8,
+  "peak_rise": 37.8,
+  "after": 826.3,
+  "after_trim": 788.4
+ },
+ {
+  "file": "tests/scenes/test_scene_timer_pacing.py",
+  "kept": 16.4,
+  "peak_rise": 16.4,
+  "after": 804.9,
+  "after_trim": 788.4
+ },
+ {
+  "file": "tests/services/test_config.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 788.5,
+  "after_trim": 788.4
+ },
+ {
+  "file": "tests/services/test_exceptions.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 788.5,
+  "after_trim": 788.4
+ },
+ {
+  "file": "tests/services/test_renderer_service.py",
+  "kept": 0.6,
+  "peak_rise": 0.6,
+  "after": 789.1,
+  "after_trim": 788.7
+ },
+ {
+  "file": "tests/services/test_sprite_generation_service.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 788.9,
+  "after_trim": 788.8
+ },
+ {
+  "file": "tests/sprites/test_alpha_mode_detection.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 789.0,
+  "after_trim": 788.9
+ },
+ {
+  "file": "tests/sprites/test_animated_sprite.py",
+  "kept": 25.3,
+  "peak_rise": 25.3,
+  "after": 814.3,
+  "after_trim": 790.0
+ },
+ {
+  "file": "tests/sprites/test_animated_sprite_frame_addition.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.0,
+  "after_trim": 790.0
+ },
+ {
+  "file": "tests/sprites/test_animated_sprite_glyphs.py",
+  "kept": 0.3,
+  "peak_rise": 0.3,
+  "after": 790.4,
+  "after_trim": 790.0
+ },
+ {
+  "file": "tests/sprites/test_engine_sprite_files.py",
+  "kept": 0.3,
+  "peak_rise": 0.3,
+  "after": 790.4,
+  "after_trim": 790.2
+ },
+ {
+  "file": "tests/sprites/test_file_format.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.3,
+  "after_trim": 790.2
+ },
+ {
+  "file": "tests/sprites/test_legacy_sprite_glyphs.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.3,
+  "after_trim": 790.2
+ },
+ {
+  "file": "tests/sprites/test_pixel_utils.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.3,
+  "after_trim": 790.2
+ },
+ {
+  "file": "tests/sprites/test_rgba_auto_detection.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.3,
+  "after_trim": 790.2
+ },
+ {
+  "file": "tests/sprites/test_save_load_pixel_preservation.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.4,
+  "after_trim": 790.3
+ },
+ {
+  "file": "tests/sprites/test_save_load_transparency.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.4,
+  "after_trim": 790.3
+ },
+ {
+  "file": "tests/sprites/test_sprite_animation.py",
+  "kept": 0.3,
+  "peak_rise": 0.3,
+  "after": 790.6,
+  "after_trim": 790.3
+ },
+ {
+  "file": "tests/sprites/test_sprite_bitmappy.py",
+  "kept": 0.4,
+  "peak_rise": 0.4,
+  "after": 790.9,
+  "after_trim": 790.6
+ },
+ {
+  "file": "tests/sprites/test_sprite_catalog.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 790.8,
+  "after_trim": 790.7
+ },
+ {
+  "file": "tests/sprites/test_sprite_color_map_limits.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.7,
+  "after_trim": 790.7
+ },
+ {
+  "file": "tests/sprites/test_sprite_core.py",
+  "kept": 0.3,
+  "peak_rise": 0.3,
+  "after": 791.0,
+  "after_trim": 791.0
+ },
+ {
+  "file": "tests/sprites/test_sprite_events.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 791.1,
+  "after_trim": 791.0
+ },
+ {
+  "file": "tests/sprites/test_sprite_factory.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 791.1,
+  "after_trim": 791.0
+ },
+ {
+  "file": "tests/sprites/test_sprite_file_formats.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 791.2,
+  "after_trim": 791.1
+ },
+ {
+  "file": "tests/sprites/test_sprite_tags.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 791.2,
+  "after_trim": 791.1
+ },
+ {
+  "file": "tests/state/test_atomic_writes.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 791.3,
+  "after_trim": 791.1
+ },
+ {
+  "file": "tests/state/test_manager.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 791.4,
+  "after_trim": 791.1
+ },
+ {
+  "file": "tests/state/test_paths.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 791.3,
+  "after_trim": 791.2
+ },
+ {
+  "file": "tests/state/test_sandbox.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 791.4,
+  "after_trim": 791.2
+ },
+ {
+  "file": "tests/state/test_serializers.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 791.3,
+  "after_trim": 791.2
+ },
+ {
+  "file": "tests/templates/test_template_building.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 791.4,
+  "after_trim": 791.3
+ },
+ {
+  "file": "tests/templates/test_template_discovery.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 791.4,
+  "after_trim": 791.3
+ },
+ {
+  "file": "tests/templates/test_template_errors.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 791.4,
+  "after_trim": 791.3
+ },
+ {
+  "file": "tests/templates/test_templates_extra.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 791.4,
+  "after_trim": 791.3
+ },
+ {
+  "file": "tests/test_ai_behaviour.py",
+  "kept": 1.8,
+  "peak_rise": 1.8,
+  "after": 793.2,
+  "after_trim": 792.6
+ },
+ {
+  "file": "tests/test_ai_console.py",
+  "kept": 14.3,
+  "peak_rise": 14.3,
+  "after": 807.0,
+  "after_trim": 793.7
+ },
+ {
+  "file": "tests/test_ai_introspection.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 793.9,
+  "after_trim": 793.8
+ },
+ {
+  "file": "tests/test_ai_link.py",
+  "kept": 0.1,
+  "peak_rise": 0.5,
+  "after": 794.1,
+  "after_trim": 793.5
+ },
+ {
+  "file": "tests/test_ai_model_comparison.py",
+  "kept": -0.0,
+  "peak_rise": 0.0,
+  "after": 793.7,
+  "after_trim": 793.6
+ },
+ {
+  "file": "tests/test_ansible_macos_ai_service.py",
+  "kept": 1.3,
+  "peak_rise": 1.3,
+  "after": 795.0,
+  "after_trim": 793.6
+ },
+ {
+  "file": "tests/test_ansible_natural_order_output.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 793.9,
+  "after_trim": 793.6
+ },
+ {
+  "file": "tests/test_ansible_raspberry_pis.py",
+  "kept": 0.8,
+  "peak_rise": 0.8,
+  "after": 794.5,
+  "after_trim": 794.2
+ },
+ {
+  "file": "tests/test_backgrounds.py",
+  "kept": 4.8,
+  "peak_rise": 4.8,
+  "after": 799.1,
+  "after_trim": 791.8
+ },
+ {
+  "file": "tests/test_benchmark_paths.py",
+  "kept": 13.2,
+  "peak_rise": 13.2,
+  "after": 805.1,
+  "after_trim": 791.9
+ },
+ {
+  "file": "tests/test_browser_touch_controls.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 792.0,
+  "after_trim": 791.9
+ },
+ {
+  "file": "tests/test_build_browser_bundle.py",
+  "kept": 13.0,
+  "peak_rise": 13.0,
+  "after": 805.0,
+  "after_trim": 793.7
+ },
+ {
+  "file": "tests/test_build_info.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 793.9,
+  "after_trim": 793.7
+ },
+ {
+  "file": "tests/test_build_sdl_x11.py",
+  "kept": 1.1,
+  "peak_rise": 1.1,
+  "after": 794.9,
+  "after_trim": 788.0
+ },
+ {
+  "file": "tests/test_bundled_demo_discovery.py",
+  "kept": 1.9,
+  "peak_rise": 1.9,
+  "after": 790.0,
+  "after_trim": 789.8
+ },
+ {
+  "file": "tests/test_camera.py",
+  "kept": 0.9,
+  "peak_rise": 0.9,
+  "after": 790.8,
+  "after_trim": 789.9
+ },
+ {
+  "file": "tests/test_check_licenses.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 790.1,
+  "after_trim": 789.9
+ },
+ {
+  "file": "tests/test_child_process_guard.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.1,
+  "after_trim": 790.0
+ },
+ {
+  "file": "tests/test_ci_config.py",
+  "kept": 1.6,
+  "peak_rise": 1.6,
+  "after": 791.7,
+  "after_trim": 790.2
+ },
+ {
+  "file": "tests/test_claude_md.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.3,
+  "after_trim": 790.2
+ },
+ {
+  "file": "tests/test_clipboard.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 790.4,
+  "after_trim": 790.2
+ },
+ {
+  "file": "tests/test_clock.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 790.3,
+  "after_trim": 790.2
+ },
+ {
+  "file": "tests/test_code_tree.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 790.4,
+  "after_trim": 790.3
+ },
+ {
+  "file": "tests/test_collection_logger_levels.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 790.5,
+  "after_trim": 790.3
+ },
+ {
+  "file": "tests/test_compare_driver_frames.py",
+  "kept": 0.2,
+  "peak_rise": 0.2,
+  "after": 790.7,
+  "after_trim": 790.6
+ },
+ {
+  "file": "tests/test_complexity_report.py",
+  "kept": 0.4,
+  "peak_rise": 0.4,
+  "after": 791.0,
+  "after_trim": 790.6
+ },
+ {
+  "file": "tests/test_create.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 790.9,
+  "after_trim": 790.6
+ },
+ {
+  "file": "tests/test_crt_power_on.py",
+  "kept": 5.4,
+  "peak_rise": 5.4,
+  "after": 796.1,
+  "after_trim": 787.8
+ },
+ {
+  "file": "tests/test_crt_power_on_sound.py",
+  "kept": 37.8,
+  "peak_rise": 37.8,
+  "after": 825.8,
+  "after_trim": 796.2
+ },
+ {
+  "file": "tests/test_disk_sound_cache_fixture.py",
+  "kept": 0.1,
+  "peak_rise": 0.1,
+  "after": 796.5,
+  "after_trim": 796.2
+ },
+ {
+  "file": "tests/test_display_canvas.py",
+  "kept": 6.1,
+  "peak_rise": 6.1,
+  "after": 802.4,
+  "after_trim": 792.2
+ },
+ {
+  "file": "tests/test_display_mode.py",
+  "kept": 1.7,
+  "peak_rise": 1.7,
+  "after": 794.1,
+  "after_trim": 793.1
+ },
+ {
+  "file": "tests/test_docs_claims.py",
+  "kept": 0.0,
+  "peak_rise": 0.0,
+  "after": 793.3,
+  "after_trim": 793.1
+ }
+]

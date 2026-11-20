@@ -16,8 +16,7 @@ import pygame
 import pytest
 
 from glitchygames import logical_names
-from glitchygames.audio.live import VoiceState
-from glitchygames.audio.synth import Waveform
+from glitchygames.audio.instrument import Instrument
 from glitchygames.events import FPSEVENT, GAMEEVENT
 from glitchygames.exit_codes import BUG_REPORT_HINT
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
@@ -1876,10 +1875,10 @@ class TestLiveVoicesThroughAPlayback:
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
             live_scene = active_counting_scene(manager)
-            voice = manager.live_audio.create_voice(
-                owner=live_scene, waveform=Waveform.SAWTOOTH, frequency=220.0, volume=0.1
+            voice = manager.audio.sound(Instrument(wave='saw', live=True), pitch=220.0).start(
+                owner=live_scene, volume=0.1
             )
-            voice.start()
+            assert voice.is_playing
             step(manager, frames=LIVE_FRAMES_BEFORE)
             assert start_playback_from_recording(
                 manager=manager, path=recording_path, then=live_scene
@@ -1887,8 +1886,8 @@ class TestLiveVoicesThroughAPlayback:
             step(manager, frames=SHORT_RECORDED_FRAMES)
             assert manager.playback_session is None
             step(manager)
-            # A released voice is stopped for good (LiveAudio.release_voice)
-            assert voice.state is not VoiceState.STOPPED
+            # Paused behind the scope, then played on: never released (which stops for good)
+            assert voice.is_playing
 
 
 class PulsingScene(CountingScene):

@@ -138,10 +138,10 @@ Graphics Options:
 Diagnostics Options:
   --log-timer-jitter    log frame pacing jitter statistics periodically
   --perf-trim-percent PERF_TRIM_PERCENT
-                        percent of frames to trim from top and bottom in global FPS report
+                        percent of frames to trim from top and bottom in the game's global FPS report
   --fps-histogram {equal-range,target-relative}
-                        FPS histogram buckets in the shutdown report: equal-range (10 equal buckets spanning the analyzed min to
-                        max, default) or target-relative (10% steps of the target FPS)
+                        FPS histogram buckets in the game's shutdown report: equal-range (10 equal buckets spanning the analyzed
+                        min to max, default) or target-relative (10% steps of the target FPS)
   --debug-overlay, --no-debug-overlay
                         show the debug overlay at startup (F3 toggles, F4 cycles panels)
   --debug-events        log a warning the first time each unhandled event type arrives (--no-unhandled-events raises on one
@@ -253,7 +253,7 @@ The glitchygames.sprites module provides extended subclasses for sprite handling
 
 The glitchygames.ui module provides common UI elements such as menubars, buttons, sliders, etc...
 
-Also in the reference: [glitchygames.audio](./audio/index.md) (synthesis, recipes, live voices),
+Also in the reference: [glitchygames.audio](./audio/index.md) (the sound engine: effects, instruments, live sounds, the cache),
 [glitchygames.collision](./collision/index.md) (layers and hitbox-aware detection),
 [glitchygames.effects](./effects/index.md) (easing, tweens, screen shake),
 [glitchygames.input](./input/index.md) (action maps, devices, the per-frame input snapshot, rumble),

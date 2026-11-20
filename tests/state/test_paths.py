@@ -1,12 +1,17 @@
-"""Tests for cross-platform save directory resolution."""
+"""Tests for cross-platform save and cache directory resolution."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-from glitchygames.state.paths import get_save_directory, validate_app_name
+import glitchygames.state.paths as paths_module
+from glitchygames.state.paths import get_cache_directory, get_save_directory, validate_app_name
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
 
 
 class TestValidateAppName:
@@ -67,33 +72,27 @@ class TestValidateAppName:
 class TestGetSaveDirectory:
     """Tests for platform-specific save directory resolution."""
 
-    def test_macos_path(self, mocker: object) -> None:
+    def test_macos_path(self, mocker: MockerFixture) -> None:
         """MacOS uses ~/Library/Application Support/."""
-        import glitchygames.state.paths as paths_module
-
-        mocker.patch.object(paths_module.sys, 'platform', 'darwin')  # type: ignore[union-attr]
-        mocker.patch.object(Path, 'home', return_value=Path('/Users/testuser'))  # type: ignore[union-attr]
+        mocker.patch.object(paths_module.sys, 'platform', 'darwin')
+        mocker.patch.object(Path, 'home', return_value=Path('/Users/testuser'))
 
         result = get_save_directory('mygame')
         assert result == Path('/Users/testuser/Library/Application Support/mygame')
 
-    def test_linux_default_path(self, mocker: object) -> None:
+    def test_linux_default_path(self, mocker: MockerFixture) -> None:
         """Linux without XDG_DATA_HOME uses ~/.local/share/."""
-        import glitchygames.state.paths as paths_module
-
-        mocker.patch.object(paths_module.sys, 'platform', 'linux')  # type: ignore[union-attr]
-        mocker.patch.object(Path, 'home', return_value=Path('/home/testuser'))  # type: ignore[union-attr]
-        mocker.patch.dict(paths_module.os.environ, {}, clear=True)  # type: ignore[union-attr]
+        mocker.patch.object(paths_module.sys, 'platform', 'linux')
+        mocker.patch.object(Path, 'home', return_value=Path('/home/testuser'))
+        mocker.patch.dict(paths_module.os.environ, {}, clear=True)
 
         result = get_save_directory('mygame')
         assert result == Path('/home/testuser/.local/share/mygame')
 
-    def test_linux_xdg_path(self, mocker: object) -> None:
+    def test_linux_xdg_path(self, mocker: MockerFixture) -> None:
         """Linux with XDG_DATA_HOME uses that directory."""
-        import glitchygames.state.paths as paths_module
-
-        mocker.patch.object(paths_module.sys, 'platform', 'linux')  # type: ignore[union-attr]
-        mocker.patch.dict(  # type: ignore[union-attr]
+        mocker.patch.object(paths_module.sys, 'platform', 'linux')
+        mocker.patch.dict(
             paths_module.os.environ,
             {'XDG_DATA_HOME': '/custom/data'},
             clear=True,
@@ -102,13 +101,11 @@ class TestGetSaveDirectory:
         result = get_save_directory('mygame')
         assert result == Path('/custom/data/mygame')
 
-    def test_windows_appdata_path(self, tmp_path: Path, mocker: object) -> None:
+    def test_windows_appdata_path(self, tmp_path: Path, mocker: MockerFixture) -> None:
         """Windows uses %APPDATA%."""
-        import glitchygames.state.paths as paths_module
-
         fake_appdata = str(tmp_path / 'appdata')
-        mocker.patch.object(paths_module.sys, 'platform', 'win32')  # type: ignore[union-attr]
-        mocker.patch.dict(  # type: ignore[union-attr]
+        mocker.patch.object(paths_module.sys, 'platform', 'win32')
+        mocker.patch.dict(
             paths_module.os.environ,
             {'APPDATA': fake_appdata},
             clear=True,
@@ -118,20 +115,16 @@ class TestGetSaveDirectory:
         assert result == Path(fake_appdata) / 'mygame'
 
     def test_windows_without_appdata_uses_the_roaming_folder(
-        self, tmp_path: Path, mocker: object
+        self, tmp_path: Path, mocker: MockerFixture
     ) -> None:
         """Windows with no (or an empty) %APPDATA% falls back to ~/AppData/Roaming."""
-        import glitchygames.state.paths as paths_module
-
-        mocker.patch.object(paths_module.sys, 'platform', 'win32')  # type: ignore[union-attr]
-        mocker.patch.dict(  # type: ignore[union-attr]
+        mocker.patch.object(paths_module.sys, 'platform', 'win32')
+        mocker.patch.dict(
             paths_module.os.environ,
             {'APPDATA': ''},
             clear=True,
         )
-        mocker.patch.object(  # type: ignore[union-attr]
-            paths_module.Path, 'home', return_value=tmp_path
-        )
+        mocker.patch.object(paths_module.Path, 'home', return_value=tmp_path)
 
         result = get_save_directory('mygame')
         assert result == tmp_path / 'AppData' / 'Roaming' / 'mygame'
@@ -140,3 +133,51 @@ class TestGetSaveDirectory:
         """Invalid app name raises ValueError."""
         with pytest.raises(ValueError, match='Invalid app_name'):
             get_save_directory('Invalid Name!')
+
+
+class TestGetCacheDirectory:
+    """The cache root for rendered sounds (sound engine implementation spec 6.4)."""
+
+    def test_macos_uses_the_library_caches_folder(self, mocker: MockerFixture) -> None:
+        mocker.patch.object(paths_module.sys, 'platform', 'darwin')
+        mocker.patch.object(Path, 'home', return_value=Path('/Users/testuser'))
+
+        assert get_cache_directory('glitchygames') == Path(
+            '/Users/testuser/Library/Caches/glitchygames'
+        )
+
+    def test_linux_uses_xdg_cache_home_when_set(self, mocker: MockerFixture) -> None:
+        mocker.patch.object(paths_module.sys, 'platform', 'linux')
+        mocker.patch.dict(paths_module.os.environ, {'XDG_CACHE_HOME': '/custom/cache'}, clear=True)
+
+        assert get_cache_directory('glitchygames') == Path('/custom/cache/glitchygames')
+
+    def test_linux_defaults_to_the_dot_cache_folder(self, mocker: MockerFixture) -> None:
+        mocker.patch.object(paths_module.sys, 'platform', 'linux')
+        mocker.patch.object(Path, 'home', return_value=Path('/home/testuser'))
+        mocker.patch.dict(paths_module.os.environ, {}, clear=True)
+
+        assert get_cache_directory('glitchygames') == Path('/home/testuser/.cache/glitchygames')
+
+    def test_windows_uses_local_app_data_when_set(
+        self, tmp_path: Path, mocker: MockerFixture
+    ) -> None:
+        mocker.patch.object(paths_module.sys, 'platform', 'win32')
+        mocker.patch.dict(paths_module.os.environ, {'LOCALAPPDATA': str(tmp_path)}, clear=True)
+
+        assert get_cache_directory('glitchygames') == tmp_path / 'glitchygames' / 'Cache'
+
+    def test_windows_without_local_app_data_uses_the_local_folder(
+        self, mocker: MockerFixture
+    ) -> None:
+        mocker.patch.object(paths_module.sys, 'platform', 'win32')
+        mocker.patch.object(Path, 'home', return_value=Path('/Users/testuser'))
+        mocker.patch.dict(paths_module.os.environ, {}, clear=True)
+
+        assert get_cache_directory('glitchygames') == Path(
+            '/Users/testuser/AppData/Local/glitchygames/Cache'
+        )
+
+    def test_an_invalid_app_name_is_refused_as_for_saves(self) -> None:
+        with pytest.raises(ValueError, match='Invalid app_name'):
+            get_cache_directory('Invalid Name!')

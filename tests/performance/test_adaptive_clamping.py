@@ -6,11 +6,13 @@ import re
 
 import pytest
 
+from glitchygames.engine_context import EngineContext, default_context
 from glitchygames.performance.adaptive_clamping import (
     FPS_HISTORY_MAX_SIZE,
     HISTOGRAM_BUCKET_COUNT,
     LOG,
     MAX_SCENE_FRAME_TIME_HISTORY,
+    PERFORMANCE_MANAGERS_SLOT,
     AdaptiveClamping,
     FpsHistogramMode,
 )
@@ -23,19 +25,18 @@ class TestAdaptiveClampingSingleton:
     def test_singleton_pattern(self):
         """Test that only one instance exists."""
         # Reset singleton state
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
 
         instance1 = AdaptiveClamping()
         instance2 = AdaptiveClamping()
 
         assert instance1 is instance2
-        assert AdaptiveClamping._instance is instance1
 
     def test_initialization_only_once(self):
         """Test that initialization only happens once."""
         # Reset singleton state
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
 
         instance1 = AdaptiveClamping()
@@ -51,7 +52,7 @@ class TestAdaptiveClampingSingleton:
     def test_initial_state(self):
         """Test that initial state is correct."""
         # Reset singleton state
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
 
         instance = AdaptiveClamping()
@@ -71,7 +72,7 @@ class TestSceneManagement:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
 
@@ -127,7 +128,7 @@ class TestFPSTracking:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
         self.instance.set_current_scene('TestScene')
@@ -218,7 +219,7 @@ class TestSpareTimeCalculation:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
 
@@ -311,7 +312,7 @@ class TestPerformanceGrading:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
 
@@ -363,7 +364,7 @@ class TestStatisticalAggregates:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
 
@@ -454,7 +455,7 @@ class TestPerformanceStats:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
 
@@ -480,7 +481,7 @@ class TestShutdownReporting:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
 
@@ -597,7 +598,7 @@ class TestShutdownReporting:
             'dropped 0 of 19 frames; the 5.0% setting needs at least 20'
         )
 
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
         self.instance.set_trim_percent(5.0)
@@ -624,7 +625,7 @@ class TestShutdownStatistics:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
         self.instance.set_trim_percent(0.0)
@@ -669,7 +670,7 @@ class TestShutdownStatistics:
         self._feed('Scene', [100.0 + index for index in range(19)])
         assert self.instance.get_shutdown_stats()['trimmed_frames'] == 19
 
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
         self.instance.set_trim_percent(5.0)
@@ -801,7 +802,7 @@ class TestHistogramBucketing:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
         self.instance.set_trim_percent(0.0)
@@ -829,12 +830,12 @@ class TestHistogramBucketing:
             for value in counter_values
         )
 
-    def test_distinct_dt_samples_give_distinct_values(self, mocker):
+    def test_distinct_dt_samples_give_distinct_values(self):
         """With 1/dt sampling distinct dts give distinct FPS and get_fps is never called."""
         from glitchygames.scenes.scene import SceneManager
 
         self.instance.set_current_scene('Scene')
-        mocker.patch('glitchygames.performance.performance_manager', self.instance)
+        assert AdaptiveClamping() is self.instance
         manager = SceneManager()
         # The real pacing clock was never ticked, so its get_fps() reads 0.0: every recorded
         # value matching 1/dt shows the FPS came from dt, not from the clock
@@ -973,7 +974,7 @@ class TestHistogramModes:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
         self.instance.set_trim_percent(0.0)
@@ -1164,7 +1165,7 @@ class TestAdaptiveDeltaTime:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
 
@@ -1225,7 +1226,7 @@ class TestEdgeCases:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
 
@@ -1317,7 +1318,7 @@ class TestShutdownReportsWithoutData:
 
     def setup_method(self):
         """Reset singleton before each test."""
-        AdaptiveClamping._instance = None
+        default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
         AdaptiveClamping._initialized = False
         self.instance = AdaptiveClamping()
 
@@ -1335,3 +1336,27 @@ class TestShutdownReportsWithoutData:
 
         assert 'No scene performance data collected' in caplog.text
         assert 'PER-SCENE PERFORMANCE REPORT' in caplog.text
+
+
+def test_each_context_counts_only_its_own_frames():
+    """Two games' frames never merge into one manager's scenes (audit C14).
+
+    The engine context spike (2026-10-27): both games' FPS samples were counted under whichever
+    scene was set last.
+    """
+    first = EngineContext(name='first')
+    second = EngineContext(name='second')
+    with first.active():
+        AdaptiveClamping().set_current_scene('First Scene')
+        AdaptiveClamping().track_fps_from_event(60.0, 0.010)
+    with second.active():
+        AdaptiveClamping().set_current_scene('Second Scene')
+        AdaptiveClamping().track_fps_from_event(30.0, 0.020)
+    with first.active():
+        AdaptiveClamping().track_fps_from_event(60.0, 0.010)
+        first_scenes = set(AdaptiveClamping().get_per_scene_shutdown_stats())
+    with second.active():
+        second_scenes = set(AdaptiveClamping().get_per_scene_shutdown_stats())
+
+    assert first_scenes == {'First Scene'}
+    assert second_scenes == {'Second Scene'}

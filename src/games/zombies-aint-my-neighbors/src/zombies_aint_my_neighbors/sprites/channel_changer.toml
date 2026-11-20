@@ -1,0 +1,100 @@
+# Written by zombies_aint_my_neighbors.art.build from the weapons' rig: edit the rig
+# and rebuild, never this file (plans/2026-11-14-zombies-aint-my-neighbors-props-bom.md)
+[sprite]
+name = "channel_changer"
+description = "The Channel Changer: the kids' TV remote, held while shooting (props BOM)"
+tags = ["prop", "weapon"]
+frame_anchor = "bottom"
+
+[sprite.hitbox]
+offset_x = 0
+offset_y = 0
+width = 12
+height = 12
+
+[colors]
+"." = { red = 255, green = 0, blue = 255 }
+"O" = { red = 24, green = 16, blue = 32 }
+"a" = { red = 92, green = 92, blue = 106 }
+"b" = { red = 56, green = 56, blue = 68 }
+"c" = { red = 32, green = 32, blue = 40 }
+"h" = { red = 44, green = 44, blue = 52 }
+"g" = { red = 214, green = 218, blue = 222 }
+"G" = { red = 160, green = 166, blue = 174 }
+"d" = { red = 104, green = 110, blue = 120 }
+"D" = { red = 58, green = 62, blue = 70 }
+"j" = { red = 196, green = 255, blue = 186 }
+"J" = { red = 86, green = 236, blue = 96 }
+"k" = { red = 34, green = 150, blue = 64 }
+"r" = { red = 224, green = 44, blue = 52 }
+"w" = { red = 244, green = 244, blue = 236 }
+"m" = { red = 120, green = 124, blue = 146 }
+
+[[animation]]
+namespace = "held_down"
+frame_interval = 0.08
+loop = true
+
+[[animation.frame]]
+namespace = "held_down"
+frame_index = 0
+pixels = """
+....OOOO....
+...OaabbO...
+..OaarrbcO..
+..OaabbbcO..
+..OambbmcO..
+..OaabbccO..
+..OambbmcO..
+..OaabbccO..
+..OambbmcO..
+..OabbbccO..
+...ObJJcO...
+....OOOO....
+"""
+
+[[animation]]
+namespace = "held_up"
+frame_interval = 0.08
+loop = true
+
+[[animation.frame]]
+namespace = "held_up"
+frame_index = 0
+pixels = """
+....OOOO....
+...OaJJbO...
+..OaabbbcO..
+..OaabbbcO..
+..OambbmcO..
+..OaabbccO..
+..OambbmcO..
+..OaabbccO..
+..OambbmcO..
+..OabbbccO..
+...ObbccO...
+....OOOO....
+"""
+
+[[animation]]
+namespace = "held_left"
+frame_interval = 0.08
+loop = true
+
+[[animation.frame]]
+namespace = "held_left"
+frame_index = 0
+pixels = """
+............
+............
+............
+...OOOOOOO..
+.OOaaabrrcO.
+OjaaabbbbccO
+OJaambmbmccO
+.OaabbbbcccO
+..OabbbcccO.
+...OOOOOOO..
+............
+............
+"""

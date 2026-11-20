@@ -4,20 +4,9 @@
 from __future__ import annotations
 
 import pygame
-import pytest
 
 from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.scenes import Scene, SceneManager
-
-
-@pytest.fixture(autouse=True)
-def restore_scene_manager_options(mocker):
-    """Put SceneManager.OPTIONS back after each test.
-
-    Setting a scene manager's game_engine copies the engine's OPTIONS onto the SceneManager
-    class; without this, the stand-in engines below would leave their options for later tests.
-    """
-    mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
 
 
 class PacedScene(Scene):
@@ -97,7 +86,7 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
     sm = SceneManager()
     fake_timer = FakeTimer()
     engine_mock = mocker.Mock()
-    engine_mock.OPTIONS = {
+    engine_mock.options = {
         'update_type': 'update',
         'fps_log_interval_ms': 1000,
         'target_fps': 60,
@@ -143,7 +132,7 @@ def test_scene_manager_falls_back_to_default_target_fps_when_option_missing(mock
     """Test that a missing target_fps option falls back to DEFAULT_TARGET_FPS."""
     sm = SceneManager()
     engine_mock = mocker.Mock()
-    engine_mock.OPTIONS = {'update_type': 'update', 'fps_log_interval_ms': 1000}
+    engine_mock.options = {'update_type': 'update', 'fps_log_interval_ms': 1000}
     sm.game_engine = engine_mock
 
     assert sm.target_fps == DEFAULT_TARGET_FPS
@@ -154,7 +143,7 @@ def test_scene_manager_passes_fractional_target_fps_to_timer(monkeypatch, mocker
     sm = SceneManager()
     fake_timer = FakeTimer()
     engine_mock = mocker.Mock()
-    engine_mock.OPTIONS = {
+    engine_mock.options = {
         'update_type': 'update',
         'fps_log_interval_ms': 1000,
         'target_fps': 60.5,
@@ -189,7 +178,7 @@ def test_unpaced_frame_steps_never_touch_the_timer_or_the_pacing_clock(monkeypat
     sm = SceneManager()
     fake_timer = FakeTimer()
     engine_mock = mocker.Mock()
-    engine_mock.OPTIONS = {
+    engine_mock.options = {
         'update_type': 'update',
         'fps_log_interval_ms': 1000,
         'target_fps': 60,
@@ -224,7 +213,7 @@ def test_frame_steps_end_with_end_frames(monkeypatch, mocker):
     """should_run_frames turns False once a quit is requested; end_frames terminates."""
     sm = SceneManager()
     engine_mock = mocker.Mock()
-    engine_mock.OPTIONS = {'update_type': 'update', 'fps_log_interval_ms': 1000}
+    engine_mock.options = {'update_type': 'update', 'fps_log_interval_ms': 1000}
     engine_mock.timer = None
     sm.game_engine = engine_mock
     monkeypatch.setattr(sm, '_process_events', lambda: None)

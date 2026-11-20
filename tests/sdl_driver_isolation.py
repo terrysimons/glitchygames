@@ -20,12 +20,15 @@ import pygame
 from pydantic import BaseModel, ConfigDict
 
 from tests.display_canvas import TEST_DISPLAY_SIZE, show_canvas
+from tests.hidden_test_windows import hidden_set_mode
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
 # The real pygame functions, captured before any test can patch them: the check runs in the
-# autouse fixture's teardown, while a test's mocker patches may still be in place
+# autouse fixture's teardown, while a test's mocker patches may still be in place. The set_mode
+# is pygame's own: tests/harness.py imports this module before it hides test windows
+# (hide_test_windows), so restore_run_sdl_drivers hides a reopened display itself (BUGS.md #272)
 _REAL_PYGAME_GET_INIT = pygame.get_init
 _REAL_DISPLAY_GET_INIT = pygame.display.get_init
 _REAL_DISPLAY_GET_DRIVER = pygame.display.get_driver
@@ -110,7 +113,7 @@ def live_sdl_driver_state() -> SdlDriverState:
 
 
 def restore_run_sdl_drivers(
-    *, run_environment: Mapping[str, str], run_state: SdlDriverState
+    *, run_environment: Mapping[str, str], run_state: SdlDriverState, hides_windows: bool
 ) -> list[str]:
     """Put the run's SDL driver variables back, and the display and mixer on the run's drivers.
 
@@ -122,8 +125,11 @@ def restore_run_sdl_drivers(
       again, on the run's drivers.
     - A running display on another driver than ``run_state``'s is stopped and started again on
       the run's driver, at the test display size, showing the canvas (a new display is black,
-      and a black window must never be left behind: tests/display_canvas.py). A display that is
-      not running is left alone: the next test's setup opens one, on the run's driver.
+      and a black window must never be left behind: tests/display_canvas.py), hidden when the run
+      hides its test windows (tests/hidden_test_windows.py). A shown window on cocoa could take
+      the keyboard and lose it when the next game's set_mode hid it again, a WINDOWFOCUSLOST
+      that paused that game's next frame (BUGS.md #272). A display that is not running is left
+      alone: the next test's setup opens one, on the run's driver.
     - A mixer on another driver than ``run_state``'s, or not running when the run's was, is
       started (again) on the run's driver with the run's format and number of mixing channels,
       as the engine's own --headless restart keeps a mixer's. Nothing is done when the run had
@@ -132,6 +138,8 @@ def restore_run_sdl_drivers(
     Args:
         run_environment: The run's SDL driver variables, by name (tests/sdl_defaults.py).
         run_state: The drivers the run's display and mixer run on, read before any test ran.
+        hides_windows: Whether the run hides its test windows (``tests.harness``
+            ``TEST_WINDOWS_HIDDEN``): a display reopened here is then opened hidden.
 
     Returns:
         list[str]: Descriptions of what was put back; empty when nothing had changed.
@@ -150,7 +158,10 @@ def restore_run_sdl_drivers(
         restored.append(f'the display (video driver {live_state.video_driver!r})')
         _REAL_DISPLAY_QUIT()
         _REAL_DISPLAY_INIT()
-        _REAL_DISPLAY_SET_MODE(TEST_DISPLAY_SIZE)
+        reopen_display = (
+            hidden_set_mode(_REAL_DISPLAY_SET_MODE) if hides_windows else _REAL_DISPLAY_SET_MODE
+        )
+        reopen_display(TEST_DISPLAY_SIZE)
         show_canvas()
     run_mixer = run_state.mixer
     live_audio_driver = None if live_state.mixer is None else live_state.mixer.audio_driver

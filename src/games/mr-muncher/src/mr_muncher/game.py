@@ -29,7 +29,6 @@ replay exactly. High scores are kept with the engine's saves (``open_saves``).
 from __future__ import annotations
 
 import enum
-import functools
 import logging
 import math
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
@@ -38,8 +37,6 @@ import pygame
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.exceptions import AudioUnavailableError
-from glitchygames.audio.recipes import SoundBank, Tremolo
-from glitchygames.audio.synth import Waveform
 from glitchygames.color import BLACK
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
@@ -81,12 +78,13 @@ from mr_muncher.scenery import (
     fitted_font,
     render_text,
 )
-from mr_muncher.sounds import ALL_RECIPES, CRUNCH_RECIPES
+from mr_muncher.sounds import CRUNCH_EFFECTS, EFFECTS, PROJECTOR
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from glitchygames.audio.live import LiveVoice
+    from glitchygames.audio.library import Sound
+    from glitchygames.audio.live_instrument import LiveSoundHandle
     from glitchygames.camera import Camera2D
     from glitchygames.events.base import (
         ControllerAxisEvent,
@@ -150,15 +148,16 @@ CAUGHT_SHAKE = Shake(
     rumble=RumbleSettings(low_frequency=0.8, high_frequency=0.4, scale_with_strength=False),
 )
 
-# The projector behind play: filtered noise that flutters like a film projector's shutter. It
-# runs faster and brighter as sprockets run out, wobbles slow and low while the munchers are
-# frightened, and races while eyes are going home.
-PROJECTOR_VOLUME = 0.05
+# The projector behind play (its sound is sounds.PROJECTOR): it runs faster and brighter as
+# sprockets run out, wobbles slow and low while the munchers are frightened, and races while
+# eyes are going home. Every value here is inside the instrument's parameter ranges.
+# 0.05 as heard: a live sound plays centred, 3 dB down on each side by the constant-power pan
+# law every sound pans by, so its volume is raised by the same (the owner, 2026-11-15)
+PROJECTOR_VOLUME = 0.05 * math.sqrt(2.0)
 PROJECTOR_CUTOFF_HZ = 500.0
 PROJECTOR_CUTOFF_CLIMB_HZ = 700.0  # Added at the last sprocket
 PROJECTOR_FLUTTER_HZ = 20.0
 PROJECTOR_FLUTTER_CLIMB_HZ = 10.0  # Added at the last sprocket
-PROJECTOR_FLUTTER_DEPTH = 0.8
 FRIGHTENED_PROJECTOR_CUTOFF_HZ = 300.0
 FRIGHTENED_PROJECTOR_FLUTTER_HZ = 8.0
 EYES_PROJECTOR_CUTOFF_HZ = 2000.0
@@ -226,17 +225,6 @@ DIRECTION_ACTIONS: tuple[tuple[str, Direction], ...] = (
 STICK_THRESHOLD = 0.5
 
 
-@functools.cache
-def shared_sound_bank() -> SoundBank:
-    """Return the game's sound bank, shared by every level (each sound renders only once).
-
-    Returns:
-        The sound bank.
-
-    """
-    return SoundBank(ALL_RECIPES)
-
-
 class Phase(enum.Enum):
     """The moment the game is in."""
 
@@ -300,6 +288,8 @@ class MrMuncherScene(Scene):
 
     NAME = 'Mr. Muncher'
     VERSION = '2.0'
+    # Every sound the game plays, compiled when it starts (Scene.SOUNDS)
+    SOUNDS = (*EFFECTS, PROJECTOR)
     # After a hitch (a window drag, focus loss) logic advances at most this much in one frame
     MAX_FRAME_SECONDS: ClassVar[float | None] = 0.05
 
@@ -361,8 +351,14 @@ class MrMuncherScene(Scene):
 
         self.saves: SaveManager = open_saves(app_name=SAVE_APP_NAME)
         self.high_score = max(self._best_saved_score(), self.score)
-        self.sounds = shared_sound_bank()
-        self.projector: LiveVoice | None = None
+        # Every effect, the sound library's: compiled once per engine context and cached (on
+        # disk too, under --sound-cache disk), so every level shares them and none compiles
+        # mid-frame. The game engine is set before the game is built, so the audio engine follows
+        # its sound options
+        audio = self.scene_manager.audio
+        self.sounds: dict[str, Sound] = {effect.name: audio.sound(effect) for effect in EFFECTS}
+        self.projector_sound = audio.sound(PROJECTOR)  # live: compiles nothing
+        self.projector: LiveSoundHandle | None = None
         # The projector's settings last given (cutoff, flutter rate), to change them only then
         self.projector_settings: tuple[float, float] | None = None
         self.actions = self._create_action_map(options=self.options)
@@ -510,9 +506,8 @@ class MrMuncherScene(Scene):
 
     @override
     def setup(self: Self) -> None:
-        """Render the sounds now (none renders mid-frame) and show the reel's first message."""
+        """Show the reel's first message (the sounds were compiled when the level was built)."""
         super().setup()
-        self.sounds.prerender()
         # (Set up again when play resumes after a pause: only a reel still waiting to start
         # shows its message)
         if self.phase is Phase.READY:
@@ -673,11 +668,19 @@ class MrMuncherScene(Scene):
             return (f'TAKE {self.take}', None)
         return (f'REEL {self.settings.level}', None)
 
+    def play_sound(self: Self, name: str) -> None:
+        """Play one of the game's effects by name (``sounds.EFFECTS``).
+
+        Args:
+            name: The effect's name.
+        """
+        self.sounds[name].play()
+
     def _show_ready_message(self: Self) -> None:
         """Show this moment's message before play, sounding its cue when it first shows."""
         text, cue = self._ready_message_text()
         if text != self.message_shown[0] and cue is not None:
-            self.sounds.play(cue)
+            self.play_sound(cue)
         self._show_message(text=text)
 
     def _change_phase(self: Self, phase: Phase) -> None:
@@ -791,7 +794,7 @@ class MrMuncherScene(Scene):
         if sprocket is not None and not sprocket.eaten:
             sprocket.eat()
             self.sprockets_eaten += 1
-            self.sounds.play(CRUNCH_RECIPES[self.crunch_count % len(CRUNCH_RECIPES)].name)
+            self.play_sound(CRUNCH_EFFECTS[self.crunch_count % len(CRUNCH_EFFECTS)].name)
             self.crunch_count += 1
             if sprocket.is_snack:
                 self._add_points(SNACK_POINTS)
@@ -807,7 +810,7 @@ class MrMuncherScene(Scene):
         if self.bonus.visible and self.player.cell == self.message_cell:
             self.bonus.visible = 0
             self._add_points(self.settings.bonus_points)
-            self.sounds.play('eat_bonus')
+            self.play_sound('eat_bonus')
             self.bonus_points.change_image(
                 image=render_text(
                     font=self.popup_font,
@@ -830,7 +833,7 @@ class MrMuncherScene(Scene):
         if not self.extra_life_awarded and self.score >= EXTRA_LIFE_SCORE:
             self.extra_life_awarded = True
             self.lives += 1
-            self.sounds.play('extra_life')
+            self.play_sound('extra_life')
 
     def _start_fright(self: Self) -> None:
         """A snack: every muncher not already eaten turns blue, and those out turn round."""
@@ -840,7 +843,7 @@ class MrMuncherScene(Scene):
         for muncher in self.munchers:
             if muncher.state not in {MuncherState.EATEN, MuncherState.ENTERING}:
                 muncher.frightened = True
-        self.sounds.play('sugar_rush')
+        self.play_sound('sugar_rush')
 
     def _end_fright(self: Self) -> None:
         """The snack wore off: every muncher is dangerous again."""
@@ -888,7 +891,7 @@ class MrMuncherScene(Scene):
             centre=self.geometry.pixel_centre(tile_x=muncher.tile_x, tile_y=muncher.tile_y)
         )
         self.muncher_points.visible = 1
-        self.sounds.play('camera_flash')
+        self.play_sound('camera_flash')
         self._change_phase(Phase.MUNCHER_EATEN)
 
     def _resume_after_eating(self: Self) -> None:
@@ -915,7 +918,7 @@ class MrMuncherScene(Scene):
             for muncher in self.munchers:
                 muncher.hidden = True
             self.bonus.visible = 0
-            self.sounds.play('film_snap')
+            self.play_sound('film_snap')
         self.player.dying_progress = min(1.0, animation_seconds / DEATH_ANIMATION_SECONDS)
         if animation_seconds >= DEATH_ANIMATION_SECONDS + DEATH_AFTER_SECONDS:
             self._lose_life()
@@ -927,7 +930,7 @@ class MrMuncherScene(Scene):
             self.player.hidden = True
             self._show_message(text=THE_END_MESSAGE, color=THE_END_COLOR)
             self._save_high_score()
-            self.sounds.play('the_end')
+            self.play_sound('the_end')
             self._change_phase(Phase.GAME_OVER)
             return
         self._reset_actors()
@@ -953,7 +956,7 @@ class MrMuncherScene(Scene):
             muncher.hidden = True
         self.bonus.visible = 0
         self._show_message(text=CUT_MESSAGE)
-        self.sounds.play('level_clear')
+        self.play_sound('level_clear')
         self._change_phase(Phase.LEVEL_CLEAR)
 
     def _go_to_next_level(self: Self) -> None:
@@ -1032,15 +1035,7 @@ class MrMuncherScene(Scene):
     def _start_projector(self: Self) -> None:
         """Start the projector's flutter behind play (none when no live voice or audio is free)."""
         try:
-            projector = self.scene_manager.live_audio.create_voice(
-                owner=self,
-                waveform=Waveform.NOISE,
-                frequency=1.0,
-                volume=PROJECTOR_VOLUME,
-                low_pass_cutoff=PROJECTOR_CUTOFF_HZ,
-                tremolo=Tremolo(rate_hz=PROJECTOR_FLUTTER_HZ, depth=PROJECTOR_FLUTTER_DEPTH),
-            )
-            projector.start()
+            projector = self.projector_sound.start(owner=self, volume=PROJECTOR_VOLUME)
         except ValueError, AudioUnavailableError:
             log.warning('No live voice or audio available; Mr. Muncher plays without its projector')
             return
@@ -1050,7 +1045,7 @@ class MrMuncherScene(Scene):
     def _stop_projector(self: Self) -> None:
         """Stop the projector (if it is running)."""
         if self.projector is not None:
-            self.projector.stop()
+            self.projector.release()
             self.projector = None
 
     def _projector_sound(self: Self) -> tuple[float, float]:
@@ -1077,8 +1072,8 @@ class MrMuncherScene(Scene):
         cutoff, flutter = self._projector_sound()
         if (cutoff, flutter) != self.projector_settings:
             self.projector_settings = (cutoff, flutter)
-            self.projector.low_pass_cutoff = cutoff
-            self.projector.tremolo = Tremolo(rate_hz=flutter, depth=PROJECTOR_FLUTTER_DEPTH)
+            self.projector.set('cutoff', cutoff)
+            self.projector.set('flutter', flutter)
 
     # --- Pictures (the pose of every sprite, drawn in dt_tick: the pose rule) ---
 

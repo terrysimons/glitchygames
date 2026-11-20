@@ -175,7 +175,8 @@ async def main() -> None:
     ticks = AnimationFrameTicks()
     try:
         engine = GameEngine(game=game_class)
-        logging.getLogger().setLevel(GameEngine.OPTIONS['log_level'].upper())
+        # The engine's own options (C8), not GameEngine.OPTIONS, the current game's view
+        logging.getLogger().setLevel(engine.options['log_level'].upper())
         await engine.start_async(wait_for_tick=ticks.wait_for_tick)
         set_status(f'{config["title"]} ended. Reload the page to play again.')
     except SystemExit as exit_request:

@@ -23,6 +23,7 @@ from glitchygames.events import (
     DropFileEvent,
     DropTextEvent,
     ResourceManager,
+    set_event_types_allowed,
 )
 
 log = logging.getLogger('game.events.drop_events')
@@ -114,7 +115,7 @@ class DropEventManager(ResourceManager):
         """
         super().__init__(game=game)
         try:
-            pygame.event.set_allowed(DROP_EVENTS)
+            set_event_types_allowed(event_types=DROP_EVENTS, allowed=True)
         except pygame.error:
             log.debug('Failed to set allowed drop events: pygame not fully initialized')
 

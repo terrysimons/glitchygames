@@ -80,7 +80,7 @@ Its recordings name it `games.mr_muncher.game:MrMuncherScene`, its golden replay
 | `src/games/mr-muncher/src/mr_muncher/game.py` | `MrMuncherScene` (one reel: phases, scoring, input, saves, sound, drawing), `Phase`, `GameProgress`, `MrMuncherGameOverScene`, `main` |
 | `src/games/mr-muncher/src/mr_muncher/drawing.py` | Every picture, drawn with pygame primitives and cached with `functools.cache`: maze, bucket, munchers, eyes, sprockets, snacks, bonus reel, film-strip panels |
 | `src/games/mr-muncher/src/mr_muncher/scenery.py` | The sprites that never move (`Sprocket`, `Picture`, `SidePanel`) and the text helpers (`bundled_font`, `fitted_font`, `render_text`) |
-| `src/games/mr-muncher/src/mr_muncher/sounds.py` | The sound effects and jingles as synth `SoundRecipe`s |
+| `src/games/mr-muncher/src/mr_muncher/sounds.py` | The sound effects and jingles as synthesized effects (`Effect`s) |
 | `src/games/mr-muncher/src/mr_muncher/autopilot.py` | `Autopilot`, a bot that plays the game. The golden replay's script and the tests use it |
 | `src/games/mr-muncher/tests/test_mr_muncher.py` | The scene: game flow, scoring, input, saves, screens, whole games |
 | `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` | The parts: maze, levels, actors, pictures, scenery, sounds, autopilot |
@@ -122,17 +122,22 @@ stateDiagram-v2
     GameOver --> [*] : ESC, B or Back
 ```
 
-- **Next reel**: `_go_to_next_level` sets `next_scene` to a new `MrMuncherScene` with
-  `GameProgress(level + 1, score, lives, extra_life_awarded)`. It does this only once (it
-  checks that `next_scene` is still `None`).
-- **Game over**: `_show_game_over_screen` fades (1 s `FadeTransition`) to
-  `MrMuncherGameOverScene`. This screen shows the engine's GAME OVER layout (score and high
-  score table) plus a headline, either `NEW HIGH SCORE!  Reel N` or `You reached reel N`.
-  `resume()` always starts a new game with `switch_to_scene(MrMuncherScene(...))`, because the
-  previous scene depends on how the screen was reached.
-- **Pause**: the engine's `PauseScene` shows a frozen screenshot of the game. When play
-  resumes, the scene's `setup()` runs again. That is why `setup()` shows the ready message only
-  while the phase is still `READY`.
+Next reel
+:   `_go_to_next_level` sets `next_scene` to a new `MrMuncherScene` with
+    `GameProgress(level + 1, score, lives, extra_life_awarded)`. It does this only once (it
+    checks that `next_scene` is still `None`).
+
+Game over
+:   `_show_game_over_screen` fades (1 s `FadeTransition`) to
+    `MrMuncherGameOverScene`. This screen shows the engine's GAME OVER layout (score and high
+    score table) plus a headline, either `NEW HIGH SCORE!  Reel N` or `You reached reel N`.
+    `resume()` always starts a new game with `switch_to_scene(MrMuncherScene(...))`, because the
+    previous scene depends on how the screen was reached.
+
+Pause
+:   The engine's `PauseScene` shows a frozen screenshot of the game. When play
+    resumes, the scene's `setup()` runs again. That is why `setup()` shows the ready message only
+    while the phase is still `READY`.
 
 ### Scene classes
 
@@ -282,15 +287,20 @@ does not have exactly one `P`. It knows nothing about pixels. Positions are in *
 the centre of the tile in column `c`, row `r` is `(c, r)`, so an actor standing on a tile centre
 has whole-number coordinates.
 
-- **Tunnels.** `Maze.tile` wraps columns, and treats rows outside the maze as wall. Only rows 4
-  and 22 are open at both edges, so they are the two wrapping tunnels. `wrap_x` moves an x that
-  has gone more than half a tile past an edge to the other side. `tile_distance` measures the
-  short way round, so two positions at opposite ends of a tunnel count as close.
-- **The house.** The door is at (13, 9). `house_entrance` is the corridor tile above it (13, 8),
-  where munchers leave and come back. `house_centre` is two tiles below the door (13, 11).
-- **Geometry.** `MazeGeometry` (`actors.py`) holds `tile_size`, `left` and `top`, and converts a
-  position in tiles to pixels (`pixel_centre`). `maze_geometry` (`game.py`) chooses the tile
-  size.
+Tunnels
+:   `Maze.tile` wraps columns, and treats rows outside the maze as wall. Only rows 4
+    and 22 are open at both edges, so they are the two wrapping tunnels. `wrap_x` moves an x that
+    has gone more than half a tile past an edge to the other side. `tile_distance` measures the
+    short way round, so two positions at opposite ends of a tunnel count as close.
+
+The house
+:   The door is at (13, 9). `house_entrance` is the corridor tile above it (13, 8),
+    where munchers leave and come back. `house_centre` is two tiles below the door (13, 11).
+
+Geometry
+:   `MazeGeometry` (`actors.py`) holds `tile_size`, `left` and `top`, and converts a
+    position in tiles to pixels (`pixel_centre`). `maze_geometry` (`game.py`) chooses the tile
+    size.
 
 ### Grid movement and turn buffering
 
@@ -504,18 +514,23 @@ flowchart TB
     A --> B
 ```
 
-- **Sub-steps.** `_play` splits the frame into `ceil(dt / (1/120))` equal steps (two at 60 FPS,
-  at most six after a capped hitch), so no actor moves far enough in one step to pass through
-  another. In each step the player moves and eats first, and contact is checked both after the
-  player moves and after the munchers move.
-- **The pose rule.** Every sprite's picture is chosen in `dt_tick`, after its state is decided
-  (`_pose_sprites`): the bucket's chomp (four mouth steps per tile travelled), the dying
-  animation (24 steps), each muncher's body, frightened or flashing picture or eyes, the skirt's
-  wave (every 0.15 s of game time), and the snacks' twinkle. The side panels are redrawn only
-  when what they show changes.
-- **Input timing.** Key events are handled after `dt_tick`, so a key pressed in frame N changes
-  `wanted_direction` in the `dt_tick` of frame N + 1. The autopilot allows for this delay (see
-  below).
+Sub-steps
+:   `_play` splits the frame into `ceil(dt / (1/120))` equal steps (two at 60 FPS,
+    at most six after a capped hitch), so no actor moves far enough in one step to pass through
+    another. In each step the player moves and eats first, and contact is checked both after the
+    player moves and after the munchers move.
+
+The pose rule
+:   Every sprite's picture is chosen in `dt_tick`, after its state is decided
+    (`_pose_sprites`): the bucket's chomp (four mouth steps per tile travelled), the dying
+    animation (24 steps), each muncher's body, frightened or flashing picture or eyes, the skirt's
+    wave (every 0.15 s of game time), and the snacks' twinkle. The side panels are redrawn only
+    when what they show changes.
+
+Input timing
+:   Key events are handled after `dt_tick`, so a key pressed in frame N changes
+    `wanted_direction` in the `dt_tick` of frame N + 1. The autopilot allows for this delay (see
+    below).
 
 ## Drawing
 
@@ -636,12 +651,14 @@ wanted size down to 8) at which each panel's longest text fits.
 
 ## Sound
 
-`sounds.py` defines every sound as a synth `SoundRecipe` (`src/glitchygames/audio/recipes.py`).
-`shared_sound_bank()` builds one `SoundBank(ALL_RECIPES)` for the whole process
-(`functools.cache`), and `setup()` calls `sounds.prerender()`, so no sound is rendered in the
-middle of a frame.
+`sounds.py` defines every sound as a synthesized effect (`Effect`,
+`src/glitchygames/audio/effects.py`), `EFFECTS`. Each level asks the engine's sound library for
+all of them when it is built (`self.sounds`, by name; `play_sound(name)` plays one): the library
+compiles each once per engine context and caches it (on disk too, under `--sound-cache disk`), so
+every level shares them and no sound compiles in the middle of a frame. Each plays at its own
+volume.
 
-| Recipe | When it plays |
+| Effect | When it plays |
 |---|---|
 | `crunch_one`, `crunch_two` | A sprocket or snack is eaten (alternating, so a run of them never repeats exactly) |
 | `sugar_rush` | A snack starts a fright (two clapperboard clacks and a rising shimmer) |
@@ -654,9 +671,11 @@ middle of a frame.
 | `action` | ACTION! (a clack and a major chord) |
 | `the_end` | THE END |
 
-Behind play runs the **projector**, a live voice (`scene_manager.live_audio.create_voice(...)`)
-of low-pass filtered noise with a tremolo, so it flutters like a projector's shutter.
-`_update_projector` changes its cutoff and flutter rate only when they change: brighter and
+Behind play runs the **projector**, a live instrument (`sounds.PROJECTOR`, started with
+`start(owner=self, volume=PROJECTOR_VOLUME)`, 0.05 as heard: raised by √2 for the centred pan's
+3 dB) of low-pass filtered noise with a tremolo, so it flutters like a
+projector's shutter. Its `cutoff` and `flutter` parameters route one to one to the filter and the
+tremolo rate. `_update_projector` sets them only when they change: brighter and
 faster as the sprockets run out (500 to 1200 Hz, 20 to 30 Hz), slow and low while the munchers
 are frightened (300 Hz, 8 Hz), and racing while eyes are going home (2000 Hz, 40 Hz). It starts
 at ACTION!, stops when the player is caught, when the reel is cleared, and in `cleanup()`. If no
@@ -668,14 +687,17 @@ live voice or no audio is available, the game logs a warning and plays without i
 the screen, and never changes it. `Autopilot.choose_direction(scene=...)` returns the direction
 to ask for in each frame. It has two uses:
 
-- **Steering the golden replay.** `scripts/golden_inputs.py: mr_muncher_script` wraps it
-  in `MuncherSteering`, which holds the arrow key for the direction the autopilot wants
-  (pressing it again if the player still wants another way after 4 frames). With
-  `seek_capture_after_seconds=22.0` it walks into a muncher once, so the recording includes a
-  death and the next take.
-- **Bot playtests in the tests.** `src/games/mr-muncher/tests/test_mr_muncher.py::TestWholeGames` lets it
-  play a last life until game over (setting `wanted_direction` directly), and
-  `TestAutopilot` in `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` checks its choices.
+Steering the golden replay
+:   `scripts/golden_inputs.py: mr_muncher_script` wraps it
+    in `MuncherSteering`, which holds the arrow key for the direction the autopilot wants
+    (pressing it again if the player still wants another way after 4 frames). With
+    `seek_capture_after_seconds=22.0` it walks into a muncher once, so the recording includes a
+    death and the next take.
+
+Bot playtests in the tests
+:   `src/games/mr-muncher/tests/test_mr_muncher.py::TestWholeGames` lets it
+    play a last life until game over (setting `wanted_direction` directly), and
+    `TestAutopilot` in `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` checks its choices.
 
 How it decides:
 
@@ -714,7 +736,7 @@ by the autopilot, a demo could be recorded with
 | Pause screen | The engine's `PauseScene`, which also shows the paused game in the debug overlay (`debug_subject`) |
 | Transitions | `FadeTransition` to the game-over screen |
 | Screen shake and rumble | `CAUGHT_SHAKE`: a 0.4 s `NOISE` shake of strength 6 on `ShakeTarget.SCREEN`, with gamepad rumble (low 0.8, high 0.4), when a muncher catches the player |
-| Live audio and synth | The projector voice and the recipe bank (see [Sound](#sound)) |
+| Sound | The effects, and the projector, a live instrument (see [Sound](#sound)) |
 | World space | The actors are world sprites, and the engine positions their rects |
 | Opacity | `make_opaque` on the maze backgrounds (see [above](#make_opaque-on-the-backgrounds)) |
 
@@ -769,7 +791,7 @@ a test is about which sound plays.
 | `TestMuncherStates` | Waiting, bobbing, walking out, eyes going home and back out, scatter and chase targets, never turning back, mode reversal, seeded frightened turns, dead ends |
 | `TestMuncherSpeeds` | Every speed, only Chomper hurrying |
 | `TestPlayerPictures`, `TestMuncherPictures`, `TestPictures`, `TestScenery` | The pictures by their pixels, fitted fonts, sprockets, pictures and panels |
-| `TestSounds` | Every recipe renders, two crunches |
+| `TestSounds` | Every effect renders, two crunches |
 | `TestAutopilot` | Corridor distances, the decision point, each goal, avoiding danger, traps, seeking capture once |
 
 `src/games/mr-muncher/tests/test_mr_muncher.py` covers the scene: layout (`TestLayout`), the countdown and

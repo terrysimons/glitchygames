@@ -100,9 +100,9 @@ def _environment(
 
 
 # The platforms and Python versions the project is developed and tested on (CircleCI: macOS
-# arm64, Linux amd64 and Windows amd64; Python 3.14, and 3.15 on macOS and Linux). A package the
-# lock installs in all of them may take its license from installed metadata; any other needs a
-# PACKAGE_LICENSE_OVERRIDES entry. Emscripten (the browser builds) is not among them: its
+# arm64, Linux amd64 and Windows amd64; the supported Pythons, 3.14 and 3.15, on each). A
+# package the lock installs in all of them may take its license from installed metadata; any other
+# needs a PACKAGE_LICENSE_OVERRIDES entry. Emscripten (the browser builds) is not among them: its
 # packages, like any other platform's, need an override
 SUPPORTED_ENVIRONMENTS: tuple[dict[str, str], ...] = tuple(
     _environment(

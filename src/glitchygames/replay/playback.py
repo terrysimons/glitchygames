@@ -1244,7 +1244,7 @@ def _start_playback(
         logical=start.scene,
         # A rebaseline converts recordings made before logical names (rule 17 of
         # glitchygames/replay/driver.py): their scenes may have moved since
-        is_rebaseline=manager.OPTIONS.get('rebaseline') is not None,
+        is_rebaseline=manager.engine_options.get('rebaseline') is not None,
     )
     if scene_class is None:
         # Name the logical name and module too: a class of that name may be loaded under

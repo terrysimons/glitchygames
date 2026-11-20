@@ -385,7 +385,7 @@ class TestOutputDirFunctionality:
         with tempfile.TemporaryDirectory() as temp_dir:
             # Point ALLOWED_OUTPUT_ROOT at the temp dir so relative paths resolve there
             temp_root = Path(temp_dir).resolve()
-            mocker.patch('glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', temp_root)
+            mocker.patch('glitchygames.api.sprite_requests.ALLOWED_OUTPUT_ROOT', temp_root)
 
             mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
             mock_gen_service = mocker.MagicMock()
@@ -420,7 +420,7 @@ class TestOutputDirFunctionality:
         """Test that output_dir is created if it doesn't exist."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir).resolve()
-            mocker.patch('glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', temp_root)
+            mocker.patch('glitchygames.api.sprite_requests.ALLOWED_OUTPUT_ROOT', temp_root)
 
             mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
             mock_gen_service = mocker.MagicMock()
@@ -457,7 +457,7 @@ class TestOutputDirFunctionality:
         """Test refining sprite saves files when output_dir specified."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir).resolve()
-            mocker.patch('glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', temp_root)
+            mocker.patch('glitchygames.api.sprite_requests.ALLOWED_OUTPUT_ROOT', temp_root)
 
             mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
             mock_gen_service = mocker.MagicMock()
@@ -503,13 +503,13 @@ class TestOutputDirFunctionality:
     ):
         """A refused output_path answers 400, not 500 (BUGS.md #200 item 3).
 
-        _save_sprite_files raises HTTPException(400); the endpoint's `except Exception` caught
-        it and answered 500 'Internal server error'.
+        save_sprite_files raises SpriteRequestRefusedError (the route's 400); the endpoint's
+        `except Exception` caught it and answered 500 'Internal server error'.
         """
         endpoint, service_method, request_fields = route
         with tempfile.TemporaryDirectory() as temp_dir:
             mocker.patch(
-                'glitchygames.api.routes.sprites.ALLOWED_OUTPUT_ROOT', Path(temp_dir).resolve()
+                'glitchygames.api.sprite_requests.ALLOWED_OUTPUT_ROOT', Path(temp_dir).resolve()
             )
             mock_services = mocker.patch('glitchygames.api.routes.sprites._get_services')
             mock_gen_service = mocker.MagicMock()

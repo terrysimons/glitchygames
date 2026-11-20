@@ -100,7 +100,7 @@ class SpriteSerializer(ABC):
         Args:
             sprite: The sprite to save
             filename: Path where to save the file
-            file_format: Format to save in ("ini" or "yaml")
+            file_format: Format to save in (only ``'toml'``, the default, is supported)
 
         """
 

@@ -10,7 +10,7 @@ event door (``ScriptedBatchSources``). The engine's own managers route each even
 import pygame
 import pytest
 
-from glitchygames.engine import GameEngine
+from glitchygames.engine_context import EngineContext
 from glitchygames.events import UnhandledEventError
 from glitchygames.events.audio import AudioEventManager
 from glitchygames.events.controller import ControllerEventManager
@@ -22,7 +22,7 @@ from glitchygames.replay.tools.golden_traces import (
     command_line,
 )
 from glitchygames.scenes import Scene
-from glitchygames.sources import install_sources
+from glitchygames.sources import install_sources, reset_sources
 
 # A controller plugged in at startup: its instance id equals its device index
 STAND_IN_CONTROLLER = DeviceDescriptor(
@@ -250,14 +250,45 @@ class TestEventIntegration:
         engine, _scene = start_engine_with_scene(scene_class=AudioAndControllerRecordingScene)
 
         # Check that event handlers are registered
-        assert pygame.AUDIODEVICEADDED in GameEngine.EVENT_HANDLERS
-        assert pygame.AUDIODEVICEREMOVED in GameEngine.EVENT_HANDLERS
-        assert pygame.CONTROLLERAXISMOTION in GameEngine.EVENT_HANDLERS
-        assert pygame.CONTROLLERBUTTONDOWN in GameEngine.EVENT_HANDLERS
+        assert pygame.AUDIODEVICEADDED in engine.event_handlers
+        assert pygame.AUDIODEVICEREMOVED in engine.event_handlers
+        assert pygame.CONTROLLERAXISMOTION in engine.event_handlers
+        assert pygame.CONTROLLERBUTTONDOWN in engine.event_handlers
 
         # Check that handlers point to the right methods
-        assert GameEngine.EVENT_HANDLERS[pygame.AUDIODEVICEADDED] == engine.process_audio_event
-        assert (
-            GameEngine.EVENT_HANDLERS[pygame.CONTROLLERAXISMOTION]
-            == engine.process_controller_event
+        assert engine.event_handlers[pygame.AUDIODEVICEADDED] == engine.process_audio_event
+        assert engine.event_handlers[pygame.CONTROLLERAXISMOTION] == engine.process_controller_event
+
+
+def test_each_engine_dispatches_events_to_its_own_handlers():
+    """Two engines in two contexts: one's events never reach the other's scene (audit C10).
+
+    The engine context spike (2026-10-27): the second engine built overwrote the class-wide
+    handler map, so the first game's events went to the second game's managers.
+    """
+    first_context = EngineContext(name='first')
+    second_context = EngineContext(name='second')
+    with first_context.active():
+        first_engine, first_scene = start_engine_with_scene(
+            scene_class=AudioAndControllerRecordingScene,
+            extra_arguments=['--no-unhandled-events', '--target-fps', '30'],
         )
+    with second_context.active():
+        _second_engine, second_scene = start_engine_with_scene(
+            scene_class=AudioAndControllerRecordingScene,
+            extra_arguments=['--no-unhandled-events', '--target-fps', '50'],
+        )
+
+    with first_context.active():
+        install_sources(
+            sources=ScriptedBatchSources(
+                batch=[pygame.event.Event(pygame.AUDIODEVICEADDED, which=1, iscapture=0)]
+            )
+        )
+        first_engine.process_events()
+    for context in (first_context, second_context):
+        with context.active():
+            reset_sources()
+
+    assert [event.which for event in first_scene.audio_events_received] == [1]
+    assert second_scene.audio_events_received == []

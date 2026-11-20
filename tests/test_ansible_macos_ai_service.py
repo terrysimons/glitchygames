@@ -11,6 +11,8 @@ from typing import Any
 
 import yaml
 
+from tests.ansible_inventory import raspberry_pi_hosts
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ROLES = PROJECT_ROOT / 'ansible' / 'roles'
 FULL_REVISION = re.compile(r'[0-9a-f]{40}')
@@ -200,8 +202,10 @@ def test_the_ai_service_is_on_by_default_and_off_on_the_raspberry_pis():
 
     assert inventory['all']['vars']['ai_enabled'] is True
     assert raspberry_pis['vars']['ai_enabled'] is False
-    # No Pi turns it back on for itself
-    assert all('ai_enabled' not in host for host in raspberry_pis['hosts'].values())
+    # No Pi, nor any OS group of Pis, turns it back on: each sees it off
+    pis = raspberry_pi_hosts()
+    assert pis
+    assert all(variables['ai_enabled'] is False for variables in pis.values())
 
 
 def test_only_hosts_with_ai_enabled_get_the_ai_service():

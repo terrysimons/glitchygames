@@ -24,6 +24,7 @@ import pytest
 
 from glitchygames import recording
 from glitchygames.audio.accounting import AudioFrameAccount
+from glitchygames.engine_context import EngineContext, default_context
 from glitchygames.events import (
     FPSEVENT,
     GAMEEVENT,
@@ -56,17 +57,22 @@ from glitchygames.recording import (
     UnrepresentableValue,
     custom_event_type_remap,
     custom_event_types_header,
+    discard_custom_events_queued_before_the_run,
+    discard_events_left_at_the_runs_end,
     event_from_record,
     event_origin,
     event_to_record,
     forget_pending_posts,
+    is_input_post,
     is_live_game_post,
     json_safe_value,
+    live_game_code_running,
     live_game_posts,
     pending_code_post_count,
     pending_internal_posts,
     post_event,
     post_input_event,
+    private_event_queue,
     remapped_event_records,
     reset_internal_post_tracking,
     set_live_game_code_running,
@@ -92,6 +98,9 @@ if TYPE_CHECKING:
 
 WINDOW_SIZE = (16, 16)
 TEST_JOYSTICK_INSTANCE_ID = 7
+# The event type posts_are_tracked() probes the tracker with: its own, so taking the probe back
+# out of SDL's queue never takes a test's own USEREVENTs (review M-8)
+PROBE_EVENT_TYPE = pygame.event.custom_type()
 
 
 class Gamepad:
@@ -148,14 +157,51 @@ def _pump_batch(recorder: GameplayRecorder) -> None:
     recorder.record_event_batch(raw_events=pygame.event.get())
 
 
+def posts_are_tracked() -> bool:
+    """Whether a code post is tracked now: it waits in pending_internal_posts() (decision 1).
+
+    Posts a probe of this module's own event type (PROBE_EVENT_TYPE, from
+    pygame.event.custom_type()) with post_event, then takes it back out of the tracker's pending
+    list and SDL's queue, so the tracker and the queue are as they were.
+
+    Returns:
+        True when the probe was tracked.
+
+    Raises:
+        AssertionError: If the live game's code is running: the probe would be recorded among
+            the live game's posts too.
+
+    """
+    if live_game_code_running():
+        message = (
+            'posts_are_tracked() cannot probe while the live game code runs: the probe would be '
+            "recorded among the live game's posts too"
+        )
+        raise AssertionError(message)
+    pending_before = len(pending_internal_posts())
+    post_event(pygame.event.Event(PROBE_EVENT_TYPE))
+    is_tracked = len(pending_internal_posts()) > pending_before
+    if is_tracked:
+        pending_internal_posts().pop()
+    pygame.event.get(eventtype=PROBE_EVENT_TYPE)
+    return is_tracked
+
+
 def _origins(frame: dict[str, Any]) -> list[tuple[int, str]]:
     return [(record['type'], record['origin']) for record in frame[EVENT_BATCHES_FIELD][0]]
 
 
 @pytest.fixture(autouse=True)
-def no_tracked_posts(mocker):
-    """Give each test a fresh internal-post tracker (a recorder left open cannot leak)."""
-    mocker.patch.object(recording, '_INTERNAL_POSTS', recording.InternalEventPosts())
+def no_tracked_posts():
+    """Give each test a fresh internal-post tracker (a recorder left open cannot leak).
+
+    Yields:
+        None, with the default context's tracker fresh (reset again afterwards).
+
+    """
+    default_context().reset_value(slot=recording.INTERNAL_POSTS_SLOT)
+    yield
+    default_context().reset_value(slot=recording.INTERNAL_POSTS_SLOT)
 
 
 @pytest.fixture
@@ -629,7 +675,7 @@ class TestEventOrigin:
                 was_posted = post_event(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a))
             finally:
                 pygame.event.set_allowed(pygame.KEYDOWN)
-            pending_after_post = list(recording._INTERNAL_POSTS.pending)
+            pending_after_post = list(pending_internal_posts())
 
         assert was_posted is False
         assert pending_after_post == []
@@ -692,30 +738,34 @@ class TestEventOrigin:
     def test_forgetting_pending_posts_forgets_input_posts(self, event_queue):
         start_tracking_internal_posts()
         post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1}))
+        input_post = pending_internal_posts()[0]
+        assert is_input_post(post=input_post) is True
         forget_pending_posts()
 
         assert pending_internal_posts() == []
-        assert recording._INTERNAL_POSTS.input_posts == []
+        assert is_input_post(post=input_post) is False
         stop_tracking_internal_posts()
 
     def test_input_posts_are_not_tracked_without_a_recorder(self, event_queue):
         """With no recording open, post_input_event only posts."""
         assert post_input_event(pygame.event.Event(pygame.USEREVENT, {'goal': 1})) is True
-        assert recording._INTERNAL_POSTS.pending == []
-        assert recording._INTERNAL_POSTS.input_posts == []
+        assert pending_internal_posts() == []
+        assert pending_code_post_count() == 0
         assert [event.type for event in pygame.event.get()] == [pygame.USEREVENT]
 
     def test_posts_are_not_tracked_without_a_recorder(self, event_queue):
         """With no recording open, post_event only posts."""
         assert post_event(pygame.event.Event(pygame.QUIT)) is True
-        assert recording._INTERNAL_POSTS.pending == []
+        assert pending_internal_posts() == []
         assert [event.type for event in pygame.event.get()] == [pygame.QUIT]
 
 
 class TestRecorderWriteFailures:
     """A recording that cannot be written part way (the disk fills): BUGS.md #82."""
 
-    def test_a_failed_frame_write_raises_and_keeps_the_frames_before(self, tmp_path, mocker):
+    def test_a_failed_frame_write_raises_and_keeps_the_frames_before(
+        self, tmp_path, mocker, event_queue
+    ):
         path = tmp_path / 'play.jsonl.gz'
         recorder = GameplayRecorder(path=path, header={})
         recorder.record_frame(dt=0.01, scene=None)
@@ -727,7 +777,7 @@ class TestRecorderWriteFailures:
         assert error_info.value.path == path
         assert recorder.write_failed is True
         # Abandoned: closed, posts no longer tracked, later frames are not written
-        assert recording._INTERNAL_POSTS.is_tracking is False
+        assert posts_are_tracked() is False
         recorder.record_frame(dt=0.01, scene=None)
         recorder.close()
         result = read_trace_result(path=path)
@@ -993,14 +1043,14 @@ class TestGameplayRecorder:
         messages = [record.getMessage() for record in caplog.records]
         assert messages == [f'Recorded 2 frames to {path}']
 
-    def test_closing_stops_tracking_posts(self, tmp_path):
+    def test_closing_stops_tracking_posts(self, tmp_path, event_queue):
         """Post tracking runs only while a recorder is open."""
         recorder = GameplayRecorder(path=tmp_path / 'play.jsonl.gz', header={})
-        tracking_while_open = recording._INTERNAL_POSTS.is_tracking
+        tracking_while_open = posts_are_tracked()
         recorder.close()
 
         assert tracking_while_open is True
-        assert recording._INTERNAL_POSTS.is_tracking is False
+        assert posts_are_tracked() is False
 
     def test_unclosed_recording_reads_every_frame(self, tmp_path):
         """A recorder never closed (the process was killed) leaves every frame readable."""
@@ -1051,16 +1101,16 @@ class TestGameplayRecorder:
 class TestInternalPostTracking:
     """Post tracking has owners: it runs while at least one owner holds it."""
 
-    def test_tracking_runs_until_the_last_owner_stops(self):
+    def test_tracking_runs_until_the_last_owner_stops(self, event_queue):
         """A second owner keeps tracking on after the first one stops."""
         start_tracking_internal_posts()
         start_tracking_internal_posts()
         stop_tracking_internal_posts()
-        tracking_with_one_owner = recording._INTERNAL_POSTS.is_tracking
+        tracking_with_one_owner = posts_are_tracked()
         stop_tracking_internal_posts()
 
         assert tracking_with_one_owner is True
-        assert recording._INTERNAL_POSTS.is_tracking is False
+        assert posts_are_tracked() is False
 
     def test_closing_a_recorder_leaves_another_owner_tracking(self, tmp_path, event_queue):
         """A recorder closing never switches tracking off under another owner (a replay)."""
@@ -1068,18 +1118,18 @@ class TestInternalPostTracking:
         GameplayRecorder(path=tmp_path / 'play.jsonl.gz', header={}).close()
         post_event(pygame.event.Event(pygame.QUIT))
 
-        assert recording._INTERNAL_POSTS.is_tracking is True
+        assert posts_are_tracked() is True
         assert pending_internal_posts() == [(pygame.QUIT, {})]
         stop_tracking_internal_posts()
 
-    def test_stopping_with_no_owner_stays_at_zero(self):
+    def test_stopping_with_no_owner_stays_at_zero(self, event_queue):
         """An unmatched stop cannot make the count negative (a later start still tracks)."""
         stop_tracking_internal_posts()
         start_tracking_internal_posts()
 
-        assert recording._INTERNAL_POSTS.is_tracking is True
+        assert posts_are_tracked() is True
         stop_tracking_internal_posts()
-        assert recording._INTERNAL_POSTS.is_tracking is False
+        assert posts_are_tracked() is False
 
     def test_reset_forgets_owners_and_pending_posts(self, event_queue):
         """reset_internal_post_tracking: no owners and nothing pending (a new run, a test)."""
@@ -1087,7 +1137,7 @@ class TestInternalPostTracking:
         post_event(pygame.event.Event(pygame.QUIT))
         reset_internal_post_tracking()
 
-        assert recording._INTERNAL_POSTS.is_tracking is False
+        assert posts_are_tracked() is False
         assert pending_internal_posts() == []
 
     def test_pending_posts_are_the_trackers_own_list(self, event_queue):
@@ -1099,7 +1149,106 @@ class TestInternalPostTracking:
 
         assert event_origin(event=pumped, pending=pending) == INTERNAL_ORIGIN
         assert pending_internal_posts() == []
+
+    def test_one_contexts_pump_never_forgets_another_contexts_posts(self, event_queue):
+        """A pump in one context forgets only that context's pending posts (audit C19).
+
+        The engine context spike (2026-10-27): the second game's pump forgot the first game's
+        posted QUIT, so the first game's replay no longer knew it as its own.
+        """
+        first = EngineContext(name='first')
+        second = EngineContext(name='second')
+        with first.active():
+            start_tracking_internal_posts()
+            post_event(pygame.event.Event(pygame.QUIT))
+        with second.active():
+            start_tracking_internal_posts()
+            forget_pending_posts()
+            stop_tracking_internal_posts()
+        with first.active():
+            first_pending = list(pending_internal_posts())
+            stop_tracking_internal_posts()
+        pygame.event.clear()
+
+        assert first_pending == [(pygame.QUIT, {})]
+
+    def test_a_new_run_in_one_context_keeps_another_contexts_tracking(self, event_queue):
+        """reset_internal_post_tracking (every GameEngine.__init__) resets only its context."""
+        first = EngineContext(name='first')
+        with first.active():
+            start_tracking_internal_posts()
+        with EngineContext(name='second').active():
+            reset_internal_post_tracking()
+        with first.active():
+            first_still_tracks = posts_are_tracked()
+            stop_tracking_internal_posts()
+
+        assert first_still_tracks is True
         stop_tracking_internal_posts()
+
+
+class TestDiscardCustomEventsQueuedBeforeTheRun:
+    """A run's start drops the custom events an earlier run left in SDL's queue (BUGS.md #276)."""
+
+    def test_custom_events_go_and_sdl_events_stay_in_order(self, event_queue):
+        # KEYDOWN is the one real input type event_queue leaves unblocked
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a))
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, left='over'))
+        pygame.event.post(pygame.event.Event(pygame.USEREVENT, left='over'))
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_b))
+        discard_custom_events_queued_before_the_run()
+
+        assert [(event.type, event.key) for event in pygame.event.get()] == [
+            (pygame.KEYDOWN, pygame.K_a),
+            (pygame.KEYDOWN, pygame.K_b),
+        ]
+
+    def test_an_inner_context_leaves_sdls_queue_to_its_owner(self, event_queue):
+        """An inner game drains a private queue; SDL's belongs to the window's context."""
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, owner='outer'))
+        with EngineContext(name='inner').active():
+            private_event_queue().enabled = True
+            discard_custom_events_queued_before_the_run()
+
+        assert [event.dict for event in pygame.event.get()] == [{'owner': 'outer'}]
+
+    def test_without_a_display_there_is_no_queue_to_read(self, mocker, event_queue):
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, left='over'))
+        mocker.patch.object(pygame.display, 'get_init', return_value=False)
+        discard_custom_events_queued_before_the_run()
+        mocker.stopall()
+
+        assert [event.dict for event in pygame.event.get()] == [{'left': 'over'}]
+
+
+class TestDiscardEventsLeftAtTheRunsEnd:
+    """A run's teardown empties its event queue, so no later run reads them (BUGS.md #276)."""
+
+    def test_sdls_queue_is_emptied(self, event_queue):
+        pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a))
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, left='over'))
+        discard_events_left_at_the_runs_end()
+
+        assert pygame.event.get() == []
+
+    def test_an_inner_context_empties_its_own_queue_and_leaves_sdls(self, event_queue):
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, owner='outer'))
+        with EngineContext(name='inner').active():
+            private_event_queue().enabled = True
+            post_event(pygame.event.Event(PROBE_EVENT_TYPE, owner='inner'))
+            discard_events_left_at_the_runs_end()
+            inner_left = list(private_event_queue().events)
+
+        assert inner_left == []
+        assert [event.dict for event in pygame.event.get()] == [{'owner': 'outer'}]
+
+    def test_without_a_display_there_is_no_queue_to_empty(self, mocker, event_queue):
+        pygame.event.post(pygame.event.Event(PROBE_EVENT_TYPE, left='over'))
+        mocker.patch.object(pygame.display, 'get_init', return_value=False)
+        discard_events_left_at_the_runs_end()
+        mocker.stopall()
+
+        assert [event.dict for event in pygame.event.get()] == [{'left': 'over'}]
 
 
 def _recording_sources(*, path: Path) -> tuple[RecordingSources, GameplayRecorder, LiveSources]:

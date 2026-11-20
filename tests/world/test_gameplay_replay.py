@@ -28,6 +28,7 @@ from glitchygames.build_info import RevisionSource, engine_source_revision
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
+from glitchygames.engine_context import EngineContext
 from glitchygames.events import FPSEVENT, allow_every_event_type
 from glitchygames.exit_codes import ExitCode
 from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
@@ -48,6 +49,7 @@ from glitchygames.recording import (
     pending_internal_posts,
     post_event,
     post_input_event,
+    private_event_queue,
 )
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -129,7 +131,7 @@ from glitchygames.tracing import (
     write_trace,
 )
 from tests.display_canvas import display_looks_entirely_black, real_display_surface
-from tests.harness import imported_engine_is_the_checkouts
+from tests.harness import TEST_WINDOWS_HIDDEN, imported_engine_is_the_checkouts
 from tests.replay.replay_helpers import (
     replay_through_engine,
     rewrite_recording,
@@ -656,7 +658,11 @@ def press_keys_while_held(
         if before_each_press is not None:
             before_each_press()
         if not remaining_keys:
-            message = 'the replay waited for the viewer after every key was pressed'
+            # Named with why it waits: a replay paused at a divergence shows it in its banner
+            message = (
+                'the replay waited for the viewer after every key was pressed (end reason '
+                f'{sources.result.end_reason!r}, banner {sources.controls.banner!r})'
+            )
             raise AssertionError(message)
         key = remaining_keys.pop(0)
         pygame.event.post(_key(pygame.KEYDOWN, key))
@@ -1293,6 +1299,108 @@ class TestReplayDoors:
         assert recorded['saves_opened'] == {'game': {}}
         assert recorded['device_enumeration'] == enumeration
         assert 'devices_opened' not in recorded
+
+
+class TestPrivateEventQueue:
+    """An inner context posts to and drains a queue of its own, never SDL's (audit rows S5, S6)."""
+
+    def test_a_post_in_an_inner_context_never_reaches_sdls_queue(self):
+        pygame.event.clear()
+        probe_type = pygame.event.custom_type()
+        inner_context = EngineContext(name='inner')
+        with inner_context.active():
+            private_event_queue().enabled = True
+            assert post_event(pygame.event.Event(probe_type, value=1))
+            assert post_input_event(pygame.event.Event(probe_type, value=2))
+            private_events = list(private_event_queue().events)
+        assert pygame.event.get(eventtype=probe_type) == []
+        assert [event.dict for event in private_events] == [{'value': 1}, {'value': 2}]
+        assert not private_event_queue().enabled
+        assert private_event_queue().events == []
+
+    def test_an_inner_replays_pump_leaves_an_owners_event_in_sdls_queue(self):
+        pygame.event.clear()
+        owner_type = pygame.event.custom_type()
+        post_event(pygame.event.Event(owner_type, value='owner'))
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        with EngineContext(name='inner').active():
+            private_event_queue().enabled = True
+            install_sources(sources=sources)
+            sources.pump_events()
+        left_in_sdl = pygame.event.get(eventtype=owner_type)
+        assert [event.dict for event in left_in_sdl] == [{'value': 'owner'}]
+        pygame.event.clear()
+
+    def test_an_inner_replay_serves_its_own_posts_as_internal(self):
+        pygame.event.clear()
+        probe_type = pygame.event.custom_type()
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        with EngineContext(name='inner').active():
+            private_event_queue().enabled = True
+            install_sources(sources=sources)
+            post_event(pygame.event.Event(probe_type, value=3))
+            batch = sources.pump_events()
+            assert [event.dict for event in batch if event.type == probe_type] == [{'value': 3}]
+            assert sources.last_batch_origins() == [INTERNAL_ORIGIN]
+            assert private_event_queue().events == []
+
+    def test_an_inner_replay_never_blocks_input_at_sdl(self):
+        pygame.event.clear()
+        watched_types = (pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.JOYAXISMOTION)
+        blocked_before = {
+            event_type: pygame.event.get_blocked(event_type) for event_type in watched_types
+        }
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        with EngineContext(name='inner').active():
+            private_event_queue().enabled = True
+            install_sources(sources=sources)
+            sources.pump_events()
+            sources.pump_events()
+        blocked_after = {
+            event_type: pygame.event.get_blocked(event_type) for event_type in watched_types
+        }
+        assert blocked_after == blocked_before
+
+
+# A custom event type no game in this file posts: an earlier run's event left in SDL's queue
+LEFT_OVER_EVENT_TYPE = pygame.event.custom_type()
+
+
+def _recorded_event_types(*, recording_path: Path) -> list[int]:
+    """Return the type of every event the recording's frames hold, in order."""
+    return [
+        record['type']
+        for frame in read_trace_result(path=recording_path).trace['frames']
+        for batch in frame.get('event_batches', [])
+        for record in batch
+    ]
+
+
+class TestCustomEventsQueuedBeforeTheRun:
+    """A run takes none of the custom events an earlier run left in SDL's queue (BUGS.md #276).
+
+    A custom type is internal by type alone, so a left-over one was recorded as the run's own
+    internal event, or taken by a replay for one its code posted: a divergence at frame 0.
+    """
+
+    def test_a_recording_holds_none_of_them(self, mocker, tmp_path):
+        pygame.event.post(pygame.event.Event(LEFT_OVER_EVENT_TYPE, left='over'))
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        assert LEFT_OVER_EVENT_TYPE not in _recorded_event_types(recording_path=recording_path)
+
+    def test_a_watched_replay_started_with_one_queued_does_not_diverge(self, mocker, tmp_path):
+        recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
+        pygame.event.post(pygame.event.Event(LEFT_OVER_EVENT_TYPE, left='over'))
+        digest_path = tmp_path / 'digests.jsonl'
+        press_keys_while_held(mocker=mocker, keys=(pygame.K_SPACE,))
+        with pytest.raises(SystemExit) as exit_info:
+            replay_session_with_arguments(
+                recording_path=recording_path,
+                mocker=mocker,
+                arguments=('--replay-digest', str(digest_path)),
+            )
+        _, divergence = read_digest_file(path=digest_path)
+        assert (divergence, exit_info.value.code) == (None, ExitCode.SUCCESS)
 
 
 class TestReplayFps:
@@ -2465,7 +2573,9 @@ class TestHeadlessDriverRestore:
             assert pygame.display.get_driver() == 'dummy'
 
         restore_run_sdl_drivers(
-            run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN, run_state=run_sdl_driver_state
+            run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
+            run_state=run_sdl_driver_state,
+            hides_windows=TEST_WINDOWS_HIDDEN,
         )
 
         # The drivers only: the engine reserved its live voice channels on the mixer
@@ -5047,13 +5157,13 @@ class TestAuditReplayRuns:
                 mocker=mocker,
                 arguments=('--replay-digest', str(digest_path)),
             )
-        assert exit_info.value.code == ExitCode.SUCCESS
         digests, divergence = read_digest_file(path=digest_path)
+        # Together, so a failed run names its divergence, not only its exit (BUGS.md #276)
+        assert (divergence, exit_info.value.code) == (None, ExitCode.SUCCESS)
         recorded_frames = read_trace_result(path=recording_path).trace['frames']
         assert digests == [
             frame_digest(frame_record=sampled_part(frame=frame)) for frame in recorded_frames
         ]
-        assert divergence is None
 
     def test_an_unwritable_digest_file_is_refused_before_the_run(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)

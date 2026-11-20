@@ -376,7 +376,7 @@ def record_golden_trace_on_the_game(
     scripts/record_golden_traces.py writes ours.
 
     Args:
-        options: The game's parsed options (``GameEngine.OPTIONS``).
+        options: The game's parsed options (the engine's ``options``).
         game: The game (its class, or a scene the game passed in).
 
     Returns:
@@ -443,7 +443,7 @@ def record_session_on_the_game(*, options: dict[str, Any], game: type[Scene] | S
     ``--input-only-placements`` as given.
 
     Args:
-        options: The game's parsed options (``GameEngine.OPTIONS``).
+        options: The game's parsed options (the engine's ``options``).
         game: The game (its class, or a scene the game passed in).
 
     Returns:

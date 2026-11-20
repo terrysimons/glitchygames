@@ -9,9 +9,15 @@ version: 2.1
 #     enum: [build, report]
 #     default: build
 parameters:
-  PYTHON_LATEST_VERSION:
+  # The one Python every job runs on and installs, and the Linux jobs' image (cimg/python): 3.15
+  # (noxfile.TEST_PYTHONS, PINNED_PYTHONS; tests/test_ci_config.py checks what each job installs
+  # and runs). Python 3.14 was removed from the tests and CI (the owner, 2026-11-19: "let's get rid
+  # of Python 3.14 altogether"); it stays only the oldest the code must parse and type-check as
+  # (requires-python, ruff's and the type checkers' targets), as the browser builds' Pyodide 314
+  # runs it
+  PYTHON_VERSION:
     type: string
-    default: "3.14.8"
+    default: "3.15.2"
   XCODE_LATEST_VERSION:
     type: string
     default: "27.1.0"
@@ -25,7 +31,7 @@ parameters:
   # trusts a compromised CA (GHSA-hq85-5cpj-mr62)
   UV_VERSION:
     type: string
-    default: "0.13.6"
+    default: "0.13.8"
   # syft and grype (nox -s security-scan: the SBOM, its CVE scan and license check), system
   # binaries rather than Python packages, so uv.lock cannot pin them. SYFT_VERSION is the syft that
   # wrote docs/sbom.cyclonedx.json (its metadata.tools, which tests/test_ci_config.py checks): a
@@ -35,16 +41,16 @@ parameters:
   # runs on the macOS job only, Apple silicon
   SYFT_VERSION:
     type: string
-    default: "1.57.0"
+    default: "1.57.1"
   SYFT_DARWIN_ARM64_SHA256:
     type: string
-    default: "17012a5a110323bb1069e513a8665f1ae445905c56b4e3f9a9df4f95c5bb6161"
+    default: "e0a74a5d2688d1254b4e17b71f068a83215e3625f846265bf6614c7ba06f3a96"
   GRYPE_VERSION:
     type: string
-    default: "0.121.0"
+    default: "0.121.3"
   GRYPE_DARWIN_ARM64_SHA256:
     type: string
-    default: "7be39d3a0428c664ce0183e4aba31ed9accffce9eda7e7f6fa84e9c512285f27"
+    default: "54336f2cd8cdee8b3d8ea83462561ff7fa9293498054c7c53a193db44bfea4c8"
   # The fingerprint of the deploy key that may push gh-pages (a GitHub deploy key with write
   # access to this repository, its private half in this CircleCI project's SSH keys): the
   # deploy-docs job loads it with add_ssh_keys
@@ -69,12 +75,14 @@ commands:
     steps:
       - restore_cache:
           keys:
-            - uv-cache-v2-{{ arch }}-{{ checksum "uv.lock" }}
-            - uv-cache-v2-{{ arch }}-
+            - uv-cache-v3-{{ arch }}-{{ checksum "uv.lock" }}
+            - uv-cache-v3-{{ arch }}-
 
   # Saved at the end of the job, once the nox sessions have filled it, and after
   # `uv cache prune --ci` drops what is cheaper to download again than to restore (pre-built
-  # wheels), keeping what was built from source. Skipped when the key already exists
+  # wheels), keeping what was built from source. Skipped when the key already exists, so the key's
+  # version goes up when what a job installs changes and uv.lock does not: v3 (posix) and v4
+  # (Windows) when every job moved to 3.15 (2026-11-18), as v2's keys held 3.14's Python
   save-uv-cache-posix:
     steps:
       - run:
@@ -84,7 +92,7 @@ commands:
             export PATH="$HOME/.local/bin:$PATH"
             uv cache prune --ci
       - save_cache:
-          key: uv-cache-v2-{{ arch }}-{{ checksum "uv.lock" }}
+          key: uv-cache-v3-{{ arch }}-{{ checksum "uv.lock" }}
           when: always
           paths:
             - ~/.cache/uv
@@ -92,6 +100,10 @@ commands:
 
   install-deps-posix:
     parameters:
+      # The Pythons the job's nox sessions run on, and only those (the owner, 2026-11-18: "only
+      # targeting 3.15 with nox in the 3.15 jobs"), named at every use
+      pythons:
+        type: string
       no_output_timeout:
         type: string
         default: 10m
@@ -108,9 +120,9 @@ commands:
 
             uv --version
 
-            # Use the requested interpreter (download if needed on this executor); the nox
-            # sessions install the project from uv.lock themselves
-            uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
+            # The job's Pythons (download if needed on this executor); the nox sessions install
+            # the project from uv.lock themselves
+            uv python install << parameters.pythons >>
 
             # nox at the pinned version, a uv tool (its own venv; the executable in ~/.local/bin),
             # run directly by every later step. Under `uvx` the uvx process stayed alive as nox's
@@ -168,6 +180,11 @@ commands:
             nox -s timer-report
 
   nox-test:
+    parameters:
+      # One Python's test session (noxfile.TEST_PYTHONS), named at every use, never a default:
+      # test-3.15
+      session:
+        type: string
     steps:
       # Tests run (and report) even when an earlier lint or format step failed, so a lint
       # failure never hides the test results. Headless: the test session defaults SDL's video
@@ -179,18 +196,57 @@ commands:
           when: always
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            nox -s test
+            nox -s << parameters.session >>
       - store_test_results:
           path: test-results
           when: always
       - store_artifacts:
           path: test-results
-          destination: test-results
+          destination: test-results-<< parameters.session >>
           when: always
       - store_artifacts:
           path: htmlcov
-          destination: coverage-html
+          destination: coverage-html-<< parameters.session >>
           when: always
+
+  # A split job's machine leaves its coverage data for the job that combines them
+  # (tests/circleci_test_split.py): .coverage, renamed by the machine's index, in coverage-data/
+  # under the job's name. Each machine's file is its own, so the workspace never gets one path twice
+  save-coverage-share-posix:
+    parameters:
+      # The job's name in coverage-data/, which its combine job reads
+      share:
+        type: string
+    steps:
+      - run:
+          name: "Keep this machine's coverage data"
+          command: |
+            set -euo pipefail
+            mkdir -p "coverage-data/<< parameters.share >>"
+            mv .coverage "coverage-data/<< parameters.share >>/.coverage.node-${CIRCLE_NODE_INDEX}"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - coverage-data/<< parameters.share >>
+
+  # As save-coverage-share-posix
+  save-coverage-share-windows:
+    parameters:
+      share:
+        type: string
+    steps:
+      - run:
+          name: "Keep this machine's coverage data"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $share = "coverage-data/<< parameters.share >>"
+            New-Item -ItemType Directory -Force -Path $share | Out-Null
+            Move-Item .coverage "$share\.coverage.node-$env:CIRCLE_NODE_INDEX"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - coverage-data/<< parameters.share >>
 
   # syft and grype at their pinned versions, each release tarball checked against its pinned
   # SHA-256 before anything is extracted (macOS, Apple silicon: the checksums are darwin_arm64's)
@@ -238,24 +294,50 @@ commands:
             export PATH="$HOME/.local/bin:$PATH"
             nox -s performance-test
 
+  # The Bitmappy binary and the wheels, on Python 3.15 (noxfile.BUILD_PYTHONS; the owner,
+  # 2026-11-18: "Switch the builds over to 3.15"). A split job builds on its first machine only:
+  # every step of a job runs on each of its machines, and both built the same thing
   nox-build:
     steps:
       - run:
           name: "Build binary and wheel"
           command: |
+            set -euo pipefail
+            if [ "${CIRCLE_NODE_INDEX:-0}" != "0" ]; then
+              echo "Built on machine 0 only"
+              exit 0
+            fi
             export PATH="$HOME/.local/bin:$PATH"
             nox -s build
       - store_artifacts:
           path: dist
           destination: dist
 
-  # As restore-uv-cache-posix / save-uv-cache-posix
+  # As nox-build, on Windows
+  nox-build-windows:
+    steps:
+      - run:
+          name: "Build binary and wheel"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            if ($env:CIRCLE_NODE_INDEX -and $env:CIRCLE_NODE_INDEX -ne "0") {
+              Write-Output "Built on machine 0 only"
+              exit 0
+            }
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            nox -s build
+      - store_artifacts:
+          path: dist
+          destination: dist
+
+  # As restore-uv-cache-posix / save-uv-cache-posix; the cache is the job's short UV_CACHE_DIR
   restore-uv-cache-windows:
     steps:
       - restore_cache:
           keys:
-            - uv-cache-v2-windows-{{ checksum "uv.lock" }}
-            - uv-cache-v2-windows-
+            - uv-cache-v4-windows-{{ checksum "uv.lock" }}
+            - uv-cache-v4-windows-
 
   save-uv-cache-windows:
     steps:
@@ -268,99 +350,20 @@ commands:
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
             uv cache prune --ci
       - save_cache:
-          key: uv-cache-v2-windows-{{ checksum "uv.lock" }}
+          key: uv-cache-v4-windows-{{ checksum "uv.lock" }}
           when: always
           paths:
-            - C:\Users\circleci\AppData\Local\uv\cache
+            # The job's UV_CACHE_DIR (test-python-3-15-windows), not uv's default under AppData
+            - C:\uv-cache
             - C:\Users\circleci\AppData\Local\uv\python
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
-jobs:
-  build-and-test-linux:
-    # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
-    docker:
-      - image: cimg/python:<< pipeline.parameters.PYTHON_LATEST_VERSION >>
-    # Add steps to the job
-    # See: https://circleci.com/docs/2.0/configuration-reference/#steps
-
-    # small (1 vCPU, 2 GB): one process runs the whole suite. It grew past 2 GB until the recording
-    # mocks in two timing and hardware tests were replaced (BUGS.md #85)
-    resource_class: small
-
-    environment:
-      DISABLE_MKDOCS_2_WARNING: "true"
-      # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
-      PYTEST_WORKERS: "0"
-      # Stop the run past 1600 MiB of the container's memory (its page cache left out), naming the
-      # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
-      # no test named (BUGS.md #235). 1600 is the owner's choice (2026-10-28: "Let's stay at 1600
-      # for a bit and see if we can reduce it further"); after BUGS.md #237's fixes a serial run
-      # peaked at 1409 MiB (amd64 emulated in Docker; CircleCI's summary line is the real figure)
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
-
+  # As install-deps-posix
+  install-deps-windows:
+    parameters:
+      # As install-deps-posix
+      pythons:
+        type: string
     steps:
-      - checkout
-
-      - run:
-          name: "Install Linux system dependencies"
-          command: |
-            set -euo pipefail
-            sudo apt-get update
-            sudo apt-get install -y fontconfig
-
-      - restore-uv-cache-posix
-      - install-deps-posix
-      # Only what differs by platform; format, lint, type checks, docs, security scans and
-      # benchmarks give the same answer on every OS and run on macOS (the fastest runner; the
-      # committed SBOM is macOS's, so its drift check runs there)
-      - nox-timer-report
-      - nox-test
-      - nox-build
-      - save-uv-cache-posix
-
-  build-and-test-macos:
-    macos:
-      xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
-    resource_class: m4pro.medium
-
-    environment:
-      DISABLE_MKDOCS_2_WARNING: "true"
-      # The Bitmappy binary is built for this executor's architecture (arm64, Apple silicon):
-      # no PYINSTALLER_TARGET_ARCH. A universal2 build needs every compiled extension fat,
-      # and numpy, scipy, pandas, Pillow and pydantic-core ship arm64-only wheels for Python
-      # 3.14 (PyInstaller then fails: "... is not a fat binary!"; it does not fall back)
-
-    steps:
-      - checkout
-
-      - restore-uv-cache-posix
-      - install-deps-posix
-      - nox-format
-      - nox-lint
-      - nox-static-analysis
-      - nox-lint-docs
-      - nox-timer-report
-      - nox-test
-      - install-supply-chain-tools-macos
-      - nox-security-scan
-      - nox-performance-test
-      - nox-build
-      - save-uv-cache-posix
-
-  build-and-test-windows:
-    executor:
-      name: win/default
-      size: medium
-
-    environment:
-      DISABLE_MKDOCS_2_WARNING: "true"
-
-    steps:
-      - checkout
-
-      - restore-uv-cache-windows
       - run:
           name: "Install uv and Python"
           shell: powershell.exe
@@ -374,22 +377,29 @@ jobs:
 
             uv --version
 
-            # The nox sessions install the project from uv.lock themselves
-            uv python install "<< pipeline.parameters.PYTHON_LATEST_VERSION >>"
+            # Long paths on, before anything builds from source: belt and braces beside the
+            # job's short UV_CACHE_DIR, as MSVC's linker may not honour it (the owner,
+            # 2026-11-17). A package with no wheel for a Python (hidapi on 3.15) is compiled
+            # inside uv's cache, and setuptools repeats the source's absolute path in its build
+            # folder: under the default cache a linker output reached 260 characters, one past
+            # Windows' limit (CircleCI job 3628: LNK1104)
+            New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
+              -Name 'LongPathsEnabled' -Value 1 -PropertyType DWORD -Force | Out-Null
+
+            # The job's Pythons; the nox sessions install the project from uv.lock themselves
+            uv python install << parameters.pythons >>
 
             # nox at the pinned version, a uv tool run directly, as in install-deps-posix
             uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"
             nox --version
-      # Only what differs by platform, as on Linux; the rest runs on macOS
-      # Diagnostic only, as in nox-timer-report
-      - run:
-          name: "Timer report (diagnostic)"
-          when: always
-          shell: powershell.exe
-          command: |
-            $ErrorActionPreference = "Stop"
-            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            nox -s timer-report
+
+  # As nox-test
+  nox-test-windows:
+    parameters:
+      # As nox-test's: named at every use
+      session:
+        type: string
+    steps:
       # Tests run (and report) even when an earlier step failed, as in nox-test
       - run:
           name: "Tests (pytest + coverage)"
@@ -399,29 +409,196 @@ jobs:
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            nox -s test
+            nox -s << parameters.session >>
       - store_test_results:
           path: test-results
           when: always
       - store_artifacts:
           path: test-results
-          destination: test-results
+          destination: test-results-<< parameters.session >>
           when: always
       - store_artifacts:
           path: htmlcov
-          destination: coverage-html
+          destination: coverage-html-<< parameters.session >>
           when: always
+
+# Define a job to be invoked later in a workflow.
+# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
+jobs:
+  test-python-3-15-macos:
+    macos:
+      xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
+    resource_class: m4pro.medium
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      # The Bitmappy binary is built for this executor's architecture (arm64, Apple silicon):
+      # no PYINSTALLER_TARGET_ARCH. A universal2 build needs every compiled extension fat,
+      # and numpy, scipy, pandas, Pillow and pydantic-core ship arm64-only wheels for macOS
+      # (PyInstaller then fails: "... is not a fat binary!"; it does not fall back)
+
+    steps:
+      - checkout
+
+      - restore-uv-cache-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - nox-format
+      - nox-lint
+      - nox-static-analysis
+      - nox-lint-docs
+      - nox-timer-report
+      # 3.15, every session (noxfile.PINNED_PYTHONS; the owner, 2026-11-18: "Only 3.15 for macos
+      # too", "Just change that job's name to test-python-3-15-macos"). Linux and Windows run it
+      # in jobs of their own (test-python-3-15-linux, -windows), split across two machines: the
+      # suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
+      - nox-test:
+          session: test-3.15
+      - install-supply-chain-tools-macos
+      - nox-security-scan
+      - nox-performance-test
+      - nox-build
+      - save-uv-cache-posix
+
+  # The suite on Linux and Windows, a job each: only what differs by platform (the tests, the
+  # OS's build, and its uv cache, saved last: the owner, 2026-11-18, "Yes, let's move the uv
+  # cache"). Format, lint, type checks, docs, security scans and benchmarks give the same answer
+  # on every OS and run on macOS (the fastest runner; the committed SBOM is macOS's, so its drift
+  # check runs there)
+  test-python-3-15-linux:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
+    # small (1 vCPU, 2 GB): one process runs the machine's share of the suite. It grew past 2 GB
+    # until the recording mocks in two timing and hardware tests were replaced (BUGS.md #85)
+    resource_class: small
+    parallelism: 2
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
+      PYTEST_WORKERS: "0"
+      # Stop the run past 1750 MiB of the container's memory (its page cache left out), naming the
+      # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
+      # no test named (BUGS.md #235). 1750 is the owner's choice (2026-11-17: "Let's raise the
+      # guard limit to 1750"), up from 1600 (2026-10-28): job 3686 stopped at 1604 MiB, 348 MiB
+      # of it reclaimable kernel slab, which the reading still counts (memory_guard.py)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
+      # Two machines, each running its share of the suite, as CircleCI's splitter assigns them by
+      # past timings (tests/circleci_test_split.py): one ran past CircleCI's one-hour job limit
+      # (jobs 3705, 3707; the owner, 2026-11-18). The coverage rule is applied to the shares
+      # combined, by coverage-combine-<os> after this job
+      GLITCHYGAMES_TEST_SPLIT: "circleci"
+
+    steps:
+      - checkout
+
       - run:
-          name: "Build binary and wheel"
+          name: "Install Linux system dependencies"
+          command: |
+            set -euo pipefail
+            sudo apt-get update
+            # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
+            # hidapi's source build on Python 3.15, which has no manylinux wheel for it (job
+            # 3629); the Raspberry Pis install the same. nox -s test-linux-ci reads this line
+            sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
+
+      - restore-uv-cache-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - nox-test:
+          session: test-3.15
+      - save-coverage-share-posix:
+          share: linux-test-3.15
+      - nox-build
+      - save-uv-cache-posix
+
+  test-python-3-15-windows:
+    executor:
+      name: win/default
+      size: medium
+    # Split as on Linux (the owner, 2026-11-18: "Do it for windows too")
+    parallelism: 2
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      GLITCHYGAMES_TEST_SPLIT: "circleci"
+      # uv's cache at a short path, so a source build's paths stay under Windows' 259
+      # characters: the cache's path appears twice in them (see install-deps-windows)
+      UV_CACHE_DIR: 'C:\uv-cache'
+
+    steps:
+      - checkout
+
+      - restore-uv-cache-windows
+      - install-deps-windows:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - nox-test-windows:
+          session: test-3.15
+      - save-coverage-share-windows:
+          share: windows-test-3.15
+      - nox-build-windows
+      - save-uv-cache-windows
+
+  # A split test job's coverage, its machines' data combined, held to the 100% rule
+  # (nox -s coverage-combine; tests/circleci_test_split.py). Only coverage is installed
+  coverage-combine-linux:
+    parameters:
+      # The split job's name in coverage-data/ (save-coverage-share-posix)
+      share:
+        type: string
+      # The split job's Python, and its coverage-combine session (coverage-combine-3.15)
+      pythons:
+        type: string
+      session:
+        type: string
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
+    resource_class: small
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - install-deps-posix:
+          pythons: << parameters.pythons >>
+      - run:
+          name: "Combine the machines' coverage and apply the 100% rule"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s << parameters.session >> -- "coverage-data/<< parameters.share >>"
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-html-<< parameters.share >>
+          when: always
+
+  # As coverage-combine-linux, on Windows: the data names Windows paths
+  coverage-combine-windows:
+    parameters:
+      share:
+        type: string
+      pythons:
+        type: string
+      session:
+        type: string
+    executor:
+      name: win/default
+      size: medium
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - install-deps-windows:
+          pythons: << parameters.pythons >>
+      - run:
+          name: "Combine the machines' coverage and apply the 100% rule"
           shell: powershell.exe
           command: |
             $ErrorActionPreference = "Stop"
             $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
-            nox -s build
+            nox -s << parameters.session >> -- "coverage-data/<< parameters.share >>"
       - store_artifacts:
-          path: dist
-          destination: dist
-      - save-uv-cache-windows
+          path: htmlcov
+          destination: coverage-html-<< parameters.share >>
+          when: always
 
   # The test suite on real ARM hardware: a Raspberry Pi 4 (4 GB, no added cooling) running machine
   # runner 3 (plans/2026-11-04-raspberry-pi-ci-runner.md), set up by
@@ -429,27 +606,29 @@ jobs:
   # tests/benchmarks/test_logging_cost.py, whose heavy logs wear the Pi's SD card. The uv cache
   # stays on the host, so no CircleCI cache (storage and network use credits), and the job has no
   # sudo, so the host is provisioned with what it needs (fontconfig)
-  build-and-test-raspberry-pi-4: &raspberry-pi-job
+  build-and-test-raspberry-pi-4-4gb-ubuntu: &raspberry-pi-job
     machine: true
-    resource_class: terrysimons/raspberry-pi-4
+    resource_class: terrysimons/raspberry-pi-4-4gb-ubuntu
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Serially, as on Linux: parallel workers could reach the swap file on the SD card
       PYTEST_WORKERS: "0"
-      # As on Linux: stop past 1600 MiB, naming the test (tests/memory_guard.py), not a kernel kill
+      # As on Linux: stop past 1750 MiB, naming the test (tests/memory_guard.py), not a kernel kill
       # with no test named. The owner, 2026-11-04: limits stay on the real hardware
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1600"
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1750"
 
     steps:
       - checkout
       # 30m, not the default 10m: the first install on a cold uv cache compiles without printing
       # (build 2862 timed out in the timer report, the first step to install). nox-test keeps 120m
       - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
           no_output_timeout: 30m
       - nox-timer-report:
           no_output_timeout: 30m
-      - nox-test
+      - nox-test:
+          session: test-3.15
       # After the tests: whether this run was slowed by heat or undervoltage. /dev/vcio is
       # readable by the video group (a udev rule on the host), which the runner's user is in
       - run:
@@ -470,9 +649,20 @@ jobs:
   # The same job on a Raspberry Pi 5 (16 GB, Ubuntu 26.04), set up by the same playbook: only its
   # runner differs. The same limits (the owner, 2026-11-08: the runner stays capped at 2 GB), so
   # the two Pis' results compare the hardware, not the settings
-  build-and-test-raspberry-pi-5:
+  build-and-test-raspberry-pi-5-16gb-ubuntu:
     <<: *raspberry-pi-job
-    resource_class: terrysimons/raspberry-pi-5
+    resource_class: terrysimons/raspberry-pi-5-16gb-ubuntu
+
+  # And on the 8 GB Raspberry Pi 5 (Ubuntu 26.10; the owner, 2026-11-14), the same job again
+  build-and-test-raspberry-pi-5-8gb-ubuntu:
+    <<: *raspberry-pi-job
+    resource_class: terrysimons/raspberry-pi-5-8gb-ubuntu
+
+  # And on the 16 GB Raspberry Pi 5 running Raspberry Pi OS (Trixie; the owner, 2026-11-16), set
+  # up as the Ubuntu 16 GB Pi is: the same job again, so the two compare the OSes
+  build-and-test-raspberry-pi-5-16gb-raspberry-pi-os:
+    <<: *raspberry-pi-job
+    resource_class: terrysimons/raspberry-pi-5-16gb-raspberry-pi-os
 
   # Publishes the docs (https://terrysimons.github.io/glitchygames/, the gh-pages branch) after
   # a merge to main: nox -s docs-deploy, browser games (play/) included, without measuring the
@@ -527,7 +717,8 @@ jobs:
       - restore_cache:
           keys:
             - pygame-ce-pyodide-wheel-v1-{{ checksum ".pygame-ce-commit" }}
-      - install-deps-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
       - run:
           name: "Deploy the docs (nox -s docs-deploy -- --no-measure)"
           no_output_timeout: 60m
@@ -616,19 +807,37 @@ jobs:
 workflows:
   build-and-test:
     jobs:
-      - build-and-test-linux
-      - build-and-test-macos
-      - build-and-test-windows
+      - test-python-3-15-macos
+      - test-python-3-15-linux
+      - test-python-3-15-windows
+      # Each split job's coverage, combined
+      - coverage-combine-linux:
+          name: coverage-combine-linux-test-3-15
+          share: linux-test-3.15
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+          session: coverage-combine-3.15
+          requires:
+            - test-python-3-15-linux
+      - coverage-combine-windows:
+          name: coverage-combine-windows-test-3-15
+          share: windows-test-3.15
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+          session: coverage-combine-3.15
+          requires:
+            - test-python-3-15-windows
       # Off: the Pis measure replays when the owner pushes, and take no CI jobs
-      # (plans/2026-11-04-raspberry-pi-ci-runner.md; the Pi 5 likewise, the owner, 2026-11-08).
-      # deploy-docs must not wait for these if they return
-      # - build-and-test-raspberry-pi-4
-      # - build-and-test-raspberry-pi-5
+      # (plans/2026-11-04-raspberry-pi-ci-runner.md; the Pi 5 likewise, the owner, 2026-11-08,
+      # the 8 GB Pi 5, 2026-11-14, and the Raspberry Pi OS Pi 5, 2026-11-16). deploy-docs must not
+      # wait for these if they return
+      # - build-and-test-raspberry-pi-4-4gb-ubuntu
+      # - build-and-test-raspberry-pi-5-16gb-ubuntu
+      # - build-and-test-raspberry-pi-5-8gb-ubuntu
+      # - build-and-test-raspberry-pi-5-16gb-raspberry-pi-os
       # After a merge to main: as soon as the macOS job passes (the same tree passed all three in
       # its pull request), one deploy at a time so two quick merges cannot race gh-pages
       - deploy-docs:
           requires:
-            - build-and-test-macos
+            - test-python-3-15-macos
           filters:
             branches:
               only: main

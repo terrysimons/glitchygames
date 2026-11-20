@@ -14,10 +14,13 @@ from glitchygames.backgrounds import (
     set_active_default_background_pattern,
 )
 from glitchygames.color import BLUE, RED
+from glitchygames.engine_context import EngineContext
 from glitchygames.events import ALL_EVENTS, FPSEVENT
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.interfaces import SceneInterface
 from glitchygames.opacity import OPAQUE, has_per_pixel_alpha
+from glitchygames.performance import AdaptiveClamping
+from glitchygames.performance import adaptive_clamping as adaptive_clamping_module
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import JITTER_SAMPLE_BUFFER_MAX_SIZE
 from glitchygames.sources import advance_frame_clock
@@ -1755,7 +1758,7 @@ class TestHandleFramePacing:
     def test_handle_frame_pacing_with_timer(self, mocker):
         """Test frame pacing delegates to timer when available."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'log_timer_jitter': False}
+        manager.engine_options = {'log_timer_jitter': False}
 
         mock_timer = mocker.Mock()
         mock_timer.compute_deadline.return_value = 2_000_000
@@ -1775,7 +1778,7 @@ class TestHandleFramePacing:
     def test_handle_frame_pacing_with_timer_and_jitter_logging(self, mocker):
         """Test frame pacing calls jitter logging when enabled."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'log_timer_jitter': True}
+        manager.engine_options = {'log_timer_jitter': True}
         manager.fps_log_interval_ms = 100_000
 
         mock_timer = mocker.Mock()
@@ -1889,15 +1892,11 @@ class TestFinishFrameMeasurement:
     """SceneManager._finish_frame() measures frames with perf_counter, never the timer's clock."""
 
     def _patch_frame_bookkeeping(self, mocker):
-        mocker.patch.object(
-            SceneManager, 'OPTIONS', {'log_timer_jitter': False, 'fps_log_interval_ms': 1000}
-        )
+        # The current context's manager: the one each caller holds
+        SceneManager().engine_options = {'log_timer_jitter': False, 'fps_log_interval_ms': 1000}
         mocker.patch('glitchygames.scenes.scene.post_event')
-        mock_performance_manager = mocker.Mock()
-        mocker.patch(
-            'glitchygames.performance.performance_manager', mock_performance_manager, create=True
-        )
-        return mock_performance_manager
+        # The current context's manager records each frame: its one method the frame calls
+        return mocker.patch.object(AdaptiveClamping, 'track_fps_from_event', autospec=True)
 
     def test_finish_frame_measures_dt_with_perf_counter_not_timer_clock(self, mocker):
         """Paced dt comes from perf_counter, so a whole-millisecond timer cannot quantize it."""
@@ -1925,7 +1924,7 @@ class TestFinishFrameMeasurement:
     def test_whole_millisecond_timer_steps_record_steady_fps(self, mocker):
         """A 17/17/16 ms timer cadence over true 16.67 ms frames records ~60 FPS each frame."""
         manager = SceneManager()
-        mock_performance_manager = self._patch_frame_bookkeeping(mocker)
+        track_fps_from_event = self._patch_frame_bookkeeping(mocker)
         frame_seconds = 1.0 / 60.0
         whole_millisecond_wakes = [17_000_000, 34_000_000, 50_000_000]
         mock_perf_counter = mocker.patch('glitchygames.clock.raw_counter_seconds')
@@ -1944,9 +1943,7 @@ class TestFinishFrameMeasurement:
                 processing_seconds=0.001,
             )
 
-        recorded_values = [
-            call.args[0] for call in mock_performance_manager.track_fps_from_event.call_args_list
-        ]
+        recorded_values = [call.args[1] for call in track_fps_from_event.call_args_list]
         assert len(recorded_values) == 3
         for recorded_fps in recorded_values:
             assert abs(recorded_fps - 60.0) < 0.01
@@ -1973,7 +1970,7 @@ class TestFinishFrameMeasurement:
     def test_handle_frame_pacing_does_not_write_dt(self, mocker):
         """Pacing only paces: the frame time is set once, by _finish_frame."""
         manager = SceneManager()
-        mocker.patch.object(SceneManager, 'OPTIONS', {'log_timer_jitter': False})
+        manager.engine_options = {'log_timer_jitter': False}
         manager.dt = 0.25
         mock_timer = mocker.Mock()
         mock_timer.compute_deadline.return_value = 2_000_000
@@ -2026,38 +2023,32 @@ class TestTrackPerformance:
     """Test SceneManager._track_performance() method."""
 
     def _patch_performance_manager(self, mocker):
-        mock_performance_manager = mocker.Mock()
-        mocker.patch(
-            'glitchygames.performance.performance_manager',
-            mock_performance_manager,
-            create=True,
-        )
-        return mock_performance_manager
+        # The current context's manager: _track_performance calls only this method of it
+        return mocker.patch.object(AdaptiveClamping, 'track_fps_from_event', autospec=True)
 
     def test_track_performance_records_fps_from_measured_frame_time(self, mocker):
         """FPS is 1/dt exactly, not a quantized 10000/N value from pygame's clock."""
         manager = SceneManager()
         manager.dt = 1.0 / 437.3
-        mock_performance_manager = self._patch_performance_manager(mocker)
+        track_fps_from_event = self._patch_performance_manager(mocker)
 
         manager._track_performance(processing_time=0.008)
 
-        recorded_fps = mock_performance_manager.track_fps_from_event.call_args.args[0]
+        recorded_fps = track_fps_from_event.call_args.args[1]
         assert abs(recorded_fps - 437.3) < 1e-6
+        assert track_fps_from_event.call_args.args[0] is AdaptiveClamping()
 
     def test_track_performance_consecutive_frames_record_different_values(self, mocker):
         """Two frames with different dt are not repeated samples of one value."""
         manager = SceneManager()
-        mock_performance_manager = self._patch_performance_manager(mocker)
+        track_fps_from_event = self._patch_performance_manager(mocker)
 
         manager.dt = 1.0 / 400.0
         manager._track_performance(processing_time=0.001)
         manager.dt = 1.0 / 412.5
         manager._track_performance(processing_time=0.001)
 
-        recorded_values = [
-            call.args[0] for call in mock_performance_manager.track_fps_from_event.call_args_list
-        ]
+        recorded_values = [call.args[1] for call in track_fps_from_event.call_args_list]
         assert len(recorded_values) == 2
         assert recorded_values[0] != recorded_values[1]
         assert abs(recorded_values[0] - 400.0) < 1e-6
@@ -2070,24 +2061,45 @@ class TestTrackPerformance:
         manager.pacing_fallback_clock = mocker.Mock(spec=pygame.time.Clock)
         manager.pacing_fallback_clock.get_fps.return_value = 999.0
         mock_get_fps = manager.pacing_fallback_clock.get_fps
-        mock_performance_manager = self._patch_performance_manager(mocker)
+        track_fps_from_event = self._patch_performance_manager(mocker)
 
         manager._track_performance(processing_time=0.008)
 
         mock_get_fps.assert_not_called()
-        recorded_fps = mock_performance_manager.track_fps_from_event.call_args.args[0]
+        recorded_fps = track_fps_from_event.call_args.args[1]
         assert abs(recorded_fps - 62.5) < 1e-6
 
     def test_track_performance_zero_dt_records_zero(self, mocker):
         """A zero dt records 0.0 rather than dividing by zero."""
         manager = SceneManager()
         manager.dt = 0.0
-        mock_performance_manager = self._patch_performance_manager(mocker)
+        track_fps_from_event = self._patch_performance_manager(mocker)
 
         manager._track_performance(processing_time=0.008)
 
-        recorded_fps = mock_performance_manager.track_fps_from_event.call_args.args[0]
+        recorded_fps = track_fps_from_event.call_args.args[1]
         assert recorded_fps == 0.0
+
+    def test_track_performance_reads_no_context_slot(self, mocker):
+        """The frame's tracking uses the manager the scene manager keeps: no slot read a frame."""
+        manager = SceneManager()
+        manager.dt = 0.016
+        track_fps_from_event = self._patch_performance_manager(mocker)
+        context_lookup = mocker.spy(adaptive_clamping_module, 'current_context')
+
+        manager._track_performance(processing_time=0.008)
+
+        context_lookup.assert_not_called()
+        assert track_fps_from_event.call_args.args[0] is AdaptiveClamping()
+
+    def test_each_contexts_scene_manager_keeps_that_contexts_performance_manager(self):
+        """Both are per context, so the kept manager is the one AdaptiveClamping() answers there."""
+        default_manager = SceneManager()
+        with EngineContext(name='other').active():
+            other_manager = SceneManager()
+            assert other_manager.performance_manager is AdaptiveClamping()
+        assert default_manager.performance_manager is AdaptiveClamping()
+        assert other_manager.performance_manager is not default_manager.performance_manager
 
 
 class TestSceneManagerOnFpsEvent:
@@ -2237,7 +2249,7 @@ class TestSceneManagerShouldPostFpsEvent:
     def test_should_post_fps_event_true(self, mocker):
         """Test returns True when time exceeds half the log interval."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
+        manager.engine_options = {'fps_log_interval_ms': 1000}
 
         # 600ms has passed, half of 1000ms = 500ms
         result = manager._should_post_fps_event(current_time=1.0, previous_fps_time=0.4)
@@ -2246,7 +2258,7 @@ class TestSceneManagerShouldPostFpsEvent:
     def test_should_post_fps_event_false(self, mocker):
         """Test returns False when time does not exceed half the log interval."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
+        manager.engine_options = {'fps_log_interval_ms': 1000}
 
         # Only 100ms has passed, half of 1000ms = 500ms
         result = manager._should_post_fps_event(current_time=1.0, previous_fps_time=0.9)
@@ -2354,7 +2366,7 @@ class TestSceneManagerShouldPostFpsEventDeeper:
     def test_should_post_fps_event_true(self, mocker):
         """Test returns True when enough time has elapsed."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
+        manager.engine_options = {'fps_log_interval_ms': 1000}
 
         # 1 second elapsed, interval is 500ms (half of 1000)
         result = manager._should_post_fps_event(current_time=2.0, previous_fps_time=1.0)
@@ -2363,7 +2375,7 @@ class TestSceneManagerShouldPostFpsEventDeeper:
     def test_should_post_fps_event_false(self, mocker):
         """Test returns False when not enough time has elapsed."""
         manager = SceneManager()
-        type(manager).OPTIONS = {'fps_log_interval_ms': 1000}
+        manager.engine_options = {'fps_log_interval_ms': 1000}
 
         # 0.1 second elapsed, interval is 500ms
         result = manager._should_post_fps_event(current_time=1.1, previous_fps_time=1.0)
@@ -2817,12 +2829,12 @@ class TestSceneManagerSwitchToScene:
 
         # Mock sub-methods to prevent side effects
         manager._game_engine = mocker.Mock()
-        manager._game_engine.OPTIONS = {
+        manager._game_engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'target_fps': 60,
         }
-        type(manager).OPTIONS = manager._game_engine.OPTIONS
+        manager.engine_options = manager._game_engine.options
         manager.target_fps = 60
 
         manager.switch_to_scene(second_scene)

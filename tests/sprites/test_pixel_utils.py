@@ -515,6 +515,24 @@ class TestNormalizePixelRows:
         assert result.rows == ('  x\0\0', ' xxx\0', 'xxxxx')
         assert result.repairs == ()
 
+    def test_the_shorter_shared_indentation_is_removed(self):
+        """Two spaces on one row and four on the other share two; the other two stay as art."""
+        result = normalize_pixel_rows('  ab  \n    ab', 'ab')
+        assert result.rows == ('ab\0\0', '  ab')
+        assert result.repairs == ()
+
+    def test_a_shared_prefix_past_the_indentation_stays(self):
+        """Rows sharing their first glyph too lose only the indentation, never art."""
+        result = normalize_pixel_rows('  ab\n  ac', 'abc')
+        assert result.rows == ('ab', 'ac')
+        assert result.repairs == ()
+
+    def test_a_single_rows_indentation_is_removed(self):
+        """One row shares its indentation with itself."""
+        result = normalize_pixel_rows('   ab', 'ab')
+        assert result.rows == ('ab',)
+        assert result.repairs == ()
+
     def test_mixed_prefix_characters_are_not_shared(self):
         """A prefix is shared character for character; a tab is not a space."""
         result = normalize_pixel_rows(' \tab\n\t ab', 'ab')

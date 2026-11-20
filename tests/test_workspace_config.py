@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import configparser
 import importlib.metadata
+import importlib.util
 import json
 import re
 import sys
@@ -13,9 +14,13 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 import noxfile
+import numpy as np
+import pygame
 import pytest
 import yaml
+from scripts.build_browser_bundle import DOCS_COLOR_SCHEMES
 from scripts.gen_ref_pages import reference_page_path
+from scripts.git_checkout import run_git
 from scripts.workspace_packages import (
     ENGINE_PACKAGE,
     WorkspaceMember,
@@ -24,6 +29,7 @@ from scripts.workspace_packages import (
 )
 
 from glitchygames import logical_names
+from glitchygames.replay.tools.golden_traces import FRAME_SECONDS, golden_game, press, release
 from tests.ast_scanning import (
     import_bindings,
     imported_module_names,
@@ -236,8 +242,13 @@ def test_nox_installs_and_reinstalls_every_member():
     assert [member.distribution for member in MEMBERS] == noxfile._MEMBER_DISTRIBUTIONS
 
 
+DOCS_CONFIGURATION = 'zensical.yml'
+DOCS_CONFIGURATION_LINK = 'mkdocs.yml'
+GIT_SYMLINK_MODE = '120000'
+
+
 class MkdocsConfigurationLoader(yaml.SafeLoader):
-    """Reads mkdocs.yml, its ``!!python/name:`` tags (pymdownx's fence formats) read as None."""
+    """Reads zensical.yml, its ``!!python/name:`` tags (pymdownx's fence formats) read as None."""
 
 
 MkdocsConfigurationLoader.add_multi_constructor(
@@ -246,12 +257,159 @@ MkdocsConfigurationLoader.add_multi_constructor(
 
 
 def mkdocs_configuration(*, project_root: Path = PROJECT_ROOT) -> dict[str, Any]:
-    """mkdocs.yml."""
-    loader = MkdocsConfigurationLoader((project_root / 'mkdocs.yml').read_text(encoding='utf-8'))
+    """The docs configuration, zensical.yml (by name: Windows may check the link out as text)."""
+    loader = MkdocsConfigurationLoader(
+        (project_root / DOCS_CONFIGURATION).read_text(encoding='utf-8')
+    )
     try:
         return loader.get_single_data()
     finally:
         loader.dispose()
+
+
+def test_mkdocs_yml_is_a_link_to_zensical_yml():
+    """The mkdocs.yml mkdocs reads by default is a link to zensical.yml, the one configuration.
+
+    Asked of git's index, not the checkout: Windows may check a link out as a text file.
+    """
+    exit_code, output = run_git(
+        arguments=['ls-files', '--stage', '--', DOCS_CONFIGURATION_LINK], directory=PROJECT_ROOT
+    )
+    mode, blob, _stage_and_path = output.split(maxsplit=2)
+    _exit_code, target = run_git(arguments=['cat-file', 'blob', blob], directory=PROJECT_ROOT)
+
+    assert (exit_code, mode, target) == (0, GIT_SYMLINK_MODE, DOCS_CONFIGURATION)
+
+
+def test_the_docs_site_shows_our_favicon():
+    """Material shows its own icon unless the theme names ours (mkdocs' theme found it alone)."""
+    favicon = mkdocs_configuration()['theme']['favicon']
+
+    assert (PROJECT_ROOT / 'docs' / favicon).is_file()
+
+
+def test_the_play_index_copies_the_docs_palette():
+    """play/'s index copies Material's colors for the docs' palette: if one changes, both must.
+
+    scripts/build_browser_bundle.py's ``DOCS_COLOR_SCHEMES`` holds the colors Material's CSS
+    gives the schemes and primary color zensical.yml names, in the same order.
+    """
+    palette = mkdocs_configuration()['theme']['palette']
+
+    assert [(entry['scheme'], entry['primary']) for entry in palette] == [
+        (colors.scheme, colors.primary) for colors in DOCS_COLOR_SCHEMES
+    ]
+
+
+def plugin_options(*, configuration: dict[str, Any], section: str) -> dict[str, Any]:
+    """A configuration list of plugins or extensions, each by name with its options ({} if none)."""
+    return {
+        name: options
+        for entry in configuration[section]
+        for name, options in (entry.items() if isinstance(entry, dict) else [(entry, {})])
+    }
+
+
+def test_the_docs_site_keeps_the_material_features_the_formatting_plan_turned_on():
+    """The Material features plans/2026-11-09-docs-material-formatting.md's Part 1 turned on.
+
+    The palette's two schemes following the reader's system setting, code copy buttons, edit
+    links, footer navigation, the glossary and the last-updated dates.
+    """
+    configuration = mkdocs_configuration()
+    theme = configuration['theme']
+    extensions = plugin_options(configuration=configuration, section='markdown_extensions')
+    plugins = plugin_options(configuration=configuration, section='plugins')
+    glossary = extensions['pymdownx.snippets']['auto_append']
+
+    assert [(entry['media'], entry['scheme']) for entry in theme['palette']] == [
+        ('(prefers-color-scheme: light)', 'default'),
+        ('(prefers-color-scheme: dark)', 'slate'),
+    ]
+    assert {'content.code.copy', 'content.action.edit', 'navigation.footer'} <= set(
+        theme['features']
+    )
+    assert configuration['edit_uri'] == 'edit/main/docs/'
+    assert {'abbr', 'def_list', 'footnotes'} <= set(extensions)
+    assert [(PROJECT_ROOT / path).is_file() for path in glossary] == [True]
+    assert plugins['git-revision-date-localized']['fallback_to_build_date'] is True
+
+
+HOME_PAGE = PROJECT_ROOT / 'docs' / 'index.md'
+# The home page's example: the first python fence (a title may follow) after "# Example Game"
+HOME_PAGE_EXAMPLE = re.compile(
+    r'^# Example Game$.*?^```python[^\n]*\n(?P<code>.*?)^```$', re.DOTALL | re.MULTILINE
+)
+WHITE = (255, 255, 255)
+HOME_PAGE_EXAMPLE_FRAMES = 10
+
+
+def home_page_example_scene(*, directory: Path, mocker) -> type[Any]:
+    """Import the home page's example from a file, as a reader would save it; its scene class.
+
+    Args:
+        directory: Where to write the example (``tmp_path``).
+        mocker: Registers the module in ``sys.modules`` for this test only.
+
+    Returns:
+        The example's ``BitrotAdventures`` scene class.
+
+    """
+    match = HOME_PAGE_EXAMPLE.search(HOME_PAGE.read_text(encoding='utf-8'))
+    assert match is not None, 'docs/index.md has no python example under "# Example Game"'
+    example_path = directory / 'bitrot_adventures.py'
+    example_path.write_text(match.group('code'), encoding='utf-8')
+    specification = importlib.util.spec_from_file_location('bitrot_adventures', example_path)
+    assert specification is not None
+    assert specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    mocker.patch.dict(sys.modules, {'bitrot_adventures': module})
+    specification.loader.exec_module(module)
+    return module.BitrotAdventures
+
+
+def white_pixels() -> list[tuple[int, int]]:
+    """Every white pixel the display shows, as (x, y), whatever the display's pixel format."""
+    surface = pygame.display.get_surface()
+    assert surface is not None
+    colors = pygame.surfarray.array3d(surface)
+    return [(int(x), int(y)) for x, y in np.argwhere((colors == WHITE).all(axis=2))]
+
+
+def run_home_page_example_frames(*, manager: Any, count: int) -> None:
+    """Run the example's frames at the harness's frame time."""
+    for _ in range(count):
+        manager.dt = FRAME_SECONDS
+        manager.run_frame()
+
+
+def test_the_home_page_example_draws_a_pixel_the_arrow_keys_move(tmp_path, mocker):
+    """docs/index.md says its example draws a pixel and moves it with key events: it does.
+
+    The example runs headless through the engine's frame loop, as saved from the page.
+    """
+    scene_class = home_page_example_scene(directory=tmp_path, mocker=mocker)
+
+    with golden_game(scene_class=scene_class, random_seed=1) as manager:
+        run_home_page_example_frames(manager=manager, count=1)
+        [(start_x, start_y)] = white_pixels()
+
+        # A release reaches the scene after that frame's dt_tick, so the frame after it
+        # settles the pixel
+        pygame.event.post(press(pygame.K_RIGHT))
+        run_home_page_example_frames(manager=manager, count=HOME_PAGE_EXAMPLE_FRAMES)
+        pygame.event.post(release(pygame.K_RIGHT))
+        run_home_page_example_frames(manager=manager, count=1)
+        [(right_x, right_y)] = white_pixels()
+
+        pygame.event.post(press(pygame.K_DOWN))
+        run_home_page_example_frames(manager=manager, count=HOME_PAGE_EXAMPLE_FRAMES)
+        pygame.event.post(release(pygame.K_DOWN))
+        run_home_page_example_frames(manager=manager, count=1)
+        [(down_x, down_y)] = white_pixels()
+
+    assert (right_x > start_x, right_y) == (True, start_y)
+    assert (down_x, down_y > right_y) == (right_x, True)
 
 
 def navigation_pages(*, entries: list[Any]) -> set[str]:
@@ -762,7 +920,7 @@ def configuration_lists_naming_member_paths(
     mkdocs = mkdocs_configuration(project_root=project_root)
     configuration_lists.extend(
         (
-            'mkdocs.yml plugins mkdocstrings handlers python paths',
+            f'{DOCS_CONFIGURATION} plugins mkdocstrings handlers python paths',
             False,
             plugin['mkdocstrings']['handlers']['python']['paths'],
         )
@@ -867,7 +1025,7 @@ def write_synthetic_workspace(*, project_root: Path, stale: bool) -> list[Worksp
         f'_SOURCE_PACKAGE_DIRS = ["src/glitchygames", "{derived}/fake_game", "{old}/fake_game"]\n',
         encoding='utf-8',
     )
-    (project_root / 'mkdocs.yml').write_text(
+    (project_root / DOCS_CONFIGURATION).write_text(
         'plugins:\n'
         '  - search\n'
         '  - mkdocstrings:\n'
@@ -901,7 +1059,7 @@ def test_the_stale_path_guard_names_the_file_and_key_of_each_planted_flat_path(t
         'pyproject.toml [tool.coverage.paths]: src/games/fake-game/fake_game',
         'noxfile.py _SOURCE_PACKAGE_DIRS: src/games/fake-game/fake_game',
         f'{tests_extra_paths}: src/games/fake-game',
-        'mkdocs.yml plugins mkdocstrings handlers python paths: src/games/fake-game',
+        'zensical.yml plugins mkdocstrings handlers python paths: src/games/fake-game',
     ]
 
 

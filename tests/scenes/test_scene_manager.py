@@ -15,16 +15,6 @@ from glitchygames.transitions import FadeTransition
 FPS_REFRESH_RATE = 1000
 
 
-@pytest.fixture(autouse=True)
-def restore_scene_manager_options(mocker):
-    """Put SceneManager.OPTIONS back after each test.
-
-    Setting a scene manager's game_engine copies the engine's OPTIONS onto the SceneManager
-    class; without this, the stand-in engines below would leave their options for later tests.
-    """
-    mocker.patch.object(SceneManager, 'OPTIONS', SceneManager.OPTIONS)
-
-
 def _take_events(event_type: int) -> list[pygame.event.Event]:
     """Remove and return the events of one type waiting in pygame's real event queue.
 
@@ -87,9 +77,9 @@ class TestSceneManager:
         # Test getting game_engine
         assert scene_manager.game_engine is None
 
-        # Test setting game_engine with proper OPTIONS structure
+        # Test setting game_engine with the engine's own options it takes (engine.options)
         mock_engine = mocker.Mock()
-        mock_engine.OPTIONS = {
+        mock_engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': FPS_REFRESH_RATE,
             'target_fps': 60,
@@ -219,10 +209,10 @@ class TestSceneManager:
         mock_event = mocker.Mock()
         mock_event.subtype = 'test_event'
 
-        # Set up a mock game engine with registered_events and OPTIONS
+        # Set up a mock game engine with registered_events and its options (engine.options)
         mock_engine = mocker.Mock()
         mock_engine.registered_events = {'test_event': mocker.Mock()}
-        mock_engine.OPTIONS = {
+        mock_engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': FPS_REFRESH_RATE,
             'target_fps': 60,
@@ -241,7 +231,7 @@ class TestSceneManager:
 
         # register_game_event asserts game_engine is not None, so provide one
         mock_engine = mocker.Mock()
-        mock_engine.OPTIONS = {
+        mock_engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': FPS_REFRESH_RATE,
             'target_fps': 60,
@@ -348,8 +338,8 @@ class TestSceneManagerInternals:
         """Test SceneManager _should_post_fps_event method."""
         scene_manager = self.scene_manager
 
-        # Set up proper OPTIONS structure
-        scene_manager.OPTIONS = {'fps_log_interval_ms': FPS_REFRESH_RATE}  # type: ignore[invalid-assignment]
+        # Set up the manager's engine options (manager.engine_options)
+        scene_manager.engine_options = {'fps_log_interval_ms': FPS_REFRESH_RATE}
 
         # Test FPS event posting logic
         current_time = 1.0
@@ -493,7 +483,7 @@ class TestSceneManagerInternals:
     def test_game_engine_options_set_shake_intensity(self, mocker):
         """Test the game engine setter applies the screen shake intensity option."""
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'screen_shake_intensity': 0.25,
@@ -540,19 +530,23 @@ class TestSceneManagerInternals:
         self.scene_manager._update_frame_services()
         device.rumble.assert_called_once()
 
-    def test_live_audio_is_lazy_and_updated_with_pending_transition(self, mocker):
+    def test_the_live_pool_is_lazy_and_the_audio_update_gets_the_pending_transition(self, mocker):
+        """A ride starts its motor before transition_to runs it: the pending one counts.
+
+        The audio engine's update applies the live pool's owner rules too (since migration
+        step 7b), so the scene manager hands it the pending transition.
+        """
         manager = self.scene_manager
         manager._live_audio = None
-        manager._update_frame_services()  # No LiveAudio created by merely running frames
+        manager._update_frame_services()  # No pool created by merely running frames
         assert manager._live_audio is None
-        live_audio = mocker.Mock()
-        manager._live_audio = live_audio
+        audio_engine = mocker.Mock()
+        mocker.patch('glitchygames.scenes.scene._existing_audio_engine', return_value=audio_engine)
         pending = mocker.Mock()
         manager._pending_transition = (mocker.Mock(), pending)
         manager._update_frame_services()
-        assert live_audio.update.call_args.kwargs['active_transitions'][1] is pending
+        assert audio_engine.update.call_args.kwargs['active_transitions'][1] is pending
         manager._pending_transition = None
-        manager._live_audio = None
 
 
 class TestSceneManagerLiveAudio:
@@ -567,11 +561,11 @@ class TestSceneManagerLiveAudio:
         """Reset the scene manager singleton."""
         SceneManager._reset()
 
-    def test_live_audio_is_created_once_and_then_reused(self, mocker):
-        """The first access creates LiveAudio; later accesses return the same one."""
+    def test_the_live_pool_is_created_once_and_then_reused(self, mocker):
+        """The first live sound's start creates the pool; later ones get the same one."""
         live_audio_class = mocker.patch('glitchygames.audio.live.LiveAudio')
-        first = self.scene_manager.live_audio
-        second = self.scene_manager.live_audio
+        first = self.scene_manager._live_pool()
+        second = self.scene_manager._live_pool()
         assert first is second is live_audio_class.return_value
         live_audio_class.assert_called_once()
 
@@ -591,7 +585,7 @@ class TestSceneManagerEngineAndQuit:
     def test_detaching_the_game_engine_keeps_its_settings(self, mocker):
         """Setting game_engine to None forgets the engine; the settings it gave stay."""
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'flip',
             'fps_log_interval_ms': 250,
             'target_fps': 30.0,

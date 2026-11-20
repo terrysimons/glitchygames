@@ -83,7 +83,7 @@ class TestEngineProperties:
     def test_game_engine_game_property(self, real_engine):
         """Before start(), the engine's game is the game class it was built with."""
         assert real_engine.game is PropertiesTestGame
-        assert PropertiesTestGame.options is not None
+        assert real_engine.options is not None
 
     def test_game_engine_scene_manager_property(self, real_engine):
         """The engine adopts the SceneManager singleton, with its screen on the real display."""

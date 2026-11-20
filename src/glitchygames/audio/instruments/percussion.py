@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Final
 
 from glitchygames.audio.instruments.catalog import CatalogEntry, Family
 from glitchygames.audio.instruments.timbres import Partial, struck
+from glitchygames.audio.instruments.tuned_sound_alikes import TUNED_SOUND_ALIKES
 
 if TYPE_CHECKING:
     from glitchygames.audio.instrument import Instrument
@@ -173,7 +174,7 @@ def _timpani() -> Instrument:
     )
 
 
-TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
+_TUNED_BUILDS: Final[tuple[CatalogEntry, ...]] = (
     CatalogEntry('glockenspiel', 'Glockenspiel', Family.TUNED_PERCUSSION, 'G5', 'C8', GLOCKENSPIEL),
     CatalogEntry(
         'crotales',
@@ -338,4 +339,69 @@ TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = (
             overtone_ring=0.6,
         ),
     ),
+    # --- Batch 5's bars, plaques, tubes and stones, in the order of
+    # plans/data/instrument-audit/batch-5.tsv (the sheet's notes give each row's full quotes).
+    # Boomwhackers: https://en.wikipedia.org/wiki/Boomwhacker (the sound source and the range
+    # source): "lightweight, hollow, color-coded, plastic tubes, tuned to a musical pitch by
+    # length"; "The pitch of the instrument is determined by the length of the tube"; "They are
+    # most commonly hit with a hand, against the floor, or on other parts of the human body";
+    # infobox "range = C2-G5". The traits are sourced: a hollow tube is an air column, so its
+    # overtones are whole numbers (1 : 2, the second harmonic the only one kept), with no
+    # resonator and a hand or floor strike's dull noise burst. Sound design (no fetched source
+    # gives a number): the 0.15 level of the second harmonic, the 0.35 s ring, the 0.2 mallet
+    # level and its 2500 Hz low pass, and the overtone ring of 0.4
+    CatalogEntry(
+        'boomwhackers',
+        'Boomwhackers',
+        Family.TUNED_PERCUSSION,
+        'C2',
+        'G5',
+        partial(
+            struck_bar,
+            (1.0, 2.0),
+            (1.0, 0.15),
+            ring_seconds=0.35,
+            mallet=0.2,
+            mallet_low_pass=2500.0,
+            overtone_ring=0.4,
+        ),
+    ),
+    # Balinese gangsa (pemade): https://en.wikipedia.org/wiki/Gamelan_gong_kebyar (the sound
+    # and range source) and https://en.wikipedia.org/wiki/Gangsa: "Each instrument consists of
+    # several tuned metal bars (either iron or bronze) each placed over an individual
+    # resonator. The bars are hit with a wooden panggul"; "these pairs are tuned to be
+    # dissonant and create certain wavelengths of sympathetic vibrations to create a shimmering
+    # tone (see Ombak)"; "one note on a female gangsa pemade might be tuned to 220 Hz, while
+    # the male gangsa pemade might be tuned slightly higher to 228 Hz". Range: kantilan's "highest
+    # note being around C7" over "a range of two octaves", and the pemade "exactly one octave
+    # lower", so C4 to C6 (approximate: no standard pitch in Balinese music).
+    # The ombak is the pair's two fundamentals 228 / 220 = 1.036 apart. CAVEAT for the owner: the
+    # source gives a beat rate (8 Hz at 220 Hz) but the engine has one ratio, taken here at 220 Hz,
+    # so the beating speeds up with pitch (about 38 Hz at C6) where a real pair beats at a rate
+    # set by its tuning; a ratio is the nearest the engine has without a new feature. Sound
+    # design: the 2.71 partial (GAMELAN_METALLOPHONE's, from the catalog), every level and ring,
+    # the mallet. GAMELAN_METALLOPHONE's 5.15 partial is left out: ``struck`` takes three partials
+    # with a mallet noise (the mallet is a fourth source), so the weakest, 5.15, does not fit. The
+    # sheet's builder cell describes exactly this build
+    CatalogEntry(
+        'gangsa',
+        'Balinese gangsa (pemadé)',
+        Family.TUNED_PERCUSSION,
+        'C4',
+        'C6',
+        partial(
+            struck,
+            (
+                Partial(ratio=1.0, level=1.0, ring_seconds=3.0),
+                Partial(ratio=1.036, level=0.8, ring_seconds=3.0),
+                Partial(ratio=SINGING_METAL_SECOND_PARTIAL, level=0.4, ring_seconds=1.2),
+            ),
+            release=3.0,
+            mallet=0.06,
+            mallet_low_pass=4000.0,
+        ),
+    ),
 )
+
+# The family: its builds, then the sound-alikes that share them (``tuned_sound_alikes.py``)
+TUNED_PERCUSSION: Final[tuple[CatalogEntry, ...]] = _TUNED_BUILDS + TUNED_SOUND_ALIKES

@@ -11,6 +11,7 @@ import pytest
 
 from glitchygames.audio import OfflineEvent, RenderReport, render_to_file
 from glitchygames.audio.assets import clear_sound_file_cache
+from glitchygames.audio.effects import Effect, Tone
 from glitchygames.audio.instrument import Instrument
 from glitchygames.audio.library import CacheMode
 from glitchygames.audio.offline import (
@@ -19,7 +20,6 @@ from glitchygames.audio.offline import (
     WAVE_FORMAT_IEEE_FLOAT,
     nominal_end_frame,
 )
-from glitchygames.audio.recipes import SoundRecipe, Tone
 from glitchygames.audio.render import render_sound
 from glitchygames.audio.spec import EnvelopeSpec
 from glitchygames.audio.synth import Envelope, Waveform, to_pcm16
@@ -27,6 +27,7 @@ from glitchygames.audio.voices import constant_power_gains
 from glitchygames.engine_context import EngineContext
 from tests.audio.library_support import (
     PULSE_INSTRUMENT,
+    float_render,
     make_library,
     stop_mixer,
     write_wave_file,
@@ -60,7 +61,7 @@ instrument = "blip"
 pitch = "G4"
 bus = "music"
 """
-LEGACY_RECIPE = SoundRecipe(
+LEGACY_RECIPE = Effect(
     name='beep_like',
     tones=(
         Tone(
@@ -156,9 +157,31 @@ def test_offline_render_equals_the_compiled_buffer_bit_for_bit(tmp_path, library
     assert report.path == tmp_path / 'coin.wav'
     assert np.array_equal(read_wav_int16(report.path), sound.samples_int16)
     assert report.frames == len(sound.samples_int16)
-    assert report.peak == pytest.approx(float(np.max(np.abs(sound.samples_float))))
+    assert report.peak == pytest.approx(float(np.max(np.abs(float_render(sound)))))
     assert report.clip_count == 0
     assert wav_rate(report.path) == SAMPLE_RATE
+
+
+def test_a_sound_holding_its_float_render_is_rendered_from_it_without_a_copy(
+    tmp_path, library_without_mixer, mocker
+):
+    """A sound compiled by compile_sound keeps its float64 render, and offline uses it as is.
+
+    A library sound keeps its int16 samples only, so offline compiles a copy of it; one made with
+    compile_sound directly (the offline path's own compile) needs none.
+    """
+    from glitchygames.audio import offline
+    from glitchygames.audio.library import compile_sound
+
+    held = library_without_mixer.sound(PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5')
+    sound = held.fresh_copy()
+    compile_sound(sound)
+    copies = mocker.spy(offline, 'compile_sound')
+
+    report = render_to_file(sound, tmp_path / 'tone.wav')
+
+    copies.assert_not_called()
+    assert np.array_equal(read_wav_int16(report.path), held.samples_int16)
 
 
 def test_offline_rendering_opens_no_audio_device(tmp_path, library_without_mixer):
@@ -196,7 +219,7 @@ def test_a_sound_not_yet_compiled_is_compiled_through_the_librarys_path(tmp_path
 
 def test_a_version_0_recipe_renders_as_it_compiles(tmp_path, library_without_mixer):
     """A version 0 recipe's render is its legacy compile, bit for bit."""
-    library_without_mixer.add_recipes([LEGACY_RECIPE])
+    library_without_mixer.add_effects([LEGACY_RECIPE])
     sound = library_without_mixer.sound('beep_like', scene_sound_directory=None)
 
     report = render_to_file(sound, tmp_path / 'beep.wav')
@@ -228,9 +251,9 @@ def test_events_mix_at_exact_sample_offsets(tmp_path, library_without_mixer):
         events=[OfflineEvent(seconds=event_seconds, sound=second, volume=0.5)],
     )
 
-    expected = np.zeros(max(len(first.samples_float), offset + len(second.samples_float)))
-    expected[: len(first.samples_float)] += first.samples_float
-    expected[offset : offset + len(second.samples_float)] += 0.5 * second.samples_float
+    expected = np.zeros(max(len(float_render(first)), offset + len(float_render(second))))
+    expected[: len(float_render(first))] += float_render(first)
+    expected[offset : offset + len(float_render(second))] += 0.5 * float_render(second)
     written, rate = read_wav_float32(report.path)
     assert rate == SAMPLE_RATE
     assert written.ndim == 1
@@ -253,11 +276,11 @@ def test_a_panned_event_makes_the_output_stereo_with_the_voices_pan_law(
     )
 
     written, _ = read_wav_float32(report.path)
-    assert written.shape == (len(sound.samples_float), 2)
+    assert written.shape == (len(float_render(sound)), 2)
     centre_left, centre_right = constant_power_gains(pan=0.0, gain=1.0)
     other_left, other_right = constant_power_gains(pan=-0.5, gain=0.8)
-    expected_left = centre_left * sound.samples_float + other_left * other.samples_float
-    expected_right = centre_right * sound.samples_float + other_right * other.samples_float
+    expected_left = centre_left * float_render(sound) + other_left * float_render(other)
+    expected_right = centre_right * float_render(sound) + other_right * float_render(other)
     assert np.array_equal(written[:, 0], expected_left.astype(np.float32))
     assert np.array_equal(written[:, 1], expected_right.astype(np.float32))
 
@@ -277,13 +300,13 @@ def test_the_nominal_end_of_an_instrument_sound_is_its_last_gate(library_without
     sound = library_without_mixer.sound(
         PULSE_INSTRUMENT, scene_sound_directory=None, notes='B5:0.06 E6:0.18'
     )
-    library_without_mixer.add_recipes([LEGACY_RECIPE])
+    library_without_mixer.add_effects([LEGACY_RECIPE])
     legacy = library_without_mixer.sound('beep_like', scene_sound_directory=None)
 
     assert nominal_end_frame(sound, sample_rate=SAMPLE_RATE) == round(0.06 * SAMPLE_RATE) + round(
         0.18 * SAMPLE_RATE
     )
-    assert nominal_end_frame(legacy, sample_rate=SAMPLE_RATE) == len(legacy.samples_float)
+    assert nominal_end_frame(legacy, sample_rate=SAMPLE_RATE) == len(float_render(legacy))
     # At another rate the spec's notes are placed at that rate
     assert nominal_end_frame(sound, sample_rate=22050) == round(0.06 * 22050) + round(0.18 * 22050)
 
@@ -298,9 +321,9 @@ def stepped_mix(library):
         STEPPED_RELEASE_INSTRUMENT, scene_sound_directory=None, pitch='A4', length=0.2
     )
     blip = library.sound(PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5', length=0.05)
-    assert len(blip.samples_float) < round(0.2 * SAMPLE_RATE)  # it ends inside the tone's hold
-    mix = tone.samples_float.copy()
-    mix[: len(blip.samples_float)] += blip.samples_float
+    assert len(float_render(blip)) < round(0.2 * SAMPLE_RATE)  # it ends inside the tone's hold
+    mix = float_render(tone).copy()
+    mix[: len(float_render(blip))] += float_render(blip)
     return tone, blip, mix
 
 
@@ -313,7 +336,7 @@ def test_a_sound_alone_is_never_cut_however_long_its_quiet_tail(tmp_path, librar
     sound = library_without_mixer.sound(
         STEPPED_RELEASE_INSTRUMENT, scene_sound_directory=None, pitch='A4', length=0.2
     )
-    samples = sound.samples_float
+    samples = float_render(sound)
     loud = np.flatnonzero(np.abs(samples) >= QUIET_LEVEL)
     window = round(QUIET_SECONDS * SAMPLE_RATE)
     assert len(samples) - (int(loud[-1]) + 1) > window  # over 100 ms of quiet at its end
@@ -366,14 +389,14 @@ def test_a_quiet_stretch_cut_short_by_the_end_keeps_the_whole_buffer(
     sound = library_without_mixer.sound(PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5')
     late = library_without_mixer.sound(PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C6')
     # Silence between the two (a gap of 50 ms after the first ends), then the second sound
-    gap_start = len(sound.samples_float) / SAMPLE_RATE
+    gap_start = len(float_render(sound)) / SAMPLE_RATE
     event_seconds = gap_start + 0.05
 
     report = render_to_file(
         sound, tmp_path / 'gap.wav', events=[OfflineEvent(seconds=event_seconds, sound=late)]
     )
 
-    assert report.frames == round(event_seconds * SAMPLE_RATE) + len(late.samples_float)
+    assert report.frames == round(event_seconds * SAMPLE_RATE) + len(float_render(late))
 
 
 def test_float32_output_keeps_overs_and_reports_clips(tmp_path, library_without_mixer):
@@ -388,7 +411,7 @@ def test_float32_output_keeps_overs_and_reports_clips(tmp_path, library_without_
     floating = render_to_file(sound, tmp_path / 'over.wav', sample_format='float32', events=stacked)
     clipped = render_to_file(sound, tmp_path / 'clipped.wav', events=stacked)
 
-    tripled = 3.0 * sound.samples_float
+    tripled = 3.0 * float_render(sound)
     expected_clips = int(np.count_nonzero(np.abs(tripled) > 1.0))
     assert expected_clips > 0
     written, _ = read_wav_float32(floating.path)
@@ -450,8 +473,8 @@ def test_stems_write_one_stereo_file_per_bus_beside_the_mix(tmp_path, library_wi
     assert np.allclose(mix, effects_stem + music_stem, atol=1e-6)
     left, _ = constant_power_gains(pan=0.0, gain=1.0)
     assert np.array_equal(
-        effects_stem[: len(effect.samples_float), 0],
-        (left * effect.samples_float).astype(np.float32),
+        effects_stem[: len(float_render(effect)), 0],
+        (left * float_render(effect)).astype(np.float32),
     )
 
 

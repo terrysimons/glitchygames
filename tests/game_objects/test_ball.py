@@ -22,7 +22,6 @@ from glitchygames.game_objects.ball import (
     snap_to_pixel,
 )
 from glitchygames.game_objects.paddle import VerticalPaddle
-from glitchygames.game_objects.sounds import SFX, load_sound
 from glitchygames.movement import Speed
 from glitchygames.randomness import (
     RANDOM_STREAM_KIND,
@@ -31,6 +30,7 @@ from glitchygames.randomness import (
     stream_seed,
 )
 from tests.game_objects.ball_helpers import drawn_position
+from tests.game_objects.sound_support import a_sound
 
 SERVE_STREAM_TEST_SEED = 31
 SIZE_20 = 20
@@ -96,6 +96,7 @@ class TestBallSpriteInitialization:
 
     def test_ball_sprite_initialization_custom(self):
         """Test BallSprite initialization with custom parameters."""
+        bounce = a_sound()
         groups = pygame.sprite.LayeredDirty()
         ball = BallSprite(
             x=100,
@@ -103,7 +104,7 @@ class TestBallSpriteInitialization:
             width=30,
             height=30,
             groups=groups,
-            collision_sound=SFX.BOUNCE,
+            collision_sound=bounce,
         )
 
         # Position is set by reset() during initialization, so it will be random
@@ -114,7 +115,7 @@ class TestBallSpriteInitialization:
         # groups() returns a list, so we need to check the content
         assert groups in ball.groups()
         assert ball in groups
-        assert isinstance(ball.snd, pygame.mixer.Sound)
+        assert ball.snd is bounce
 
     def test_ball_sprite_initialization_without_groups(self):
         """Test BallSprite initialization creates default groups when None provided."""
@@ -125,11 +126,12 @@ class TestBallSpriteInitialization:
         assert isinstance(ball.groups()[0], pygame.sprite.LayeredDirty)
 
     def test_ball_sprite_initialization_with_collision_sound(self):
-        """Test BallSprite initialization loads the collision sound from the bundled files."""
-        ball = BallSprite(collision_sound=SFX.SLAP)
+        """A ball keeps the sound the game gives it, to play on a wall bounce."""
+        sound = a_sound()
 
-        assert isinstance(ball.snd, pygame.mixer.Sound)
-        assert ball.snd.get_raw() == load_sound(SFX.SLAP).get_raw()
+        ball = BallSprite(collision_sound=sound)
+
+        assert ball.snd is sound
 
     def test_ball_sprite_initialization_without_collision_sound(self):
         """Test BallSprite initialization without collision sound."""
@@ -731,7 +733,7 @@ class TestBallSpriteWallBounceSpeed:
             bounce_left_right=True,
             speed_up_settings=SpeedUpSettings(triggers=SpeedUpTrigger.WALL_BOUNCE),
         )
-        ball.snd = load_sound(SFX.BOUNCE)
+        ball.snd = _still_playing_when_checked()
         away_x = -sum(INTO_WALL_DIRECTIONS[wall][0] for wall in walls)
         away_y = -sum(INTO_WALL_DIRECTIONS[wall][1] for wall in walls)
         velocity = (away_x * 200.0, away_y * 200.0) if motion == 'away' else (0.0, 0.0)
@@ -876,8 +878,8 @@ class TestBallSpriteIntegration:
 
     def test_ball_with_sound_integration(self):
         """Test ball with sound integration."""
-        ball = BallSprite(collision_sound=SFX.BOUNCE)
-        # It loaded its bounce sound; a long one is played instead, so it is still playing when
+        ball = BallSprite(collision_sound=a_sound())
+        # It has its bounce sound; a long one is played instead, so it is still playing when
         # checked (BUGS.md #258)
         ball.snd = _still_playing_when_checked()
         # Trigger top wall bounce: the visible circle 5 px above the screen

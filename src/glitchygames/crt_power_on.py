@@ -276,6 +276,9 @@ def draw_power_on(*, surface: pygame.Surface, picture: pygame.Surface, progress:
 # How long the sequence lasts, and the frame rate it is drawn at
 SEQUENCE_SECONDS = 1.2
 FRAME_SECONDS = 1 / 60
+# The part of each frame the idle work may use (the game's sounds compiling during the sequence,
+# plans/2026-11-14-sound-migration.md decision 6); the rest is left for drawing the next frame
+IDLE_WORK_SECONDS = FRAME_SECONDS * 0.75
 # A press of any of these skips the rest of the sequence (dropped: never the game's input)
 SKIP_EVENT_TYPES = frozenset({
     pygame.KEYDOWN,
@@ -392,6 +395,7 @@ def play_power_on(
     sources: EventPump,
     sleep: Callable[[float], None] | None = None,
     sound_cues: PowerOnSoundCues | None = None,
+    idle_work: Callable[[float], None] | None = None,
 ) -> PowerOnOutcome:
     """Play the sequence on the game's canvas, blocking (``GameEngine.start``).
 
@@ -401,6 +405,9 @@ def play_power_on(
         sleep: Waits a frame (tests pass one that does not wait); None is glitchygames/clock.py's
             raw sleep, looked up when called so a patch on ``glitchygames.clock`` reaches it.
         sound_cues: The sequence's sound, cued each frame; None plays it silently.
+        idle_work: Work done in each frame's idle time, given ``IDLE_WORK_SECONDS`` to use (the
+            game's sounds compiling); the frame then sleeps only what the work left of it, never
+            less than nothing. None sleeps the whole frame.
 
     Returns:
         How it ended; the settled picture is on screen either way.
@@ -409,7 +416,12 @@ def play_power_on(
     frame_sleep = clock.raw_sleep if sleep is None else sleep
     frames = _PowerOnFrames(screen=screen, sources=sources, sound_cues=sound_cues)
     while (ending := frames.next_frame()) is None:
-        frame_sleep(FRAME_SECONDS)
+        if idle_work is None:
+            frame_sleep(FRAME_SECONDS)
+            continue
+        work_started = clock.raw_counter_seconds()
+        idle_work(IDLE_WORK_SECONDS)
+        frame_sleep(max(0.0, FRAME_SECONDS - (clock.raw_counter_seconds() - work_started)))
     return ending
 
 
@@ -419,6 +431,7 @@ async def play_power_on_async(
     sources: EventPump,
     wait_for_tick: Callable[[], Awaitable[float]],
     sound_cues: PowerOnSoundCues | None = None,
+    idle_work: Callable[[float], None] | None = None,
 ) -> PowerOnOutcome:
     """Play the sequence one frame per outer tick (``GameEngine.start_async``, the browser).
 
@@ -427,6 +440,7 @@ async def play_power_on_async(
         sources: The installed doors (their event pump).
         wait_for_tick: Waits for the next outer tick (the next animation frame).
         sound_cues: The sequence's sound, cued each frame; None plays it silently.
+        idle_work: As ``play_power_on``'s, done in each frame before its tick is awaited.
 
     Returns:
         How it ended; the settled picture is on screen either way.
@@ -434,5 +448,7 @@ async def play_power_on_async(
     """
     frames = _PowerOnFrames(screen=screen, sources=sources, sound_cues=sound_cues)
     while (ending := frames.next_frame()) is None:
+        if idle_work is not None:
+            idle_work(IDLE_WORK_SECONDS)
         await wait_for_tick()
     return ending

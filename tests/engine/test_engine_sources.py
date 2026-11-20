@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Self
 import pygame
 import pytest
 
+from glitchygames.input.stand_in_devices import StandInDeviceRegistry, StandInDeviceSources
 from glitchygames.live_sources import LiveSources
 from glitchygames.replay.tools.golden_traces import (
     FRAME_SECONDS,
@@ -34,6 +35,7 @@ from glitchygames.sources import (
     reset_sources,
 )
 from glitchygames.supervision import BREAKPOINT_KIND
+from tests.input.stand_in_devices import STAND_IN_STICK
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -42,6 +44,8 @@ if TYPE_CHECKING:
     from glitchygames.supervision import ControlEvent
 
 SCRIPTED_KEY = pygame.K_x
+# The master seed the live-doors tests give GameEngine.build_live_sources
+LIVE_DOORS_SEED = 4242
 
 
 class KeyCountingScene(Scene):
@@ -329,3 +333,50 @@ class TestFrameLoopUsesTheDoors:
             assert len(handled) == 1
         finally:
             GoldenTraceSceneManager.uninstall()
+
+
+class TestTheEnginesLiveDoors:
+    """``GameEngine.build_live_sources``: the live doors a live run reads through."""
+
+    def test_the_live_doors_carry_the_seed_and_the_scene_start_capture(self):
+        """The engine builds plain live doors with the seed and capture it is given."""
+        GoldenTraceSceneManager.install()
+        try:
+            with command_line(['--windowed', '--resolution', '320x240', '--log-level', 'warning']):
+                engine = GoldenTraceEngine(game=KeyCountingScene)
+
+            capturing = engine.build_live_sources(
+                random_seed=LIVE_DOORS_SEED, captures_scene_starts=True
+            )
+            not_capturing = engine.build_live_sources(
+                random_seed=LIVE_DOORS_SEED + 1, captures_scene_starts=False
+            )
+        finally:
+            GoldenTraceSceneManager.uninstall()
+
+        assert type(capturing) is LiveSources
+        assert capturing.random_seed == LIVE_DOORS_SEED
+        assert capturing.captures_scene_starts
+        assert not_capturing.random_seed == LIVE_DOORS_SEED + 1
+        assert not not_capturing.captures_scene_starts
+
+    def test_a_harness_engine_with_stand_in_devices_reads_them_through_its_doors(self):
+        """``GoldenTraceEngine(stand_in_devices=...)``: its live doors serve the stand-ins."""
+        GoldenTraceSceneManager.install()
+        try:
+            with command_line(['--windowed', '--resolution', '320x240', '--log-level', 'warning']):
+                engine = GoldenTraceEngine(game=KeyCountingScene, stand_in_devices=[STAND_IN_STICK])
+
+            live_doors = engine.build_live_sources(
+                random_seed=LIVE_DOORS_SEED, captures_scene_starts=False
+            )
+            run_devices = active_sources().devices()
+        finally:
+            GoldenTraceSceneManager.uninstall()
+
+        assert isinstance(live_doors, StandInDeviceSources)
+        assert live_doors.random_seed == LIVE_DOORS_SEED
+        assert live_doors.devices().joystick_count() == 1
+        # The run's own doors (the host's, around the stand-ins' live doors) serve the stand-ins
+        assert isinstance(run_devices, StandInDeviceRegistry)
+        assert run_devices.joystick_count() == 1

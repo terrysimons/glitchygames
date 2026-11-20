@@ -176,7 +176,7 @@ class TestDebugOverlayFlag:
         """Test the setter makes the overlay's visibility match the option."""
         manager.debug_overlay.is_visible = not option_value
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'debug_overlay': option_value,
@@ -187,7 +187,7 @@ class TestDebugOverlayFlag:
     def test_sound_diagnostics_open_the_overlay(self, manager, mocker):
         """--sound-diagnostics starts with the overlay on (its Audio panel: impl spec 10.5)."""
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'debug_overlay': False,
@@ -199,7 +199,7 @@ class TestDebugOverlayFlag:
     def test_sound_diagnostics_starts_on_the_audio_panel(self, manager, mocker):
         """--sound-diagnostics opens the overlay on its Audio panel, not on All."""
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'debug_overlay': False,
@@ -211,7 +211,7 @@ class TestDebugOverlayFlag:
     def test_the_debug_overlay_option_alone_starts_on_all_panels(self, manager, mocker):
         """--debug-overlay without --sound-diagnostics keeps the All panel."""
         engine = mocker.Mock()
-        engine.OPTIONS = {
+        engine.options = {
             'update_type': 'update',
             'fps_log_interval_ms': 1000,
             'debug_overlay': True,
@@ -223,7 +223,7 @@ class TestDebugOverlayFlag:
         """Test an engine whose options lack the key leaves the overlay hidden."""
         manager.debug_overlay.is_visible = True
         engine = mocker.Mock()
-        engine.OPTIONS = {'update_type': 'update', 'fps_log_interval_ms': 1000}
+        engine.options = {'update_type': 'update', 'fps_log_interval_ms': 1000}
         manager.game_engine = engine
         assert manager.debug_overlay.is_visible is False
 
@@ -570,7 +570,7 @@ class TestPausedSceneInspection:
         gameplay_scene = Scene(options={})
         scene_manager.previous_scene = gameplay_scene
         scene_manager.game_engine = mocker.Mock(
-            OPTIONS={
+            options={
                 'update_type': 'dirty',
                 'fps_refresh_rate': 1,
                 'target_fps': 60,

@@ -45,7 +45,7 @@ from clockwork_keep.levels import (
 from clockwork_keep.player import Tinker
 from clockwork_keep.terrain import Elevator, MovingGear, Platform
 from glitchygames.audio.exceptions import AudioUnavailableError
-from glitchygames.audio.live import VoiceState
+from glitchygames.audio.live import LiveAudio, LiveStream
 from glitchygames.camera import FollowAxes, ParallaxLayer
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.display_mode import set_display_mode
@@ -134,13 +134,13 @@ class TestElevatorActivation:
 @pytest.fixture
 def played(clockwork_scene, mocker):
     """Record sound-bank plays without rendering audio."""
-    return mocker.patch.object(clockwork_scene.sounds, 'play')
+    return mocker.patch.object(clockwork_scene, 'play_sound')
 
 
 class TestRecipes:
     """Every Clockwork Keep recipe renders."""
 
-    @pytest.mark.parametrize('recipe', clockwork_sounds.ALL_RECIPES, ids=lambda r: r.name)
+    @pytest.mark.parametrize('recipe', clockwork_sounds.EFFECTS, ids=lambda r: r.name)
     def test_every_recipe_renders(self, recipe):
         samples = recipe.render(sample_rate=44100)
         assert len(samples) > 0
@@ -219,10 +219,24 @@ class TestGameplaySounds:
         clockwork_scene.setup()
         assert math.isclose(clockwork_scene.target_fps, 0.0, abs_tol=1e-9)
 
-    def test_setup_prerenders_sounds(self, clockwork_scene, mocker):
-        prerender = mocker.patch.object(clockwork_scene.sounds, 'prerender')
-        clockwork_scene.setup()
-        prerender.assert_called_once()
+    def test_every_effect_is_compiled_when_the_floor_is_built(self, clockwork_scene):
+        """Each effect is the library's sound, compiled before the floor runs, at its volume.
+
+        Compiled up front so the elevator clank never compiles on the slam frame.
+        """
+        audio = clockwork_scene.scene_manager.audio
+        for effect in clockwork_sounds.EFFECTS:
+            sound = clockwork_scene.sounds[effect.name]
+            assert sound is audio.sound(effect)
+            assert sound.is_compiled
+            assert sound.playback_defaults.volume == effect.volume
+
+    def test_play_sound_plays_the_named_effect(self, clockwork_scene, mocker):
+        play = mocker.patch.object(clockwork_scene.sounds['jump'], 'play')
+
+        clockwork_scene.play_sound('jump')
+
+        play.assert_called_once_with()
 
 
 class TestElevatorRide:
@@ -237,47 +251,43 @@ class TestElevatorRide:
     def test_motor_follows_car_speed_then_arrival_shakes_and_stops(
         self, clockwork_scene, played, mocker
     ):
-        voice = mocker.Mock(state=VoiceState.PLAYING)
-        create_voice = mocker.patch.object(
-            clockwork_scene.scene_manager.live_audio, 'create_voice', return_value=voice
-        )
+        pool = LiveAudio(channel_indices=(0,))
+        clockwork_scene.scene_manager._live_audio = pool
         screen_shake = mocker.patch.object(clockwork_scene.scene_manager.screen_shake, 'add')
         transition = self._ride(clockwork_scene)
-        assert create_voice.call_args.kwargs['owner'] is transition
-        voice.start.assert_called_once()
+        motor = clockwork_scene._elevator_motor
+        assert motor is not None
+        assert motor.is_playing
+        # The ride owns it: it plays on behind the next floor while the ride runs
+        pool.update(active_scene=None, previous_scene=None, active_transitions=(transition,))
+        assert motor.is_playing
 
         old, new = pygame.Surface((800, 480)), pygame.Surface((800, 480))
         transition.start(old, new)
         transition.update(0.5)
-        slow_frequency = voice.frequency
+        slow = motor.parameter_values['speed']
         transition.update(3.0)
-        assert voice.frequency > slow_frequency  # Accelerating into the stop
+        assert motor.parameter_values['speed'] > slow  # Accelerating into the stop
         transition.update(1.0)  # Arrives
 
-        voice.stop_now.assert_called_once()
+        assert not motor.is_playing  # cut as the car lands, queued chunk and all
+        assert clockwork_scene._elevator_motor is None
         played.assert_any_call('elevator_clank')
         styles = [call.args[0].style for call in screen_shake.call_args_list]
         assert styles == [ShakeStyle.BOUNCE, ShakeStyle.NOISE]
         assert all(call.args[0].rumble is not None for call in screen_shake.call_args_list)
 
-    def test_ride_without_free_voice_is_silent_not_fatal(self, clockwork_scene, played, mocker):
+    def test_ride_without_free_voice_is_silent_not_fatal(self, clockwork_scene, played):
         """Review focus 2: --live-voice-pool 0 or a full pool still rides."""
-        mocker.patch.object(
-            clockwork_scene.scene_manager.live_audio,
-            'create_voice',
-            side_effect=ValueError('All 0 live voice channels are in use'),
-        )
+        clockwork_scene.scene_manager._live_audio = LiveAudio(channel_indices=())
         transition = self._ride(clockwork_scene)
         transition.start(pygame.Surface((800, 480)), pygame.Surface((800, 480)))
         assert transition.update(5.0) is True
         played.assert_any_call('elevator_clank')
 
     def test_ride_with_unavailable_audio_is_silent_not_fatal(self, clockwork_scene, played, mocker):
-        voice = mocker.Mock(state=VoiceState.PLAYING)
-        voice.start.side_effect = AudioUnavailableError('no mixer')
-        mocker.patch.object(
-            clockwork_scene.scene_manager.live_audio, 'create_voice', return_value=voice
-        )
+        clockwork_scene.scene_manager._live_audio = LiveAudio(channel_indices=(0,))
+        mocker.patch.object(LiveStream, 'start', side_effect=AudioUnavailableError('no mixer'))
         transition = self._ride(clockwork_scene)
         transition.start(pygame.Surface((800, 480)), pygame.Surface((800, 480)))
         assert transition.update(5.0) is True
@@ -301,12 +311,8 @@ class TestElevatorRumble:
 
     _ride = TestElevatorRide._ride
 
-    def test_sustained_low_level_rises_with_speed_and_is_capped(self, clockwork_scene, mocker):
-        mocker.patch.object(
-            clockwork_scene.scene_manager.live_audio,
-            'create_voice',
-            return_value=mocker.Mock(state=VoiceState.PLAYING),
-        )
+    def test_sustained_low_level_rises_with_speed_and_is_capped(self, clockwork_scene):
+        clockwork_scene.scene_manager._live_audio = LiveAudio(channel_indices=(0,))
         transition = self._ride(clockwork_scene)
         rumble = clockwork_scene.scene_manager.rumble
         transition.start(pygame.Surface((800, 480)), pygame.Surface((800, 480)))
@@ -324,12 +330,8 @@ class TestElevatorRumble:
         transition.update(2.0)  # Arrives
         assert clockwork_scene.scene_manager.rumble.sustained_levels == (0.0, 0.0)
 
-    def test_ride_without_free_voice_still_rumbles(self, clockwork_scene, mocker):
-        mocker.patch.object(
-            clockwork_scene.scene_manager.live_audio,
-            'create_voice',
-            side_effect=ValueError('All 0 live voice channels are in use'),
-        )
+    def test_ride_without_free_voice_still_rumbles(self, clockwork_scene):
+        clockwork_scene.scene_manager._live_audio = LiveAudio(channel_indices=())
         transition = self._ride(clockwork_scene)
         transition.start(pygame.Surface((800, 480)), pygame.Surface((800, 480)))
         transition.update(3.0)
@@ -910,7 +912,7 @@ class TestClockFaceMovingGear:
     @pytest.fixture
     def clock_face_played(self, clock_face_scene, mocker):
         """Record the Clock Face's sound-bank plays without rendering audio."""
-        return mocker.patch.object(clock_face_scene.sounds, 'play')
+        return mocker.patch.object(clock_face_scene, 'play_sound')
 
     @staticmethod
     def _platform_at(scene, position):
@@ -1311,7 +1313,7 @@ class TestFloorInput:
 
     def test_controller_button_a_jumps_and_its_release_lets_go(self, mocker):
         scene = ClockworkKeepScene(options={'input_mode': 'controller'})
-        played = mocker.patch.object(scene.sounds, 'play')
+        played = mocker.patch.object(scene, 'play_sound')
         _stand_on_first_elevator(scene)
         button = pygame.CONTROLLER_BUTTON_A
 
@@ -1487,7 +1489,7 @@ class TestClockFaceVictory:
         )
         scene.saves = DiskSaveManager('clockwork-keep', save_dir=tmp_path)
         mocker.patch.object(scene, 'transition_to')
-        mocker.patch.object(scene.sounds, 'play')
+        mocker.patch.object(scene, 'play_sound')
         return scene
 
     @staticmethod
@@ -1529,7 +1531,7 @@ class TestClockFaceVictory:
 
         clock_face_scene.dt_tick(FRAME_TIME)
 
-        played = [call.args[0] for call in clock_face_scene.sounds.play.call_args_list]
+        played = [call.args[0] for call in clock_face_scene.play_sound.call_args_list]
         assert played.count('victory') == 1
         assert 'elevator_clank' not in played
 
@@ -1587,3 +1589,46 @@ class TestClockFaceVictory:
             len([sprite for sprite in victory.all_sprites if sprite.rect.width == title_size[0]])
             == 1
         )
+
+
+def test_building_a_floor_compiles_nothing_the_game_did_not_declare():
+    """Every sound a floor asks for is in ClockworkKeepScene.SOUNDS, compiled at start."""
+    from glitchygames.audio.startup import StartupSounds
+    from glitchygames.scenes import SceneManager
+
+    if pygame.display.get_surface() is None:
+        set_display_mode(size=(800, 480))
+    audio = SceneManager().audio
+    StartupSounds(audio=audio, sources=ClockworkKeepScene.SOUNDS).finish()
+    declared = audio.sounds.statistics().compiles
+
+    ClockworkKeepScene(options={'input_mode': 'joystick'})
+
+    assert audio.sounds.statistics().compiles == declared
+
+
+def test_the_elevator_motor_is_a_live_instrument_the_game_declares():
+    """Speed moves its pitch 45-110 Hz and its level 0.15-0.6 as heard; a saw, low-passed.
+
+    Heard at centre, its level route is raised by the square root of 2: the constant-power pan
+    law puts a centred sound 3 dB down on each side.
+    """
+    from glitchygames.audio.live_controls import Route
+    from glitchygames.audio.voices import constant_power_gains
+
+    motor = clockwork_sounds.ELEVATOR_MOTOR
+
+    assert motor.live
+    assert motor in ClockworkKeepScene.SOUNDS
+    assert motor.routes == (
+        Route(source='speed', destination='pitch', output=(45.0, 110.0)),
+        Route(
+            source='speed', destination='level', output=(0.15 * math.sqrt(2), 0.6 * math.sqrt(2))
+        ),
+    )
+    left, right = constant_power_gains(pan=0.0, gain=1.0)
+    heard = [end * left for end in motor.routes[1].output]
+    assert heard == pytest.approx([0.15, 0.6])
+    assert right == pytest.approx(left)
+    assert (motor.filter.kind, motor.filter.cutoff_hz) == ('low_pass', 600.0)
+    assert (motor.tremolo.rate_hz, motor.tremolo.depth) == (8.0, 0.4)

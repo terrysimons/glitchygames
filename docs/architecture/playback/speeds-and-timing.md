@@ -20,11 +20,14 @@ a period in nanoseconds: 16,666,667 ns at 60 FPS, or about 16,664 µs at 60.01. 
 work, `SceneManager._handle_frame_pacing` asks the timer for the next deadline
 (`compute_deadline`) and sleeps until it (`sleep_until_next`):
 
-- **Sleep.** The timer sleeps so that it is predicted to wake `DEFAULT_SLEEP_GRANULARITY_NS`
-  (1 ms) before the deadline. Under `--timer-backend auto`, the engine's default, the sleep is
-  shortened by this machine's measured `SleepModel` (how late its sleeps wake: a constant plus a
-  fraction of the length).
-- **Spin.** It spins the rest.
+Sleep
+:   The timer sleeps so that it is predicted to wake `DEFAULT_SLEEP_GRANULARITY_NS`
+    (1 ms) before the deadline. Under `--timer-backend auto`, the engine's default, the sleep is
+    shortened by this machine's measured `SleepModel` (how late its sleeps wake: a constant plus a
+    fraction of the length).
+
+Spin
+:   It spins the rest.
 
 Then `_finish_frame` takes one `perf_counter()` reading, which ends this frame and starts the next.
 
@@ -74,11 +77,14 @@ per-frame processing times are pure work.
 A watched replay has two loops (`src/glitchygames/replay/viewer.py`, whose docstring is the
 contract):
 
-- **Outer.** The viewer ticks at a fixed real-time rate: `CONTROL_TICKS_PER_SECOND` = 60
-  (`src/glitchygames/replay/controls.py`), on `measured_seconds()`, never replayed. Each tick
-  reads the viewer's keys, refreshes the status line and presents one frame.
-- **Inner.** The recorded game steps at its recorded frame times. Its frames run whole, but are
-  not presented (`presents_frames` is False).
+Outer
+:   The viewer ticks at a fixed real-time rate: `CONTROL_TICKS_PER_SECOND` = 60
+    (`src/glitchygames/replay/controls.py`), on `measured_seconds()`, never replayed. Each tick
+    reads the viewer's keys, refreshes the status line and presents one frame.
+
+Inner
+:   The recorded game steps at its recorded frame times. Its frames run whole, but are
+    not presented (`presents_frames` is False).
 
 Before each inner frame the scene manager asks `hold_frame`:
 

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RPG Sprite Studio</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #19202e; --edge: #2e3a4f;
+    --fg: #eef2f8; --muted: #8d9bb5; --faint: #5d6a82; --accent: #5aa9ff;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #eef1f6; --panel: #ffffff; --edge: #d6ddea;
+      --fg: #18202e; --muted: #5a6680; --faint: #93a0b8; --accent: #2b6fd6;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1420; --panel: #19202e; --edge: #2e3a4f;
+    --fg: #eef2f8; --muted: #8d9bb5; --faint: #5d6a82; --accent: #5aa9ff; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1480px; margin: 0 auto;
+    padding-left: max(14px, env(safe-area-inset-left, 0px));
+    padding-right: max(14px, env(safe-area-inset-right, 0px));
+    padding-block: 16px; }
+  h1 { font-size: 1.15rem; margin: 0 0 2px; }
+  .sub { color: var(--muted); margin: 0 0 14px; font-size: .88rem; }
+
+  .app { display: grid; gap: 14px; grid-template-columns: 1fr; align-items: stretch; }
+  @media (min-width: 1040px) {
+    .app { grid-template-columns: 280px minmax(0, 1fr) 400px; height: calc(100vh - 118px); min-height: 560px; }
+  }
+  .panel { background: var(--panel); border: 1px solid var(--edge); border-radius: 14px; overflow: hidden;
+    display: flex; flex-direction: column; min-height: 0; }
+  .panel > header { font-size: .76rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+    font-weight: 600; padding: 12px 16px; border-bottom: 1px solid var(--edge); flex: none; }
+  .panel iframe { border: 0; width: 100%; height: 100%; flex: 1 1 auto; min-height: 440px; background: var(--bg); }
+
+  .instructions .body { padding: 14px 16px; overflow: auto; }
+  .instructions ul { margin: 0 0 14px; padding-left: 18px; font-size: .84rem; color: var(--muted); }
+  .instructions li { margin-bottom: 8px; }
+  .instructions b { color: var(--fg); font-weight: 600; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: .82rem; font-weight: 600;
+    color: var(--accent); border: 1px solid var(--accent); border-radius: 9px; padding: 8px 14px; background: transparent; }
+  .btn input { display: none; }
+  #status { display: block; margin-top: 8px; font-size: .78rem; color: var(--muted); }
+  #status b { color: var(--accent); }
+  .note { font-size: .72rem; color: var(--faint); margin: 10px 0 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>RPG Sprite Studio</h1>
+  <p class="sub">bitmappy (loaded from the deployed play/ site) wired to the MasterHUB deck — load a sprite and it shows on the dial and the center key.</p>
+
+  <div class="app">
+    <!-- LEFT: instructions + the sprite loader -->
+    <aside class="panel instructions">
+      <header>Instructions</header>
+      <div class="body">
+        <ul>
+          <li><b>Keys</b> — top row picks the <b>sprite</b>, the 3×3 is the facing grid, the bottom row steps the <b>palette</b> color.</li>
+          <li><b>Knobs</b> — <b>R / G / B</b> of the selected color.</li>
+          <li><b>Rollers</b> — flip <b>sprite pages</b>.</li>
+          <li><b>Dial</b> — the navigator: turn to move, press to activate; scrubs frames in the film strip.</li>
+          <li><b>Sliders</b> — zoom, FPS, onion range / alpha / opacity.</li>
+          <li><b>Base LED</b> — the selected paint color.</li>
+        </ul>
+        <label class="btn">Load sprite
+          <input id="file" type="file" accept=".toml,.png,image/png">
+        </label>
+        <span id="status">showing <b id="sname">Magic Mushroom</b> on the dial &amp; center key</span>
+        <p class="note">Accepts a bitmappy sprite <code>.toml</code> or a PNG; it updates the deck on the right.</p>
+      </div>
+    </aside>
+
+    <!-- CENTER: the real bitmappy, loaded from the deployed play/ site -->
+    <main class="panel editor">
+      <header>bitmappy</header>
+      <iframe id="bitmappy" src="https://terrysimons.github.io/glitchygames/play/bitmappy/"
+        title="bitmappy editor" allow="clipboard-read; clipboard-write"></iframe>
+    </main>
+
+    <!-- RIGHT: the deck, exactly as the mockup -->
+    <section class="panel deck">
+      <header>Interactive deck</header>
+      <iframe id="deck" src="2026-10-28-bitmappy-masterhub-deck.html" title="The RPG Sprite Page deck"></iframe>
+    </section>
+  </div>
+</div>
+
+<script>
+  var CHROMA = [255, 0, 255];
+  var last = null; // the most recent {url, name}, re-sent when the deck iframe (re)loads
+
+  function pushToDeck() {
+    var frame = document.getElementById("deck");
+    if (last && frame.contentWindow) frame.contentWindow.postMessage({ type: "sprite", url: last.url, name: last.name }, "*");
+  }
+  document.getElementById("deck").addEventListener("load", pushToDeck);
+
+  // Parse a bitmappy sprite .toml -> PNG data URL (magenta chroma -> transparent).
+  function spriteTomlToDataUrl(text) {
+    var pm = text.match(/pixels\s*=\s*("""|''')\s*\n?([\s\S]*?)\1/);
+    if (!pm) throw new Error("no [sprite].pixels found");
+    var rows = pm[2].replace(/^\n+|\n+$/g, "").split("\n");
+    var colors = {}, re = /\[colors\.([^\]]+)\]([\s\S]*?)(?=\n\s*\[|$)/g, m;
+    while ((m = re.exec(text))) {
+      var key = m[1].trim().replace(/^["']|["']$/g, ""), body = m[2];
+      var r = (body.match(/red\s*=\s*(\d+)/) || [])[1];
+      var g = (body.match(/green\s*=\s*(\d+)/) || [])[1];
+      var b = (body.match(/blue\s*=\s*(\d+)/) || [])[1];
+      colors[key] = [+r || 0, +g || 0, +b || 0];
+    }
+    var h = rows.length, w = Math.max.apply(null, rows.map(function (r) { return r.length; }));
+    var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    var cx = cv.getContext("2d"), id = cx.createImageData(w, h);
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      var ch = rows[y][x], c = colors[ch], i = (y * w + x) * 4;
+      if (!c) { id.data[i + 3] = 0; continue; }
+      var clear = c[0] === CHROMA[0] && c[1] === CHROMA[1] && c[2] === CHROMA[2];
+      id.data[i] = c[0]; id.data[i + 1] = c[1]; id.data[i + 2] = c[2]; id.data[i + 3] = clear ? 0 : 255;
+    }
+    cx.putImageData(id, 0, 0);
+    return cv.toDataURL("image/png");
+  }
+
+  document.getElementById("file").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var reader = new FileReader(), isToml = /\.toml$/i.test(f.name);
+    var name = f.name.replace(/\.(toml|png)$/i, "");
+    reader.onload = function () {
+      try {
+        var url = isToml ? spriteTomlToDataUrl(String(reader.result)) : reader.result;
+        last = { url: url, name: name };
+        pushToDeck();
+        document.getElementById("sname").textContent = name;
+      } catch (err) {
+        document.getElementById("status").textContent = "could not read sprite: " + err.message;
+      }
+    };
+    if (isToml) reader.readAsText(f); else reader.readAsDataURL(f);
+  });
+</script>
+</body>
+</html>

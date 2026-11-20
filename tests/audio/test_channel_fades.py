@@ -28,6 +28,8 @@ workers (tests/audio/channel_fade_analysis.py).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pytest
 
@@ -35,26 +37,38 @@ from glitchygames.audio.diagnostics import DEFAULT_BUFFER_SAMPLES, find_disconti
 from tests.audio.channel_fade_analysis import (
     BUS_FADE_GAINS,
     DISCONTINUITY_THRESHOLD,
+    INT16_SCALE,
     LEVEL_TOLERANCE,
     MAXIMUM_CRT_FADE_PLATEAUS,
     MINIMUM_DELAYED_STEAL_TRIALS,
+    RECORDING_ATTEMPTS,
     action_chunk,
     chunk_levels,
     delayed_steal_trials,
     levels_after_the_action,
+    read_recording,
+    record,
     recording_directory,
     shared_recording,
     trial_chunks,
+    trial_report_path,
+    trial_report_rows,
     worst_step_ratio,
+    write_trial_report,
 )
 from tests.audio.channel_fade_probe import (
     BUS_FADE,
     CRT_SKIP,
     STEAL_DELAYED,
     STEAL_IMMEDIATE,
+    STEALER_TONE_HZ,
+    STOLEN_TONE_HZ,
     TRIAL_COUNT,
     own_largest_step,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture(scope='module')
@@ -235,3 +249,158 @@ def test_a_stalled_trial_stays_one_trial():
     assert len(recorded_trials) == TRIAL_COUNT
     stalled = recorded_trials[4]
     assert len(stalled) >= 2 * 20 + stall.size // DEFAULT_BUFFER_SAMPLES
+
+
+def assert_report_holds_every_recorded_trial(samples, *, case, directory):
+    """Write the report and check it holds one table row for each trial the recording holds."""
+    path, text = write_trial_report(samples, case=case, directory=directory)
+
+    assert path == trial_report_path(case=case, directory=directory)
+    assert path.name == f'channel-fade-{case}.md'
+    assert path.read_text(encoding='utf-8') == text
+    rows = trial_report_rows(samples)
+    assert rows
+    assert [row.trial for row in rows] == list(range(1, len(rows) + 1))
+    table_rows = [
+        line for line in text.splitlines() if line.startswith('| ') and 'Trial' not in line
+    ]
+    assert len(table_rows) == len(rows)
+    for row, line in zip(rows, table_rows, strict=True):
+        assert line.startswith(f'| {row.trial} | {row.action_chunk} | {row.stolen_level:.3f} |')
+
+
+@pytest.mark.parametrize('case', [STEAL_IMMEDIATE, STEAL_DELAYED])
+def test_a_steal_report_holds_every_trial_whether_or_not_its_relation_held(
+    recordings, case, tmp_path
+):
+    """The steal benchmarks' report is written under its directory with a row for every trial.
+
+    The report is what diagnoses a flaky benchmark run, so it is checked here, in the normal
+    suite, on the real recording: written to ``channel-fade-<case>.md``, one table row per trial
+    the recording holds, each trial's action chunk and levels in it. How many trials a live
+    recording holds is not this test's to judge: a delayed steal that stalls under load loses
+    one (native run, 2026-11-11: 5 of 6), which the benchmark tolerates down to
+    MINIMUM_DELAYED_STEAL_TRIALS and owns.
+    """
+    assert_report_holds_every_recorded_trial(
+        recordings(case), case=case, directory=tmp_path / 'test-results'
+    )
+
+
+def test_a_steal_report_of_a_recording_with_a_lost_trial_holds_the_trials_that_remain(tmp_path):
+    """A recording one trial short still gets a report with a row for each remaining trial.
+
+    Synthetic: five trials of the probe's tones (the stolen tone, then the stealer's) separated
+    by silences, as a live recording is after a stalled trial is lost.
+    """
+    chunk = DEFAULT_BUFFER_SAMPLES
+    time = np.arange(chunk * 4) / 44100
+    stolen = np.sin(2 * np.pi * STOLEN_TONE_HZ * time)
+    stealer = np.sin(2 * np.pi * STEALER_TONE_HZ * time)
+    between_trials = np.zeros(round(0.300 * 44100))
+    pieces: list[np.ndarray] = []
+    for _ in range(TRIAL_COUNT - 1):
+        pieces.extend([stolen, stealer, between_trials])
+    samples = np.concatenate(pieces[:-1])
+
+    assert len(trial_chunks(samples)) == TRIAL_COUNT - 1
+    assert_report_holds_every_recorded_trial(
+        samples, case=STEAL_DELAYED, directory=tmp_path / 'test-results'
+    )
+
+
+def recording_of_trials(trial_count: int) -> np.ndarray:
+    """A synthetic left channel of ``trial_count`` sounding trials, each 200 ms silence apart.
+
+    Returns:
+        The samples, -1..1.
+    """
+    sounding = np.full(DEFAULT_BUFFER_SAMPLES * 20, 0.5)
+    between_trials = np.zeros(round(0.200 * 44100))
+    pieces: list[np.ndarray] = []
+    for _ in range(trial_count):
+        pieces.extend([sounding, between_trials])
+    return np.concatenate(pieces[:-1])
+
+
+class ScriptedRecorder:
+    """Stands in for the probe's child process: each attempt writes the next scripted recording.
+
+    An entry is a trial count (that many trials written to the partial file, as the disk driver
+    writes them: signed 16-bit stereo) or a string (the child failed with that output).
+    """
+
+    def __init__(self, script: list[int | str]) -> None:
+        """Start with the attempts' outcomes, in order."""
+        self.script = list(script)
+        self.attempts = 0
+
+    def __call__(self, case: str, *, partial: Path) -> str | None:
+        """Make the next attempt.
+
+        Returns:
+            The child's output when it failed, else None.
+        """
+        del case
+        outcome = self.script[self.attempts]
+        self.attempts += 1
+        if isinstance(outcome, str):
+            return outcome
+        left = np.round(recording_of_trials(outcome) * INT16_SCALE).astype('<i2')
+        np.column_stack([left, left]).tofile(partial)
+        return None
+
+
+def test_a_recording_that_lost_a_trial_is_made_again(tmp_path):
+    """A stall that merges two trials (CircleCI Windows, 2026-11-13: job 3303) costs an attempt.
+
+    The disk driver writes nothing while its thread is starved, so a silence between trials can
+    vanish and two trials record as one. The recording is made again, and only a recording of
+    every trial is moved into place: the tests' exact trial count stays exact.
+    """
+    path = tmp_path / f'{BUS_FADE}.raw'
+    failed = tmp_path / f'{BUS_FADE}.failed'
+    recorder = ScriptedRecorder([TRIAL_COUNT - 1, TRIAL_COUNT])
+
+    record(BUS_FADE, path=path, failed=failed, attempt=recorder)
+
+    assert recorder.attempts == 2
+    assert len(trial_chunks(read_recording(path))) == TRIAL_COUNT
+    assert not failed.exists()
+    assert not path.with_suffix('.partial').exists()
+
+
+def test_recordings_that_keep_losing_trials_fail_naming_each_count(tmp_path):
+    """A machine that stalls every attempt fails the recording, for every waiting worker.
+
+    The ``.failed`` file (what ``shared_recording``'s other workers wait on) names each
+    attempt's trial count, and no recording is moved into place.
+    """
+    path = tmp_path / f'{CRT_SKIP}.raw'
+    failed = tmp_path / f'{CRT_SKIP}.failed'
+    counts = [TRIAL_COUNT - 1, TRIAL_COUNT - 2, TRIAL_COUNT - 1][:RECORDING_ATTEMPTS]
+    recorder = ScriptedRecorder(list(counts))
+
+    with pytest.raises(AssertionError, match='lost a trial'):
+        record(CRT_SKIP, path=path, failed=failed, attempt=recorder)
+
+    assert recorder.attempts == RECORDING_ATTEMPTS
+    message = failed.read_text(encoding='utf-8')
+    assert f'{RECORDING_ATTEMPTS} recordings of {CRT_SKIP}' in message
+    assert ', '.join(str(count) for count in counts) in message
+    assert not path.exists()
+    assert not path.with_suffix('.partial').exists()
+
+
+def test_a_probe_that_fails_is_not_recorded_again(tmp_path):
+    """A child that crashes is a failure to report at once, not a stall to retry."""
+    path = tmp_path / f'{BUS_FADE}.raw'
+    failed = tmp_path / f'{BUS_FADE}.failed'
+    recorder = ScriptedRecorder(['Traceback (most recent call last):\nRuntimeError: boom'])
+
+    with pytest.raises(AssertionError, match='boom'):
+        record(BUS_FADE, path=path, failed=failed, attempt=recorder)
+
+    assert recorder.attempts == 1
+    assert 'RuntimeError: boom' in failed.read_text(encoding='utf-8')
+    assert not path.exists()

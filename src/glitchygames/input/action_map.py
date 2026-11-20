@@ -211,7 +211,7 @@ class ActionMap:
         follows both, and any input setting added later.
 
         Args:
-            options: The engine's options (``GameEngine.OPTIONS``, a scene's ``options``).
+            options: The run's options (the engine's ``options``, a scene's ``options``).
 
         Returns:
             The map, with no bindings.

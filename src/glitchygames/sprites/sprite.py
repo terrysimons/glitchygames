@@ -7,6 +7,7 @@ event handling, delta time tracking, and debugging support.
 from __future__ import annotations
 
 import collections
+import dataclasses
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
@@ -18,14 +19,15 @@ if TYPE_CHECKING:
         JoyBallEvent,
         JoyButtonEvent,
         JoyHatEvent,
-        KeyEvent,
         MouseButtonEvent,
-        MouseMotionEvent,
-        MouseWheelEvent,
         VideoResizeEvent,
     )
 
 import pygame
+
+from glitchygames.engine_context import ContextSlot, current_context
+from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViewsABC
+from glitchygames.render_target import display_surface
 
 from .root_sprite import RootSprite
 
@@ -35,18 +37,73 @@ LOG = logging.getLogger('game.sprites')
 _ERR_CANNOT_CREATE_SURFACE = "Can't create Surface(({width}, {height}))."
 
 
-class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
+@dataclasses.dataclass
+class SpriteCounters:
+    """One engine context's sprite counters and breakpoints, which its teardown report logs.
+
+    Attributes:
+        counters: Each sprite type's counters (``'count'`` and ``'pixels'``), keyed by
+            ``str(type(sprite))``, in the order the types were first made.
+        breakpoints: The sprite types to stop in the debugger for: None means no breakpoints,
+            an empty list every sprite.
+        count: How many sprites were made.
+
+    """
+
+    counters: collections.OrderedDict[str, dict[str, int | float]] = dataclasses.field(
+        default_factory=collections.OrderedDict
+    )
+    breakpoints: list[str] | None = None
+    count: int = 0
+
+
+# Each engine context's sprite counters (glitchygames.engine_context; audit C18): a game in
+# another context never counts this context's sprites in its report, nor stops at its breakpoints
+SPRITE_COUNTERS_SLOT: ContextSlot[SpriteCounters] = ContextSlot(
+    name='glitchygames.sprites.sprite.counters', factory=SpriteCounters
+)
+
+
+def sprite_counters() -> SpriteCounters:
+    """Return the current engine context's sprite counters.
+
+    Returns:
+        SpriteCounters: The current context's counters, breakpoints and count.
+
+    """
+    return current_context().value(slot=SPRITE_COUNTERS_SLOT)
+
+
+# ReadOnlyViewsABC: RootSprite's metaclass is abc.ABCMeta (read_only_views.py). pygame-ce's stubs
+# derive pygame.sprite.Sprite from a Protocol (_HasImageAndRect), so ty takes typing._ProtocolMeta
+# for the metaclass; at run time it is ABCMeta, which ReadOnlyViewsABC derives from
+class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-public-methods]  # ty: ignore[conflicting-metaclass]
     """A convenience class for handling all of the common sprite behaviors."""
 
     log = LOG
     USE_GFXDRAW: ClassVar = False
     PROXIES: ClassVar = [pygame.sprite]
-    # None means no breakpoints.  Empty list means all.
-    SPRITE_BREAKPOINTS: ClassVar[list[str] | None] = None
-    SPRITE_COUNTERS: ClassVar[collections.OrderedDict[str, dict[str, int | float]]] = (
-        collections.OrderedDict()
+    # The current context's sprite counters (audit C18), read on the class or on a sprite;
+    # read-only views of sprite_counters(), which the engine reads instead
+    SPRITE_COUNTERS = ReadOnlyView[
+        collections.OrderedDict[str, dict[str, int | float]],
+        collections.OrderedDict[str, dict[str, int | float]],
+    ](
+        read_current=lambda _owner: sprite_counters().counters,
+        read_own=lambda _sprite: sprite_counters().counters,
+        write_instead='glitchygames.sprites.sprite.sprite_counters().counters',
     )
-    SPRITE_COUNT = 0
+    # None means no breakpoints.  Empty list means all.
+    SPRITE_BREAKPOINTS = ReadOnlyView[list[str] | None, list[str] | None](
+        read_current=lambda _owner: sprite_counters().breakpoints,
+        read_own=lambda _sprite: sprite_counters().breakpoints,
+        write_instead='a breakpoint with Sprite.break_when(...)',
+    )
+    SPRITE_COUNT = ReadOnlyView[int, int](
+        read_current=lambda _owner: sprite_counters().count,
+        read_own=lambda _sprite: sprite_counters().count,
+        write_instead='glitchygames.sprites.sprite.sprite_counters().count',
+    )
 
     @classmethod
     def break_when(cls: type[Sprite], sprite_type: object | None = None) -> None:
@@ -57,16 +114,16 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
                 None means break on any sprite.
 
         """
-        # None means disabled.
-        # [] means any.
-        if cls.SPRITE_BREAKPOINTS is None:
-            cls.SPRITE_BREAKPOINTS = []  # pyright: ignore[reportConstantRedefinition]
+        # The current context's breakpoints: None means disabled, [] means any
+        counters = sprite_counters()
+        if counters.breakpoints is None:
+            counters.breakpoints = []
 
         # If none, break always.
         if sprite_type is not None:
             # Register the type asked for (not cls): __init__ compares str(type(self)) with it
             LOG.info('Register break when sprite_type==%s', sprite_type)
-            cls.SPRITE_BREAKPOINTS.append(str(sprite_type))
+            counters.breakpoints.append(str(sprite_type))
         else:
             LOG.info('Register break when sprite_type==<any>')
 
@@ -130,8 +187,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         # Sprites can register callbacks for any event type.
         self.callbacks: dict[str, Any] = {}
 
-        # Each sprite maintains a reference to the screen.
-        self.screen = pygame.display.get_surface()
+        # Each sprite maintains a reference to the screen: an inner context's render target,
+        # else the display (glitchygames/render_target.py)
+        self.screen = display_surface()
         assert self.screen is not None, (
             'Display surface must be initialized before creating sprites'
         )
@@ -140,32 +198,33 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         groups.add(self)
 
-        # Add ourselves to the sprite counters.
+        # Add ourselves to the current context's sprite counters.
+        counters = sprite_counters()
         my_type = str(type(self))
 
-        if my_type in self.SPRITE_COUNTERS:
-            self.SPRITE_COUNTERS[my_type]['count'] += 1
-            self.SPRITE_COUNTERS[my_type]['pixels'] = (
-                self.width * self.height + self.SPRITE_COUNTERS[my_type]['pixels']
+        if my_type in counters.counters:
+            counters.counters[my_type]['count'] += 1
+            counters.counters[my_type]['pixels'] = (
+                self.width * self.height + counters.counters[my_type]['pixels']
             )
         else:
-            self.SPRITE_COUNTERS[my_type] = collections.OrderedDict()
-            self.SPRITE_COUNTERS[my_type]['count'] = 1
+            counters.counters[my_type] = collections.OrderedDict()
+            counters.counters[my_type]['count'] = 1
             # The first sprite's pixels count too (BUGS.md #201: it was recorded as 0)
-            self.SPRITE_COUNTERS[my_type]['pixels'] = self.width * self.height
-        # On the class (BUGS.md #201: self.SPRITE_COUNT += 1 set an attribute on this sprite,
-        # so the class's count, which the teardown report logs, stayed 0)
-        Sprite.SPRITE_COUNT += 1  # pyright: ignore[reportConstantRedefinition]
+            counters.counters[my_type]['pixels'] = self.width * self.height
+        # The context's count, never the sprite's (BUGS.md #201: self.SPRITE_COUNT += 1 set an
+        # attribute on this sprite, so the count the teardown report logs stayed 0)
+        counters.count += 1
 
         # None means disabled.
-        if self.SPRITE_BREAKPOINTS is not None:
+        if counters.breakpoints is not None:
             # Empty list means all.
-            if len(self.SPRITE_BREAKPOINTS) == 0:
+            if len(counters.breakpoints) == 0:
                 self.log.info('Break when sprite_type==%s', type(self))
                 # This breakpoint is intentional
                 breakpoint()  # ruff: ignore[debugger]
             else:
-                for sprite_type in self.SPRITE_BREAKPOINTS:
+                for sprite_type in counters.breakpoints:
                     if str(type(self)) == sprite_type:
                         self.log.info('Break when sprite_type==%s', sprite_type)
 
@@ -277,51 +336,9 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         """
         # JOYBALLMOTION    joy, ball, rel
         # Not logged: ball motion streams every frame while the ball moves.
-
-    @override
-    def on_mouse_motion_event(self: Self, event: MouseMotionEvent) -> None:
-        """Handle a mouse motion event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-
-        """
         # MOUSEMOTION      pos, rel, buttons
         # Not logged: motion streams every frame while the mouse moves, to every
         # sprite under it, so a log line here would drown out useful debug output.
-
-    @override
-    def on_mouse_focus_event(self: Self, event: HashableEvent, entering_focus: object) -> None:
-        """Handle a mouse focus event.
-
-        Args:
-            event (HashableEvent): The event to handle.
-            entering_focus (object): The object entering focus.
-
-        """
-        # Custom Event
-        self.log.debug(
-            'Mouse Focus Event: %s: %s, Entering Focus: %s',
-            type(self),
-            event,
-            entering_focus,
-        )
-
-    @override
-    def on_mouse_unfocus_event(
-        self: Self,
-        event: HashableEvent,
-        leaving_focus: object = None,
-    ) -> None:
-        """Handle a mouse unfocus event.
-
-        Args:
-            event (HashableEvent): The event to handle.
-            leaving_focus (object): The object leaving focus.
-
-        """
-        # Custom Event
-        self.log.debug('Mouse Unfocus Event: %s: %s', type(self), event)
 
     def on_mouse_enter_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse enter event.
@@ -344,17 +361,6 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         self.log.debug('Mouse Exit Event: %s: %s', type(self), event)
 
     @override
-    def on_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a mouse button up event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONUP    pos, button
-        self.log.debug('%s: %s', type(self), event)
-
-    @override
     def on_left_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
         """Handle a left mouse button up event.
 
@@ -369,18 +375,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug('%s: Left Mouse Button Up Event: %s @ %s', type(self), event, self)
-
-    @override
-    def on_middle_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a middle mouse button up event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONUP    pos, button
-        self.log.debug('%s: Middle Mouse Button Up Event: %s', type(self), event)
+            super().on_left_mouse_button_up_event(event)
 
     @override
     def on_right_mouse_button_up_event(self: Self, event: MouseButtonEvent) -> None:
@@ -396,18 +391,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug('%s: Right Mouse Button Up Event: %s @ %s', type(self), event, self)
-
-    @override
-    def on_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a mouse button down event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug('%s: %s @ %s', type(self), event, self)
+            super().on_right_mouse_button_up_event(event)
 
     @override
     def on_left_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
@@ -425,18 +409,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug('%s: Left Mouse Button Down Event: %s @ %s', type(self), event, self)
-
-    @override
-    def on_middle_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a middle mouse button down event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug('%s: Middle Mouse Button Down Event: %s', type(self), event)
+            super().on_left_mouse_button_down_event(event)
 
     @override
     def on_right_mouse_button_down_event(self: Self, event: MouseButtonEvent) -> None:
@@ -452,31 +425,7 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
             if callback:
                 callback(event=event, trigger=self)
         else:
-            self.log.debug(
-                '%s: Right Mouse Button Down Event: %s @ %s', type(self), event, self.name
-            )
-
-    @override
-    def on_mouse_scroll_down_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a mouse scroll down event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug('%s: Mouse Scroll Down Event: %s', type(self), event)
-
-    @override
-    def on_mouse_scroll_up_event(self: Self, event: MouseButtonEvent) -> None:
-        """Handle a mouse scroll up event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-
-        """
-        # MOUSEBUTTONDOWN  pos, button
-        self.log.debug('%s: Mouse Scroll Up Event: %s', type(self), event)
+            super().on_right_mouse_button_down_event(event)
 
     def on_mouse_chord_up_event(self: Self, event: HashableEvent) -> None:
         """Handle a mouse chord up event.
@@ -495,48 +444,6 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
 
         """
         self.log.debug('%s: Mouse Chord Down Event: %s', type(self), event)
-
-    def on_key_down_event(self: Self, event: KeyEvent) -> None:
-        """Handle a key down event.
-
-        Args:
-            event (KeyEvent): The event to handle.
-
-        """
-        # KEYDOWN          unicode, key, mod
-        self.log.debug('%s: %s', type(self), event)
-
-    def on_key_up_event(self: Self, event: KeyEvent) -> None:
-        """Handle a key up event.
-
-        Args:
-            event (KeyEvent): The event to handle.
-
-        """
-        # KEYUP            key, mod
-        self.log.debug('%s: %s', type(self), event)
-
-    def on_key_chord_down_event(self: Self, event: KeyEvent, keys: tuple[KeyEvent, ...]) -> None:
-        """Handle a key chord down event.
-
-        Args:
-            event (KeyEvent): The event to handle.
-            keys (tuple[KeyEvent, ...]): The KEYDOWN events of the keys held, in the order
-                they were pressed.
-
-        """
-        self.log.debug('%s: %s, %s', type(self), event, keys)
-
-    def on_key_chord_up_event(self: Self, event: KeyEvent, keys: tuple[KeyEvent, ...]) -> None:
-        """Handle a key chord up event.
-
-        Args:
-            event (KeyEvent): The event to handle.
-            keys (tuple[KeyEvent, ...]): The KEYDOWN events of the keys held, in the order
-                they were pressed.
-
-        """
-        self.log.debug('%s KEYCHORDUP: %s, %s', type(self), event, keys)
 
     def on_quit_event(self: Self, event: HashableEvent) -> None:
         """Handle a quit event.
@@ -601,130 +508,14 @@ class Sprite(RootSprite):  # ruff: ignore[too-many-public-methods]
         """
         # USEREVENT        code
         self.log.debug('%s: %s', type(self), event)
-
-    @override
-    def on_left_mouse_drag_event(
-        self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent
-    ) -> None:
-        """Handle a left mouse drag event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drag.
-
-        """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
-
-    @override
-    def on_middle_mouse_drag_event(
-        self: Self,
-        event: MouseMotionEvent,
-        trigger: MouseButtonEvent,
-    ) -> None:
-        """Handle a middle mouse drag event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drag.
-
-        """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
-
-    @override
-    def on_right_mouse_drag_event(
-        self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent
-    ) -> None:
-        """Handle a right mouse drag event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drag.
-
-        """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
-
-    @override
-    def on_left_mouse_drop_event(
-        self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent
-    ) -> None:
-        """Handle a left mouse drop event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drop.
-
-        """
-        self.log.debug(
-            '%s: Left Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
-        )
-
-    @override
-    def on_middle_mouse_drop_event(
-        self: Self,
-        event: MouseButtonEvent,
-        trigger: MouseButtonEvent,
-    ) -> None:
-        """Handle a middle mouse drop event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drop.
-
-        """
-        self.log.debug(
-            '%s: Middle Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
-        )
-
-    @override
-    def on_right_mouse_drop_event(
-        self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent
-    ) -> None:
-        """Handle a right mouse drop event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drop.
-
-        """
-        self.log.debug(
-            '%s: Right Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger
-        )
-
-    @override
-    def on_mouse_drag_event(self: Self, event: MouseMotionEvent, trigger: MouseButtonEvent) -> None:
-        """Handle a mouse drag event.
-
-        Args:
-            event (MouseMotionEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drag.
-
-        """
         # Not logged: a drag arrives with every mouse motion while a button is held, so a log
         # line here would run every frame of a drag and drown out useful debug output.
-
-    @override
-    def on_mouse_drop_event(self: Self, event: MouseButtonEvent, trigger: MouseButtonEvent) -> None:
-        """Handle a mouse drop event.
-
-        Args:
-            event (MouseButtonEvent): The event to handle.
-            trigger (MouseButtonEvent): The event that triggered the drop.
-
-        """
-        self.log.debug('%s: Mouse Drop Event: %s @ %s for %s', type(self), event, self, trigger)
-
-    @override
-    def on_mouse_wheel_event(self: Self, event: MouseWheelEvent) -> None:
-        """Handle a mouse wheel event.
-
-        Args:
-            event (MouseWheelEvent): The event to handle.
-
-        """
-        self.log.debug('%s: Mouse Wheel Event: %s @ %s', type(self), event, self)
 
     @override
     def __str__(self: Self) -> str:

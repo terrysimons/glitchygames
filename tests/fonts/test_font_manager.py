@@ -18,6 +18,7 @@ import pygame.sysfont
 import pytest
 
 from glitchygames.display_mode import set_display_mode
+from glitchygames.engine_context import EngineContext
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import (
     BASE_FONT_DPI,
@@ -212,7 +213,7 @@ class TestDefaultFontWithoutFontconfig:
     def test_the_engine_options_default_font_is_the_bundled_vera(self, fontconfig_unavailable):
         parser = FontManager.args(argparse.ArgumentParser())
         engine_options = vars(parser.parse_args([]))
-        FontManager(game=types.SimpleNamespace(OPTIONS=engine_options))
+        FontManager(game=types.SimpleNamespace(engine_options=engine_options))
 
         with warnings.catch_warnings():
             warnings.simplefilter('error')
@@ -374,6 +375,20 @@ class TestFontManagerSetGetFontSystem:
         """Test get_font_system returns 'pygame' when OPTIONS is empty."""
         assert FontManager.get_font_system() == 'pygame'
 
+    def test_each_context_has_its_own_font_system(self):
+        """One context's font system never changes another's (audit C13)."""
+        first = EngineContext(name='first')
+        second = EngineContext(name='second')
+        with first.active():
+            FontManager.set_font_system(font_system='freetype')
+        with second.active():
+            second_system = FontManager.get_font_system()
+        with first.active():
+            first_system = FontManager.get_font_system()
+
+        assert first_system == 'freetype'
+        assert second_system == 'pygame'
+
 
 class TestFontManagerCompareFontSystems:
     """FontManager.compare_font_systems renders the same text with both systems."""
@@ -432,7 +447,7 @@ class TestFontManagerInit:
             parser.parse_args(['--font-name', 'courier', '--font-system', font_system])
         )
 
-        manager = FontManager(game=types.SimpleNamespace(OPTIONS=engine_options))
+        manager = FontManager(game=types.SimpleNamespace(engine_options=engine_options))
 
         assert FontManager.OPTIONS['font_name'] == 'courier'
         assert FontManager.OPTIONS['font_size'] == 14
@@ -574,7 +589,7 @@ def engine_font_manager(*arguments: str) -> FontManager:
     """
     parser = FontManager.args(argparse.ArgumentParser())
     engine_options = vars(parser.parse_args(list(arguments)))
-    return FontManager(game=types.SimpleNamespace(OPTIONS=engine_options))
+    return FontManager(game=types.SimpleNamespace(engine_options=engine_options))
 
 
 class TestFontStyleOptions:
@@ -597,7 +612,9 @@ class TestFontStyleOptions:
     def test_options_without_the_style_options_get_the_defaults(self):
         """A game whose options lack the style options gets antialiased, upright, regular text."""
         FontManager(
-            game=types.SimpleNamespace(OPTIONS={'font_name': DEFAULT_FONT_NAME, 'font_size': 14})
+            game=types.SimpleNamespace(
+                engine_options={'font_name': DEFAULT_FONT_NAME, 'font_size': 14}
+            )
         )
 
         freetype_font = FontManager.get_font(font_system='freetype')

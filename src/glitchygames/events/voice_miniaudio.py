@@ -139,11 +139,11 @@ class MiniaudioMicrophone(sr.AudioSource):
         return self
 
     @override
-    def __exit__(  # ty: ignore[invalid-method-override]
+    def __exit__(
         self,
         exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: types.TracebackType | None,
+        exc_value: BaseException | None,
+        traceback: types.TracebackType | None,
     ) -> None:
         """Exit the context manager, stopping audio capture and cleaning up."""
         try:

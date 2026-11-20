@@ -20,6 +20,11 @@ from typing import TYPE_CHECKING
 from scripts.git_checkout import run_git
 from scripts.workspace_packages import WorkspaceMember, workspace_members
 
+from glitchygames.engine import GameEngine
+from glitchygames.fonts import FontManager
+from glitchygames.read_only_views import ViewBase
+from glitchygames.scenes import SceneManager
+from glitchygames.sprites import Sprite
 from tests.ast_scanning import (
     import_bindings,
     imported_module_names,
@@ -524,8 +529,7 @@ def test_a_bare_name_import_of_a_members_test_module_is_found(tmp_path):
 # Living documentation writes repository paths from the repository root (the engine at
 # src/glitchygames/, the workspace layers at src/games/, src/demos/ and src/apps/). Finished
 # plans (plans/*.md except the ones below) and resolved BUGS.md entries are history: they name
-# the locations as they were when written, so they are not scanned (TEST_UPDATE_PLAN.md says
-# "complete (historical)" and is among them).
+# the locations as they were when written, so they are not scanned.
 LIVING_PLAN_FILES = (
     'plans/future-features.md',
     'plans/future-work.md',
@@ -696,6 +700,79 @@ def test_living_documentation_writes_repository_paths_from_the_repository_root()
     keeps the paths it was written with.
     """
     assert paths_without_the_source_root() == []
+
+
+# The classes whose class attributes became read-only views (glitchygames.read_only_views;
+# plans/2026-10-27-engine-context-2-engine-state.md): writing one raises ReadOnlyViewError
+VIEW_OWNERS: tuple[type, ...] = (GameEngine, SceneManager, FontManager, Sprite)
+
+
+def _view_write_pattern() -> re.Pattern[str]:
+    """Return the pattern of a write of a read-only view, its names read from the owners."""
+    owners = '|'.join(owner.__name__ for owner in VIEW_OWNERS)
+    names = '|'.join(
+        sorted(
+            name
+            for owner in VIEW_OWNERS
+            for name, value in vars(owner).items()
+            if isinstance(value, ViewBase)
+        )
+    )
+    view = rf'\b(?:{owners})\.(?:{names})\b'
+    assignment = r'\s*(?:\*\*|//|<<|>>|[-+*/%@&|^])?=(?!=)'
+    return re.compile(
+        rf'{view}{assignment}'
+        rf'|\bdel\s+{view}'
+        rf'|\bperformance_manager{assignment}'
+        rf"""|patch\.object\(\s*(?:{owners})\s*,\s*['"](?:{names})['"]"""
+        r"""|patch\(\s*['"]glitchygames\.performance\.performance_manager['"]"""
+    )
+
+
+# A write of a read-only view: an assignment, augmented assignment or del of a view on its class,
+# an assignment of the performance package's module view, or a patch of one
+VIEW_WRITE_PATTERN: re.Pattern[str] = _view_write_pattern()
+
+
+def test_no_living_documentation_writes_to_a_read_only_view():
+    """No living document tells its reader to write a read-only view (writing one raises).
+
+    The views answer the current game's state (``GameEngine.OPTIONS``); the documentation names
+    what to write instead: the engine's own (``engine.options``), the manager's own
+    (``manager.engine_options``) or the slot's owner function (``sprite_counters()``).
+    """
+    writes = [
+        f'{relative}:{line_number}: {line.strip()}'
+        for relative, line_number, line in living_documentation_lines()
+        if VIEW_WRITE_PATTERN.search(line)
+    ]
+
+    assert writes == []
+
+
+def test_the_view_write_pattern_finds_writes_and_leaves_reads_alone():
+    """The pattern finds each kind of write and no read, comparison or longer name."""
+    writes = [
+        'GameEngine.OPTIONS = the options',
+        'SceneManager.OPTIONS = OPTIONS',
+        'Sprite.SPRITE_COUNT += 1',
+        'del GameEngine.EVENT_HANDLERS',
+        'GameEngine.game = MyScene',
+        'performance_manager = AdaptiveClamping()',
+        "mocker.patch.object(FontManager, 'OPTIONS', {})",
+        "mocker.patch('glitchygames.performance.performance_manager')",
+    ]
+    reads = [
+        "GameEngine.OPTIONS['resolution']",
+        'if GameEngine.OPTIONS == options:',
+        'engine.options = the options',
+        'GameEngine.game_class = MyScene',
+        'manager.engine_options = OPTIONS',
+        "mocker.patch.dict(FontManager.OPTIONS, {'use_freetype': False})",
+    ]
+
+    assert [line for line in writes if not VIEW_WRITE_PATTERN.search(line)] == []
+    assert [line for line in reads if VIEW_WRITE_PATTERN.search(line)] == []
 
 
 def _guard_findings(*, tmp_path: Path, claude_text: str, bugs_text: str = '') -> list[str]:
@@ -1176,6 +1253,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_compare_driver_frames.py': ('scripts/compare_driver_frames.py',),
     'tests/test_create.py': ('scripts/create.py',),
     'tests/test_complexity_report.py': ('scripts/complexity_report.py',),
+    'tests/test_docs_claims.py': ('scripts/docs_claims.py', 'scripts/git_checkout.py'),
     'tests/test_driver_configurations.py': ('scripts/driver_configurations.py',),
     'tests/test_driver_frame_matrix.py': ('scripts/driver_frame_matrix.py',),
     'tests/test_gen_ref_pages.py': ('scripts/gen_ref_pages.py',),
@@ -1189,16 +1267,27 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/mkdocs_hooks.py',
     ),
     'tests/test_import_published_ledger.py': ('scripts/import_published_ledger.py',),
+    'tests/test_instrument_audit_pages_manifest.py': (
+        'scripts/instrument_audit_pages_manifest.py',
+    ),
+    'tests/test_instrument_audit_quote_check.py': ('scripts/instrument_audit_quote_check.py',),
     'tests/test_measure_on_raspberry_pi.py': ('scripts/measure_on_raspberry_pi.py',),
     'tests/test_measure_staged_replays.py': ('scripts/measure_staged_replays.py',),
     'tests/test_microphone_capture_check.py': ('scripts/microphone_capture_check.py',),
     'tests/test_mkdocs_hooks_browser_games.py': ('scripts/mkdocs_hooks.py',),
+    'tests/test_record_bundled_demos.py': (
+        'scripts/record_bundled_demos.py',
+        'scripts/demo_inputs.py',
+    ),
     'tests/test_record_golden_traces.py': (
         'scripts/record_golden_traces.py',
         'scripts/golden_inputs.py',
         'scripts/record_scripted_session.py',
     ),
     'tests/test_replay_schedule.py': ('scripts/replay_schedule.py',),
+    'tests/test_reproduce_orphaned_test_processes.py': (
+        'scripts/reproduce_orphaned_test_processes.py',
+    ),
     'tests/test_workspace_packages.py': (
         'scripts/workspace_packages.py',
         'scripts/git_checkout.py',
@@ -1236,6 +1325,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/replay/test_replays_log_quietly.py': (
         "replays our members' goldens and bundled demos at the tools' log level"
     ),
+    'tests/test_every_recording_replays_inside_an_inner_game.py': (
+        "replays our members' goldens and bundled demos as inner games, beside each other"
+    ),
     'tests/replay/test_committed_recordings_present_every_frame.py': (
         'checks a watched 1x replay presents every frame of every committed recording'
     ),
@@ -1250,7 +1342,10 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     ),
     'tests/test_our_measured_recordings.py': "checks our games' recordings are all measured",
     'tests/test_logger_level_source_guard.py': SOURCE_GUARD_REASON,
+    'tests/test_process_state_guard.py': SOURCE_GUARD_REASON,
     'tests/test_pump_seam_guard.py': SOURCE_GUARD_REASON,
+    'tests/test_shared_font_cache_guard.py': SOURCE_GUARD_REASON,
+    'tests/test_sprite_classes_are_root_sprites.py': SOURCE_GUARD_REASON,
     'tests/test_suite_collection.py': (
         "the suite's own collection and import guards, over every test root"
     ),
@@ -1768,6 +1863,10 @@ FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {
     'tests/replay/tools/test_settings.py': (
         'the recording-renames our settings must give, copied from the constant they replaced'
     ),
+    'scripts/docs_claims.py': (
+        'a recorded exception: clockwork_keep.md names the package as the one its move left '
+        'nothing of'
+    ),
     'src/demos/dt-demo/tests/test_dt_demo_install_location.py': (
         'the move out of the engine: nothing is left of the old package'
     ),
@@ -1910,7 +2009,7 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
     """Code, config and a living doc are found; history, exempt paths and other types are not."""
     files = {
         'src/engine.py': 'import glitchygames.examples\n',
-        'mkdocs.yml': 'path: src/glitchygames/examples\n',
+        'zensical.yml': 'path: src/glitchygames/examples\n',
         'docs/guide.md': 'fine\nsee glitchygames/examples/x\n',
         'plans/old.md': 'glitchygames.examples\n',
         'BUGS.md': (
@@ -1931,6 +2030,6 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
     assert former_examples_references(project_root=tmp_path) == [
         'BUGS.md:3: glitchygames.examples',
         'docs/guide.md:2: see glitchygames/examples/x',
-        'mkdocs.yml:1: path: src/glitchygames/examples',
         'src/engine.py:1: import glitchygames.examples',
+        'zensical.yml:1: path: src/glitchygames/examples',
     ]

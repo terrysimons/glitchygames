@@ -29,9 +29,12 @@ from typing import (
 
 import pygame
 
+from glitchygames.engine_context import ContextSlot, current_context
+from glitchygames.render_target import is_inner_context
+
 if TYPE_CHECKING:
     import builtins
-    from collections.abc import Callable, Iterator, KeysView, ValuesView
+    from collections.abc import Callable, Iterator, KeysView, Sequence, ValuesView
     from types import MemberDescriptorType
 
     from glitchygames.tracing import JsonValue
@@ -251,15 +254,42 @@ def allow_every_event_type(*, native_window_messages: bool) -> None:
     as allowed while SDL ignores it, and a snapshot-and-restore of the blocked types (the
     replay's input blocking) would then enable it.
 
+    In an inner context it changes nothing (``set_event_types_allowed``): SDL's blocked types
+    stay the outer game's.
+
     Args:
         native_window_messages: Whether SYSWMEVENT is allowed too.
 
     """
-    pygame.event.set_allowed(None)
-    if native_window_messages:
-        pygame.event.set_allowed(pygame.SYSWMEVENT)
+    set_event_types_allowed(event_types=None, allowed=True)
+    set_event_types_allowed(event_types=pygame.SYSWMEVENT, allowed=native_window_messages)
+
+
+def set_event_types_allowed(*, event_types: int | Sequence[int] | None, allowed: bool) -> None:
+    """Allow or block event types at SDL, unless the current engine context is inner.
+
+    SDL's blocked event types are one set per process, and belong to the context that owns the
+    window and SDL's queue (audit row S6, plans/2026-10-25-engine-context.md). An inner context
+    (glitchygames/render_target.py ``is_inner_context``: an Arcade tile) posts to and drains a
+    queue of its own (``recording.private_event_queue``) and never reads SDL's, so its blocked
+    state is moot: building or stepping its engine (``allow_every_event_type``, each event
+    manager's constructor, a recording's ``--input-mode joystick``) leaves SDL's set as the
+    outer game had it. Every engine call that changes SDL's blocked types goes through here,
+    except the replay's own input blocking (glitchygames/replay/input_blocking.py), which an
+    inner context never reaches (its replay doors drain the private queue instead).
+
+    Args:
+        event_types: One event type, several, or None for every type (pygame's rule).
+        allowed: True to allow them (``pygame.event.set_allowed``), False to block them
+            (``pygame.event.set_blocked``).
+
+    """
+    if is_inner_context():
+        return
+    if allowed:
+        pygame.event.set_allowed(event_types)
     else:
-        pygame.event.set_blocked(pygame.SYSWMEVENT)
+        pygame.event.set_blocked(event_types)
 
 
 class GameOptionsProvider(Protocol):
@@ -272,7 +302,11 @@ class GameOptionsProvider(Protocol):
     options: dict[str, Any]
 
 
-_unhandled_event_types: set[int] = set()
+# The event types --debug-events has logged as unhandled, per engine context
+# (glitchygames.engine_context; audit C17): a second game in the process logs its own, once each
+UNHANDLED_EVENT_TYPES_SLOT: ContextSlot[set[int]] = ContextSlot(
+    name='glitchygames.events.base.unhandled_event_types', factory=set
+)
 
 
 def unhandled_event(
@@ -285,7 +319,7 @@ def unhandled_event(
 
     This method is called when an event is not handled by
     any of the event handlers.  Each event type is only logged
-    once to avoid per-frame log spam.
+    once per engine context to avoid per-frame log spam.
 
     This is helpful for us to debug events that we haven't
     implemented yet.
@@ -323,15 +357,18 @@ def unhandled_event(
         )
         return
 
-    # Log each unhandled event type only once
+    # Log each unhandled event type only once. The logged-types slot is read only when
+    # --debug-events is on, so the normal case pays no slot read per unhandled event
     debug_events: bool | None = options.get('debug_events')
-    if debug_events and event.type not in _unhandled_event_types:
-        _unhandled_event_types.add(event.type)
-        LOG.warning(
-            'Unhandled Event: %s %s',
-            pygame.event.event_name(event.type),
-            event,
-        )
+    if debug_events:
+        logged_event_types = current_context().value(slot=UNHANDLED_EVENT_TYPES_SLOT)
+        if event.type not in logged_event_types:
+            logged_event_types.add(event.type)
+            LOG.warning(
+                'Unhandled Event: %s %s',
+                pygame.event.event_name(event.type),
+                event,
+            )
     elif debug_events is None:
         LOG.error(
             "Error: debug_events is missing from the game options. This shouldn't be possible.",
@@ -383,6 +420,13 @@ def _initialize_once[**Parameters](
     return initialize
 
 
+# Each engine context's shared ResourceManager instances, by class (glitchygames.engine_context;
+# audit C12): a game in another context never gets this context's managers
+SHARED_INSTANCES_SLOT: ContextSlot[dict[type, Any]] = ContextSlot(
+    name='glitchygames.events.base.shared_instances', factory=dict
+)
+
+
 # Interiting from object is default in Python 3.
 # Linters complain if you do it.
 class ResourceManager:
@@ -399,11 +443,14 @@ class ResourceManager:
     you probably don't need to worry about this.
 
     Shared instances (``SHARES_INSTANCE``, True for the event managers): a class has one
-    instance, the first one constructed. Constructing it again returns that instance as it
-    is, without running ``__init__`` again (BUGS.md #198), so ``MouseEventManager()`` is the
-    manager the GameEngine made to process mouse events with. Each engine run releases them
+    instance per class per engine context (``glitchygames.engine_context``), the first one
+    constructed in that context. Constructing it again there returns that instance as it is,
+    without running ``__init__`` again (BUGS.md #198), so ``MouseEventManager()`` is the
+    manager the context's GameEngine made to process mouse events with, and a game in another
+    context gets its own (audit C12). Each engine run releases this context's
     (``release_shared_instances``) before it makes its managers, so a second engine in one
-    process (a recording, then its replay) builds its own.
+    process (a recording, then its replay) builds its own, and a game in another context
+    keeps its.
 
     A class that sets ``SHARES_INSTANCE = False`` gets a new instance at every construction:
     the proxies (a manager owns its own, and the controller manager one per controller) and
@@ -415,8 +462,6 @@ class ResourceManager:
 
     # False: every construction makes a new instance (see the class docstring)
     SHARES_INSTANCE: ClassVar[bool] = True
-
-    __instances__: ClassVar[dict[type, Any]] = {}
 
     def __init_subclass__(cls, **keyword_arguments: Any) -> None:
         """Wrap the subclass's own ``__init__`` so its shared instance is initialized once.
@@ -446,11 +491,12 @@ class ResourceManager:
         """
         if not cls.SHARES_INSTANCE:
             return object.__new__(cls)
-        if cls not in ResourceManager.__instances__:
-            ResourceManager.__instances__[cls] = object.__new__(cls)
+        shared_instances = current_context().value(slot=SHARED_INSTANCES_SLOT)
+        if cls not in shared_instances:
+            shared_instances[cls] = object.__new__(cls)
             LOG.debug('Created Resource Manager: %s', cls)
 
-        return ResourceManager.__instances__[cls]
+        return shared_instances[cls]
 
     @_initialize_once
     def __init__(self: Self, game: object) -> None:  # ruff: ignore[unused-method-argument]
@@ -465,21 +511,23 @@ class ResourceManager:
 
     @classmethod
     def release_shared_instances(cls) -> None:
-        """Forget every shared instance, so the next construction of each class makes a new one.
+        """Forget this context's shared instances, so each class's next construction is new.
 
         ``GameEngine`` calls it before it makes its event managers: a new engine run builds
-        managers of its own (opening devices through its own doors), not the earlier run's.
+        managers of its own (opening devices through its own doors), not the earlier run's. It
+        releases this context's only: a game in another engine context keeps its managers.
         """
-        ResourceManager.__instances__.clear()
+        current_context().value(slot=SHARED_INSTANCES_SLOT).clear()
 
     @classmethod
     def release_shared_instance(cls) -> None:
         """Forget this class's shared instance, so its next construction makes a new one.
 
-        A playback scope that made a controller manager the live game has none of releases it
-        as the scope ends (``GameEngine.exit_playback_devices``).
+        Only this engine context's instance is forgotten (audit C12). A playback scope that
+        made a controller manager the live game has none of releases it as the scope ends
+        (``GameEngine.exit_playback_devices``).
         """
-        ResourceManager.__instances__.pop(cls, None)
+        current_context().value(slot=SHARED_INSTANCES_SLOT).pop(cls, None)
 
     def __getattr__(self: Self, attr: str) -> Callable[..., Any]:
         """Get an attribute from the first proxy that has it.

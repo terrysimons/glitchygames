@@ -190,7 +190,7 @@ classDiagram
             platform_sprites, elevator_sprites
             moving_gear_sprites, collectible_sprites
             actions: ActionMap
-            sounds: SoundBank
+            sounds: dict[str, Sound]
             camera: Camera2D
             saves: SaveManager
             victory_platform
@@ -515,15 +515,16 @@ sequenceDiagram
     Old->>Old: _check_elevator (next dt_tick):<br/>on an elevator, not the last floor
     Old->>New: ClockworkKeepScene(floor_index=N+1,<br/>player_score, player_lives, options)
     Old->>ET: ElevatorTransition(duration=4.0,<br/>easing='ease_in_sine', player_surface=...)
-    Old->>SM: create_voice(owner=transition), motor.start()
+    Old->>SM: audio.sound(ELEVATOR_MOTOR).start(owner=transition)
     Old->>SM: transition_to(New, ET)<br/>with a cue at progress 1.0
     loop every frame of the ride
         ET->>Old: on_update: _update_elevator_motor(transition)
         Old->>SM: rumble.set_sustained(low, high)<br/>scaled by car speed
-        Note over Old: motor pitch 45 to 110 Hz, volume 0.15 to 0.6
+        Old->>SM: motor.set('speed', car speed 0-1)
+        Note over Old: its routes: pitch 45 to 110 Hz, level 0.15 to 0.6
     end
     ET->>Old: cue 1.0: _elevator_arrived()
-    Old->>SM: motor.stop_now(), rumble.clear_sustained()
+    Old->>SM: motor.cancel(), rumble.clear_sustained()
     Old->>SM: play 'elevator_clank',<br/>SCREEN shakes: bounce + rattle
     SM->>New: the ride ends, Floor N+1 is active
 ```
@@ -583,10 +584,11 @@ dropping through it.
 
 ## Sound
 
-`sounds.py` defines seven `SoundRecipe`s (synthesized tones: oscillators, envelopes, filters,
-tremolo), played through one `SoundBank(ALL_RECIPES)` per floor. `setup()` calls
-`sounds.prerender()`, so no sound renders mid-frame (the clank would otherwise render on the slam
-frame).
+`sounds.py` defines seven `Effect`s (synthesized tones: oscillators, envelopes, filters,
+tremolo), `EFFECTS`. Each floor asks the engine's sound library for all of them when it is built
+(`self.sounds`, by name; `play_sound(name)` plays one): the library compiles each once per engine
+context and caches it (on disk too, under `--sound-cache disk`), so no sound compiles mid-frame
+(the clank would otherwise compile on the slam frame). Each plays at its own volume.
 
 | Sound | When |
 |---|---|
@@ -598,9 +600,13 @@ frame).
 | `elevator_clank` | The elevator arrives (cue at progress 1.0) |
 | `victory` | The Clock Face is won (`_win`): the clock tower's chime, struck bells (each a fundamental, its octave and a 2.76x overtone) climbing C5, E5, G5, then C6 ringing over a deep C3 |
 
-The elevator's motor is not a recipe but a live voice: a low-passed sawtooth with tremolo, made
-with `scene_manager.live_audio.create_voice(owner=transition)` and retuned every frame of the
-ride (`ELEVATOR_MOTOR_*` constants). `SoundBank.play` is a no-op when audio is unavailable.
+The elevator's motor is not an effect but a live instrument, `sounds.ELEVATOR_MOTOR`: a
+low-passed saw with a tremolo chug, whose `speed` parameter routes to its pitch (45 to 110 Hz) and
+level (0.15 to 0.6 as heard: the route's ends are raised by √2, because a centred sound is 3 dB
+down on each side by the constant-power pan law every sound pans by). The ride starts it with `start(owner=transition)`, so it plays on behind the
+next floor until the ride ends, sets `speed` every frame, and cuts it with `cancel()` as the car
+lands (a fade would sound after the clank). Without a free live voice or an audio device the ride
+is silent.
 
 ## State, score, lives and saves
 
@@ -630,7 +636,7 @@ real high scores.
 | Tweens | The respawn fade out and in (`self.tweens.tween(...)`) |
 | Transitions | `ElevatorTransition` (with `on_update` and `add_cue`), `FadeTransition` to game over |
 | Shake and rumble | Two SCREEN shakes on arrival, `ELEVATOR_STOP_BOUNCE` (BOUNCE, vertical) and `ELEVATOR_STOP_RATTLE` (NOISE), each with `RumbleSettings(scale_with_strength=False)`; sustained rumble during the ride |
-| Sound synthesis | Six recipes and one live voice |
+| Sound synthesis | Seven effects and one live instrument |
 | Saves | `open_saves`, `SaveManager.load` / `save` |
 | Built-in scenes | `PauseScene` and `GameOverScene` |
 | Debug overlay | No `debug_draw` of its own: the hitbox panel shows the `player` and `cogs` layers (platforms, unlayered, as full rects), the physics panel the Tinker's body, the camera panel the bounds |
@@ -671,7 +677,7 @@ otherwise auto-pause the game. Never re-record either baseline to make a change 
 
 | File | What it pins |
 |---|---|
-| `src/games/clockwork-keep/tests/test_clockwork_keep.py` | The game itself: elevator activation by interact only (not jump, BUGS.md #24), every recipe renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, `MAX_FRAME_SECONDS`, `replay_arguments`, `--floor`, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, no fall-through after a slow frame (the swept ground check), victory on the Clock Face's top platform, death, high scores, pause/quit/focus input, joystick and controller buttons, the HUD, `main()` |
+| `src/games/clockwork-keep/tests/test_clockwork_keep.py` | The game itself: elevator activation by interact only (not jump, BUGS.md #24), every effect renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, `MAX_FRAME_SECONDS`, `replay_arguments`, `--floor`, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, no fall-through after a slow frame (the swept ground check), victory on the Clock Face's top platform, death, high scores, pause/quit/focus input, joystick and controller buttons, the HUD, `main()` |
 | `src/games/clockwork-keep/tests/test_clockwork_keep_logical_names.py`, `test_clockwork_keep_install_location.py`, `test_clockwork_keep_recording_history.py` | The move out of the engine: every scene the golden replay starts keeps its logical name, nothing is left of `glitchygames.examples.clockwork_keep`, and the golden keeps its history |
 | `tests/world/test_golden_traces.py` | The 900-frame golden trace (above) |
 | `tests/world/test_gameplay_recording.py` | Recording the 900-frame script gives the golden harness's own sprite frames, including the ride and the pause |
@@ -693,7 +699,7 @@ the native-driver comparison while iterating).
 | `src/games/clockwork-keep/src/clockwork_keep/terrain.py` | `Platform`, `Elevator`, `MovingGear` |
 | `src/games/clockwork-keep/src/clockwork_keep/levels.py` | `FloorData`, `MovingGearData`, the three floors, `ALL_FLOORS` |
 | `src/games/clockwork-keep/src/clockwork_keep/drawing.py` | Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, `clock_hand_angles` |
-| `src/games/clockwork-keep/src/clockwork_keep/sounds.py` | The six `SoundRecipe`s, `ALL_RECIPES` |
+| `src/games/clockwork-keep/src/clockwork_keep/sounds.py` | The seven `Effect`s, `EFFECTS` |
 | `src/games/clockwork-keep/src/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colours, elevator ride feel, the clock |
 | `src/glitchygames/transitions/elevator.py` | `ElevatorTransition` (engine, written for this game) |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The pause and game-over screens |

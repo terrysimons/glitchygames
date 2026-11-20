@@ -1,6 +1,5 @@
-/* The readthedocs theme caps the content column at 800 px (its theme.css:
-   .wy-nav-content{...max-width:800px;margin:auto}), leaving most of a wide window empty and the
+/* Material caps the page at 61rem (.md-grid), leaving most of a wide window empty and the
    diagrams and graphs small; let the content fill the window beside the navigation. */
-.wy-nav-content {
+.md-grid {
   max-width: none;
 }

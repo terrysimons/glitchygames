@@ -14,9 +14,18 @@ import pytest
 from glitchygames.audio import CacheMode, Instrument
 from glitchygames.audio import voices as voices_module
 from glitchygames.audio.accounting import CompileRecord
+from glitchygames.audio.effects import Effect, Tone
 from glitchygames.audio.engine import AudioEngine, existing_audio_engine
-from glitchygames.audio.voices import ChannelPartition, reserved_channel_count
-from glitchygames.engine import GameEngine
+from glitchygames.audio.synth import Envelope, Waveform
+from glitchygames.audio.voices import (
+    ChannelPartition,
+    ChannelsHeldError,
+    inner_context_partition,
+    inner_game_channels_declared,
+    release_inner_context_channels,
+    reserved_channel_count,
+)
+from glitchygames.engine_context import EngineContext
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording_history import (
     AUDIO_SECONDS_FIELD,
@@ -47,7 +56,9 @@ def engine_run_environment(mocker):
     yield from demo_runs.engine_run_environment(mocker)
 
 
-def build_engine(mocker, *, game: type[Scene], extra_arguments: tuple[str, ...] = ()):
+def build_engine(
+    mocker, *, game: type[Scene], extra_arguments: tuple[str, ...] = ()
+) -> GoldenTraceEngine:
     """Construct a real engine for ``game`` on ENGINE_ARGUMENTS plus ``extra_arguments``.
 
     Returns:
@@ -99,17 +110,15 @@ class TestSoundOptions:
     """The options impl spec 10.2 adds to every game."""
 
     def test_the_sound_options_have_the_spec_defaults(self, mocker):
-        build_engine(mocker, game=SoundingGame)
-
-        options = GameEngine.OPTIONS
+        options = build_engine(mocker, game=SoundingGame).options
         assert options['sound_channels'] == 32
-        assert options['sound_cache'] == 'ram'
+        assert options['sound_cache'] == 'disk'  # the owner, 2026-11-15
         assert options['sound_cache_memory'] == 256
         assert options['crt_power_on_sound'] == 'on'
         assert options['sound_diagnostics'] is False
 
     def test_the_sound_options_are_read_as_given(self, mocker):
-        build_engine(
+        engine = build_engine(
             mocker,
             game=SoundingGame,
             extra_arguments=(
@@ -125,19 +134,79 @@ class TestSoundOptions:
             ),
         )
 
-        options = GameEngine.OPTIONS
+        options = engine.options
         assert options['sound_channels'] == 12
         assert options['sound_cache'] == 'none'
         assert options['sound_cache_memory'] == 64
         assert options['crt_power_on_sound'] == 'off'
         assert options['sound_diagnostics'] is True
 
-    def test_disk_cache_option_is_refused_until_m3(self, mocker, caplog):
-        with pytest.raises(SystemExit) as exit_information:
-            build_engine(mocker, game=SoundingGame, extra_arguments=('--sound-cache', 'disk'))
+    def test_the_disk_cache_option_is_accepted(self, mocker):
+        engine = build_engine(mocker, game=SoundingGame, extra_arguments=('--sound-cache', 'disk'))
 
-        assert exit_information.value.code == ExitCode.OPTIONS_REFUSED
-        assert 'arrives in M3' in caplog.text
+        assert engine.options['sound_cache'] == 'disk'
+
+    def test_a_live_sound_starts_on_the_scene_managers_live_pool(self, mocker):
+        """The scene manager gives its audio engine its own live pool (``_live_pool``)."""
+        engine = build_engine(mocker, game=SoundingGame)
+        manager = engine.scene_manager
+        pool = mocker.Mock(name='live pool')
+        mocker.patch.object(type(manager), '_live_pool', return_value=pool)
+        audio = manager.audio_for(game_engine=engine)
+        instrument = Instrument(wave='sine', live=True)
+
+        audio.sound(instrument, pitch='A4').start(owner='scene')
+
+        pool.create_instrument_voice.assert_called_once_with(
+            owner='scene',
+            instrument=instrument,
+            frequency=440.0,
+            volume=1.0,
+            parameters=None,
+            options=mocker.ANY,  # its contents: tests/audio/test_live_instrument.py
+        )
+        pool.create_instrument_voice.return_value.stream.start.assert_called_once_with()
+
+    def test_a_games_live_sound_is_kept_fed_by_the_frame_loop(self, mocker):
+        """End to end: the scene manager's frame step, the audio engine's update, the pool.
+
+        A ride's motor, started before transition_to runs the ride (the pending transition
+        owns it), gets its next chunk queued by the frame.
+        """
+        from glitchygames.audio.live import LiveAudio
+
+        engine = build_engine(mocker, game=SoundingGame)
+        manager = engine.scene_manager
+        assert pygame.mixer.get_init() is not None  # the harness's dummy-driver mixer
+        manager._live_audio = LiveAudio(channel_indices=(0,))
+        ride = object()
+        manager._pending_transition = (mocker.Mock(), ride)
+        audio = manager.audio_for(game_engine=engine)
+        motor = audio.sound(Instrument(wave='saw', live=True), pitch='A1').start(owner=ride)
+        channel = pygame.mixer.Channel(0)
+        try:
+            assert channel.get_queue() is None  # only the first chunk, playing
+
+            manager._update_frame_services()
+
+            assert motor.is_playing
+            assert channel.get_queue() is not None
+        finally:
+            motor.cancel()
+            manager._pending_transition = None
+
+    def test_a_games_sounds_go_in_its_own_cache_folder(self, mocker, tmp_path, monkeypatch):
+        """The scene manager names the game's package as the audio engine's cache folder."""
+        from glitchygames.audio.disk_cache import SOUND_CACHE_ROOT_VARIABLE
+
+        monkeypatch.setenv(SOUND_CACHE_ROOT_VARIABLE, str(tmp_path))
+        engine = build_engine(mocker, game=SoundingGame)
+
+        audio = engine.scene_manager.audio_for(game_engine=engine)
+        audio.sound(Instrument(wave='square'), pitch='C5')
+
+        assert audio.cache_mode is CacheMode.DISK
+        assert [path.name for path in tmp_path.iterdir()] == ['tests']  # SoundingGame's package
 
     def test_the_channels_are_partitioned_from_the_options(self, mocker):
         engine = build_engine(
@@ -354,3 +423,166 @@ class TestTheReservedPartition:
         partition = engine.reserved_channel_partition()
 
         assert engine.reserved_channel_partition() is partition
+
+    def test_a_host_scene_declares_its_inner_games_with_the_partition_at_construction(self, mocker):
+        """INNER_GAMES = 2: declared as the engine is made; nothing grows afterwards.
+
+        The partition and the declaration are made before the engine starts (and so before the
+        CRT power-on plays), and an inner game's partition then takes a live pool inside them.
+        """
+        host_game = type(
+            'HostGame', (Scene,), {'NAME': 'HostGame', 'INNER_GAMES': 2, 'dt_tick': _quit_at_once}
+        )
+
+        engine = build_engine(mocker, game=host_game)
+        set_num_channels = mocker.spy(pygame.mixer, 'set_num_channels')
+        with EngineContext(name='tile').active():
+            inner = inner_context_partition(live_pool=4, library_channels=32)
+
+        assert engine.reserved_channel_partition().library == tuple(range(4, 36))
+        assert inner_game_channels_declared()
+        # Two heard sets of 32 (channels 36-99), then the first inner game's live pool
+        assert inner.live == (100, 101, 102, 103)
+        set_num_channels.assert_not_called()
+        assert pygame.mixer.get_num_channels() >= 116
+        assert reserved_channel_count() == 36
+
+    def test_a_second_host_engine_while_the_first_ones_inner_games_hold_channels_is_refused(
+        self, mocker
+    ):
+        """ChannelsHeldError says what to do; once the inner game gave its channels back, it builds.
+
+        A second host in one process (a launcher starting another Arcade) would move the
+        declaration under the first one's running inner games.
+        """
+        host_game = type(
+            'HostGame', (Scene,), {'NAME': 'HostGame', 'INNER_GAMES': 2, 'dt_tick': _quit_at_once}
+        )
+        build_engine(mocker, game=host_game)
+        tile = EngineContext(name='tile')
+        with tile.active():
+            held = inner_context_partition(live_pool=4, library_channels=32)
+
+        with pytest.raises(
+            ChannelsHeldError,
+            match=r'^inner games hold channels of the earlier declaration: finish them before an '
+            r'engine declares its own$',
+        ):
+            build_engine(mocker, game=host_game)
+        with tile.active():
+            release_inner_context_channels()
+        second_host = build_engine(mocker, game=host_game)
+
+        assert held.live == (100, 101, 102, 103)
+        assert second_host.reserved_channel_partition().library == tuple(range(4, 36))
+        assert inner_game_channels_declared()
+
+
+class EarlyAskingGame(Scene):
+    """A stand-in game whose constructor asks for audio, as a sprite loading a sound would."""
+
+    NAME = 'EarlyAskingGame'
+    VERSION = '1.0'
+
+    def __init__(self, *args, **kwargs):
+        """Ask for the audio engine while the game is being built."""
+        super().__init__(*args, **kwargs)
+        self.cache_mode_seen = self.scene_manager.audio.cache_mode
+
+    def dt_tick(self, dt):
+        """Quit in the first frame."""
+        del dt
+        self.scene_manager.quit()
+
+
+def test_a_constructor_that_asks_for_audio_gets_the_games_sound_options(mocker):
+    """The game engine is set before the game is built, so its sound options apply from there.
+
+    Built while the CRT power-on is skipped (the dummy driver), before this the audio engine was
+    made without the game engine: cache ram whatever --sound-cache said.
+    """
+    engine = build_engine(mocker, game=EarlyAskingGame, extra_arguments=('--sound-cache', 'none'))
+    engine.start()
+
+    assert engine.running_game.instance.cache_mode_seen.value == 'none'
+
+
+def _declared_effect(name: str, frequency: float) -> Effect:
+    """A short one-tone effect for a game to declare."""
+    envelope = Envelope(attack=0.001, decay=0.0, sustain_level=1.0, release=0.01)
+    tone = Tone(waveform=Waveform.SINE, start_frequency=frequency, duration=0.02, envelope=envelope)
+    return Effect(name=name, tones=(tone,))
+
+
+# Declared sounds are complete sounds: effects, or a sound file's path#name entries
+DECLARED = (
+    _declared_effect('low', 220.0),
+    _declared_effect('mid', 330.0),
+    _declared_effect('high', 440.0),
+)
+
+
+class DeclaringGame(Scene):
+    """A stand-in game that declares its sounds and records what was compiled when it was built."""
+
+    NAME = 'DeclaringGame'
+    VERSION = '1.0'
+    SOUNDS = DECLARED
+
+    def __init__(self, *args, **kwargs):
+        """Count the compiles done before the game was built, then ask for its sounds."""
+        super().__init__(*args, **kwargs)
+        audio = self.scene_manager.audio
+        self.compiles_before_build = audio.sounds.statistics().compiles
+        self.compiled_at_build = [audio.sound(source).is_compiled for source in self.SOUNDS]
+
+    def dt_tick(self, dt):
+        """Quit in the first frame."""
+        del dt
+        self.scene_manager.quit()
+
+
+def test_a_games_declared_sounds_are_compiled_before_it_is_built(mocker):
+    """Where the power-on is skipped (the dummy driver), every declared sound compiles first."""
+    engine = build_engine(mocker, game=DeclaringGame)
+    engine.start()
+
+    game = engine.running_game.instance
+    assert game.compiles_before_build == len(DECLARED)
+    assert all(game.compiled_at_build)
+
+
+@pytest.mark.frames_vary(
+    reason='the power-on advances by the time its idle work takes compiling, so how far it gets '
+    'differs run to run (frame 12 or 13 differed, of 147 or 148, 2026-11-16)'
+)
+def test_the_declared_sounds_compile_in_the_power_ons_idle_time(mocker):
+    """With the power-on playing, its frames' idle work compiles them; the rest before the build."""
+    from glitchygames.audio.startup import StartupSounds
+
+    mocker.patch('glitchygames.clock.raw_sleep')
+    slices = mocker.spy(StartupSounds, 'compile_for')
+    finish = mocker.spy(StartupSounds, 'finish')
+    engine = build_engine(
+        mocker,
+        game=DeclaringGame,
+        extra_arguments=('--crt-power-on', 'on', '--crt-power-on-sound', 'off'),
+    )
+    engine.start()
+
+    assert slices.call_count >= 1
+    finish.assert_called_once()
+    game = engine.running_game.instance
+    assert game.compiles_before_build == len(DECLARED)
+    assert all(game.compiled_at_build)
+
+
+def test_a_declared_sound_that_cannot_compile_ends_the_run_through_the_crash_boundary(mocker):
+    """It is raised where it compiles, inside start()'s boundary: logged, exit INTERNAL_ERROR."""
+    broken = type('BrokenGame', (DeclaringGame,), {'SOUNDS': ('/nowhere/sounds.toml#gone',)})
+    engine = build_engine(mocker, game=broken)
+
+    with pytest.raises(SystemExit) as exit_information:
+        engine.start()
+
+    assert exit_information.value.code == ExitCode.INTERNAL_ERROR

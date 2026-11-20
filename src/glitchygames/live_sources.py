@@ -14,6 +14,7 @@ import pygame
 from glitchygames import clock
 from glitchygames.input.devices import LiveDeviceRegistry
 from glitchygames.input.state import capture_live_snapshot
+from glitchygames.render_target import is_inner_context
 from glitchygames.sources import without_discarded_scope_posts
 from glitchygames.state.manager import DiskSaveManager
 from glitchygames.state.sandbox import save_namespace_snapshot
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from glitchygames.audio.accounting import AudioFrameAccount
+    from glitchygames.input.devices import DeviceRegistry
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
     from glitchygames.state.manager import SaveManager
@@ -146,8 +148,12 @@ class LiveSources:
 
     @property
     def presents_frames(self: Self) -> bool:
-        """Live play presents every frame."""
-        return True
+        """Live play presents every frame, unless it draws on a render target its host shows.
+
+        An inner context (glitchygames/render_target.py) never presents the window: its host
+        shows the render target.
+        """
+        return not is_inner_context()
 
     @property
     def draws_overlay(self: Self) -> bool:
@@ -175,8 +181,12 @@ class LiveSources:
             controller_buttons=polled.controller_buttons,
         )
 
-    def devices(self: Self) -> LiveDeviceRegistry:
+    def devices(self: Self) -> DeviceRegistry:
         """Return the live device registry (real devices).
+
+        Typed as the door's registry (``EngineSources.devices``), as live doors may serve
+        others: stand-in devices' doors (glitchygames/input/stand_in_devices.py) serve a
+        stand-in registry.
 
         Returns:
             The registry.

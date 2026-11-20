@@ -3,10 +3,10 @@
 A ``CatalogEntry`` names an instrument, its family and its playing range (sounding pitch, from
 standard orchestration ranges; folk and world instruments vary by maker and tuning, so theirs
 are typical). Unpitched entries (drums, cymbals) have no range: their tones are fixed. A ``Tag``
-marks a quality that cuts across families (``Tag.MECHANICAL``); the set is closed, so tags cannot
-drift into synonyms. A sound-alike (``sounds_like``) is an instrument of its own that no source
-sets apart in sound from another entry, its parent: it is listed under its own name and builds
-its parent's instrument, changed only by its sourced ``sound_changes``.
+marks a quality that cuts across families (``Tag.MECHANICAL``, ``Tag.CHIP``); the set is closed,
+so tags cannot drift into synonyms. A sound-alike (``sounds_like``) is an instrument of its own
+that no source sets apart in sound from another entry, its parent: it is listed under its own name
+and builds its parent's instrument, changed only by its sourced ``sound_changes``.
 """
 
 from __future__ import annotations
@@ -59,6 +59,10 @@ class Tag(StrEnum):
     """The closed set of tags an entry may carry, across families."""
 
     MECHANICAL = 'mechanical'
+    # A voice of a sound chip. https://en.wikipedia.org/wiki/Sound_chip: "A sound chip is an
+    # integrated circuit (chip) designed to produce audio signals through digital, analog or
+    # mixed-mode electronics."
+    CHIP = 'chip'
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,8 +82,11 @@ class CatalogEntry:
         tags: Its tags, members of ``Tag`` (empty for most entries).
         sounds_like: The catalog name of the entry this one sounds like (its parent), or None.
             A sound-alike is a distinct instrument, listed under its own name, that no source
-            sets apart in sound from its parent: it builds its parent's instrument and has its
-            parent's range (another name for the same instrument is an alias instead).
+            sets apart in sound from its parent: it builds its parent's instrument. It is pitched
+            exactly when its parent is, and a pitched one gives its own sourced range (decision 8,
+            plans/2026-11-07-instrument-catalog-expansion-design.md, and
+            plans/2026-11-09-instrument-catalog-batch-4-implementation.md); another name for the
+            same instrument is an alias instead.
         sound_changes: Keyword overrides of the parent's builder (a ``functools.partial``), for
             a sound-alike that a source sets apart by a trait (a smaller head's higher tone)
             while it inherits everything else; empty for most. Each change needs a source,

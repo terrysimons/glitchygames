@@ -17,6 +17,7 @@ from glitchygames.events import (
     KeyboardEvents,
     KeyEvent,
     ResourceManager,
+    set_event_types_allowed,
 )
 
 log = logging.getLogger('game.keyboard')
@@ -131,7 +132,7 @@ class KeyboardEventManager(ResourceManager):
         super().__init__(game=game)
         # Enable keyboard events for this manager
         try:
-            pygame.event.set_allowed(KEYBOARD_EVENTS)
+            set_event_types_allowed(event_types=KEYBOARD_EVENTS, allowed=True)
         except pygame.error:
             log.debug('Failed to set allowed keyboard events: pygame not fully initialized')
         self.proxies = [KeyboardEventManager.KeyboardEventProxy(game=game)]
