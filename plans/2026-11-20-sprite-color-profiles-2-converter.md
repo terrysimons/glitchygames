@@ -6,7 +6,15 @@
 
 - **Date:** 2026-11-20
 - **Status:** DRAFT for the owner's review. The master plan is approved (2026-11-17); the open
-  questions below are the owner's. Nothing built yet.
+  questions below are the owner's. Nothing built yet. Audited 2026-11-20 against origin/main
+  b7c2abd3 (after #235, #237, #238, #239): see "Audit 2026-11-20" at the end.
+- **Dependency, in flight:** the bug that `AnimatedSprite` drops `profile` and `color_space`
+  (item 1 below) is being fixed separately tonight on `fix/bug-sweep-2026-11-20`
+  (`bugs/2026-11-20-animated-sprite-dropped-profile-and-color-space.md`; staged in
+  `glitchygames-bug-sweep`, not committed when audited). **If it lands first, Task 3 shrinks**
+  to the validation, the split, Bitmappy's warning and the docs; the sprite's two fields, the
+  load, both document builders, the copy, `SHARED_SPRITE_FIELDS` and `CompiledSprite` are then
+  done, with their regression tests. Task 3 below says which steps drop.
 - **Master plan:** [plans/2026-11-17-sprite-color-profiles.md](2026-11-17-sprite-color-profiles.md),
   "Part 2: profiles, color spaces and the converter" (the part its "Answered after the builder
   check" item 1 narrowed to the pure-math spaces and the NES palette). Part 1:
@@ -26,7 +34,8 @@ decision 8): `color_profiles.py` (the data), `color_math.py` (OKLab and its dist
 (`parse_sprite_toml`, `write_sprite_toml`), never on a sprite or a surface. The engine side is
 small: `AnimatedSprite` keeps the two keys through load, save, copy, the shared compile and split.
 
-**Tech Stack:** Python 3.14 and 3.15 (the code must run on 3.14, the browser builds'), pydantic,
+**Tech Stack:** Python 3.15 (everything runs and tests on it; the code must still parse and
+type-check as 3.14, the browser builds' Pyodide, so use only what 3.14 has), pydantic,
 `configparser` for the palette file, pytest with pytest-mock.
 
 ## Global Constraints
@@ -56,19 +65,20 @@ small: `AnimatedSprite` keeps the two keys through load, save, copy, the shared 
 
 ## What part 1 and the work since settled, and the master against today's code
 
-Read 2026-11-20 on `origin/main` (4e6c7144). Where the master's text no longer fits, it is said
+Read 2026-11-20 on `origin/main` (4e6c7144; line numbers re-checked on b7c2abd3 in the audit). Where the master's text no longer fits, it is said
 here with the evidence; the master is not edited beyond the link.
 
 1. **The sprite does not keep `profile` or `color_space`.** Part 1 made the writer and the schema
    accept them (`sprite_toml.py:30-56`, `sprite_file_schema.py:99-102`), and the master says "the
    writer already carries them". Only `write_sprite_toml` does. `AnimatedSprite` reads neither key
-   (`animated.py:1528-1550`, the load reads `name`, `description`, `tags`, `frame_anchor`) and
-   writes neither (`animated.py:2069-2093`, `_static_document` builds the sprite section from the
-   sprite's own fields), so a load and a save drops them. Reproduced: a text with
+   (`animated.py:1492`, `_load_text_uncached`, reads `name`, `description`, `tags`, `frame_anchor`) and
+   writes neither (`animated.py:2070-2096`, `to_text` and `_static_document`, and
+   `_build_toml_data_structure` at 2415, build the sprite section from the sprite's own fields), so a load and a save drops them. Reproduced: a text with
    `profile = "8-bit"` and `color_space = "NES palette"` loaded by `sprite_from_text` and written by
    `sprite_to_text` came back with neither key. Since Bitmappy saves through `to_text`, opening a
    converted sprite in Bitmappy and saving it would silently strip its profile. This part must
-   fix that (Task 3); it is not optional.
+   fix that (Task 3); it is not optional. **A separate branch is fixing it tonight** (the
+   Dependency line above); this part then only verifies it.
 2. **The round-trip rule stays, and decides the output layout.** Part 1's rule (a single animation
    with one frame saves in the static layout, `to_text`) belongs to the sprite's writer. The
    converter works on the document and keeps the layout it was given: a static sprite comes out
@@ -182,7 +192,7 @@ unless marked; the owner's are in "Open questions".
 9. **The sprite keeps the two keys.** `AnimatedSprite` gains `profile` and `color_space`
    (`str | None`, None when the file has none, so a file with neither key still saves with neither,
    as the round-trip rule needs). They are read in `load_text`, written by both document builders,
-   copied by `_copy_from`-style copies (`animated.py:1140`), and in `SHARED_SPRITE_FIELDS` and
+   copied by `copy_sprite_metadata_from` (`animated.py:1120`), and in `SHARED_SPRITE_FIELDS` and
    `CompiledSprite`. `split_sprite_text` carries both into each frame: a frame is a still of the
    same sprite, its colors are a subset of the source's, so it conforms wherever the source did
    (an invariant, Task 3).
@@ -286,8 +296,10 @@ recommendation; a different answer changes the named task only.
    measured table is sourced, as `future-work.md` says. The difference is at most a few levels per
    channel, and an even grid is what a color space called "9-bit RGB" most plainly means.
 7. **A tool for it in this part?** *Recommend yes, small and last (Task 7):* `glitchygames
-   convert-sprite FILE --profile 8-bit --color-space nes [--keep '#e23e3e']` in the tools
-   registry (`replay/tools/registry.py`, each tool described once), writing text to stdout and
+   convert-sprite FILE --target-profile 8-bit --target-color-space nes [--keep-color '#e23e3e']`
+   in the tools registry (option names chosen by the audit: `--profile` is already the engine's
+   profiler flag, `-p`, `events/game.py:298`, and every tool option is also a flag on every
+   game, so `--profile` would clash) (`replay/tools/registry.py`, each tool described once), writing text to stdout and
    the report to stderr. It lets the owner see Dex in the NES palette, open the result in Bitmappy
    and judge the merge rule before the AI is involved, and it gives part 4's `convert_sprite` a
    proven entry point. *Alternative:* no tool until part 4, one fewer registry entry, documented
@@ -341,7 +353,11 @@ test `tests/sprites/test_color_profiles.py`.
 - The NES list is read from `color/resources/nes.palette` with `configparser` alone (that file's
   format is documented in `color/resources/README.md`; `glitchygames.color.palette` imports pygame,
   so it is not used here). The read happens once, at first use, held in the registry's immutable
-  value, not at import.
+  value, not at import. A lazy read held at module level is process state: either give it an audit
+  row in `tests/test_process_state_guard.py` (immutable, same value every run, the guard's own
+  allowlist form, which also names `functools.cache`) or read per call; the builder picks, and a
+  test names which. The palette file must ship as package data (it does for Bitmappy's palette
+  loader; check the wheel's and the browser bundle's file lists contain `nes.palette`).
 
 **Behaviours (tests):**
 - Every profile and space in the registries has a description; every non-math space has a
@@ -360,7 +376,7 @@ test `tests/sprites/test_color_profiles.py`.
 
 - [ ] Write the failing tests; verify they fail.
 - [ ] Implement; run the gates in order.
-- [ ] Find and record the NES palette's source in the palette file's description and
+- [ ] **Do this first, before the tests:** find and record the NES palette's source in the palette file's description and
       `color/resources/README.md` (the builder reports what it checked; if no source can be
       confirmed, the plan stops here and asks the owner, never shipping an uncredited palette).
 - [ ] Commit.
@@ -392,8 +408,10 @@ across platforms).
 
 ### Task 3: the sprite keeps `profile` and `color_space`
 
-**Files:** `sprite_file_schema.py`, `animated.py`, `compiled_sprites.py`, `sprite_toml.py`
-(`split_sprite_text`), Bitmappy's save path, `ANIMATION_README.md`; tests in
+**Files:** `sprite_file_schema.py`, `sprite_toml.py` (`split_sprite_text`: its `_frame_text` copies
+only `description`, `tags` and `frame_anchor`, `sprite_toml.py` ~490), Bitmappy's save path
+(`animated_canvas.py:1296` through `sprite_serializer.save`, and `:1763`), `ANIMATION_README.md`;
+`animated.py` and `compiled_sprites.py` **only if the bug-sweep fix has not landed**; tests in
 `tests/sprites/test_animated_sprite.py`, `test_sprite_toml.py`, `test_sprite_file_schema.py`,
 the existing workspace test.
 
@@ -423,6 +441,9 @@ validated through Task 1's lookups.
   longer conform logs one warning naming the profile and the count; a conforming one logs none.
 - The master's "left over" item (split) is recorded as closed.
 
+- [ ] If the bug-sweep fix is in the base: skip the sprite-field steps; confirm its
+      `TestColorProfileKeysRoundTrip` and the `SHARED_SPRITE_FIELDS` conservation entries exist
+      and pass, and say in the commit that the fields came from that fix. Otherwise:
 - [ ] Write the failing regression test against current code first; show it red.
 - [ ] Implement; run every game's, demo's and Bitmappy's sprite tests; gates; commit.
 
@@ -523,8 +544,11 @@ deliberately, the project's rule on goldens).
   report note naming it when a glyph it lists was merged.
 - Imports only the standard library, pydantic and the sibling pygame-free modules.
 
-- [ ] Tests first for the fixed-point, budget and key behaviours; show red; implement in the
-      master's order (snap, alpha, merge, rewrite, keys, report); gates; commit.
+- [ ] Land it as two commits so each is green and reviewable. **5a:** measure-based budget
+      check, snap, alpha, rewrite, keys, `remap`, `profile_problems`, a conversion that needs no
+      merge (the fixed-point, membership, transparency, key, grid-untouched, layouts, round-trip
+      and error behaviours). **5b:** the merge rule, hints, the report and its replay check, the
+      golden fixtures and the game-tables note. Tests first for each; show red; gates; commit.
 - [ ] Record the golden fixtures deliberately; commit them with their provenance line.
 
 ### Task 6: conformance checks and the workspace sweep
@@ -554,8 +578,10 @@ of representative sprites).
 **Files:** `replay/tools/registry.py` (one `TOOLS` entry; the tool is also a flag/subcommand under
 the registry's one-description rule), its docs page, the registry-driven tests.
 
-**Behaviours (tests):** `glitchygames convert-sprite FILE --profile P --color-space S` writes the
-converted text to stdout and the report to stderr; `--keep` is repeatable; an unknown profile or
+**Behaviours (tests):** `glitchygames convert-sprite FILE --target-profile P --target-color-space S`
+writes the converted text to stdout and the report to stderr; `--keep-color` is repeatable; no
+option name equals an existing game argument (`--profile` is taken: the registry's clash check
+and a test over the generated game parser); an unknown profile or
 space exits with the project's usage exit code naming the valid names (`ExitCode`, never a
 number); a missing file or invalid TOML exits with the data-error code; nothing is written to the
 source file, and the output loads. The tool's options clash with no game argument (the engine's
@@ -581,12 +607,12 @@ existing check).
 
 ## Done when
 
-- Every task's tests pass; the gates pass in order; the whole suite passes on 3.14 and 3.15.
+- Every task's tests pass; the gates pass in order; the whole suite passes on 3.15 (nothing tests on 3.14; the new code parses and type-checks as 3.14).
 - A sprite's `profile` and `color_space` survive load, save, copy, compile, split and Bitmappy's
   save (the regression of item 1 is green and was seen red).
 - The converter's invariants hold for every shipped sprite file; the golden conversions hold on
   every CI platform.
-- The three new modules import no pygame (tests).
+- The three new modules import no pygame (tests, in a subprocess that checks `sys.modules`).
 - The part-3 and part-4 authors have: `convert_sprite_text`'s signature, the report's fields as the
   text the tool returns to the model, and the measured conversion time for the cost guard.
 
@@ -605,6 +631,58 @@ existing check).
 - Whether Ward weighting beats closest-pair on Dex (decision 8), decided by looking at the output,
   recorded either way.
 - Names of private helpers and the order of commits within a task.
+
+## Audit 2026-11-20
+
+Checked against origin/main b7c2abd3. What held: the schema keys (`sprite_file_schema.py:99-102`),
+the writer's keys (`sprite_toml.py:30-56`), `SHARED_SPRITE_FIELDS` (`compiled_sprites.py:48`),
+`sprite_key` (:72), `ALPHA_TRANSPARENCY_THRESHOLD` (`color/constants.py:23`), the NES file (55
+entries, `colors = 55`, no source named), the test files the plan names, and the
+existing `check_*` functions. Corrected in place:
+
+- Line references into `animated.py` (the load is `_load_text_uncached` at 1492, the writers at
+  2070-2096 and 2415, the copy is `copy_sprite_metadata_from` at 1120; `_copy_from` does not
+  exist).
+- Task 7's option names: `--profile` is the engine's profiler flag (`-p`, `events/game.py:298`),
+  and every registry option is also a flag on every game, so the tool would have refused to
+  register. Renamed to `--target-profile`, `--target-color-space`, `--keep-color`.
+- The Python statement (everything tests on 3.15, nothing on 3.14) in the Tech Stack and Done
+  when.
+- Task 3 against the in-flight bug-sweep fix (Dependency line): it stages exactly the sprite
+  fields this task would add (`profile`, `color_space` on `AnimatedSprite`, load, both builders,
+  `copy_sprite_metadata_from`, `CompiledSprite`, `SHARED_SPRITE_FIELDS`), deliberately without
+  validating values and without `split_sprite_text`, which stay here. Two builders would collide
+  on the same lines, so whichever lands second rebases onto the other; this plan defers to it.
+- Task 1: the NES source is found first (a stop condition belongs before any work), and the lazy
+  palette read must pass `tests/test_process_state_guard.py` (it flags `functools.cache` and
+  module-level state) and ship as package data to the wheel and the browser bundle.
+- Task 5 is split into 5a and 5b: as one commit it holds the snap, the alpha rule, the merge, the
+  hints, the report and two goldens, which is not reviewable and cannot land green in pieces.
+
+What I would reconsider, with my recommendation (nothing changed in the design):
+
+1. **Decision 12's "write the keys explicitly, even `true-color`/`rgba32`".** It is consistent
+   with "explicit is better", but a conversion to the defaults then adds two lines to a file that
+   was fine without them. Worked example: converting Dex to `16-bit` writes `profile = "16-bit"`
+   (useful) while converting a sprite to `true-color` writes a label that carries no budget.
+   Recommend keeping it: a converted file says what was done to it. It is a format choice, so the
+   owner may prefer to omit defaults.
+2. **Open question 1(b), a file that declares more than it holds, is not refused.** Right for now,
+   but it means `check_conforms_to_declared_profile` is the only enforcement until Bitmappy stops
+   the painter. Keep, and record the follow-up in `future-work.md` in Task 8.
+3. **The measured conversion time** (the cost guard's number) will come from an M4 Max. Record
+   the Raspberry Pi's too if a Pi is reachable, or say it is unmeasured: the Pi runs the AI
+   tool rounds, and an unmeasured Pi is the case the guard exists for.
+4. **Browser build.** The converter is a tool step, not a frame step, so it needs no browser
+   work except that the new modules and `nes.palette` stay importable under Pyodide (stdlib and
+   pydantic only, as written). Say so in Task 8 rather than leaving it implied.
+5. **Replay and golden traces.** No recording should change: sprites only gain two `None`
+   attributes. Run the goldens after Task 3 and, if a sprite-state digest includes every
+   attribute, that is a change to explain (not a re-record). The part states no golden of its own
+   for the game side; Task 5's fixtures are text goldens, recorded deliberately.
+6. **Owner decisions the plan made quietly:** none found beyond the existing Open questions;
+   decisions 6 (alpha 128 becomes solid in on/off spaces) and 10 (refuse unknown values) are
+   already tied to the owner's rule and question 1.
 
 ## Execution record
 
