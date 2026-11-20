@@ -12,6 +12,8 @@
   `plans/lucid-circuit.md`.
 - Feature plans, one per part, each linking back here:
   1. [Sprites as text](2026-11-17-sprite-color-profiles-1-sprite-text.md)
+  2. [Profiles, color spaces and the converter](2026-11-20-sprite-color-profiles-2-converter.md)
+     (draft, awaiting the owner's answers to its open questions)
 
 ## Intent
 
