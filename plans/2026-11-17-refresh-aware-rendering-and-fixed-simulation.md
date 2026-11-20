@@ -1,7 +1,8 @@
 # Refresh-aware rendering and fixed simulation: the owner's brief
 
 Status: TO-DO (2026-11-17), not started; findings and design options added 2026-11-20 (below the
-brief), awaiting the owner's choice. The owner's brief, kept verbatim below; the findings and
+brief), awaiting the owner's choice; audited the same day against main b7c2abd3 (see "Audit
+2026-11-20" at the end: line numbers, counts and two ordering problems corrected). The owner's brief, kept verbatim below; the findings and
 decisions from discussing it are in `plans/future-work.md`, "Refresh-aware rendering and fixed
 simulation". Measure one thing at a time (the owner, 2026-11-17).
 
@@ -214,7 +215,7 @@ for GlitchyGames.
 
 # Findings and design (added 2026-11-20, investigation only; no engine code changed)
 
-Everything below was read from `origin/main` at 4e6c7144 and measured on one machine: an Apple
+Everything below was read from `origin/main` at 4e6c7144 (line numbers re-checked on b7c2abd3 in the audit) and measured on one machine: an Apple
 silicon Mac (macOS 27.2.1, arm64, 16 CPUs, Python 3.15.1, pygame-ce 2.5.8, SDL 2.32.10, cocoa
 driver) whose built-in display reports 120 Hz. Not measured: any Raspberry Pi, any 60 Hz display,
 Linux or Windows, and visible hitching (scanout phase), which no tool here reaches. The Mac was
@@ -269,7 +270,7 @@ Consequences of that order that matter here:
   fallback. `dt` is measured separately with `raw_counter_seconds` (BUGS.md #26).
 - No refresh-rate query and no VSync request exist anywhere in `src/glitchygames`
   (`get_current_refresh_rate`, `vsync=`, `is_vsync` have no hits). The display mode is
-  `DOUBLEBUF | SCALED | RESIZABLE` (`game_engine.py:1693-1697`), through `set_display_mode`
+  `DOUBLEBUF | SCALED | RESIZABLE` (`game_engine.py:1696-1699`), through `set_display_mode`
   (`display_mode.py:67`, which calls `pygame.display.set_mode(size, flags)` with no `vsync`).
   SCALED is already there, which pygame requires for a VSync request, so asking for VSync is a
   keyword in one function, not a new display mode.
@@ -305,10 +306,13 @@ should become a consumer of it, not stay a parallel mechanism.
 - Because a replay serves each frame's recorded `dt` exactly, replays are already independent of
   the machine's refresh rate and of any pacing change: pacing only decides when a frame starts,
   never what it computes. The danger is only a change to what a frame computes or in what order.
-- Recordings today: 8 golden replays (`src/games/*/tests/fixtures/replays`), 10 bundled demos
-  (`*/demos`), 4 golden-trace files (`tests/world/golden`), plus 2 AI-behaviour recordings and a
-  provenance fixture. (`plans/future-work.md` says 25 and 5; this is what `find` shows on
-  2026-11-20. Worth reconciling.)
+- Recordings today (`git ls-tree` on b7c2abd3): 8 golden replays
+  (`src/games/*/tests/fixtures/replays`), 11 bundled demos (`*/demos`; 10 before #235 added the
+  zombies attract demo), 4 golden-trace files (`tests/world/golden`), plus 2 AI-behaviour
+  recordings and a provenance fixture. (`plans/future-work.md` says 25 and 5; the 19 under `src/`
+  plus 4 is what the repository holds. Worth reconciling.) Of the 19 under `src/`, 18 have a
+  median `dt` of 16.664 ms (60.01 FPS) over their first 400 frames; PaddleSlap's rally demo has
+  16.586 ms, so "every committed recording is at 1/60.01" below is almost, not exactly, true.
 - The doors guard (`tests/test_engine_doors.py`) allows time only through `clock.py`. A refresh
   rate is a platform read that does not change what a frame computes, but it changes what a
   recording's drawn output would be on a given machine, so it belongs behind a door (live: the
@@ -417,6 +421,13 @@ What they show:
 8. **The doors:** a display refresh query is a new platform read. It needs a door
    (`EngineSources`), a recorded header field for provenance, and an entry in the engine-doors
    guard; and the inner-game/Arcade case (private render target, no window) must not query it.
+   The same rule the owner gave the cursor and key-repeat to-dos on 2026-11-20
+   (`plans/future-work.md`, Arcade follow-ups) applies to everything here that touches SDL's
+   one window: the VSync request, the refresh query, the re-query on a window move and the
+   present policy belong to the context that owns the window; an inner game (a tile, the
+   viewer's later inner game) never requests, queries or paces the display, and keeps no state
+   of it. Per-context state of the new loop (the accumulator, the snapshots) is a `ContextSlot`
+   with an isolation check (`tests/test_engine_context.py`).
 9. **Transitions and pause:** transition frames (`_start_transition`, raw `dt` to the
    transition's update) and the held frame (`_present_held_frame`, `hold_frame` door) are
    presentation paths today; each needs an explicit rule (a transition is presented per frame;
@@ -427,8 +438,9 @@ What they show:
     new loop belongs in its own collaborator (a frame driver), not more methods on those classes.
 11. One change at a time, measured under identical display and power settings (the owner);
     kernel page size is a separate experiment.
-12. Existing known debt (not new): ten `assert` statements remain in `scenes/scene.py` (for
-    example 2595, 2669, 2700, 2879), against the global rule "never assert outside tests".
+12. Existing known debt (not new): 24 `assert` statements remain in `scenes/scene.py` (for
+    example 2595, 2669, 2700, 2879; the owner remembered about ten), against the global rule
+    "never assert outside tests".
     Bandit's B101 is filtered out by `[tool.bandit]` severity, with a TODO to remove them.
 
 ## Mapping the brief to the engine
@@ -438,7 +450,7 @@ What they show:
 | Poll input every rendered frame, keep it until simulation consumes it | One pump per frame; events dispatched that frame (`GameEngine.process_events`); polled `InputSnapshot` set after the pump | A queue between pump and step; per-step delivery so a one-shot event acts exactly once; at least a rule for edge-triggered snapshot fields | `engine/game_engine.py`, `input/state.py`, `sources.py` doors, replay pump rules 2 and 5 |
 | Fixed 60 Hz simulation, per game | `TARGET_FPS`, `--target-fps`; `MAX_FRAME_SECONDS` | `SIMULATION_HZ` (or timing option), accumulator, catch-up bound, overload counters | `scenes/scene.py` loop, `timing.py`, `Scene` attributes |
 | Render at the detected refresh, subject to limits | Pacing to a fixed target | The query, a door for it, re-query on window moves and fullscreen (SDL display events), debounce, effective-target reporting | new `display_refresh` module, `display_mode.py`, window-event handling |
-| Prefer VSync where supported | SCALED mode (`game_engine.py:1694`), a flip/update present | `vsync=` in `set_display_mode`, `is_vsync()` check, whole-ratio skipping (SDL has no swap interval above 1), "present paces, so do not also sleep" policy | `display_mode.py`, `_handle_frame_pacing`, `timing.py` |
+| Prefer VSync where supported | SCALED mode (`game_engine.py:1696`), a flip/update present | `vsync=` in `set_display_mode`, `is_vsync()` check, whole-ratio skipping (SDL has no swap interval above 1), "present paces, so do not also sleep" policy | `display_mode.py`, `_handle_frame_pacing`, `timing.py` |
 | Interpolate previous and current transforms | `world_x/world_y`, `position_world_sprites`, camera | Previous-state snapshot per world sprite and camera, reset on teleport, spawn, scene change, respawn; `alpha` | `world.py`, `camera.py`, `sprites/`, `pixel_snap.py` |
 | Unknown refresh falls back to 60 | `DEFAULT_TARGET_FPS` | The 0 handling; the dummy driver answers 60 (finding above) | the new module |
 | Pause/resume and overload policy | Held frame, `MAX_FRAME_SECONDS` cap | Accumulator reset on resume; counters and a log line for dropped simulation time | `scene.py` |
@@ -572,7 +584,8 @@ display and power settings before the next starts.
    no display call; moving to another display re-targets without resetting game time or the
    frame number; the dummy driver's 60 is not reported as a detected rate; the doors guard
    fails if the query is read outside the door.
-3. **VSync request and whole-ratio presentation (option B).** `vsync` in `set_display_mode`,
+3. **VSync request and whole-ratio presentation (option B)** (the audit recommends two sub-plans,
+   3a native and 3b the host's `TickPacer`). `vsync` in `set_display_mode`,
    `is_vsync` diagnostic, whole-ratio skipping, no second sleeper when present paces, a fallback
    cap when it does not. Tests: at 120 Hz and a 60 game rate every second refresh presents and
    every present is a whole ratio apart despite 0.8 ms jitter (the browser pacer's jittered
@@ -595,8 +608,61 @@ display and power settings before the next starts.
    alpha is drawn midway; a teleport draws as a jump; blending never changes `world_x`/`world_y`
    or any recorded sample; a sprite spawned and removed within one draw is drawn once; a
    recording is identical with interpolation on and off.
-6. **Per-game rates and the audit.** `SIMULATION_HZ` per game and the `[timing]` table, the 39
+6. **Per-game rates and the audit** (the read-only audit of the 39 `dt_tick` overrides moves
+   before sub-plan 4: see the Audit section). `SIMULATION_HZ` per game and the `[timing]` table, the 39
    `dt_tick` overrides audited for per-frame work, Paddle Slap's and the zombies' feel checked at
    120 Hz, the Arcade's inner games and the replay viewer moved onto the driver. Tests: every
    game runs a step count independent of its render rate on the same input; the Arcade's inner
    game draws only on its render target at any outer rate.
+
+## Audit 2026-11-20
+
+Checked against origin/main b7c2abd3 (after #235, #237, #238, #239). The owner's brief at the top
+is unchanged (the only line this audit edited above the findings is the Status line, which is
+not part of the brief). Verified: every `scene.py` line cited (1538, 1793, 1867, 1884, 1899,
+1912, 1986, 2047, 2110, 2572, 2643, 2690, 2872, 2908, 2917, 3145, 3344), `timing.py` 43, 466 and
+493, `display_mode.py` 67, `host.py` 342 and 432, `live_sources.py` 112, `recording.py` 1636,
+`sources.py` 499, the 39 `dt_tick` overrides outside `scene.py`, no refresh-rate or VSync call in
+`src/glitchygames` or `browser/`, and the browser bug still unmerged (its file is in the
+`fix/browser-pacer-judder` working tree only). The arithmetic in measurement 3 (2.8
+microseconds a frame, one refresh in about 3,000 frames, about 50 s) checks out.
+
+Corrected in place: `game_engine.py` line numbers (shifted 1693-1697 to 1696-1699), the `assert`
+count in `scene.py` (24, not ten), the recording counts (11 demos now), and the
+"every recording is at 1/60.01" statement (18 of 19; the rally demo is 16.586 ms). Added to
+Constraint 8: the window-owner rule from the owner's cursor and key-repeat to-dos, and the
+`ContextSlot` requirement. Not verified: "Safari caps at 60" (browser claim, not tested here),
+anything on a Raspberry Pi, anything on a 60 Hz display.
+
+What I would reconsider, with my recommendation (the plan's design is unchanged):
+
+1. **The audit of the 39 `dt_tick` overrides comes too late.** It is in sub-plan 6, but
+   sub-plan 4 (the fixed step) cannot be designed without knowing which overrides mix per-step
+   and per-frame work, and moves animation advance out of `Scene.update`. Worked case: Paddle
+   Slap's `dt_tick` and a zombies animation both advance state; at a 120 Hz render rate each
+   must run per step or per draw, and that is only known from the audit. Recommend a read-only
+   report (a list, no code changes) before sub-plan 4, in sub-plan 1's period; sub-plan 6 keeps
+   the fixes.
+2. **Sub-plan 3 does two things.** The native VSync request with whole-ratio presentation, and
+   folding the browser's `TickPacer` into the same scheduler. The second changes a browser path
+   that was only just fixed and that has not been merged yet, so it has a dependency
+   (`fix/browser-pacer-judder` on main) and its own risk. Recommend 3a (native) and 3b (the
+   host), 3b after the browser fix is on main, each measured alone (the owner's one-change rule).
+3. **Sub-plan 4 is the largest in the series.** Extracting a frame driver, the accumulator, the
+   input queue, per-step clocks and the stepping policy for replays in one plan cannot land
+   green in pieces. Recommend 4a: the frame driver extracted with step equal to frame (no
+   behaviour change, every golden and demo unchanged, the lint caps relieved), then 4b: the
+   accumulator and fixed step. 4a is also where the Arcade and viewer drivers can be pointed at
+   it, which is cheap while nothing else has changed.
+4. **Which questions block what.** Questions 1, 2 and 8 (goal, 60.01 versus 60, where the Pi
+   measurement runs) gate sub-plans 1 to 3; 3 to 7 gate only 4 and later. Recommend the owner
+   answer 1, 2 and 8 first; the plan should not wait on the rest.
+5. **Coverage and the browser.** The new modules (`display_refresh`, the frame driver, the
+   recorder) need tests with a fake display door and an injected clock, not the real display, so
+   they run on the dummy driver at 100% coverage; the dummy driver answers 60, so tests must
+   not treat that as a detected rate (the plan's own finding). In the browser the display tick
+   is `requestAnimationFrame`, so the refresh query there is the tick spacing, not pygame's
+   call: sub-plan 2 must say so.
+6. **Owner's decisions.** The "Recommendation" is stated as a build order but depends on
+   question 1; it is a recommendation, not a decision, and nothing in the plan is built until the
+   owner answers. No other decision was found that belongs to the owner and was made for them.
