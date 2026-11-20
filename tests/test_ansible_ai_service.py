@@ -3376,7 +3376,9 @@ def systemd_environment(*, drop_in: Path) -> dict[str, str]:
 
 @needs_a_posix_shell
 @pytest.mark.parametrize('system', ['Linux', 'Darwin'])
-@pytest.mark.parametrize('folder_name', ['back\\slash', 'new\nline', 'carriage\rreturn'])
+@pytest.mark.parametrize(
+    'folder_name', ['back\\slash', 'new\nline', 'carriage\rreturn', 'with space']
+)
 def test_sha256_of_gives_the_bare_hash_whatever_the_file_is_called(
     tmp_path: Path, system: Literal['Linux', 'Darwin'], folder_name: str
 ):
@@ -4760,6 +4762,26 @@ def test_postrm_exits_zero_when_du_fails_or_the_files_are_missing(tmp_path: Path
     assert_no_delete_command(failing_du.stdout)
     assert without_files.returncode == 0, without_files.stderr
     assert not without_files.stdout
+
+
+@needs_a_posix_shell
+def test_postrm_gives_one_size_for_a_folder_whose_name_holds_a_line_break(tmp_path: Path):
+    """A line break in the name splits du's line; the size comes from its first line only.
+
+    Without that, the size took the name's second half too, on a line of its own. A home in
+    /etc/passwd can't hold a line break, so here it is in the root of homes the test injects.
+    """
+    root = tmp_path / 'new\nline'
+    root.mkdir()
+    users = LeftoverUsers(scripts=MaintainerScripts(tmp_path=tmp_path), tmp_path=root)
+    share = users.folder(user='alice', kind='share')
+
+    result = users.run()
+
+    assert result.returncode == 0, result.stderr
+    sized = re.findall(rf"  alice: '{re.escape(str(share))}' \(([^)]*)\)", result.stdout)
+    assert len(sized) == 1, result.stdout
+    assert re.fullmatch(r'\d+(\.\d+)?[BKMG]', sized[0]), result.stdout
 
 
 @needs_a_posix_shell

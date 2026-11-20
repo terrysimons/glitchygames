@@ -92,7 +92,9 @@ notice=$(awk -F: -v low="$uid_min" -v high="$uid_max" \
                     continue
                     ;;
             esac
-            size=$(bounded_du "$folder" 2>/dev/null | awk '{ print $1 }')
+            # du prints the name as it is, so a line break in it splits the line: the size is
+            # the first line's first word (bugs/2026-11-19-model-checksum-kept-the-escape-mark.md)
+            size=$(bounded_du "$folder" 2>/dev/null | awk 'NR == 1 { print $1 }')
             echo "  $user: $(quoted "$folder") (${size:-size unknown})"
         done
     done) || exit 0
