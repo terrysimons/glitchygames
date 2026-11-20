@@ -54,12 +54,14 @@ game sets blocked types of its own (``OUTER_BLOCKED_TYPES``, ``OUTER_ALLOWED_TYP
 engine sets, so a tile allowing every type, or a manager allowing its own, would show.
 
 A repository test (tests/test_suite_collection.py ``REPOSITORY_TEST_FILES``): it replays our
-members' recordings through their console scripts.
+members' recordings through their console scripts. The tiles, the reference digests and the
+silence check (``Tile``, ``play_alone``, ``reference_digests``, ``assert_no_tile_is_heard``) are
+in tests/inner_game_tiles.py, which the engine's inner-game tests share and which reads nothing
+of the workspace.
 """
 
 from __future__ import annotations
 
-import hashlib
 import itertools
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -72,21 +74,18 @@ from glitchygames import events
 from glitchygames.audio import reserve_inner_game_channels
 from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, DEFAULT_LIVE_POOL, LEGACY_CHANNELS
 from glitchygames.audio.voices import (
-    DEFAULT_HEARD_SET_CHANNELS,
-    INNER_CHANNELS_SLOT,
-    heard_set_start,
-    plain_play_channel_indices,
     reserve_channels,
-    unreserved_channel_indices,
 )
 from glitchygames.engine_context import current_context, default_context
-from glitchygames.exit_codes import ExitCode
-from glitchygames.inner_game import InnerGame, InnerGameState
-from glitchygames.replay.audit import read_digest_file
-from glitchygames.replay.driver import recorded_screen_size
-from glitchygames.replay.tools.children import replay_recording_headless
-from glitchygames.tracing import TraceReader
 from tests.display_canvas import show_canvas_on_new_display
+from tests.inner_game_tiles import (
+    Tile,
+    assert_no_tile_is_heard,
+    play_alone,
+    recorded_size,
+    recording_id,
+    reference_digests,
+)
 from tests.workspace_goldens import every_golden_and_bundled_demo
 
 if TYPE_CHECKING:
@@ -113,10 +112,6 @@ OUTER_WINDOW_SIZE = (1280, 720)
 # How many frames each tile runs in turn, cycled: (the tile's, its partner's). Uneven, so the
 # two never run in step, and each sometimes runs several frames while the other waits
 INTERLEAVED_STEPS = ((1, 2), (3, 1), (2, 3), (1, 1), (4, 2))
-# The inner games' arguments after the replay's own: the tools' quiet log level, as the
-# reference child gets (children.headless_replay_arguments)
-QUIET = ('--log-level', 'warning')
-DIGEST_OPTION = '--replay-digest'
 # The outer game's own blocked event types, none the engine's choice (it allows every type but
 # SYSWMEVENT): a tile that changed SDL's blocked set would show (row S6)
 OUTER_BLOCKED_TYPES = (*events.CONTROLLER_EVENTS, pygame.MOUSEWHEEL)
@@ -282,20 +277,6 @@ def assert_the_outer_process_state_is_unchanged(*, expected: OuterProcessState, 
     assert now == expected, f'{label} changed the outer process state from {expected} to {now}'
 
 
-def recording_id(*, console_script: str, recording: Path) -> str:
-    """Return a recording's name in test ids and messages.
-
-    Args:
-        console_script: The console script that replays it.
-        recording: The recording.
-
-    Returns:
-        ``paddleslap/rally.jsonl.gz``.
-
-    """
-    return f'{console_script}/{recording.name}'
-
-
 def diverges_inside_a_tile(*, console_script: str, recording: Path) -> bool:
     """Tell whether a recording is one known to diverge inside a tile.
 
@@ -369,47 +350,6 @@ def pair_parameters() -> list[object]:
     return parameters
 
 
-def recorded_size(*, recording: Path) -> tuple[int, int]:
-    """Return the size a recording was made at: its tile's render target.
-
-    Args:
-        recording: The recording.
-
-    Returns:
-        The header's ``screen_size``.
-
-    """
-    with TraceReader(path=recording) as reader:
-        size = recorded_screen_size(header=reader.header)
-    assert size is not None, f'{recording} records no screen size'
-    return size
-
-
-def reference_digests(*, console_script: str, recording: Path, work_directory: Path) -> list[str]:
-    """Replay a recording alone, headless, in a child, and return its frame digests.
-
-    Args:
-        console_script: The console script that replays it.
-        recording: The recording.
-        work_directory: Where the digest file goes.
-
-    Returns:
-        One digest per replayed frame.
-
-    """
-    digest_path = work_directory / f'{console_script}-{recording.name}.reference.digest'
-    child = replay_recording_headless(
-        console_script=console_script,
-        path=recording,
-        game_arguments=(DIGEST_OPTION, str(digest_path)),
-    )
-    label = recording_id(console_script=console_script, recording=recording)
-    assert child.returncode == ExitCode.SUCCESS, f'{label} alone: {child.stdout[-2000:]}'
-    digests, divergence = read_digest_file(path=digest_path)
-    assert divergence is None, f'{label} alone: {divergence}'
-    return digests
-
-
 def heard_frames(*, frame_count: int) -> range:
     """Return the frames the case's tile is heard in, in the switched run.
 
@@ -424,213 +364,6 @@ def heard_frames(*, frame_count: int) -> range:
     heard = range(int(frame_count * HEARD_FROM_FRACTION), int(frame_count * HEARD_UNTIL_FRACTION))
     assert 0 < heard.start < heard.stop < frame_count, (frame_count, heard)
     return heard
-
-
-class Tile:
-    """One recording replayed as an ``InnerGame``, hashing its render target after each frame."""
-
-    def __init__(
-        self,
-        *,
-        console_script: str,
-        recording: Path,
-        name: str,
-        work_directory: Path,
-        heard: range | None = None,
-    ) -> None:
-        """Start the recording's replay inside its own context, with a digest file.
-
-        Args:
-            console_script: The console script that replays it.
-            recording: The recording.
-            name: The inner context's name (and the digest file's).
-            work_directory: Where the digest file goes.
-            heard: The frames the tile is heard in (switched audible before the first runs and
-                silent before the stop runs); None to keep it silent.
-
-        """
-        self.label = recording_id(console_script=console_script, recording=recording)
-        self.digest_path = work_directory / f'{name}.digest'
-        self.pixel_hashes: list[str] = []
-        self.heard = heard
-        # The heard frames whose step left a sound of the tile's playing: a plain play, or a voice
-        # on its heard set (heard_channels). Its live chunks are not counted: one switched
-        # audible is heard from its next chunk, which comes by real time
-        # (glitchygames/audio/live.py), so whether an unpaced tile's heard frames reach it
-        # depends on the machine
-        self.frames_with_a_heard_sound = 0
-        # What the tile had sounding when it was switched away from: plain plays, live chunks
-        self.plain_plays_stopped_at_the_switch = 0
-        self.live_chunks_muted_at_the_switch = 0
-        self.switched_away = False
-        self.inner_game = InnerGame.replay(
-            command=console_script,
-            path=recording,
-            name=name,
-            size=recorded_size(recording=recording),
-            arguments=(*QUIET, DIGEST_OPTION, str(self.digest_path)),
-        )
-        assert self.running, f'{self.label}: {self.inner_game.outcome}'
-        assert not self.inner_game.audible, f'{self.label}: a new inner game is silent'
-
-    @property
-    def running(self) -> bool:
-        """True until the inner game ends or fails."""
-        return self.inner_game.outcome.state is InnerGameState.RUNNING
-
-    def live_pool_chunks(self) -> list[pygame.mixer.Sound]:
-        """Return the chunks playing or queued on the tile's live pool.
-
-        Returns:
-            Each chunk (none once the tile finished and gave its pool back).
-
-        """
-        partition = self.inner_game.context.value(slot=INNER_CHANNELS_SLOT).partition
-        if partition is None:
-            return []
-        chunks: list[pygame.mixer.Sound] = []
-        for channel_index in partition.live:
-            channel = pygame.mixer.Channel(channel_index)
-            chunks.extend(
-                chunk for chunk in (channel.get_sound(), channel.get_queue()) if chunk is not None
-            )
-        return chunks
-
-    def heard_channels(self) -> tuple[int, ...]:
-        """Return the channels sounding one of the tile's sounds: plain plays, and its heard set.
-
-        Returns:
-            Their indices.
-
-        """
-        with self.inner_game.context.active():
-            start = heard_set_start()
-        heard_set = (
-            ()
-            if start is None
-            else tuple(
-                index
-                for index in range(start, start + DEFAULT_HEARD_SET_CHANNELS)
-                if pygame.mixer.Channel(index).get_busy()
-            )
-        )
-        return (*self.plain_play_channels(), *heard_set)
-
-    def plain_play_channels(self) -> tuple[int, ...]:
-        """Return the unreserved channels playing a plain play the tile started (followed).
-
-        Returns:
-            Their indices.
-
-        """
-        with self.inner_game.context.active():
-            return plain_play_channel_indices()
-
-    def switch_away(self) -> None:
-        """Make the tile silent: what it had sounding is off the mixer at once (decision 6)."""
-        plain_play_channels = self.plain_play_channels()
-        audible_chunks = [chunk for chunk in self.live_pool_chunks() if chunk.get_volume() > 0]
-
-        self.inner_game.set_audible(audible=False)
-
-        for channel_index in plain_play_channels:
-            channel = pygame.mixer.Channel(channel_index)
-            assert not channel.get_busy(), f'{self.label}: channel {channel_index} plays on'
-        assert all(chunk.get_volume() == 0 for chunk in audible_chunks), self.label
-        self.plain_plays_stopped_at_the_switch = len(plain_play_channels)
-        self.live_chunks_muted_at_the_switch = len(audible_chunks)
-        self.switched_away = True
-
-    def _switch_before_the_frame(self) -> None:
-        """Switch the tile audible or silent when the next frame starts or ends its heard frames."""
-        if self.heard is None:
-            return
-        next_frame = self.inner_game.outcome.frames_run
-        if next_frame == self.heard.start:
-            self.inner_game.set_audible(audible=True)
-        elif next_frame == self.heard.stop:
-            self.switch_away()
-
-    def run_frames(self, *, frame_count: int) -> None:
-        """Run up to ``frame_count`` frames, hashing the render target after each one that ran.
-
-        Args:
-            frame_count: How many frames to run (fewer when the game ends first).
-
-        """
-        for _frame in range(frame_count):
-            if not self.running:
-                return
-            self._switch_before_the_frame()
-            frames_before = self.inner_game.outcome.frames_run
-            self.inner_game.step()
-            if self.inner_game.outcome.frames_run > frames_before:
-                pixels = pygame.image.tobytes(self.inner_game.surface, 'RGB')
-                self.pixel_hashes.append(hashlib.sha256(pixels).hexdigest())
-            if self.inner_game.audible and self.heard_channels():
-                self.frames_with_a_heard_sound += 1
-
-    def matched_digests(self) -> list[str]:
-        """Check the inner game ended matched; return the digests it wrote.
-
-        Returns:
-            One digest per replayed frame.
-
-        """
-        outcome = self.inner_game.outcome
-        assert outcome.state is InnerGameState.ENDED, f'{self.label}: {outcome}'
-        assert outcome.diverged is False, f'{self.label}: {outcome.report}'
-        digests, divergence = read_digest_file(path=self.digest_path)
-        assert divergence is None, f'{self.label}: {divergence}'
-        return digests
-
-
-def play_alone(*, console_script: str, recording: Path, work_directory: Path) -> Tile:
-    """Replay a recording as the only inner game, to its end.
-
-    Args:
-        console_script: The console script that replays it.
-        recording: The recording.
-        work_directory: Where its digest file goes.
-
-    Returns:
-        The finished tile.
-
-    """
-    tile = Tile(
-        console_script=console_script,
-        recording=recording,
-        name=f'alone-{console_script}-{recording.name}',
-        work_directory=work_directory,
-    )
-    while tile.running:
-        tile.run_frames(frame_count=1)
-    return tile
-
-
-def assert_no_tile_is_heard(*, tiles: Iterable[Tile]) -> None:
-    """While no tile is audible, check nothing a tile played can be heard.
-
-    The outer game plays nothing, so no unreserved channel may play (a silent tile's plain plays
-    reach none, a switched-away tile's were stopped), and every chunk on a tile's live pool is
-    at volume 0 (its live voices play silent chunks).
-
-    Args:
-        tiles: The tiles running.
-
-    """
-    tiles = tuple(tiles)
-    if any(tile.inner_game.audible for tile in tiles):
-        return
-    sounding = [
-        channel_index
-        for channel_index in unreserved_channel_indices()
-        if pygame.mixer.Channel(channel_index).get_busy()
-    ]
-    assert sounding == [], f'unreserved channels {sounding} play while no tile is heard'
-    for tile in tiles:
-        volumes = [chunk.get_volume() for chunk in tile.live_pool_chunks()]
-        assert all(volume == 0 for volume in volumes), f'{tile.label} live chunks at {volumes}'
 
 
 def play_interleaved(*, tile: Tile, partner: Tile) -> None:

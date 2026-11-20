@@ -94,6 +94,15 @@ The rules:
    when both play the very same ``Sound`` object (``plain_plays_followed``'s edge). A plain play
    the game starts after it went silent within the same call (its finish) is stopped as the
    call ends.
+8. **A fast-forward is silent and sliced** (plans/2026-11-20-arcade-5-playback-core.md, decision
+   8): ``fast_forward(to_frame=..., budget=...)`` steps the game toward a frame (an Arcade
+   tile's poster frame) until it stands there or the budget (``replay.pacer.TickBudget``, real
+   time a host may share among its players) is spent, at least one frame a call, and the next
+   call goes on. It is refused while the game is audible (``InnerGameAudibleError``, naming
+   ``set_audible(audible=False)``): a host silences the game first, so the burst of frames is
+   never heard, and the fast-forward itself never switches the route or silences a frame (its
+   steps reserve the mixer as every silent step does: rule 5). It only steps, so the frames are
+   the recording's: frame ``to_frame`` is then the next step's, as in a replay run alone.
 
 A recorded quit (every golden ends with its game's quit control) ends only its inner game:
 the QUIT is posted to and drained from the context's private queue, never SDL's.
@@ -141,6 +150,7 @@ if TYPE_CHECKING:
 
     from glitchygames.engine.game_engine import GameEngine
     from glitchygames.replay.driver import RecordedFrames
+    from glitchygames.replay.pacer import TickBudget
 
 LOG = logging.getLogger('game.inner_game')
 
@@ -226,6 +236,10 @@ class InnerGameRefusedError(ValueError):
 
 class InnerGameStateError(RuntimeError):
     """The inner game is in a state its own code never reaches (a bug, not a game failure)."""
+
+
+class InnerGameAudibleError(RuntimeError):
+    """A fast-forward was asked of an audible inner game (it runs only silent: decision 8)."""
 
 
 class InnerGameStartError(RuntimeError):
@@ -680,6 +694,56 @@ class InnerGame:
         if not still_running:
             self.finish()
         return still_running
+
+    def fast_forward(self: Self, *, to_frame: int, budget: TickBudget) -> bool:
+        """Run frames toward ``to_frame``, silent, until there or the budget is spent (rule 8).
+
+        Runs frames ``[frame_index, to_frame)`` one ``step()`` each, checking the budget after
+        each frame: at least one frame runs a call, so a host passing a spent budget (one
+        another player used up) still moves on, and none runs past ``to_frame``. The next call
+        goes on from where this one stopped. A divergence or a failure on the way ends the game
+        with that outcome, as a step does. Once it returns True, frame ``to_frame`` is the next
+        ``step()``'s, and the frames are those of the recording replayed alone: it only steps.
+        A game already at or past ``to_frame`` runs nothing.
+
+        Args:
+            to_frame: The frame to stand at (the next to run), less than ``frame_count``.
+            budget: The real time it may take (``glitchygames.replay.pacer.TickBudget``),
+                possibly shared with other players: it decides how many frames run now, never
+                what they do.
+
+        Returns:
+            True when the game is running and stands at or past ``to_frame``; False when the
+            budget was spent first (call again), or the game has ended or failed (``outcome``
+            says how; it never gets there).
+
+        Raises:
+            InnerGameAudibleError: If the game is audible: its frames would be heard, a burst
+                of them at once (its host calls ``set_audible(audible=False)`` first). Nothing
+                runs.
+            ValueError: If ``to_frame`` is negative, or not less than the recording's frame
+                count. Nothing runs.
+
+        """
+        if self.audible:
+            message = (
+                f'Inner game {self._context.name} is audible: a fast-forward runs silent, so '
+                'call set_audible(audible=False) first'
+            )
+            raise InnerGameAudibleError(message)
+        frame_count = self.frame_count
+        if not 0 <= to_frame < frame_count:
+            message = (
+                f'Inner game {self._context.name} cannot fast-forward to frame {to_frame}: '
+                f'the frame must be at least 0 and less than the frame count ({frame_count})'
+            )
+            raise ValueError(message)
+        while self._frames_run < to_frame:
+            if not self.step():
+                return False
+            if budget.is_spent:
+                break
+        return not self._finished and self._frames_run >= to_frame
 
     def finish(self: Self) -> InnerGameOutcome:
         """End the game's run inside its context and settle its replay's result (idempotent).
