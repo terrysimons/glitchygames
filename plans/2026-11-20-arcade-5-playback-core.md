@@ -1,10 +1,16 @@
 # Arcade Sub-plan 5: One Playback Core, Then `DemoPlayer` — Implementation Plan
 
-Status: PLAN, for the owner's review (written 2026-11-20 against main at 4e6c7144; nothing built).
-Decided by the owner on 2026-11-20: the viewer's own-context move is a later sub-plan (question 1)
-and the playback scope stays in its engine (question 2). Question 3 is decided too (option B: Bitmappy is fixed on its own branch,
-after a root-cause triage of its tile); the text-input demo's key repeat stays open; the rest are
-rulings the owner may overturn.
+Status: PLAN, for the owner's review (written 2026-11-20 against main at 4e6c7144; audited the
+same day against main at b7c2abd3, after #235, #237, #238 and #239: every file:line below was
+re-checked and still holds; nothing built).
+Decided by the owner on 2026-11-20: the viewer's own-context move is a later sub-plan (question 1),
+the playback scope stays in its engine (question 2), and Bitmappy itself is fixed (question 3,
+option B; "no pygame function is replaced" stands). That fix is done, on its own branch
+`fix/bitmappy-reads-its-own-screen` (commit 81e8f045, not merged yet), which also records the
+owner's two to-dos, a cursor show/hide event and a key-repeat event (plans/future-work.md,
+"Arcade (sub-plan 3 follow-ups)"). The rest are rulings the owner may overturn, and the audit
+(section "Audit 2026-11-20", end of the file) turned three of them back into open questions
+(4 to 6).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task (execution is subagent-driven for every Arcade sub-plan: decision 4 of plans/2026-10-25-engine-context.md). Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -26,7 +32,7 @@ sub-plan; moving the viewer's inner game into a context of its own (engine conte
 is a larger change the Arcade does not need, so it is a later sub-plan (decided by the owner,
 2026-11-20).
 
-**Tech Stack:** Python 3.14 (runs on 3.15), pygame-ce, pydantic (frozen, `extra='forbid'`),
+**Tech Stack:** Python 3.15 (code must still parse and type-check as 3.14, CLAUDE.md), pygame-ce, pydantic (frozen, `extra='forbid'`),
 pytest + pytest-mock + xdist + pytest-benchmark, ruff, basedpyright, ty.
 
 **Spec:** [2026-10-23-arcade-showcase.md](2026-10-23-arcade-showcase.md), Sub-plans item 5 and
@@ -156,12 +162,22 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
    the start screen, and delegates the owing to the pacer. A source-guard test makes the pacer
    the only place that computes owed frames (no second accumulator can appear).
 3. **`TickBudget`: one allowance read from an injectable clock, shared by every consumer.**
-   `INNER_FRAME_BUDGET_SECONDS` (`viewer.py:92`, 11 ms) and `Rebuild`'s progress interval
-   (0.1 s) and the player's fast-forward slice are one idea: "this much real time, then yield".
+   `INNER_FRAME_BUDGET_SECONDS` (`viewer.py:92`, 11 ms) and the player's fast-forward slice (and,
+   in the first draft, `Rebuild`'s 0.1 s progress interval: see the correction below) are one idea: "this much real time, then yield".
    A `TickBudget` is started with its length, answers `is_spent` and `remaining_seconds`, and
    is passed to several players in turn so what one leaves the next gets. This deviates from the
    spec's `tick(real_seconds, budget_seconds)` (a float per player), which could not pass the
-   leftover on (the spec's step 4: share what is left among the other eight).
+   leftover on (the spec's step 4: share what is left among the other eight). **Audit
+   correction:** `Rebuild` is not a third user (Audit item 2): its progress timer is periodic
+   (re-armed every 0.1 s, with a separate print interval) and its test calls
+   `progress_is_due(frame_index=..., now=...)`, so it does not read as a one-shot allowance. The
+   shared users are the viewer's per-tick frame budget and the player's fast-forward slice;
+   `Rebuild` stays as it is unless the owner says otherwise (question 6).
+   **Audit correction, determinism:** the budget reads `clock.measured_seconds`, which
+   `clock.py` says must never feed a decision that changes what is drawn. For the viewer that is
+   true (it changes when a recorded frame runs, not the frame). For an Arcade tile it is not:
+   how many tile frames ran this Arcade frame is on screen, so a recorded Arcade session would
+   not replay its tiles identically (question 5).
 4. **`DemoPlayer` is an engine module, `src/glitchygames/demo_player.py`, not in the Arcade
    app.** It needs only `InnerGame`, the pacer and a recording, never a game; any outer host
    (the Arcade, a future attract screen, the browser bundle) can use it, and the engine's
@@ -208,7 +224,8 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
     length divergence, which `ReplaySources.finish_run` makes `FAILED`: Task 4 tests both);
     and `LOOPED` as the transient state after a restart (the spec's "looped"; it reads as
     `PLAYING` from the next tick). The error text and the replay's report are kept for the
-    Arcade's label. What a diverged demo does next is question 3's small defence.
+    Arcade's label. What a diverged demo does next (the spec says restart and go on, logged
+    once) is open: question 4.
 11. **Muted is the default and is the context's route.** A new `DemoPlayer` is silent (a new
     `InnerGame` is, rule 5). `audible` and `set_audible(*, audible)` delegate to the current
     `InnerGame`, and a looped player's new game gets the player's setting before its first
@@ -223,8 +240,8 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
     header once, at construction, and a recording with no screen size is `COULD_NOT_START`.
 14. **Step back and instant replay do not move onto `InnerGame` in this sub-plan.** The spec's
     "rebuilt on it" for the playback scope and the rebuild does not survive the audit (Open
-    questions 1 and 2). What they share is made shared: the time slice (decision 3), the frame
-    count function and the silencer, with guard tests that no second copy exists.
+    questions 1 and 2). What they share is already shared or stays so: the frame count function and the silencer
+    (the time slice only for the viewer and the player, decision 3).
 
 ## Decided by the owner (2026-11-20)
 
@@ -325,22 +342,33 @@ recorded, and also with `-r 1280x720` (the recording fixes 800x480). **Option A 
 replacement of pygame functions per context) is not approved; the 2026-11-12 rule "no pygame
 function is replaced" stands.** Option C (keep the xfail) is dropped.
 
-- **Prerequisite, owned by a separate branch** (the coordinating session, not a task of this
-  plan): the Bitmappy fix. It lifts the strict xfail in
-  `tests/test_every_recording_replays_inside_an_inner_game.py` (`DIVERGES_INSIDE_A_TILE`) and its
-  entry in `plans/future-work.md`. This sub-plan's proof (Task 6) expects Bitmappy's tile to
-  match; until that branch merges the proof keeps the xfail, and nothing here depends on it
-  otherwise.
-- **Still open, not decided: the text-input demo's key repeat** (and the rest of the class:
-  text input start and stop, the cursor, the font resolution, Bitmappy's `spawn` start method).
-  Option A is ruled out for them, so each needs its own answer: an engine-side change where the
-  call is the engine's (`ui/inputs.py:195`, `ui/text_widgets.py`), and the owner's call, case by
-  case, where it is a game's (`text_input_demo/__init__.py:69`). The strict xfail stays.
-- **The divergence policy stays, as a small defence** for a demo that drifts after it was
-  recorded: restart once, and if the next run diverges at the same frame, freeze on the last
-  frame with the "error" label and stop restarting (the spec's "restart and go on, logged once"
-  would otherwise rebuild a diverging tile, 73 to 180 ms measured, every other Arcade frame).
-  It is a few lines in `DemoPlayer` (Task 4) and rarely reached once Bitmappy is fixed.
+- **Done, on its own branch (not a task of this plan): the Bitmappy fix**,
+  `fix/bitmappy-reads-its-own-screen`, commit 81e8f045 (not merged, not pushed when this was
+  audited). The three sites read `glitchygames.render_target.display_surface()`; the strict
+  xfail (`DIVERGES_INSIDE_A_TILE`) is removed in
+  `tests/test_every_recording_replays_inside_an_inner_game.py` (41 passed there); its row in
+  `plans/future-work.md` is struck; a workspace guard keeps every game, demo and app off
+  `pygame.display.get_surface`. **Dependency:** this plan's branch does not need that branch to
+  merge first, but its Task 6 proof then reads "Bitmappy's tile matches" only once that commit is
+  in the base. If this branch is cut before the merge, Task 6 keeps the xfail for Bitmappy and
+  the merge conflicts only on that one entry; say which in the PR.
+- **Decided as to-dos by the owner, 2026-11-20 (not built, not part of this plan): a cursor
+  show/hide event and a key-repeat event**, in `plans/future-work.md` on the same branch. A game
+  posts the event; the engine applies it to SDL only in the context that owns the window, so a
+  tile's events stay in its private queue and the Arcade's cursor and key repeat are never
+  touched; a recorded event also replays. They close the text-input demo's key-repeat xfail and
+  Bitmappy's cursor hiding. Until they land, **a Bitmappy tile still hides the Arcade's cursor**
+  whenever its recorded mouse crosses the canvas, and the text-input tile changes the Arcade's key
+  repeat: sub-plan 6 must know (below). `DemoPlayer` needs no code for them: an inner game posts
+  into its own queue already.
+- **Still unowned, the rest of the class:** text input start and stop (`ui/text_widgets.py`,
+  folded into the key-repeat to-do "worth deciding with it"), the font resolution and Bitmappy's
+  `spawn` start method. Option A stays ruled out; each needs its own answer where the call is a
+  game's (the owner's call).
+- **The divergence policy is not decided.** The spec says a diverged demo restarts and goes on,
+  logged once; this plan proposed restart once, then freeze. With Bitmappy fixed, no shipped demo
+  diverges in a tile (text-input's divergence never occurred: it matched all 600 frames), so
+  the policy only covers a demo that drifts after it was recorded. Question 4.
 
 ## Review Focus
 
@@ -377,7 +405,7 @@ constants moved from `viewer.py`: `MAX_OWED_INNER_FRAMES`, `INNER_FRAME_BUDGET_S
 
 - [ ] Guard first: run `tests/replay/test_viewer.py`, `tests/test_replay_schedule.py`,
   `tests/replay/test_rebuild.py`, `tests/replay/test_playback_scope.py`,
-  `tests/replay/test_instant_replay.py` and the golden replays, and record the counts passed.
+  `tests/replay/test_instant_replay.py` and the golden replays, and record the counts passed, and capture `scripts/replay_schedule.py`'s output for every bundled demo to diff after Task 1 and Task 5 (identical).
 - [ ] Tests (behaviours of the pacer, written to the viewer's documented rules): at speed 1 and
   a 60 FPS recording, one frame is owed each 1/60 s of elapsed time and exactly one runs per
   tick; a long frame followed by a short catch-up frame never share a tick up to 1x, and do
@@ -398,7 +426,7 @@ constants moved from `viewer.py`: `MAX_OWED_INNER_FRAMES`, `INNER_FRAME_BUDGET_S
 ### Task 2: `InnerGame` as the runner: what a host needs to pace it
 
 **Files:** `src/glitchygames/replay/driver.py` (`_inner_frame_seconds` becomes public
-`ReplaySources.next_frame_seconds`; `hold_frame` calls it), `src/glitchygames/inner_game.py`
+`ReplaySources.next_frame_seconds`; `hold_frame` calls it; the two comments naming `_inner_frame_seconds` in `scripts/replay_schedule.py` (23, 329) and the docstring in `tests/replay/test_viewer.py` (841) follow the rename), `src/glitchygames/inner_game.py`
 (`next_frame_seconds`, `frame_count`, `frame_index`; the two `assert engine is not None` at
 610 and 643 and the one at 792 become raises of `InnerGameStartError`-style errors, since
 the owner agreed 2026-11-20 that these are a rule breach; the sweep of the rest is below), tests in
@@ -414,9 +442,7 @@ the owner agreed 2026-11-20 that these are a rule breach; the sweep of the rest 
 ### Task 3: A time-sliced fast-forward on `InnerGame`
 
 **Files:** `src/glitchygames/inner_game.py` (`fast_forward(*, to_frame, budget)`, using Task 1's
-`TickBudget`; refused while audible), `src/glitchygames/replay/rebuild.py` (`progress_is_due`
-reads a `TickBudget` instead of its own interval arithmetic; observable behaviour unchanged),
-tests in `tests/engine/test_inner_game.py` and `tests/replay/test_rebuild.py` (unchanged).
+`TickBudget`; refused while audible), tests in `tests/engine/test_inner_game.py`. (`rebuild.py` is not touched: Audit item 2.)
 
 - [ ] Tests: a fast-forward in one call with a large budget reaches `to_frame` and the next
   `step()` is frame `to_frame`; with a budget of one frame it takes `to_frame` calls and each
@@ -426,7 +452,7 @@ tests in `tests/engine/test_inner_game.py` and `tests/replay/test_rebuild.py` (u
   refused with the error naming `set_audible(audible=False)`; `to_frame` at or past the frame
   count is a `ValueError`; a divergence or failure partway ends it with that outcome and
   returns "not reached"; a fast-forward called with `to_frame` already passed is a no-op.
-- [ ] `Rebuild`'s existing tests pass unchanged on the shared `TickBudget`.
+- [ ] `tests/replay/test_rebuild.py` passes unchanged (a guard: nothing in `rebuild.py` moved).
 - [ ] Commit (`Inner game: a silent, budgeted fast-forward`).
 
 ### Task 4: `DemoPlayer`
@@ -461,7 +487,8 @@ tests in `tests/engine/test_inner_game.py` and `tests/replay/test_rebuild.py` (u
     that behaves differently from its recording is `DIVERGED` (a mismatched frame, and a
     recording longer than the run: the length divergence that arrives as `FAILED`); the other
     players are unaffected by any of these.
-  - the divergence policy as the owner decides (question 3: restart once, then freeze).
+  - the divergence policy as the owner decides in question 4 (this plan's proposal: restart
+    once, then freeze); until decided, the player reports `DIVERGED` and does not restart.
   - guard: the module imports no game and reads no clock but the budget's.
 - [ ] Implement; full suite; commit (`Demo player: a recorded game that loops, fast-forwards and paces itself`).
 
@@ -481,7 +508,7 @@ Task 1 left a seam. Tests: the existing viewer, schedule and rebuild tests.
 
 **Files:** `tests/test_every_recording_replays_inside_an_inner_game.py` (a variant that runs
 each pair through `DemoPlayer`s, ticked unevenly, with a loop, a fast-forward to a seeded poster
-frame and a switch heard and back; Bitmappy and the text-input demo keep their strict xfails),
+frame and a switch heard and back; the text-input demo's key-repeat xfail stays until the key-repeat event to-do lands; Bitmappy's is already lifted on its own branch, see question 3's dependency),
 `tests/benchmarks/test_demo_player_benchmarks.py` (ten players per Arcade frame with the real
 bundled demos against `INNER_FRAME_BUDGET_SECONDS`; one restart's build for each demo, cold and
 warm; the ten posters' fast-forward in total; `nox -s performance-test` runs them), docs:
@@ -524,8 +551,11 @@ stays valid. Its guard is every watched-replay test and golden replay, unchanged
   rotating index), the heard player (`set_audible`), the poster stream
   (`random_stream('arcade-posters')`) and the "title on the test pattern until ready" screen
   (`fast_forward` returning not-reached), the overlay restore (`on_new_game`), the "no demo" /
-  "error" labels (`DemoOutcome`) and the freeze for a diverged demo. Bitmappy's tile stays a
-  strict xfail until its bug is fixed.
+  "error" labels (`DemoOutcome`) and the freeze for a diverged demo (question 4). Bitmappy's
+  tile replays once its fix (81e8f045) is merged. Until the cursor and key-repeat events exist,
+  the Arcade must live with a Bitmappy tile hiding its cursor and the text-input tile changing
+  its key repeat (or leave those two tiles out of a first screen): the owner's to-dos, not this
+  plan's.
 - **7 (launching in the same process):** a launched game pauses the tiles; the pacer's stall
   rule keeps them from bursting on return. A live game is not a `DemoPlayer`.
 - **8 (browser):** `tick` is synchronous and takes elapsed time as an argument, so one Arcade
@@ -572,3 +602,76 @@ stays valid. Its guard is every watched-replay test and golden replay, unchanged
   `multiprocessing.current_process().name`, which the manager already tests), and a scoped
   start-method answer. The Arcade should also make a tile's `finish()` reach the scene's
   cleanup (`AIManager.cleanup`); I did not verify that it does.
+
+## Audit 2026-11-20
+
+Checked against origin/main b7c2abd3. Every file:line in the plan still holds (viewer.py 89-101,
+348, 417, 448; driver.py 1107, 1311, 1415, 1670, 1681, 1728, 2596; rebuild.py 91, 296, 321;
+playback.py 414, 1285, 1346; scene.py 3158; silence.py 220; inner_game.py 197, 500, 600, 610, 626,
+643, 792; controls.py 85; the 154 `assert`s in `src/`). The Bitmappy sites now read
+`display_surface()` on the fix branch. Corrected in place: the Python version, the status block,
+Question 3's text (the fix is done, the to-dos are events), the stale "question 3" references in
+decision 10 and Task 4, and the Task 6 xfail sentence. Three things are reconsidered, with my
+recommendation:
+
+1. **The budget's clock is not the pacer's clock (question 5).** `clock.measured_seconds` is
+   documented as never feeding anything that changes what is drawn. The viewer's use is fine. An
+   Arcade tile's is not: with a 3-frame budget, frame 301 of the PaddleSlap tile is on screen
+   this Arcade frame on one machine and the next on another, so a recorded Arcade session cannot
+   replay its tiles frame for frame, which is what the plan's constraint "deterministic in a
+   recorded Arcade session" claims. Options, by what happens: (A) keep the wall-clock budget and
+   say a recorded Arcade session replays its inputs but not its tiles' progress (simple, and
+   what the viewer already does; fine if the Arcade never compares tile pixels); (B) a budget
+   counted in frames, and in a replayed Arcade session the frames-per-tile per tick are served
+   from the recording as an internal event (exact, costs an event type and recording of
+   per-tile counts); (C) frames-owed only, no budget, which breaks the Pi case. Recommendation:
+   (B) if the Arcade's own golden replay will compare tile pixels (sub-plan 6 decides), else (A)
+   with the limit written into the docs. The owner's call; the plan builds `TickBudget` behind a
+   small interface either way, so the choice does not change Tasks 1 to 3.
+2. **`Rebuild` does not share `TickBudget` (question 6).** `progress_is_due` is a periodic
+   schedule (every 0.1 s, re-armed with `max(next + interval, now)`) plus a separate 0.5 s print
+   interval, and `test_progress_is_due_by_real_time_and_printed_less_often` calls it with
+   `now=`. Forcing a one-shot allowance onto it changes a tested public signature for no gain.
+   Recommendation: leave `rebuild.py` alone and keep the claim of sharing to the viewer and the
+   player. I changed Task 3 to match; the owner can reinstate the sharing.
+3. **The divergence policy (question 4).** The spec's "restart and go on, logged once" was
+   replaced by "restart once, then freeze" in this plan without asking. Worked example: a
+   PaddleSlap demo recorded before a physics change diverges at frame 212 on every run. Spec
+   policy: the tile rebuilds (10 ms) every 3.5 s forever and logs once. Proposed policy: one
+   retry, then the tile freezes on frame 212 with the "error" label. Recommendation: the
+   proposal (a frozen error tile tells the owner something is wrong; a looping broken one hides
+   it), but it is a user-visible behaviour, so it is the owner's.
+
+Risks the audit found and the plan now states:
+
+- **Exact replay and golden traces.** Task 1 changes the viewer's pacing code, which every
+  watched-replay golden depends on. The plan's guard (run the viewer, schedule, rebuild, scope
+  and instant-replay tests first, record counts) is right; add that `scripts/replay_schedule.py`
+  output for every bundled demo is captured before Task 1 and diffed after, because its
+  docstrings cite `ReplaySources._inner_frame_seconds` (scripts/replay_schedule.py:23, 329) and
+  Task 2 renames it: those two comments are in Task 2's file list.
+- **Engine-context isolation.** `RecordedFramePacer`, `TickBudget` and `DemoPlayer` hold per-host
+  instances and no module-level mutable state, so `tests/test_process_state_guard.py` should pass
+  untouched; the constants moved into `pacer.py` are immutable. The `on_new_game` hook and
+  `generation` are per-player. No `ContextSlot` is needed, as the plan says.
+- **Coverage at 100%.** The defensive branches in Task 4 (a recording with no screen size, a
+  restart that fails to build, a stall past the owed limit) each need a named test; the plan
+  names them. A pragma needs a reason, so prefer a test.
+- **Browser.** `DemoPlayer.tick` is synchronous, so it fits `run_async`'s one awaited tick. The
+  restart's build (Mr. Muncher 280 ms cold) is a single long call in Pyodide; Task 6's
+  benchmark should record it there only if `nox -s browser` can time it, and otherwise say not
+  measured.
+- **Raspberry Pi.** The measured table is an M4 Max. Say in Task 6 that the Pi numbers are not
+  measured and the budget's rotation is what is tested; do not promise nine tiles at 60 Hz there.
+- **Task order.** Each task lands green: 1 (pacer, viewer delegates, guard), 2 (public accessors),
+  3 (fast-forward, additive), 4 (player, additive), 5 (docstring clean-up, comments only; could be
+  folded into Task 1 to avoid an almost empty commit: the owner's choice, left as it is), 6
+  (proof and docs). Task 6's proof and benchmark are the first place a ten-player run exists, so a
+  rotation bug would surface only there: Task 4's shared-budget test already covers it with
+  stand-ins.
+
+Questions for the owner, added by this audit (1 to 3 are decided above):
+
+4. A diverged demo: restart and go on (the spec), or restart once then freeze (proposed)?
+5. The budget's determinism: (A), (B) or (C) above?
+6. Does `Rebuild` share `TickBudget` (the plan's first draft) or stay as it is (recommended)?
