@@ -1313,6 +1313,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/driver_configurations.py',
         'scripts/native_audio_health.py',
     ),
+    'tests/test_patch_pre_push_hook.py': ('scripts/patch_pre_push_hook.py',),
     'tests/test_record_bundled_demos.py': (
         'scripts/record_bundled_demos.py',
         'scripts/demo_inputs.py',
