@@ -186,7 +186,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | The dt demo's square keeps moving off screen after it crosses: nothing clamps or wraps it | `src/demos/dt-demo/src/dt_demo/__init__.py` | Found in Arcade sub-plan 2 (Tasks 4-5). Clamp or wrap it, then re-record `timing.jsonl.gz` (a reviewed step). |
 | Stand-in pads log a misleading WARNING "Device enumeration ... is not in the recording" on a second `joystick_count` or on `name_for_index` | `src/glitchygames/input/stand_in_devices.py`, `src/glitchygames/input/devices.py` (~1371) | Found in Arcade sub-plan 2 (Task 7, the joystick demo's `pad`). The answer is right; the warning is noise. A stand-in registry should answer repeated enumerations without falling to the "not recorded" path. |
 | The joystick demo would raise if a device connected while another scene was active | `src/demos/joystick-demo/src/joystick_demo/__init__.py` | Found in Arcade sub-plan 2. Matters once the Arcade hosts the demo beside other scenes. |
-| Bitmappy's Arcade tile diverges at frame 0: it sizes its film strip from `pygame.display.get_surface()`, which inside a tile is the Arcade's window, not the tile's 800x480 render target (`FilmStripSprite#0` rect expected `[350, 24, 450, 124]`, got width 6914 or 930) | `src/apps/bitmappy/src/bitmappy/film_strip_coordinator.py:348` (also `animated_canvas.py:1628`, `controllers/visual_indicators.py:326`) | Found 2026-11-12 by the ten-tile check of the full-Arcade spike ported to main (Arcade sub-plan 3); the other nine tiles match their solo replays exactly. Left failing for now (the owner, 2026-11-12). The two fixes on the table each bend a rule: an engine answer for `get_surface` while a tile's context is active (no pygame shims), or Bitmappy reading its scene's screen (no game changes). Held by a strict xfail in `tests/test_every_recording_replays_inside_an_inner_game.py` (Arcade sub-plan 3, Task 4), which runs the tiles inside a 1280x720 outer window: the test display (800x600) is as wide as the demo and hid it (width 930 there). |
+| ~~Bitmappy's Arcade tile diverges at frame 0: it sizes its film strip from `pygame.display.get_surface()`, which inside a tile is the Arcade's window, not the tile's 800x480 render target (`FilmStripSprite#0` rect expected `[350, 24, 450, 124]`, got width 6914 or 930)~~ | `src/apps/bitmappy/src/bitmappy/film_strip_coordinator.py:348` (also `animated_canvas.py:1628`, `controllers/visual_indicators.py:326`) | Found 2026-11-12 by the ten-tile check of the full-Arcade spike ported to main (Arcade sub-plan 3); the other nine tiles match their solo replays exactly. Left failing for now (the owner, 2026-11-12). The two fixes on the table each bend a rule: an engine answer for `get_surface` while a tile's context is active (no pygame shims), or Bitmappy reading its scene's screen (no game changes). Held by a strict xfail in `tests/test_every_recording_replays_inside_an_inner_game.py` (Arcade sub-plan 3, Task 4), which runs the tiles inside a 1280x720 outer window: the test display (800x600) is as wide as the demo and hid it (width 930 there). **Fixed** 2026-11-20 (`fix/bitmappy-reads-its-own-screen`; bugs/2026-11-20-bitmappy-tile-read-the-hosts-window.md): the owner chose Bitmappy reading its own screen through the engine's `display_surface()` ("this particular situation warrants fixing bitmappy not to use pygame calls directly"); no pygame function is replaced. The strict xfail is removed, and a guard keeps every game, demo and app off `pygame.display.get_surface()`. |
 | A tile changes the outer game's key repeat (and other window and process settings): the text-input demo's tile leaves SDL's key repeat at `(200, 200)` where the outer game had `(0, 0)` (`pygame.key.get_repeat()`, one per process). The demo's `setup()` calls `pygame.key.set_repeat(350)` and the engine's `InputBox.on_key_up_event` calls `pygame.key.set_repeat(200)` on every key release while the box is active; the outer game (the Arcade) would then get repeated KEYDOWNs for its own held keys. A replay is unaffected (it serves recorded events). The same holds, unmeasured, for SDL's other one-per-process settings an inner game can still reach (found by the branch's final review, 2026-11-12): text input start and stop (the engine's text widgets, `src/glitchygames/ui/text_widgets.py:1218, 1260, 1274, 1328, 1503, 1509`: a tile's active text box would turn the outer game's IME text input on or off), the mouse cursor's visibility (Bitmappy's canvas, `src/apps/bitmappy/src/bitmappy/animated_canvas.py:1153, 1175`), pygame's default font resolution (`pygame.freetype.set_default_resolution` in `FontManager.__init__`, `src/glitchygames/fonts/font_manager.py:307`, from the inner game's `--font-dpi`: the last `FontManager` made wins) and `os.environ.setdefault('SDL_MOUSE_FOCUS_CLICKTHROUGH', '1')` (`src/glitchygames/engine/game_engine.py:1571`, harmless once the outer engine set it) | `src/glitchygames/ui/inputs.py:195` (the engine's), `src/demos/text-input-demo/src/text_input_demo/__init__.py:69` (the demo's; no game changes), also `src/glitchygames/ui/text_widgets.py` (1220, 1262, 1275, 1329, 1504, 1511) | Found 2026-11-12 by Arcade sub-plan 3's Task 4 (the plan's Review Focus 4): `test_a_tile_leaves_the_outer_key_repeat_as_it_was[text-input-demo/typing.jsonl.gz]`, a strict xfail naming this entry; every other recording leaves it. The repeat belongs to the context that owns the window: an inner context should keep its own (a slot) and never call SDL's, the way it keeps no caption and never changes SDL's blocked event types (`events.set_event_types_allowed`); the same for text input, the cursor's visibility (a Bitmappy call: the engine would need a door for it, since no game file changes) and the font resolution. The engine's own widgets setting the repeat on every key release is worth a look on its own. |
 | The pending replay ledger is rewritten in place, its only copy of unpublished rows, so a crash or a full disk mid-write loses them | `src/glitchygames/replay/tools/measure.py` (`pending_path.write_text`) | Found 2026-11-17 sweeping for siblings of bugs/2026-11-17-ai-console-history-seen-part-written.md. Write it aside then into place (`output_files.write_aside_then_replace`). |
 
@@ -849,8 +849,40 @@ only replays; Part 2 Task 1).
 
 ## Arcade (sub-plan 3 follow-ups, 2026-11-12; plans/2026-11-12-arcade-3-inner-game.md)
 
-The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0, and a tile
-changes the outer game's key repeat (the plan's Review Focus 4).
+The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0 (fixed
+2026-11-20), and a tile changes the outer game's key repeat (the plan's Review Focus 4).
+
+- **A cursor show/hide event, so games stop calling `pygame.mouse.set_visible` (the owner,
+  2026-11-20).** Bitmappy hides the cursor when the mouse enters its canvas and shows it again on
+  leaving (`src/apps/bitmappy/src/bitmappy/animated_canvas.py`, `on_mouse_motion_event`).
+  SDL's cursor visibility is one per process, so a Bitmappy tile can hide the Arcade's own
+  cursor whenever its recorded mouse crosses the canvas. The owner's idea: an engine event a
+  game posts to show or hide the cursor, handled by the engine, which applies it to SDL only in
+  the context that owns the window. A tile's events stay in its private queue
+  (`recording.private_event_queue`), so the Arcade never applies them, the same way a tile sets
+  no caption and changes none of SDL's blocked event types. A recorded event also replays.
+  Bitmappy then posts the event instead of calling pygame (the owner allows this change to
+  Bitmappy, as for its screen). Build it with the key-repeat event below (one mechanism). Tests:
+  a tile that hides its cursor leaves the outer cursor as it was; a game in the default context
+  still hides and shows it; the event is recorded and replayed; and the workspace guard
+  (`tests/test_workspace_config.py`) widens to `pygame.mouse.set_visible` once Bitmappy no
+  longer calls it.
+- **A key-repeat event, the same way (the owner, 2026-11-20).** SDL's key repeat is one per
+  process: the text-input demo's `setup()` calls `pygame.key.set_repeat(350)`
+  (`src/demos/text-input-demo/src/text_input_demo/__init__.py:69`) and the engine's own
+  `InputBox` calls `pygame.key.set_repeat(200)` on every key release while it is active
+  (`src/glitchygames/ui/inputs.py:195`), so a tile running either leaves the Arcade with
+  repeated KEYDOWNs for its held keys (the key-repeat row in the bugs table, held by a strict
+  xfail in `tests/test_every_recording_replays_inside_an_inner_game.py`). A game posts a
+  key-repeat event (delay, interval); the engine keeps the context's own repeat and applies it to
+  SDL only in the context that owns the window. The engine's `InputBox` goes through the same
+  engine path rather than calling SDL (engine code needs no event: it can set the context's
+  repeat directly), and the demo posts the event (a change to the demo, as for Bitmappy's).
+  Worth deciding with it: the text widgets' text input start and stop
+  (`src/glitchygames/ui/text_widgets.py`), the same class. Tests: the text-input demo's tile
+  leaves the outer repeat at `(0, 0)` and its strict xfail is removed; a game in the default
+  context still gets its repeat; the event is recorded and replayed; and the workspace guard
+  widens to `pygame.key.set_repeat`.
 
 - **Every engine build adds a `pygame.register_quit` entry that is never removed.**
   `GameEngine.__init__` registers its `quit_game` (`src/glitchygames/engine/game_engine.py`,

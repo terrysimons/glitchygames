@@ -20,6 +20,7 @@ from bitmappy.controllers.modes import (
 from bitmappy.controllers.selection import (
     ControllerSelection,  # ruff: ignore[typing-only-first-party-import] - used at runtime
 )
+from glitchygames.render_target import display_surface
 from glitchygames.sprites import BitmappySprite
 
 if TYPE_CHECKING:
@@ -322,8 +323,9 @@ class VisualIndicators:
         # Register any new controllers
         self._register_new_controllers()
 
-        # Get the screen surface
-        screen = pygame.display.get_surface()
+        # The scene's own screen: the window, or a render target when Bitmappy runs inside another
+        # game (an Arcade tile), where pygame.display.get_surface() is the host's window
+        screen = display_surface()
         if not screen:
             return
 
