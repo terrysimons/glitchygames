@@ -35,9 +35,10 @@ The rules:
    later tick), and the real time it takes is gone from the budget the next players share.
 4. **A divergence restarts once, then freezes** (the owner's decision 4). The first divergence a
    player meets (a frame that differs, or a recording longer than the run) is logged and the
-   game rebuilt from frame 0; the second freezes it with ``DIVERGED``, logged, on the diverged
-   frame. A frozen player (``DIVERGED``, ``CRASHED`` or ``COULD_NOT_START``) runs nothing more,
-   and its last frame stays readable on ``surface``.
+   game rebuilt from frame 0 (until that rebuild, which may wait for a later tick's budget, the
+   player reads ``PLAYING``, with the divergence's report); the second freezes it with
+   ``DIVERGED``, logged, on the diverged frame. A frozen player (``DIVERGED``, ``CRASHED`` or
+   ``COULD_NOT_START``) runs nothing more, and its last frame stays readable on ``surface``.
 5. **Fast-forward is silent, sliced and resumable** (decision 8): ``fast_forward(to_frame=...,
    budget=...)`` is the current game's (``InnerGame.fast_forward``), so it is refused while the
    player is audible and frame ``to_frame`` is then the next tick's. A player with no running
@@ -428,15 +429,18 @@ class DemoPlayer:
             return
         if outcome.diverged:
             self._divergences += 1
-            self._state = DemoState.DIVERGED
             if self._divergences >= DIVERGENCES_BEFORE_FREEZING:
                 self._frozen = True
+                self._state = DemoState.DIVERGED
                 LOG.warning(
                     'Demo %s diverged again and is frozen on its diverged frame: %s',
                     self._name,
                     outcome.report,
                 )
                 return
+            # DIVERGED means frozen: until its rebuild the player still reads PLAYING (the
+            # report says where it diverged), so a host never shows the error label of a tile
+            # that gets one more try
             LOG.warning('Demo %s diverged, restarting once: %s', self._name, outcome.report)
         self._needs_new_game = True
 

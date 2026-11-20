@@ -939,7 +939,11 @@ class TestAFastForward:
         rally: InstalledStandIn,
         players: Players,
     ):
-        """A tampered frame before the target: False, and the divergence policy's first restart."""
+        """A tampered frame before the target: False, and the divergence policy's first restart.
+
+        Until the rebuild the player reads PLAYING, never DIVERGED (which means frozen: rule 4),
+        with the divergence's report.
+        """
         tamper_first_sprite_rect(recording_path=rally.recording, frame_number=TAMPERED_FRAME)
         player = players.make(command=rally.command, recording=rally.recording)
 
@@ -948,7 +952,10 @@ class TestAFastForward:
         )
 
         assert reached is False
-        assert player.outcome.state is DemoState.DIVERGED
+        assert player.generation == 1
+        assert player.outcome.state is DemoState.PLAYING
+        assert player.outcome.report is not None
+        assert player.outcome.report.startswith(f'Replay diverged at frame {TAMPERED_FRAME}')
         tick(player=player, clock=players.clock, frames_of_time=1, budget_frames=1)
         assert player.generation == 2
         assert player.outcome.state is DemoState.LOOPED
@@ -1194,6 +1201,31 @@ class TestOutcomes:
         assert len(logged) == 2
         assert 'frozen' in logged[1].getMessage()
         assert player.audible is False
+
+    def test_the_first_divergence_reads_playing_until_its_rebuild(
+        self, rally: InstalledStandIn, players: Players
+    ):
+        """The diverging frame spends the tick's budget: no DIVERGED before the restart (rule 4).
+
+        DIVERGED means frozen, so a host reading it in that window would show the error label,
+        or finish a tile that gets one more try (the owner's decision 4).
+        """
+        tamper_first_sprite_rect(recording_path=rally.recording, frame_number=TAMPERED_FRAME)
+        player = players.make(command=rally.command, recording=rally.recording)
+        inner_game = player.inner_game
+        assert inner_game is not None
+        states: list[DemoState] = []
+
+        for _tick in range(MOST_TICKS):
+            tick(player=player, clock=players.clock, frames_of_time=1, budget_frames=1)
+            if player.generation > 1:
+                break
+            states.append(player.outcome.state)
+
+        assert inner_game.outcome.diverged is True
+        assert states
+        assert set(states) == {DemoState.PLAYING}
+        assert player.outcome.state is DemoState.LOOPED
 
     def test_a_recording_longer_than_the_run_is_a_divergence(
         self,

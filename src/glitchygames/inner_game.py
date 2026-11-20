@@ -215,8 +215,9 @@ class InnerGameOutcome(BaseModel):
             or where a failure stopped it); None before, or when the game was never built.
         diverged: Once the report is settled, whether the replay diverged
             (``ReplayReport.is_failure``): a frame differed, or the run ended before the
-            recording did (``ReplaySources.finish_run`` makes that a length divergence; the
-            state is then ``FAILED``). False when it matched; None while ``report`` is None.
+            recording did (``ReplaySources.finish_run`` makes that a length divergence). A game
+            that quit before its recording ended is then ``ENDED``; one that failed early is
+            ``FAILED`` with its error. False when it matched; None while ``report`` is None.
         error: The failure's text when ``state`` is ``FAILED``, else None.
 
     """
