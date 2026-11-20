@@ -737,7 +737,7 @@ In `tests/test_ansible_macos_ai_service.py`, renamed with the playbook to
 
 - The picker, run as rendered for Linux with faked memory: 16 GB total with 9 GB available picks 2B
   and 0.6B; 16 GB with 6 GB available exits 3 ("nothing-fits"); 8 GB picks 2B and 0.6B at 32K when
-  4,786 MiB is free (5,204 on a Mac) and exits 3 below it; 4 GB picks 2B alone at 32K from 2,557
+  4,786 MiB is free (5,204 on a Mac) and exits 3 below it; 4 GB picks 2B alone at 32K from 2,301
   free; below 3,072 MiB total exits 3 (`memory-below-every-tier`); a hand-picked size that doesn't
   fit still gets nothing. The same cases run against the macOS rendering, each at that platform's
   figures (6.4, 6.4.1), so the one picker can't drift.
