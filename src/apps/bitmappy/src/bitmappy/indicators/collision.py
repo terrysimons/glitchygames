@@ -395,12 +395,16 @@ class VisualCollisionManager:
         # zip would raise if the counts ever disagreed again.
         for controller_id, offset in zip(controller_ids, offsets, strict=True):
             indicators_dict[controller_id].offset = offset
-            LOG.debug(
-                'Applied %s offset %s to controller %s',
-                location_type.value,
-                offset,
-                controller_id,
-            )
+        # One line per group, not one per controller: every indicator added re-applies the whole
+        # group, and past the nine fixed patterns each add moves every offset (the spiral's angle
+        # depends on the count), so a line per controller grew with the square of the group; see
+        # bugs/2026-11-14-bitmappy-collision-avoidance-logs-every-offset.md
+        LOG.debug(
+            'Applied %s offsets to %s controllers at %s',
+            location_type.value,
+            len(controller_ids),
+            position,
+        )
 
     def _calculate_offsets(self, count: int) -> list[tuple[int, int]]:
         """Calculate offsets for collision avoidance.
