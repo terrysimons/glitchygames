@@ -5,8 +5,8 @@ Master plan: [2026-11-14-zombies-aint-my-neighbors.md](2026-11-14-zombies-aint-m
 level 1"). It fills the second slot of feature 12's idle loop
 ([2026-11-19-zombies-aint-my-neighbors-12-intro-and-idle-loop.md](2026-11-19-zombies-aint-my-neighbors-12-intro-and-idle-loop.md)).
 
-Status: BUILT (2026-11-19), Tasks 1 to 5 committed on `feature/zombies-attract-demo`; Task 6's
-browser check waits for the owner and its Pi measurement for the Pi. A builder check's seven
+Status: BUILT (2026-11-19), Tasks 1 to 6 committed on `feature/zombies-attract-demo`, the final
+review's fixes too; Task 6's browser check waits for the owner and its Pi measurement for the Pi. A builder check's seven
 questions were settled as Claude's calls (marked below). Rulings made while building are in the
 gitignored ledger (`.superpowers/sdd/2026-11-19-zombies-aint-my-neighbors-13-attract-demo/`) and
 summarised here:

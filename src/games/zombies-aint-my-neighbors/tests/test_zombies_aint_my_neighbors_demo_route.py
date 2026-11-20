@@ -1,10 +1,13 @@
 """The attract demo's plan: four kids clear stage 1 together (feature plan 13).
 
-The demo (``demos/neighborhood_four_kids.jsonl.gz``) is recorded from routes the planner makes
-by playing the stage under the goldens' seed (``scripts.plan_neighborhood_route.plan_demo``).
-These tests hold the plan to what the owner asked a passer-by to see: four kids running round
-zapping zombies, destroying TVs and saving neighbors, until one reaches the open gate and all
-four cheer. A gameplay change that breaks that fails here before a stale demo ships.
+The demo (``demos/neighborhood_four_kids.jsonl.gz``) is recorded steered live by the planner's
+steering (``scripts.demo_inputs.ZombiesDemoSteering``, ``plan_neighborhood_route.demo_steering``);
+``plan_demo`` plays the stage the same way under the goldens' seed and sets the demo's length.
+These tests hold the plan, and the shipped demo replayed as the attract scene replays it, to what
+the owner asked a passer-by to see: four kids running round zapping zombies, destroying TVs and
+saving neighbors, until one reaches the open gate and all four cheer. A gameplay change that
+breaks that fails here before a stale demo ships. The plan's routes are what its run held, a
+by-product the recording does not use.
 """
 
 from __future__ import annotations

@@ -749,7 +749,7 @@ def test_a_pad_start_held_after_a_skip_never_joins(press):
     assert joined_devices(title)[0] == gamepad(1)
 
 
-def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker):
+def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker, caplog):
     """A recorded run that idles into the attract demo and back replays matching.
 
     The run starts on the title and goes through the intro into the demo and back to the title;
@@ -760,6 +760,7 @@ def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker):
     """
     import gzip
 
+    from glitchygames.inner_game import InnerGame, InnerGameState
     from tests.world.test_frame_integration import running_scene, step
     from zombies_aint_my_neighbors import attract, intro, title
     from zombies_aint_my_neighbors.intro_timeline import CueKind, IntroCue
@@ -781,6 +782,15 @@ def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker):
         ),
     )
     mocker.patch.object(attract, 'attract_demo_path', return_value=short_demo)
+    finished = mocker.spy(InnerGame, 'finish')
+
+    def the_demo_played_to_its_end_matching() -> bool:
+        """Return whether a demo finished at its end, matching its recording (not a fallback)."""
+        return any(
+            outcome.state is InnerGameState.ENDED and outcome.diverged is False
+            for outcome in finished.spy_return_list
+        )
+
     frames = 120
     session = tmp_path / 'idle.jsonl.gz'
 
@@ -795,6 +805,8 @@ def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker):
         engine.stop_trace_recording()
         # As quitting does: the active scene is cleaned up, so the demo playing is finished
         manager.terminate()
+    assert the_demo_played_to_its_end_matching()
+    finished.reset_mock()
     # The loop, round once and into its second round: title, intro, demo, title, intro, ...
     assert [name for name, _ in itertools.groupby(seen)][:5] == [
         'TitleScene',
@@ -815,3 +827,5 @@ def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker):
         replay_sources.finish_run()
         assert replay_sources.result.divergence is None
         manager.terminate()
+    assert the_demo_played_to_its_end_matching()
+    assert not [record for record in caplog.records if record.name == attract.LOG.name]

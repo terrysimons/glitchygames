@@ -22,7 +22,6 @@ from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, DEFAULT_LIVE_POO
 from glitchygames.audio.voices import reserve_channels
 from glitchygames.events.base import HashableEvent
 from glitchygames.inner_game import InnerGame, InnerGameState
-from glitchygames.input.input_devices import InputDevice
 from zombies_aint_my_neighbors import attract
 from zombies_aint_my_neighbors.attract import (
     DEMO_SIZE,
@@ -410,14 +409,23 @@ def test_a_failed_demo_plays_again_next_time(tmp_path, mocker):
 
 
 def test_no_pad_rumbles_while_the_demo_plays(mocker):
-    """The whole demo destroys TVs, which rumble a pad in play, but the loop rumbles nothing."""
-    rumble = mocker.spy(InputDevice, 'rumble')
+    """The whole demo destroys TVs, which rumble a pad in play, but no pad at the cabinet rumbles.
+
+    Two pads are connected to the game showing the demo (doubles of the devices the scene sees:
+    only ``rumble`` is asked of them); the demo's own pads are the recording's stand-ins, inside
+    its inner game.
+    """
+    pads = [mocker.Mock(name=f'pad {index}') for index in range(2)]
+    mocker.patch.object(
+        AttractScene, 'input_devices', new_callable=mocker.PropertyMock, return_value=pads
+    )
     scene = attract_scene()
 
     run_frames(scene, frames=3000)
 
     assert isinstance(scene.next_scene, TitleScene)
-    assert rumble.call_count == 0
+    for pad in pads:
+        pad.rumble.assert_not_called()
 
 
 def test_the_title_declares_one_inner_game():
