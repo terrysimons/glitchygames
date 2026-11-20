@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../img/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -3155,7 +3155,11 @@ extra; <code>tests/test_workspace_config.py</code> keeps each extra equal to its
 <li><strong>Golden replays</strong> live with the member's tests; the golden plugin collects them from every
   member, so the engine's <code>uv run pytest</code> replays each one.</li>
 <li><strong>The browser build</strong> ships a member's package as its own archive (<code>&lt;package&gt;.zip</code>) beside the
-  engine's <code>glitchygames.zip</code> (<code>scripts/build_browser_bundle.py</code>, <code>GameSpecification.member_packages</code>).</li>
+  engine's <code>glitchygames.zip</code> (<code>scripts/build_browser_bundle.py</code>, <code>GameSpecification.member_packages</code>).
+  The archive of a member's first package also carries the member's package metadata (its
+  <code>.dist-info</code>: name, version, console scripts), as its wheel would, so a game unpacked in the
+  browser is found by its command as an installed one is (an inner game, such as Zombies Ain't My
+  Neighbors' attract demo, finds the game it replays that way).</li>
 <li><strong><abbr title="Application programming interface">API</abbr> reference</strong>: <code>scripts/gen_ref_pages.py</code> writes a page per member package
   (<code>&lt;package&gt;/index.md</code>), listed in <code>zensical.yml</code> under "Games <abbr title="Application programming interface">API</abbr> Reference", "Demos <abbr title="Application programming interface">API</abbr>
   Reference" or "Apps <abbr title="Application programming interface">API</abbr> Reference" by its layer.</li>
@@ -3441,7 +3445,7 @@ members' <code>test_the_old_example_module_is_gone</code> (PaddleSlap's and the 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 09:56:14 UTC">November 19, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 10:34:34 UTC">November 20, 2026</span>
   </span>
 
     

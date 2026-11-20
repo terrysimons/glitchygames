@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../img/favicon.ico">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -809,6 +809,17 @@
     <span class="md-ellipsis">
       
         The intro and the idle loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-attract-demo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The attract demo
       
     </span>
   </a>
@@ -3012,7 +3023,8 @@ hedge; a kid through it clears the stage, and the next stage brings back only th
 rescued. Every life lost, or a stage with nobody rescued, and the TV switches off: game over.
 Every moment of a stage has its sound, and a theremin-and-organ score plays under it. An intro
 opens every launch: the kids at their sleepover, the TV bursting and a Lawn Zombie climbing out;
-it plays again, unattended, whenever the title stands idle, as an arcade cabinet's would.
+whenever the title then stands idle, unattended, it shows a demo of four kids clearing stage 1
+or the intro again, in turn, as an arcade cabinet would.
 The design, its decisions and
 the engine wishlist are in the master plan, <code>plans/2026-11-14-zombies-aint-my-neighbors.md</code>.</p>
 <p>Its package: <code>src/games/zombies-aint-my-neighbors/</code>, a workspace member
@@ -3035,7 +3047,7 @@ the engine wishlist are in the master plan, <code>plans/2026-11-14-zombies-aint-
 </thead>
 <tbody>
 <tr>
-<td>Skip the intro</td>
+<td>Skip the intro, or the attract demo</td>
 <td>any key</td>
 <td>any button</td>
 </tr>
@@ -3106,8 +3118,10 @@ button presses one key, so a diagonal takes two fingers.</p>
 <pre class="mermaid"><code>flowchart LR
     Launch(["launch"]) --&gt; Title
     Title -- "first frame, at launch" --&gt; Intro["IntroScene&lt;br/&gt;the sleepover, the TV bursts"]
-    Title -- "20 s idle, nobody joined" --&gt; Intro
+    Title -- "20 s idle, nobody joined:&lt;br/&gt;the demo and the intro in turn" --&gt; Demo["AttractScene&lt;br/&gt;four kids clear stage 1"]
+    Title -- "20 s idle, its next turn" --&gt; Intro
     Intro -- "8 s, or any key or button" --&gt; Title
+    Demo -- "its end, or any key or button" --&gt; Title
     Title["TitleScene&lt;br/&gt;4 slots: join"] -- "joined player's start" --&gt; Card["FeatureCardScene&lt;br/&gt;who is playing"]
     Card -- "2 s, or start" --&gt; Yard["NeighborhoodScene&lt;br/&gt;the kids walk"]
     Card -- "back" --&gt; Title
@@ -3142,11 +3156,41 @@ fires each once, in order. Its nine sprites are drawn by <code>art/intro_rig.py<
   every connected pad rumbles at the burst. Every other place that builds a title passes
   <code>opening=False</code>, so leaving a stage never replays it.</li>
 <li><strong>The idle loop:</strong> a title left <code>IDLE_SECONDS</code> (20 s) with no key, pad button or join, nobody
-  joined and no run held, plays the intro unattended: nothing rumbles. The attract demo will
-  follow it (feature plan 13).</li>
-<li><strong>Any key or pad button skips it</strong>, P included. The title it hands back ignores the keys and
+  joined and no run held, shows an attraction unattended, then returns to the title: the attract
+  demo and the intro take turns, the demo first, since the intro has just played at launch
+  (<code>title.Attraction</code>, the title's <code>next_attraction</code>). In the loop the intro rumbles nothing.</li>
+<li><strong>Any key or pad button skips it</strong>, P included, even on the frame it ends. The title it hands back ignores the keys and
   buttons held as it opens, each until it is seen up (<code>awaiting_release</code>), so the skipping press
   never joins anyone while every other key and button works at once.</li>
+</ul>
+<h3 id="the-attract-demo">The attract demo<a class="headerlink" href="#the-attract-demo" title="Permanent link">#</a></h3>
+<p>Feature plan 13 (<code>plans/2026-11-19-zombies-aint-my-neighbors-13-attract-demo.md</code>). The game's
+bundled demo,
+<code>src/games/zombies-aint-my-neighbors/src/zombies_aint_my_neighbors/demos/neighborhood_four_kids.jsonl.gz</code>,
+is four kids clearing stage 1 together:
+Dex on the keyboard, Marisol, Theo and June on stand-in pads. They zap their way round the yard,
+destroy two TVs and save four neighbors; one reaches the open gate and it ends halfway through
+the cheer, before the STAGE 2 card. The Arcade can play it on a tile like any bundled demo.</p>
+<ul>
+<li><strong>Playing it:</strong> <code>AttractScene</code> (<code>attract.py</code>) replays it as an inner game
+  (<code>glitchygames.inner_game</code>) at its recorded 800x480 and draws the picture scaled to the screen,
+  letterboxed when the shapes differ, under a DEMO label. It is heard; its pads are the
+  recording's, so nothing rumbles. Any key or pad button goes back to the title (which waits for
+  that input's release), as does the demo's end; a demo that can't play goes back with a
+  warning. The title declares the inner game (<code>INNER_GAMES = 1</code>) so the engine sets its sound
+  channels aside at startup. Building it takes about a quarter of a second on a Mac (the first
+  showing nearly a second), during which the intro's last frame stays on screen.</li>
+<li><strong>Recording it:</strong> the demo starts in <code>DemoNeighborhoodScene</code> (<code>demo_neighborhood.py</code>), the
+  stage with the four players already joined. <code>scripts/demo_inputs.py</code>'s <code>ZombiesDemoSteering</code>
+  steers the kids live as the recording runs, with the planner's own steering
+  (<code>scripts/plan_neighborhood_route.py</code>, <code>demo_steering</code>): the kids move as a group (the group's
+  screen span keeps them together) toward the neighbor nearest their middle, P4 breaks off for a
+  nearby TV, and all head for the gate once no neighbor stands. <code>plan_demo</code> plays the stage the
+  same way to set the demo's length (<code>--demo</code> prints it). Re-plan and re-record
+  (<code>scripts/record_bundled_demos.py --demo zombies_aint_my_neighbors_four_kids</code>) when gameplay
+  changes: <code>test_zombies_aint_my_neighbors_demo_route.py</code> fails until then, and checks that the
+  shipped demo, replayed as the attract scene replays it, still shows every kid walking and
+  zapping, a TV destroyed, a zombie zapped, neighbors saved and the clear with all four cheering.</li>
 </ul>
 <p>The title is the game's class for now, so its golden replay stays in one scene, as
 <code>tests/replay/test_golden_replays.py</code> requires. When gameplay arrives, the golden moves to the
@@ -3327,7 +3371,7 @@ resumes, opens the feature card with keypad Enter and comes back with Enter, the
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 22:26:28 UTC">November 19, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 10:34:34 UTC">November 20, 2026</span>
   </span>
 
     
