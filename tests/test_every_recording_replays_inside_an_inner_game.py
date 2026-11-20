@@ -79,6 +79,7 @@ from glitchygames.audio.voices import (
 from glitchygames.engine_context import current_context, default_context
 from tests.display_canvas import show_canvas_on_new_display
 from tests.inner_game_tiles import (
+    INTERLEAVED_STEPS,
     Tile,
     assert_no_tile_is_heard,
     play_alone,
@@ -109,9 +110,6 @@ CHANGES_THE_OUTER_KEY_REPEAT: dict[tuple[str, str], str] = {
 }
 # The outer window the tiles run inside: an Arcade's, another size than any recording's
 OUTER_WINDOW_SIZE = (1280, 720)
-# How many frames each tile runs in turn, cycled: (the tile's, its partner's). Uneven, so the
-# two never run in step, and each sometimes runs several frames while the other waits
-INTERLEAVED_STEPS = ((1, 2), (3, 1), (2, 3), (1, 1), (4, 2))
 # The outer game's own blocked event types, none the engine's choice (it allows every type but
 # SYSWMEVENT): a tile that changed SDL's blocked set would show (row S6)
 OUTER_BLOCKED_TYPES = (*events.CONTROLLER_EVENTS, pygame.MOUSEWHEEL)

@@ -1,16 +1,17 @@
 """Recordings replayed as inner games for tests: tiles, their digests, and silence checks.
 
 Shared by the inner-game proof (tests/test_every_recording_replays_inside_an_inner_game.py),
-which replays every golden and bundled demo as tiles, and the engine's own inner-game tests
-(tests/engine/test_inner_game.py), which replay stand-in games. It names no member and reads
-nothing of the workspace, so an engine test may import it (``tests/test_suite_collection.py``:
-no engine test reaches ``scripts/``).
+which replays every golden and bundled demo as tiles, and the engine's own inner-game and demo
+player tests (tests/engine/test_inner_game.py, tests/test_demo_player.py), which replay stand-in
+games. It names no member and reads nothing of the workspace, so an engine test may import it
+(``tests/test_suite_collection.py``: no engine test reaches ``scripts/``).
 
 - ``Tile``: one recording replayed as an ``InnerGame`` with ``--replay-digest``, hashing its
   render target after each frame it runs, optionally heard for a range of frames.
 - ``play_alone``: a recording replayed to its end as the only inner game.
 - ``reference_digests``: the recording replayed alone, headless, in a child: one digest a frame.
 - ``assert_no_tile_is_heard``: while no tile is audible, nothing a tile played sounds.
+- ``INTERLEAVED_STEPS``: how unevenly two tiles are stepped beside each other.
 """
 
 from __future__ import annotations
@@ -42,6 +43,10 @@ if TYPE_CHECKING:
 # reference child gets (children.headless_replay_arguments)
 QUIET = ('--log-level', 'warning')
 DIGEST_OPTION = '--replay-digest'
+# How many frames each of two tiles runs in turn, cycled: (the tile's, its partner's). Uneven, so
+# the two never run in step, and each sometimes runs several frames while the other waits (the
+# inner-game proof's, and the demo player's beside another: tests/test_demo_player.py)
+INTERLEAVED_STEPS = ((1, 2), (3, 1), (2, 3), (1, 1), (4, 2))
 
 
 def recording_id(*, console_script: str, recording: Path) -> str:
