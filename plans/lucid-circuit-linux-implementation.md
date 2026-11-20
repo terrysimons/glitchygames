@@ -605,9 +605,9 @@ recorded, not built). Every system, the Mac included: the tier settings are shar
   bonsai_context_size, bonsai_cache_ram_mib, qwen}`:
   | minimum | Bonsai context | prompt cache | Qwen |
   |---|---|---|---|
-  | 3,072 MiB (a 4 GB machine; total memory reported is below 4,096) | 32,768 | 512 | none |
+  | 3,072 MiB (a 4 GB machine; total memory reported is below 4,096) | 32,768 | 512 (256 since 2026-11-19) | none |
   | 6,144 MiB (8 GB) | 32,768 | 1,024 | `0.6b` |
-  | 12,288 MiB (16 GB and up) | 131,072 | 4,096 | `0.6b` |
+  | 12,288 MiB (16 GB and up) | 131,072 | 4,096 (2,048 since 2026-11-19) | `0.6b` |
   Below the smallest: nothing (exit 3, as today). The thresholds are below the nominal sizes because
   `MemTotal` reports less than the board's size; check them against a real 4 GB, 8 GB and 16 GB
   reading (the 16 GB Pi reports 16,179 MiB) and record the source.
@@ -625,6 +625,10 @@ recorded, not built). Every system, the Mac included: the tier settings are shar
   at 32K, about 1,905 at 128K; Qwen 0.6B 1,717; design §6.4, §13.3); the Mac keeps the defaults'.
   Tests: `test_the_fit_counts_the_prompt_cache_at_its_cap` (each tier's edge, both platforms, 1 MiB
   short refused) and `test_the_linux_fit_uses_the_pis_measured_figures`.
+- Round 2 (the owner, 2026-11-19; design §6.4.1, §12): caps lowered to 256 on the 4 GB tier
+  (interim, until the 4 GB rerun) and 2,048 on the 16 GB tier and `ai_service_bonsai_cache_ram_mib`;
+  8 GB stays 1,024. The fit then needs 2,301 / 4,786 / 6,438 MiB free on Linux and 5,204 / 6,840 on
+  a Mac (8 GB / 16 GB).
 - `ai_service_game_reserve_mib`: 768 (the owner, 2026-11-19, provisional until one figure is
   measured from every game's peak on the Pi).
 - setup.sh: on a machine whose tier has no Qwen, it downloads no Qwen model and writes no Qwen
@@ -638,8 +642,9 @@ recorded, not built). Every system, the Mac included: the tier settings are shar
 
 - [ ] **Step 1: Write the failing tests**
   - `test_the_picker_chooses_the_tier_by_total_memory`, parametrized Darwin/Linux over: 16,179 MiB
-    total with 9 GB free → Bonsai 128K, cache 4,096, Qwen; 7,800 total with 5.5 GB free → Bonsai
-    32K, cache 1,024, Qwen; 3,800 total with 2.6 GB free → Bonsai 32K, cache 512, `qwen=none`,
+    total with 9 GB free → Bonsai 128K, cache 4,096 (2,048 since 2026-11-19), Qwen; 7,800 total
+    with 5.5 GB free → Bonsai 32K, cache 1,024, Qwen; 3,800 total with 2.6 GB free → Bonsai 32K,
+    cache 512 (256 since 2026-11-19), `qwen=none`,
     exit 0; 1,900 total → exit 3; a tier whose models don't fit what's free → exit 3. The
     `.env.runtime` written holds exactly the tier's context and cache; no Qwen start on the 4 GB
     tier (the systemctl/launchctl stub's calls).

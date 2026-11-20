@@ -9,7 +9,7 @@
 # is looked up in ai_validate_settings, the value agent.env.j2 writes for that size, and anything
 # else stays as written. So it differs from what the service runs in the port (clear of the
 # agents'), --verbose (for the log the check reads), and Bonsai's context and prompt cache: always
-# agent.env's, the largest tier's (131072 and 4096 MiB), never the LABEL.env.tier a smaller memory
+# agent.env's, the largest tier's (131072 and 2048 MiB), never the LABEL.env.tier a smaller memory
 # tier's start writes (plans/lucid-circuit-linux.md, 13.2)
 - name: Describe each Bonsai size's check
   vars:

@@ -255,10 +255,14 @@ def test_the_memory_tiers_hold_together():
     assert [
         (tier['bonsai_context_size'], tier['bonsai_cache_ram_mib'], tier['qwen']) for tier in tiers
     ] == [
-        (32768, 512, 'none'),
+        (32768, 256, 'none'),
         (32768, 1024, '0.6b'),
-        (131072, 4096, '0.6b'),
+        (131072, 2048, '0.6b'),
     ]
+    # The owner, 2026-11-19: 256 on 4 GB (one saved full 32K prompt, about 223 MiB, until the
+    # 4 GB rerun shows Bonsai's growth after load is the cache) and 2,048 on 16 GB and the agents'
+    # default (two full 128K prompts, about 835 MiB each), down from 512 and 4,096
+    assert variables['ai_service_bonsai_cache_ram_mib'] == 2048
     assert variables['ai_service_game_reserve_mib'] == 768
 
 
@@ -1658,9 +1662,9 @@ def parse_key_values(*, output: str) -> dict[str, str]:
     [
         ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216'}, {'bonsai': '2b', 'qwen': '0.6b'}),
         # The exact edges differ by platform since the Linux fit uses the Pi's measured figures
-        # (test_the_fit_counts_the_prompt_cache_at_its_cap): 16 GB needs 8,486 on Linux and 8,888
+        # (test_the_fit_counts_the_prompt_cache_at_its_cap): 16 GB needs 6,438 on Linux and 6,840
         # on a Mac, so 1 MiB under the smaller is refused on both
-        ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '8485'}, {'reason': 'nothing-fits'}),
+        ({'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '6437'}, {'reason': 'nothing-fits'}),
         # The 8 GB tier needs 4,786 on Linux and 5,204 on a Mac
         ({'AI_MEMORY_MB': '8192', 'AI_AVAILABLE_MB': '4785'}, {'reason': 'nothing-fits'}),
         # A size chosen by hand still has to fit: 27B at 128K reserves 13,454
@@ -1668,10 +1672,10 @@ def parse_key_values(*, output: str) -> dict[str, str]:
             {'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9216', 'AI_BONSAI_SIZE': '27b'},
             {'reason': 'nothing-fits'},
         ),
-        # 4B at 128K: 5,169 + Qwen (1,717 on Linux, 1,464 on a Mac) + the 4,096 cache + 768 is
-        # 11,750 at most
+        # 4B at 128K: 5,169 + Qwen (1,717 on Linux, 1,464 on a Mac) + the 2,048 cache + 768 is
+        # 9,702 at most
         (
-            {'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '11750', 'AI_BONSAI_SIZE': '4b'},
+            {'AI_MEMORY_MB': '16384', 'AI_AVAILABLE_MB': '9702', 'AI_BONSAI_SIZE': '4b'},
             {'bonsai': '4b', 'qwen': '0.6b'},
         ),
     ],
@@ -1747,16 +1751,16 @@ class CacheFitCase(BaseModel):
 
 
 CACHE_FIT_CASES = [
-    # 1,277 + 512 + 768; without the cache, 2,045 would fit in 2,556
-    pytest.param(CacheFitCase(system='Linux', memory_mb=3793, needed_mb=2557), id='Pi 4 4 GB'),
+    # 1,277 + 256 + 768; without the cache, 2,045 would fit in 2,300
+    pytest.param(CacheFitCase(system='Linux', memory_mb=3793, needed_mb=2301), id='Pi 4 4 GB'),
     # 1,277 + 1,717 + 1,024 + 768
     pytest.param(CacheFitCase(system='Linux', memory_mb=7782, needed_mb=4786), id='Pi 4 8 GB'),
-    # 1,905 + 1,717 + 4,096 + 768
-    pytest.param(CacheFitCase(system='Linux', memory_mb=16179, needed_mb=8486), id='Pi 5 16 GB'),
+    # 1,905 + 1,717 + 2,048 + 768
+    pytest.param(CacheFitCase(system='Linux', memory_mb=16179, needed_mb=6438), id='Pi 5 16 GB'),
     # 1,948 + 1,464 + 1,024 + 768
     pytest.param(CacheFitCase(system='Darwin', memory_mb=8192, needed_mb=5204), id='8 GB Mac'),
-    # 2,560 + 1,464 + 4,096 (the Mac's ai_service_bonsai_cache_ram_mib, its tier's cap) + 768
-    pytest.param(CacheFitCase(system='Darwin', memory_mb=16384, needed_mb=8888), id='16 GB Mac'),
+    # 2,560 + 1,464 + 2,048 (the Mac's ai_service_bonsai_cache_ram_mib, its tier's cap) + 768
+    pytest.param(CacheFitCase(system='Darwin', memory_mb=16384, needed_mb=6840), id='16 GB Mac'),
 ]
 
 
@@ -1822,9 +1826,9 @@ TIER_CASES = [
                 'bonsai': '2b',
                 'qwen': '0.6b',
                 'bonsai_context': '131072',
-                'bonsai_cache_ram_mib': '4096',
+                'bonsai_cache_ram_mib': '2048',
             },
-            runtime=('131072', '4096'),
+            runtime=('131072', '2048'),
             qwen_starts=True,
         ),
         id='16 GB Pi, 9 GB free',
@@ -1843,7 +1847,7 @@ TIER_CASES = [
         ),
         id='8 GB, 5.5 GB free',
     ),
-    # Bonsai alone at 32K on Linux needs 1,277 + its 512 MiB cache + 768 = 2,557 free: within the
+    # Bonsai alone at 32K on Linux needs 1,277 + its 256 MiB cache + 768 = 2,301 free: within the
     # 2.8 GB a 4 GB Pi with a desktop has (6.4.1). Linux only: no Apple-silicon Mac has 4 GB
     pytest.param(
         TierCase(
@@ -1852,24 +1856,24 @@ TIER_CASES = [
                 'bonsai': '2b',
                 'qwen': 'none',
                 'bonsai_context': '32768',
-                'bonsai_cache_ram_mib': '512',
+                'bonsai_cache_ram_mib': '256',
             },
-            runtime=('32768', '512'),
+            runtime=('32768', '256'),
             qwen_starts=False,
             systems=('Linux',),
         ),
         id='4 GB, 2.8 GB free',
     ),
-    # 2.5 GB free is short of the 2,557 the 4 GB tier needs on Linux
+    # 2,300 free is 1 MiB short of the 2,301 the 4 GB tier needs on Linux
     pytest.param(
         TierCase(
-            memory={'AI_MEMORY_MB': '3800', 'AI_AVAILABLE_MB': '2500'},
+            memory={'AI_MEMORY_MB': '3800', 'AI_AVAILABLE_MB': '2300'},
             printed={'reason': 'nothing-fits'},
             runtime=None,
             qwen_starts=False,
             systems=('Linux',),
         ),
-        id='4 GB, 2.5 GB free',
+        id='4 GB, 2,300 MiB free',
     ),
     pytest.param(
         TierCase(

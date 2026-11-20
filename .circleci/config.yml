@@ -114,7 +114,8 @@ commands:
           command: |
             set -euo pipefail
 
-            # The installer for one uv version (https://docs.astral.sh/uv/getting-started/installation/)
+            # The installer for one uv version:
+            # https://docs.astral.sh/uv/getting-started/installation/
             curl -LsSf https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.sh | sh
             export PATH="$HOME/.local/bin:$PATH"
 

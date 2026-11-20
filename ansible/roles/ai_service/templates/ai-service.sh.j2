@@ -81,11 +81,12 @@ files_present() {
 # it or none. Then the largest Bonsai size the size tiers allow whose reserved figure at that
 # context, with its prompt cache at the tier's cap (--cache-ram fills as a session goes on: counted
 # full, on every platform, the owner, 2026-11-19), the tier's Qwen and the game's reserve, fits in
-# what's free. A smaller memory tier is never taken instead: the tier is the machine's. Overrides (AI_MEMORY_MB, AI_AVAILABLE_MB) are
-# for testing the choice, and selection.env for a user who picks a size by hand. The default size
-# (ai_service_default_bonsai_size; empty: the largest that fits) gives way to selection.env, and
-# AI_BONSAI_SIZE beats both for one run: a size that isn't downloaded, or doesn't fit, still gets
-# nothing. A size chosen by hand runs at the memory tier's context and cache too.
+# what's free. A smaller memory tier is never taken instead: the tier is the machine's. Overrides
+# (AI_MEMORY_MB, AI_AVAILABLE_MB) are for testing the choice, and selection.env for a user who picks
+# a size by hand. The default size (ai_service_default_bonsai_size; empty: the largest that fits)
+# gives way to selection.env, and AI_BONSAI_SIZE beats both for one run: a size that isn't
+# downloaded, or doesn't fit, still gets nothing. A size chosen by hand runs at the memory tier's
+# context and cache too.
 # Models already running stay and count as fitting, as what's free already leaves out what they
 # hold: a running Bonsai size is kept, whatever the default, and only a model not yet running is
 # checked against what's free. So a second game's start, while the first's models load or after one
