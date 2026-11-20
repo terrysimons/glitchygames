@@ -71,6 +71,12 @@ _TV_ANIMATIONS: Final = (
     AnimationSpec(state='switch-off', facings=(), frame_interval=0.08, loop=False),
 )
 _STILL: Final = AnimationSpec(state='still', facings=(), frame_interval=STILL_SECONDS, loop=True)
+# The snack bowl's one picture. A sprite of one animation with one frame is a still: the engine
+# saves it in the static layout (its pixels in [sprite], sprites as text, #220) and names its one
+# animation after the sprite, so the bowl's is named so too, and its file is written that way
+SNACKS_STILL: Final = AnimationSpec(
+    state='intro_snacks', facings=(), frame_interval=STILL_SECONDS, loop=True
+)
 
 # Sprite file stem -> its animations, in the BOM's order (read-only: module state shared by every
 # engine context, tests/test_process_state_guard.py)
@@ -85,7 +91,7 @@ INTRO_ANIMATIONS: Final[Mapping[str, tuple[AnimationSpec, ...]]] = MappingProxyT
         _STILL,
         AnimationSpec(state='flicker', facings=(), frame_interval=0.08, loop=True),
     ),
-    'intro_snacks': (_STILL,),
+    'intro_snacks': (SNACKS_STILL,),
 })
 # Frames per animation (BOM section 7)
 _FRAME_COUNTS: Final[Mapping[str, int]] = MappingProxyType({
@@ -99,6 +105,7 @@ _FRAME_COUNTS: Final[Mapping[str, int]] = MappingProxyType({
     'reach': 4,
     'climb-out': 4,
     'still': 1,
+    'intro_snacks': 1,
     'flicker': 2,
 })
 
