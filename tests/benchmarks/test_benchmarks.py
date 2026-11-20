@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pygame
 
+from glitchygames.camera import Camera2D
 from glitchygames.game_objects.ball import (
     BallSprite,
     SpeedUpAxes,
@@ -22,6 +23,7 @@ from glitchygames.game_objects.ball import (
 from glitchygames.recording_history import frame_content_hash
 from glitchygames.sprites.animated import AnimatedSprite, SpriteFrame
 from glitchygames.tracing import read_trace_result
+from glitchygames.world import CoordinateSpace, position_world_sprites
 
 # The engine's own sprite test data (Bitmappy keeps its sprite library)
 SPRITE_FIXTURES_DIRECTORY = Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites'
@@ -196,3 +198,35 @@ def test_benchmark_frame_content_hash_of_the_largest_golden_frame(benchmark):
     largest = max(frames, key=lambda frame: len(frame.get('sprites', [])))
     digest = benchmark(lambda: frame_content_hash(frame_record=largest))
     assert len(digest) == 16
+
+
+class _BenchmarkWorldSprite(pygame.sprite.DirtySprite):
+    """A world sprite at a fractional position, as the world games' sprites are."""
+
+    COORDINATE_SPACE = CoordinateSpace.WORLD
+
+    def __init__(self, *, world_x: float, world_y: float) -> None:
+        """Create the sprite with a small real surface.
+
+        Args:
+            world_x: World X of the sprite's top-left.
+            world_y: World Y of the sprite's top-left.
+
+        """
+        super().__init__()
+        self.world_x = world_x
+        self.world_y = world_y
+        self.image = pygame.Surface((8, 8))
+        self.rect = self.image.get_rect()
+
+
+def test_benchmark_position_world_sprites_for_one_hundred_sprites(benchmark):
+    """Benchmark the per-frame positioning step: brave-adventurer holds about 100 world sprites."""
+    camera = Camera2D(320, 240)
+    camera.world_x = 123.4
+    camera.world_y = 5.6
+    sprites = [
+        _BenchmarkWorldSprite(world_x=index * 7.3 - 100.1, world_y=(index % 9) * 11.7)
+        for index in range(100)
+    ]
+    benchmark(position_world_sprites, sprites=sprites, camera=camera, screen_size=(320, 240))

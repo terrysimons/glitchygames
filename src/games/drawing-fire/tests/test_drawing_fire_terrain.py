@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 
 import pytest
@@ -38,3 +39,30 @@ def test_ground_y_interpolates_between_pixels():
     index = terrain.ground.index(min(terrain.ground)) - 1
     halfway = terrain.ground_y(index + 0.5)
     assert halfway == pytest.approx((terrain.ground[index] + terrain.ground[index + 1]) / 2)
+
+
+def _reference_ground_y(*, ground, x):
+    """Worked from the definition: clamp to the field, then interpolate between two pixels."""
+    clamped_x = min(max(x, 0.0), float(len(ground) - 1))
+    left_index = math.floor(clamped_x)
+    right_index = min(left_index + 1, len(ground) - 1)
+    fraction = clamped_x - left_index
+    return ground[left_index] * (1.0 - fraction) + ground[right_index] * fraction
+
+
+@pytest.mark.parametrize('seed', range(4))
+@pytest.mark.parametrize('width', [1, 2, 320, 800])
+def test_ground_y_equals_the_clamp_and_interpolate_definition_bit_for_bit(seed, width):
+    """Every x, edges and outside the field included, gives exactly the definition's float.
+
+    ground_y is written as comparisons for speed; recorded replays depend on its exact bits
+    (the line-of-sight test decides what soldiers do), so this compares with ==, not approx.
+    """
+    terrain = build_terrain(width=width, height=480, random=random.Random(seed))
+    generator = random.Random(seed)
+    last = float(width - 1)
+    sampled = [generator.uniform(-20.0, width + 20.0) for _ in range(500)]
+    edges = [-1e9, -1.0, -0.0, 0.0, 0.5, last - 0.5, last, last + 1e-9, width + 1e9, 3, -3]
+    edges += [float(index) for index in range(width)]
+    for x in [*sampled, *edges]:
+        assert terrain.ground_y(x) == _reference_ground_y(ground=terrain.ground, x=x)

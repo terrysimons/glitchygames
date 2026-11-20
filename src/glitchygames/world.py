@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
 import pygame
 
-from glitchygames.pixel_snap import resolve_snap_mode, snap_to_pixel
+from glitchygames.pixel_snap import PixelSnapMode, resolve_snap_mode, snap_to_pixel
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -91,17 +91,49 @@ def is_world_positioned(sprite: object) -> bool:
     return getattr(sprite, 'COORDINATE_SPACE', CoordinateSpace.SCREEN) is CoordinateSpace.WORLD
 
 
-def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
-    """Screen top-left for a world sprite: snap(world) - snap(camera) - shake, plus draw_offset.
+# The four terms of a sprite's screen position that do not depend on the sprite: the camera's
+# x and y and the WORLD shake's x and y, each snapped with one snap mode
+_CameraSnapTerms = tuple[int, int, int, int]
 
-    Sprite and camera are snapped separately with the sprite's snap mode, so sprites that move
-    with the camera keep a constant on-screen spacing instead of shimmering by a pixel.
-    The shake offset is snapped with the same mode, so a +/-0.5 shake is not mirrored (FLOOR
-    moves only for -0.5, NEAREST_HALF_UP only for +0.5), as the spec specifies.
+
+def camera_snap_terms(*, camera: Camera2D, mode: PixelSnapMode) -> _CameraSnapTerms:
+    """Snap the camera position and the WORLD shake offset with one snap mode.
+
+    These four values are the same for every sprite using the mode, so a frame computes them
+    once per mode (position_world_sprites) instead of once per sprite.
+
+    Args:
+        camera: The camera whose position and WORLD shake are snapped.
+        mode: The snap mode, a sprite's own or the active default.
+
+    Returns:
+        _CameraSnapTerms: Snapped camera x, camera y, shake x and shake y.
+
+    """
+    # The WORLD shake offset is read, never advanced here: the camera's update or aim, or the
+    # engine's still-camera step (SceneManager._advance_still_camera_shake), advances it
+    shake_x, shake_y = camera.shake_effect.offset
+    return (
+        snap_to_pixel(camera.world_x, mode),
+        snap_to_pixel(camera.world_y, mode),
+        snap_to_pixel(shake_x, mode),
+        snap_to_pixel(shake_y, mode),
+    )
+
+
+def _screen_position_with_terms(
+    *,
+    sprite: object,
+    camera: Camera2D,
+    camera_snap_terms_by_mode: dict[PixelSnapMode, _CameraSnapTerms],
+) -> tuple[int, int]:
+    """Compute screen_position_for, filling camera_snap_terms_by_mode as modes are first seen.
 
     Args:
         sprite: A sprite declaring CoordinateSpace.WORLD.
         camera: The camera whose position and WORLD shake place the sprite.
+        camera_snap_terms_by_mode: Camera terms already snapped this frame, by snap mode. The
+            caller keeps the camera and its shake unchanged while it reuses the dictionary.
 
     Returns:
         tuple[int, int]: The whole-pixel screen top-left.
@@ -122,33 +154,49 @@ def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
         raise TypeError(message)
 
     mode = resolve_snap_mode(sprite=sprite)
-    # The WORLD shake offset is read, never advanced here: the camera's update or aim, or the
-    # engine's still-camera step (SceneManager._advance_still_camera_shake), advances it
-    shake_x, shake_y = camera.shake_effect.offset
+    terms = camera_snap_terms_by_mode.get(mode)
+    if terms is None:
+        terms = camera_snap_terms(camera=camera, mode=mode)
+        camera_snap_terms_by_mode[mode] = terms
+    camera_x, camera_y, shake_x, shake_y = terms
     # Looked up by name: only frame-anchored sprites (AnimatedSprite, GhostSprite) have one
     draw_offset_x, draw_offset_y = getattr(sprite, 'draw_offset', (0, 0))
-    if not all(
-        isinstance(component, int) and not isinstance(component, bool)
-        for component in (draw_offset_x, draw_offset_y)
+    if not (
+        isinstance(draw_offset_x, int)
+        and not isinstance(draw_offset_x, bool)
+        and isinstance(draw_offset_y, int)
+        and not isinstance(draw_offset_y, bool)
     ):
         message = (
             f'{type(sprite).__name__} draw_offset must be whole pixels (ints), '
             f'got {(draw_offset_x, draw_offset_y)!r}'
         )
         raise TypeError(message)
-    screen_x = (
-        snap_to_pixel(world_x, mode)
-        - snap_to_pixel(camera.world_x, mode)
-        - snap_to_pixel(shake_x, mode)
-        + draw_offset_x
+    return (
+        snap_to_pixel(world_x, mode) - camera_x - shake_x + draw_offset_x,
+        snap_to_pixel(world_y, mode) - camera_y - shake_y + draw_offset_y,
     )
-    screen_y = (
-        snap_to_pixel(world_y, mode)
-        - snap_to_pixel(camera.world_y, mode)
-        - snap_to_pixel(shake_y, mode)
-        + draw_offset_y
-    )
-    return (screen_x, screen_y)
+
+
+def screen_position_for(*, sprite: object, camera: Camera2D) -> tuple[int, int]:
+    """Screen top-left for a world sprite: snap(world) - snap(camera) - shake, plus draw_offset.
+
+    Sprite and camera are snapped separately with the sprite's snap mode, so sprites that move
+    with the camera keep a constant on-screen spacing instead of shimmering by a pixel.
+    The shake offset is snapped with the same mode, so a +/-0.5 shake is not mirrored (FLOOR
+    moves only for -0.5, NEAREST_HALF_UP only for +0.5), as the spec specifies.
+
+    Args:
+        sprite: A sprite declaring CoordinateSpace.WORLD.
+        camera: The camera whose position and WORLD shake place the sprite.
+
+    Returns:
+        tuple[int, int]: The whole-pixel screen top-left. A sprite that declares world space
+            but lacks world_x or world_y, or whose draw_offset is not whole pixels, raises a
+            TypeError.
+
+    """
+    return _screen_position_with_terms(sprite=sprite, camera=camera, camera_snap_terms_by_mode={})
 
 
 def position_world_sprites(
@@ -170,10 +218,14 @@ def position_world_sprites(
     cull_rect = pygame.Rect((0, 0), screen_size).inflate(
         2 * CULL_MARGIN_PIXELS, 2 * CULL_MARGIN_PIXELS
     )
+    # The camera and its shake are fixed for the frame: snap them once per snap mode
+    camera_snap_terms_by_mode: dict[PixelSnapMode, _CameraSnapTerms] = {}
     for sprite in sprites:
         if not is_world_positioned(sprite):
             continue
-        new_topleft = screen_position_for(sprite=sprite, camera=camera)
+        new_topleft = _screen_position_with_terms(
+            sprite=sprite, camera=camera, camera_snap_terms_by_mode=camera_snap_terms_by_mode
+        )
         positioned_sprite = cast('_PositionedSprite', sprite)
         if positioned_sprite.rect.topleft != new_topleft:
             positioned_sprite.rect.topleft = new_topleft
