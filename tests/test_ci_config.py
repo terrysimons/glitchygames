@@ -322,6 +322,25 @@ def test_circleci_installs_uv_at_its_pinned_version():
     }
 
 
+def test_the_linux_ci_session_installs_what_the_linux_job_installs():
+    """The Linux job installs the port tools, and test-linux-ci does the same; neither ansible-core.
+
+    The apt packages test-linux-ci reads from the job (``_linux_ci_job_packages``). iproute2 (ss)
+    and lsof: without the platform's port tool the real-socket port test in
+    tests/test_ansible_ai_service.py skips. ansible-core comes from uv.lock's dev extra (main's
+    #215), which the syntax checks there run first; a separate ``uv tool install`` was a second
+    copy nothing ran, removed (the owner, 2026-11-19; plans/lucid-circuit-linux.md, 12).
+    """
+    import noxfile
+
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    noxfile_source = (PROJECT_ROOT / 'noxfile.py').read_text(encoding='utf-8')
+
+    assert {'iproute2', 'lsof'} <= set(noxfile._linux_ci_job_packages(configuration=configuration))
+    assert re.findall(r'uv tool install "?ansible', configuration) == []
+    assert re.findall(r'uv tool install "?ansible', noxfile_source) == []
+
+
 class RecordingSession:
     """Stands in for a nox session: records every command, runs nothing."""
 
@@ -786,6 +805,32 @@ def test_the_test_session_installs_a_stamped_engine():
         for command in commands
         if 'scripts/write_build_stamp.py' in command and '--into' not in command
     ]
+
+
+def test_the_test_session_installs_the_dev_extra_that_holds_ansible_core():
+    """Every test session gets ansible-playbook from uv.lock's dev extra, CI's only copy.
+
+    Since the separate ``uv tool install`` step went (the owner, 2026-11-19), the Ansible syntax
+    checks in tests/test_ansible_ai_service.py run the ansible-playbook beside the session's
+    Python, which only the dev extra installs: the session syncs with every extra, and the dev
+    extra, as written and as locked, names ansible-core. (Those checks also fail in CI when no
+    ansible-playbook is found.)
+    """
+    import noxfile
+
+    installed = '.nox/test-3-15/lib/python3.15/site-packages/glitchygames'
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
+    noxfile.test(session)
+    (sync,) = [command for command in session.commands if command[:2] == ('uv', 'sync')]
+    project = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+    written = project['project']['optional-dependencies']['dev']
+    lock = tomllib.loads((PROJECT_ROOT / 'uv.lock').read_text(encoding='utf-8'))
+    (engine,) = [package for package in lock['package'] if package['name'] == 'glitchygames']
+    locked = engine['optional-dependencies']['dev']
+
+    assert '--all-extras' in sync
+    assert [requirement for requirement in written if requirement.startswith('ansible-core')]
+    assert 'ansible-core' in {dependency['name'] for dependency in locked}
 
 
 def test_the_test_session_fails_when_it_cannot_find_its_installed_engine():
@@ -1372,7 +1417,7 @@ def test_the_install_line_is_the_one_noxfile_reads():
 
     assert noxfile._linux_ci_job_packages(
         configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    ) == ['fontconfig', 'libudev-dev', 'libusb-1.0-0-dev', 'pkg-config']
+    ) == ['fontconfig', 'libudev-dev', 'libusb-1.0-0-dev', 'pkg-config', 'iproute2', 'lsof']
 
 
 def test_every_linux_job_installs_the_linux_jobs_system_packages():

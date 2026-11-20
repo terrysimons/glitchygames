@@ -1,0 +1,177 @@
+---
+# Linux's steps of the llama_cpp role (main.yml includes this file in three phases). One build per
+# architecture holds every CPU variant, and llama-server loads the best one the CPU supports when
+# it starts (plans/lucid-circuit-linux.md section 6.5).
+- name: Get ready to build for Linux
+  when: llama_cpp_phase == 'prepare'
+  block:
+    - name: Refuse a platform or architecture with no variant list
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['system'] == 'Linux'
+          - ansible_facts['architecture'] in llama_cpp_cpu_variants
+        fail_msg: >-
+          This builds for {{ llama_cpp_cpu_variants | list | join(' and ') }} Linux only; this is
+          {{ ansible_facts['system'] }} {{ ansible_facts['architecture'] }}
+
+    # A fresh Pi's package lists are as old as its image, and their mirrors' files move on, so
+    # an install from them can 404: the lists are refreshed first when an hour old or more
+    - name: Install the build tools
+      become: true
+      ansible.builtin.apt:
+        name: [cmake, build-essential, rsync]
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Work out this build's options
+      ansible.builtin.set_fact:
+        llama_cpp_all_cmake_options: >-
+          {{ llama_cpp_base_cmake_options
+             | combine(llama_cpp_linux_cmake_options)
+             | combine(llama_cpp_cmake_options) }}
+        llama_cpp_install_subdirectories: [bin, lib, notices]
+
+# With GGML_BACKEND_DL, llama-server finds its CPU variant modules only in its own directory
+# (ggml/src/ggml-backend-reg.cpp at b12167: GGML_BACKEND_DIR, the executable's directory, then the
+# current one; never an RPATH), so they sit in bin/ beside it, as llama.cpp installs them. The other
+# shared libraries sit in lib/, and the RPATH ($ORIGIN/../lib) finds those for the binary and the
+# modules alike. All before the binary, whose presence is what says this build is installed
+- name: Install the CPU variant modules beside the binary
+  when: llama_cpp_phase == 'install'
+  ansible.builtin.command:
+    argv:
+      - rsync
+      - --archive
+      - --include=libggml-cpu-*.so
+      - --exclude=*
+      - "{{ llama_cpp_build_directory }}/bin/"
+      - "{{ llama_cpp_install_directory }}/bin/"
+  changed_when: true
+
+- name: Install the other shared libraries
+  when: llama_cpp_phase == 'install'
+  ansible.builtin.command:
+    argv:
+      - rsync
+      - --archive
+      - --exclude=libggml-cpu-*.so
+      - --include=lib*.so*
+      - --exclude=*
+      - "{{ llama_cpp_build_directory }}/bin/"
+      - "{{ llama_cpp_install_directory }}/lib/"
+  changed_when: true
+
+- name: Check the Linux build
+  when: llama_cpp_phase == 'verify'
+  block:
+    - name: Find the libraries and the CPU variant modules
+      ansible.builtin.find:
+        paths: ["{{ llama_cpp_install_directory }}/lib", "{{ llama_cpp_install_directory }}/bin"]
+        patterns: ["*.so", "*.so.*"]
+      register: llama_cpp_libraries
+
+    - name: List what the binary and each library link
+      ansible.builtin.command:
+        argv: [ldd, "{{ item }}"]
+      loop: "{{ [llama_cpp_install_directory ~ '/bin/llama-server'] + (llama_cpp_libraries.files | map(attribute='path') | list) }}"
+      register: llama_cpp_linked_libraries
+      changed_when: false
+
+    # Anything else (Vulkan, OpenSSL, /usr/local, "not found") is a library the player's machine
+    # may not have, and the .deb declares only libc6 and libstdc++. ldd prints a library found
+    # through the RPATH as <runtime>/bin/../lib/..., unnormalised, so that form is allowed too
+    - name: Check that they link only glibc, libstdc++, libgcc and the runtime's own libraries
+      ansible.builtin.assert:
+        that: >-
+          item.stdout_lines
+          | reject('search', llama_cpp_system_link_pattern ~ '|=> ' ~ (llama_cpp_install_directory | regex_escape) ~ '/(bin/[.][.]/)?(lib|bin)/')
+          | list | length == 0
+        fail_msg: "{{ item.item }} links {{ item.stdout }}"
+      loop: "{{ llama_cpp_linked_libraries.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Check that every CPU variant for this architecture was built
+      ansible.builtin.stat:
+        path: "{{ llama_cpp_install_directory }}/bin/libggml-cpu-{{ item }}.so"
+      loop: "{{ llama_cpp_cpu_variants[ansible_facts['architecture']] }}"
+      register: llama_cpp_variant_libraries
+
+    - name: Refuse a build missing a variant
+      ansible.builtin.assert:
+        that: item.stat.exists
+        fail_msg: "bin/libggml-cpu-{{ item.item }}.so was not built"
+      loop: "{{ llama_cpp_variant_libraries.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    # The run-time proof that a variant loads: llama-server logs the module it picked
+    - name: Run llama-server to see which CPU variant it loads
+      ansible.builtin.command:
+        # --log-verbosity 4: common's logger drops a ggml INFO message (the load_backend line) at
+        # llama-server's default threshold of 3 (b12167 common/log.cpp). It comes first: the
+        # parser may act on --list-devices and exit as soon as it reaches it
+        argv: ["{{ llama_cpp_install_directory }}/bin/llama-server", --log-verbosity, "4", --list-devices]
+      register: llama_cpp_devices
+      changed_when: false
+
+    - name: Check that it loaded a CPU variant from its own bin/
+      ansible.builtin.assert:
+        that: >-
+          (llama_cpp_devices.stdout ~ llama_cpp_devices.stderr)
+          is search('load_backend: loaded CPU backend from ' ~ (llama_cpp_install_directory | regex_escape) ~ '/bin/libggml-cpu-[^ ]+[.]so')
+        fail_msg: "{{ llama_cpp_devices.stdout }} {{ llama_cpp_devices.stderr }}"
+
+    # The .deb depends on libc6 at least this new
+    - name: Find the newest glibc the build needs
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          for file in bin/llama-server bin/*.so* lib/*.so*; do objdump -T "$file"; done \
+            | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)*' | sed 's/GLIBC_//' | sort -Vu | tail -n 1
+        executable: /bin/bash
+        chdir: "{{ llama_cpp_install_directory }}"
+      register: llama_cpp_glibc_search
+      changed_when: false
+
+    - name: Record the glibc version
+      ansible.builtin.set_fact:
+        llama_cpp_glibc_version: "{{ llama_cpp_glibc_search.stdout }}"
+
+    # The .deb depends on libstdc++6 at least as new as the GCC whose libstdc++ has the newest
+    # symbol versions the build uses, of both kinds (the tables in defaults say why)
+    - name: Find the newest libstdc++ symbol versions the build needs
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          symbols=$(for file in bin/llama-server bin/*.so* lib/*.so*; do objdump -T "$file"; done)
+          newest() {
+              printf '%s\n' "$symbols" | grep -oE "$1"'(\.[0-9]+)*' | sed "s/^$1/$2/" \
+                  | sort -Vu | tail -n 1
+          }
+          printf '%s %s\n' "$(newest 'GLIBCXX_3\.4' 3.4)" "$(newest 'CXXABI_1\.3' 1.3)"
+        executable: /bin/bash
+        chdir: "{{ llama_cpp_install_directory }}"
+      register: llama_cpp_libstdcxx_search
+      changed_when: false
+
+    - name: Check each is one GCC's ABI list names
+      ansible.builtin.assert:
+        that:
+          - llama_cpp_libstdcxx_search.stdout.split() | length == 2
+          - llama_cpp_libstdcxx_search.stdout.split()[0] in llama_cpp_glibcxx_releases
+          - llama_cpp_libstdcxx_search.stdout.split()[1] in llama_cpp_cxxabi_releases
+        fail_msg: >-
+          The build needs GLIBCXX and CXXABI '{{ llama_cpp_libstdcxx_search.stdout }}': add any
+          newer version to llama_cpp_glibcxx_releases or llama_cpp_cxxabi_releases, from
+          https://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html
+
+    - name: Record the libstdc++ version
+      vars:
+        llama_cpp_glibcxx_gcc: "{{ llama_cpp_glibcxx_releases[llama_cpp_libstdcxx_search.stdout.split()[0]] }}"
+        llama_cpp_cxxabi_gcc: "{{ llama_cpp_cxxabi_releases[llama_cpp_libstdcxx_search.stdout.split()[1]] }}"
+      ansible.builtin.set_fact:
+        llama_cpp_libstdcxx_version: >-
+          {{ llama_cpp_glibcxx_gcc if llama_cpp_glibcxx_gcc is version(llama_cpp_cxxabi_gcc, '>=')
+             else llama_cpp_cxxabi_gcc }}

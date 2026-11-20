@@ -383,10 +383,21 @@ def create_app(*, settings: Settings) -> FastAPI:  # noqa: C901, PLR0915 - every
         responses={status.HTTP_503_SERVICE_UNAVAILABLE: {'model': ReadyResponse}},
     )
     async def health_ready(workers: WorkersDependency) -> JSONResponse:
-        """Whether a reasoning and an embedding model are both answering."""
+        """Whether every model this run started is answering, a reasoning model among them.
+
+        A machine whose memory has no room for an embedding model runs a reasoning model alone.
+        Before any run has named its models, a reasoning and an embedding model must both answer.
+        """
         models = await workers.describe_all()
-        ready_roles = {model.role for model in models if model.state is ModelState.READY}
-        ready = {ModelRole.REASONING.value, ModelRole.EMBEDDING.value} <= ready_roles
+        selected = workers.selected_models()
+        if selected is None:
+            ready_roles = {model.role for model in models if model.state is ModelState.READY}
+            ready = {ModelRole.REASONING.value, ModelRole.EMBEDDING.value} <= ready_roles
+        else:
+            selected_aliases = {model.alias for model in selected}
+            ready = any(model.role is ModelRole.REASONING for model in selected) and all(
+                model.state is ModelState.READY for model in models if model.id in selected_aliases
+            )
         return JSONResponse(
             status_code=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
             content=ReadyResponse(ready=ready, models=models).model_dump(mode='json'),
@@ -428,7 +439,13 @@ def create_app(*, settings: Settings) -> FastAPI:  # noqa: C901, PLR0915 - every
     async def create_embeddings(
         body: EmbeddingRequest, request: Request, workers: WorkersDependency
     ) -> Response:
-        """Dense vectors from the embedding model."""
+        """Dense vectors from the embedding model, on a machine that runs one."""
+        if not workers.has_role(role=ModelRole.EMBEDDING):
+            raise ServiceError(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code='no_embedding_model',
+                message='this machine has no embedding model',
+            )
         slots: RequestSlots = request.app.state.slots
         slots.take()
         try:

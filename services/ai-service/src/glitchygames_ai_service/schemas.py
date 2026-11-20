@@ -104,7 +104,11 @@ class LiveResponse(BaseModel):
 
 
 class ReadyResponse(BaseModel):
-    """The ``/health/ready`` response: ready means a reasoning and an embedding model answer."""
+    """The ``/health/ready`` response: ready means every model the last start selected answers.
+
+    On a machine whose memory tier runs no embedding model, that is the reasoning model alone; with
+    no selection yet, one model of each role (plans/lucid-circuit-linux.md, 6.4.1).
+    """
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 

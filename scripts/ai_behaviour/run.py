@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 import httpx2
 
 from glitchygames import clock
-from glitchygames.ai_link import install_root
+from glitchygames.ai_link import service_locations
 from scripts.ai_behaviour.capture import FIXTURES_DIRECTORY, PACKAGE_DIRECTORY
 from scripts.ai_behaviour.questions import QUESTIONS, Answered, BehaviourQuestion
 from scripts.ai_behaviour.report import CUT_OFF
@@ -314,8 +314,11 @@ def main(arguments: list[str] | None = None) -> int:
     parser.add_argument('--repeats', type=int, default=DEFAULT_REPEATS)
     parser.add_argument('--only', default='', help='Only questions with this in their name')
     options = parser.parse_args(arguments)
-    root = install_root()
-    if service_is_running(root=root):
+    locations = service_locations()
+    if locations is None:
+        say('The local AI service is not installed on this platform.')
+        return 64
+    if service_is_running(locations=locations):
         say('The AI service is running: stop it first (ai-service.sh stop).')
         return 64
     questions = [
@@ -328,7 +331,7 @@ def main(arguments: list[str] | None = None) -> int:
     configuration = parse_configuration(options.configuration)
     with (
         running_server(
-            root=root,
+            locations=locations,
             configuration=configuration,
             port=COMPARISON_PORT,
             log_path=options.output / f'server-{configuration.name}.log',

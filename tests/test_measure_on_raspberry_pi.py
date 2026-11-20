@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shlex
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs the rendered script's prefix
 import sys
 import tarfile
 import threading
@@ -1036,6 +1037,63 @@ def test_the_measuring_script_locks_before_the_checkout_and_archives_under_the_l
     assert 'flock --unlock' not in script
     assert 'flock -u' not in script
     assert '\n) 3>&- 9>&-\n' in script
+
+
+AI_SERVICE_CONTROL_SCRIPT = '/opt/glitchygames/ai/bin/ai-service.sh'
+
+
+def test_the_measurement_stops_the_ai_after_the_lock(raspberry_pi, stand_in_bin, tmp_path):
+    """The local AI models stop once the lock is held and before the clone is touched.
+
+    plans/lucid-circuit-linux.md 8.4: a measurement beside running models gives wrong timings.
+    The script's prefix (up to the ``cd`` into the clone) runs in a real shell, with the control
+    script's path pointed at a stand-in that records its arguments.
+    """
+    script = measure_on_raspberry_pi.measure_script(
+        raspberry_pi=raspberry_pi,
+        commit='c' * 40,
+        ledger_directory=LEDGER,
+        code_tree='0123456789ab' + 'd' * 28,
+    )
+
+    stop = script.index(f'{AI_SERVICE_CONTROL_SCRIPT} stop || true')
+    assert script.index('flock --wait') < stop
+    assert stop < script.index(f'cd {raspberry_pi.clone_directory}')
+    assert stop < script.index('\n(\n  set -e\n')
+    assert f'if [ -x {AI_SERVICE_CONTROL_SCRIPT} ]; then\n' in script
+
+    prefix = script[: script.index(f'cd {raspberry_pi.clone_directory}')]
+    recording = tmp_path / 'ai-service-calls'
+    stand_in = tmp_path / 'ai-service.sh'
+    stand_in.write_text(f'#!/bin/sh\necho "$@" >> {shlex.quote(str(recording))}\n', 'utf-8')
+    stand_in.chmod(0o755)
+    environment = {**os.environ, 'PATH': f'{stand_in_bin}{os.pathsep}{os.environ["PATH"]}'}
+
+    def run_prefix(*, control_script: Path) -> str:
+        completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - fixed bash
+            ['bash', '-c', prefix.replace(AI_SERVICE_CONTROL_SCRIPT, str(control_script))],  # ruff: ignore[start-process-with-partial-path] - bash
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        assert completed.returncode == 0, completed.stderr
+        return completed.stderr
+
+    # Without the control script (a Pi without the AI service): nothing is run or logged
+    shown = run_prefix(control_script=tmp_path / 'no-such-ai-service.sh')
+    assert not recording.exists()
+    assert 'stopping the local AI models' not in shown
+
+    # With it: one stop, and the log line
+    shown = run_prefix(control_script=stand_in)
+    assert recording.read_text('utf-8').splitlines() == ['stop']
+    assert 'stopping the local AI models before measuring' in shown
+
+    # A stop that fails never blocks the measurement
+    stand_in.write_text('#!/bin/sh\nexit 1\n', 'utf-8')
+    run_prefix(control_script=stand_in)
 
 
 def test_the_hook_runs_first_at_push_and_stops_the_rest():

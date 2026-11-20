@@ -1,0 +1,91 @@
+---
+# The Mac's .pkg: the launchd plists, the postinstall that hands off to the setup job, and pkgbuild
+# and productbuild (the handlers)
+- name: Make the installer scripts' folder
+  ansible.builtin.file:
+    path: "{{ ai_package_scripts }}"
+    state: directory
+    mode: "0755"
+
+# These render with the home directory replaced by a placeholder, which setup.sh fills in on the
+# player's Mac. Setting ai_home moves every path built from it. The settings take it, and the
+# runtime's path through its link, as an include's variables: those win over the llama_cpp role's
+# set_fact of the runtime's path, which a block's would lose to, naming the builder's own runtime
+# (bugs/2026-11-18-mac-package-settings-name-builders-runtime.md)
+- name: Stage the service's and each agent's settings, with the home as a placeholder
+  ansible.builtin.include_tasks: settings.yml
+  vars:
+    ai_home: "{{ ai_package_home_placeholder }}"
+    llama_cpp_install_directory: "{{ ai_program_root }}/runtime/{{ ai_package_runtime_link }}"
+
+- name: Stage what else renders with a player's home
+  vars:
+    ai_home: "{{ ai_package_home_placeholder }}"
+  block:
+    - name: Stage each agent's plist
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/roles/ai_service/templates/agent.plist.j2"
+        dest: "{{ ai_package_agents_stage }}/{{ agent.label }}.plist.template"
+        mode: "0644"
+        validate: plutil -lint %s
+      loop: "{{ ai_service_agents }}"
+      loop_control:
+        loop_var: agent
+        label: "{{ agent.label }}"
+      notify: Build the package
+
+- name: Render the postinstall script
+  ansible.builtin.template:
+    src: postinstall.sh.j2
+    dest: "{{ ai_package_scripts }}/postinstall"
+    mode: "0755"
+    validate: sh -n %s
+  notify: Build the package
+
+- name: Render the package's description
+  ansible.builtin.template:
+    src: distribution.xml.j2
+    dest: "{{ ai_package_distribution }}"
+    mode: "0644"
+    validate: xmllint --noout %s
+  notify: Build the package
+
+- name: Look for the package
+  ansible.builtin.stat:
+    path: "{{ ai_package_output }}"
+    get_checksum: false
+  register: ai_package_existing
+
+- name: Ask for a build if there's no package yet
+  ansible.builtin.command:
+    argv: ["true"]
+  when: not ai_package_existing.stat.exists
+  changed_when: true
+  notify: Build the package
+
+- name: Build it now if anything changed
+  ansible.builtin.meta: flush_handlers
+
+- name: List what's in the package
+  ansible.builtin.command:
+    argv: [pkgutil, --payload-files, "{{ ai_package_output }}"]
+  register: ai_package_payload
+  changed_when: false
+
+- name: Check the package holds the server and its notices, and no model
+  ansible.builtin.assert:
+    that:
+      - ai_package_payload.stdout is search('bin/llama-server')
+      - ai_package_payload.stdout is search('runtime/' ~ ai_package_runtime_link)
+      - ai_package_payload.stdout is search('llama.cpp-LICENSE')
+      - ai_package_payload.stdout is search('NOTICE.txt')
+      - ai_package_payload.stdout is search('bin/setup.sh')
+      - ai_package_payload.stdout is search('sidecar/python/bin/python3.14')
+      - ai_package_payload.stdout is search('sidecar/site/glitchygames_ai_service/app.py')
+      - ai_package_payload.stdout is search('sidecar/scalar.js')
+      - ai_package_payload.stdout is not search('\.gguf')
+    fail_msg: "{{ ai_package_payload.stdout }}"
+
+- name: Say where the package is
+  ansible.builtin.debug:
+    msg: "{{ ai_package_output }}"

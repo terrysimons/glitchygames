@@ -9,6 +9,9 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 CONFIG_ENVIRONMENT_VARIABLE = 'GLITCHYGAMES_AI_SERVICE_CONFIG'
+# What ai-service.sh start writes beside the settings file (the ai_service role's
+# ai_service_selection_file_name)
+SELECTION_FILE_NAME = 'selected-models.json'
 
 
 class ModelRole(StrEnum):
@@ -30,6 +33,14 @@ class ModelEntry(BaseModel):
     dimensions: int | None = None
 
 
+class Selection(BaseModel):
+    """The models one ``ai-service.sh start`` started, by alias: its selection file."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    models: tuple[str, ...]
+
+
 class Settings(BaseModel):
     """The service's settings.
 
@@ -41,6 +52,12 @@ class Settings(BaseModel):
         worker_key_file: Holds the token the model servers require.
         control_script: ``ai-service.sh``, which starts and stops the models.
         scalar_file: The local copy of Scalar's script, served by ``/docs``.
+        selection_file: Where ``ai-service.sh start`` names the models it started, as
+            ``{"models": [ALIAS, ...]}``: on a machine whose memory tier runs no embedding
+            model, a reasoning model alone. Always ``SELECTION_FILE_NAME`` beside the settings
+            file (``load_settings``), whatever the file says, so settings written before the
+            selection existed find it too. None, or no file yet, means any one model of each
+            role (plans/lucid-circuit-linux.md, 6.4.1).
         allowed_origins: Browser origins allowed in. Native clients send none.
         shutdown_grace_seconds: How long after the last session closes the models stop.
         maximum_concurrent_requests: Requests served at once; more get a 503.
@@ -58,6 +75,7 @@ class Settings(BaseModel):
     worker_key_file: Path
     control_script: Path
     scalar_file: Path
+    selection_file: Path | None = None
     allowed_origins: tuple[str, ...] = ()
     shutdown_grace_seconds: float = 30.0
     maximum_concurrent_requests: int = 4
@@ -73,4 +91,6 @@ def load_settings() -> Settings:
 
     """
     path = Path(os.environ[CONFIG_ENVIRONMENT_VARIABLE])
-    return Settings.model_validate_json(path.read_text(encoding='utf-8'))
+    settings = Settings.model_validate_json(path.read_text(encoding='utf-8'))
+    # By convention, not by a key: one rule for settings old and new
+    return settings.model_copy(update={'selection_file': path.parent / SELECTION_FILE_NAME})

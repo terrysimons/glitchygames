@@ -14,7 +14,7 @@ import pygame
 import pytest
 
 from glitchygames import ai_console, clock
-from glitchygames.ai.local_service import DEFAULT_BASE_URL
+from glitchygames.ai.local_service import DEFAULT_BASE_URL, LocalAIClient
 from glitchygames.ai_console import (
     MAXIMUM_DESCRIBED_SPRITES,
     MAXIMUM_HISTORY_RECORDS,
@@ -31,7 +31,7 @@ from glitchygames.ai_console import (
     wrapped_lines,
 )
 from glitchygames.ai_host import AiHostSources
-from glitchygames.ai_link import AiLink, LinkState
+from glitchygames.ai_link import AiLink, LinkState, ServiceLocations
 from glitchygames.clipboard import ClipboardUnavailableError
 from glitchygames.debug.overlay import load_debug_font
 from glitchygames.events.sprite_spawn import SPRITE_SPAWN_EVENT, SpriteSpawn
@@ -206,9 +206,9 @@ def console(tmp_path):
 
     """
     install(root=tmp_path)
-    link = AiLink(install_root=tmp_path)
+    link = AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path))
     link.state = LinkState.CONNECTED
-    built = AiConsole(link=link, install_root=tmp_path)
+    built = AiConsole(link=link, locations=ServiceLocations.in_one_folder(root=tmp_path))
     press(built, GRAVE)
     return built
 
@@ -239,7 +239,10 @@ def scene():
 
 def test_the_grave_key_opens_and_closes_it(tmp_path):
     """` opens and ` closes, and the game sees neither."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
 
     assert press(built, GRAVE) == []
     assert built.is_open is True
@@ -249,7 +252,10 @@ def test_the_grave_key_opens_and_closes_it(tmp_path):
 
 def test_the_character_opens_it_wherever_a_layout_puts_it(tmp_path):
     """The ` character from another position counts."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
 
     down = key_event(pygame.KEYDOWN, GRAVE, '`', scancode=pygame.KSCAN_A)
     up = key_event(pygame.KEYUP, GRAVE, scancode=pygame.KSCAN_A)
@@ -260,7 +266,10 @@ def test_the_character_opens_it_wherever_a_layout_puts_it(tmp_path):
 
 def test_the_us_position_opens_it_when_a_layout_gives_another_character(tmp_path):
     """The key left of 1 counts, whatever it types."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
 
     down = key_event(pygame.KEYDOWN, pygame.K_F15, '²', scancode=pygame.KSCAN_GRAVE)
 
@@ -270,7 +279,10 @@ def test_the_us_position_opens_it_when_a_layout_gives_another_character(tmp_path
 
 def test_a_key_press_without_a_scancode_is_the_games(tmp_path):
     """A game's own posted press may have none, and passes through."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
     posted = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a, unicode='a')
     released = pygame.event.Event(pygame.KEYUP, key=pygame.K_a)
 
@@ -283,7 +295,10 @@ def test_a_key_press_without_a_scancode_is_the_games(tmp_path):
 
 def test_a_grave_without_a_scancode_still_toggles(tmp_path):
     """The character alone is enough, with nothing to hide afterwards."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
 
     built.filter_events(events=[pygame.event.Event(pygame.KEYDOWN, key=GRAVE)])
 
@@ -293,7 +308,10 @@ def test_a_grave_without_a_scancode_still_toggles(tmp_path):
 
 def test_closed_the_game_gets_everything_unchanged(tmp_path):
     """No AI use, no difference: the same events reach the game."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
     events = [
         key_event(pygame.KEYDOWN, pygame.K_w, 'w'),
         pygame.event.Event(pygame.TEXTINPUT, text='w'),
@@ -328,7 +346,10 @@ def test_the_debug_overlays_keys_still_work_while_open(console):
 
 def test_opening_releases_what_the_game_saw_pressed(tmp_path):
     """A held key doesn't stay stuck in the game while the console is open."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
     assert len(built.filter_events(events=[key_event(pygame.KEYDOWN, pygame.K_w, 'w')])) == 1
 
     seen = built.filter_events(events=[key_event(pygame.KEYDOWN, GRAVE, '`')])
@@ -340,7 +361,10 @@ def test_opening_releases_what_the_game_saw_pressed(tmp_path):
 
 def test_a_key_released_before_opening_gets_no_second_release(tmp_path):
     """Only what's still held is released."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
     press(built, pygame.K_w, 'w')
 
     assert built.filter_events(events=[key_event(pygame.KEYDOWN, GRAVE)]) == []
@@ -375,7 +399,10 @@ def snapshot(*scancodes: int) -> InputSnapshot:
 
 def test_a_game_that_polls_sees_no_typing(tmp_path):
     """The snapshot is masked too: Drawing Fire reads its controls from it."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
     closed = snapshot(pygame.KSCAN_W)
     assert built.masked_snapshot(snapshot=closed) is closed
 
@@ -591,7 +618,10 @@ def test_sdls_own_repeat_is_ignored(console):
 
 def test_holding_the_toggle_key_with_sdls_repeat_on_toggles_once(tmp_path):
     """It would flicker open and closed at the repeat rate."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
     grave = key_event(pygame.KEYDOWN, GRAVE, '`')
 
     built.filter_events(events=[grave, grave, grave])
@@ -601,7 +631,10 @@ def test_holding_the_toggle_key_with_sdls_repeat_on_toggles_once(tmp_path):
 
 def test_a_key_held_as_it_opens_types_nothing_when_sdl_repeats_it(tmp_path):
     """The game saw the press, so its repeats are not typing."""
-    built = AiConsole(link=AiLink(install_root=tmp_path), install_root=tmp_path)
+    built = AiConsole(
+        link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path)),
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+    )
     letter = key_event(pygame.KEYDOWN, pygame.K_a, 'a')
     built.filter_events(events=[letter, key_event(pygame.KEYDOWN, GRAVE, '`')])
 
@@ -864,7 +897,7 @@ def test_cancelling_stops_listening_at_once(console, chat_service):
 
     fake.hold.set()
     deadline = clock.raw_counter_seconds() + WAIT_SECONDS
-    history = console.install_root / 'history' / 'unknown.jsonl'
+    history = console.locations.history_directory / 'unknown.jsonl'
     while not history.exists() and clock.raw_counter_seconds() < deadline:
         clock.raw_sleep(0.01)
     assert 'Two' not in transcript(console)
@@ -914,7 +947,7 @@ def test_a_stream_that_is_not_json_ends_the_request(console, chat_service):
 
 def test_a_missing_service_is_reported(console):
     """An install that's gone by the time of asking."""
-    (console.install_root / 'bin' / 'ai-service.sh').unlink()
+    (console.locations.control_script).unlink()
 
     enter(console, 'anything')
 
@@ -979,7 +1012,7 @@ def test_history_is_kept_searched_bounded_and_forgotten(console, chat_service, m
 
     enter(console, '/ask where is it')
     wait_for(console, 'tokens in')
-    path = console.install_root / 'history' / 'unknown.jsonl'
+    path = console.locations.history_directory / 'unknown.jsonl'
     deadline = clock.raw_counter_seconds() + WAIT_SECONDS
     while not path.exists() and clock.raw_counter_seconds() < deadline:
         clock.raw_sleep(0.01)
@@ -1019,7 +1052,7 @@ def test_a_history_file_is_only_ever_seen_whole(console, mocker):
     between the write's truncate and its data: the disk is slowed here by reading the history
     at that moment, from inside every write to the history folder.
     """
-    path = console.install_root / 'history' / 'unknown.jsonl'
+    path = console.locations.history_directory / 'unknown.jsonl'
     seen_mid_write: list[str] = []
     original_write_text = Path.write_text
 
@@ -1697,7 +1730,9 @@ class TestTheDoors:
         inner.draws_overlay = False
         inner.draw_overlay = lambda *, surface: None
         inner.end_frame = lambda **_arguments: None
-        return AiHostSources(inner=inner, link=AiLink(install_root=tmp_path))
+        return AiHostSources(
+            inner=inner, link=AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path))
+        )
 
     def test_they_hide_the_keys_and_draw_only_when_open(self, tmp_path):
         """Closed they add nothing to a frame."""
@@ -1727,6 +1762,21 @@ class TestTheDoors:
 
         assert doors.console.scene is scene
         assert doors.frames_ended == 1
+
+
+def test_the_link_the_client_and_the_console_agree_on_every_path(tmp_path):
+    """One ServiceLocations with different roots: nothing reads a path of its own."""
+    locations = ServiceLocations(program_root=tmp_path / 'programs', user_root=tmp_path / 'user')
+    install(root=locations.program_root)
+    locations.key_file.parent.mkdir(parents=True)
+    locations.key_file.write_text('key', encoding='utf-8')
+    link = AiLink(locations=locations)
+    console = AiConsole(link=link, locations=locations)
+    client = LocalAIClient(locations=console.locations)
+
+    assert link.locations.control_script == client.control_script == locations.control_script
+    assert link.locations.key_file == client.key_file == locations.key_file
+    assert console._history_path().parent == locations.history_directory
 
 
 # /sprite (plans/2026-11-17-sprite-command.md, Task 3): the sprite service answers through a
@@ -1762,13 +1812,13 @@ def sprite_console(*, tmp_path, scene, replies: list[object]) -> AiConsole:
 
     """
     install(root=tmp_path)
-    link = AiLink(install_root=tmp_path)
+    link = AiLink(locations=ServiceLocations.in_one_folder(root=tmp_path))
     link.state = LinkState.CONNECTED
     service = SpriteGenerationService(ServiceConfig(ai_model='model-x'))
     service._client = HeldSpriteClient(replies=replies)
     built = AiConsole(
         link=link,
-        install_root=tmp_path,
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
         sprite_service=service,
         sprites_folder=tmp_path / 'sprites',
     )
