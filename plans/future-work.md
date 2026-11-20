@@ -862,7 +862,9 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   (`recording.private_event_queue`), so the Arcade never applies them, the same way a tile sets
   no caption and changes none of SDL's blocked event types. A recorded event also replays.
   Bitmappy then posts the event instead of calling pygame (the owner allows this change to
-  Bitmappy, as for its screen). Build it with the key-repeat event below (one mechanism). Tests:
+  Bitmappy, as for its screen). Build it with the key-repeat event below (one mechanism).
+  **Planned: plans/2026-11-20-window-owner-events.md** (one event type, a context slot, replay
+  compatibility for old recordings, the guard widening). Tests:
   a tile that hides its cursor leaves the outer cursor as it was; a game in the default context
   still hides and shows it; the event is recorded and replayed; and the workspace guard
   (`tests/test_workspace_config.py`) widens to `pygame.mouse.set_visible` once Bitmappy no
@@ -878,7 +880,7 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   SDL only in the context that owns the window. The engine's `InputBox` goes through the same
   engine path rather than calling SDL (engine code needs no event: it can set the context's
   repeat directly), and the demo posts the event (a change to the demo, as for Bitmappy's).
-  Worth deciding with it: the text widgets' text input start and stop
+  Planned with the cursor event: plans/2026-11-20-window-owner-events.md. Worth deciding with it: the text widgets' text input start and stop
   (`src/glitchygames/ui/text_widgets.py`), the same class. Tests: the text-input demo's tile
   leaves the outer repeat at `(0, 0)` and its strict xfail is removed; a game in the default
   context still gets its repeat; the event is recorded and replayed; and the workspace guard
@@ -971,6 +973,11 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
     its name; the archived ledger holds the review.
 
 ## Games
+
+- **Game code that belongs in the engine (the owner's overnight audit, 2026-11-20).** A platformer kit
+  shared by Brave Adventurer and Clockwork Keep, the high-score table (four copies), shadowed HUD
+  text, an idle-to-demo loop, and the font helpers in Mr. Muncher and Zombies. Planned, ordered by
+  golden risk, with no recording re-recorded: plans/2026-11-20-game-code-into-the-engine.md.
 
 - **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
   onto the screen, so it has no sprites: the AI's sprite tools see nothing, the stable ids name nothing, and replays
