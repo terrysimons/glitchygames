@@ -510,7 +510,8 @@ jobs:
       # first job's lists until the mirror dropped a version they name, and then every job would
       # need the mirror again and none could save fresher lists. A new week's first job restores
       # last week's cache (the fallback key) and saves its own. Only the very first job, with no
-      # cache under any week, needs the mirror; bump v1 to start afresh
+      # cache under any week, needs the mirror; bump the version to start afresh. v2: apt reads
+      # only Ubuntu's main (7.3 MB, not 44), and an existing week's v1 key kept the old cache
       - run:
           name: "Name this week's apt cache"
           command: |
@@ -519,8 +520,8 @@ jobs:
 
       - restore_cache:
           keys:
-            - apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
-            - apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-
+            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
+            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-
 
       - run:
           name: "Install Linux system dependencies"
@@ -528,7 +529,15 @@ jobs:
             set -euo pipefail
             # apt keeps its lists and downloaded packages in ~/apt-cache, which the cache saves
             # (the image's docker-clean deletes packages from /var/cache/apt/archives only, and
-            # its apt keeps none unless told to), and retries each download
+            # its apt keeps none unless told to), and retries each download. It reads only the
+            # main component of Ubuntu's own sources: our packages are all in main (and a main
+            # package depends only on main), so it fetches about 4 MB of lists instead of 27, and
+            # the image's Docker, git PPA and git-lfs sources, which we install nothing from,
+            # cannot slow or fail it (the owner, 2026-11-19: "only check for updates for
+            # particular packages"; apt's lists come whole per source, never per package). The
+            # copy keeps each source's URIs, suites and key, so either architecture's mirror works
+            sudo sed 's/^Components:.*/Components: main/' /etc/apt/sources.list.d/ubuntu.sources \
+              | sudo tee /etc/apt/glitchygames-ubuntu-main.sources > /dev/null
             mkdir -p "$HOME/apt-cache/lists/partial" "$HOME/apt-cache/archives/partial"
             printf '%s\n' \
               "Dir::State::Lists \"$HOME/apt-cache/lists\";" \
@@ -537,6 +546,8 @@ jobs:
               "Binary::apt::APT::Keep-Downloaded-Packages \"true\";" \
               "Acquire::Retries \"5\";" \
               "Acquire::http::Timeout \"30\";" \
+              "Dir::Etc::SourceList \"/etc/apt/glitchygames-ubuntu-main.sources\";" \
+              "Dir::Etc::SourceParts \"/nonexistent-glitchygames-sources.d\";" \
               | sudo tee /etc/apt/apt.conf.d/80glitchygames-apt-cache > /dev/null
             install_packages() {
               # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
@@ -544,13 +555,57 @@ jobs:
               # 3629); the Raspberry Pis install the same. nox -s test-linux-ci reads this line
               sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config
             }
-            # From the restored lists and packages, with no mirror; with none restored (a new
-            # key) or a stale cache, update from the mirror and install again, then drop the
-            # packages the fresh lists no longer name, so the cache keeps no outdated ones
+            # The fallback's update, tried 5 times. It complements the cache, never replaces it
+            # (retries alone were turned down above): it runs only when the cache cannot
+            # install (a new key, or a stale cache), and there one failed fetch stopped the job
+            # (job 3840, 2026-11-19: node 0's update got an HTTP 520 from archive.ubuntu.com;
+            # Acquire::Retries does not retry that). Error-Mode=any makes a failed fetch fail the
+            # update (apt 3.2 exits 0 after one otherwise). The waits, 30 to 240 seconds, add up
+            # to 7.5 minutes, past the 7+ minute outage of 2026-11-19 and under CircleCI's
+            # 10-minute no-output limit; each failure is printed before its wait
+            update_from_the_mirror() {
+              local waits=(30 60 120 240)
+              local attempts=$(( ${#waits[@]} + 1 ))
+              local attempt=1
+              until sudo apt-get update -o APT::Update::Error-Mode=any; do
+                if (( attempt == attempts )); then
+                  echo "apt-get update failed $attempts times: giving up" >&2
+                  return 1
+                fi
+                local wait_seconds=${waits[attempt - 1]}
+                echo "apt-get update failed (attempt $attempt of $attempts):" \
+                  "trying again in ${wait_seconds}s" >&2
+                sleep "$wait_seconds"
+                attempt=$(( attempt + 1 ))
+              done
+            }
+            # Every run first tries to refresh the lists from the mirror, and goes on without
+            # them if it cannot (the owner, 2026-11-19: "Make the update/upgrade non-fatal if it
+            # fails", "But attempt it every run"). Then the install takes our packages' newest
+            # versions, upgrading only them ("just do it with the packages we care about"): no
+            # apt-get upgrade, so the rest of the image stays as CircleCI built it and nothing
+            # else is cached. With the refresh failed, it installs from the restored lists and
+            # packages; with none restored (a new key) or a stale cache, the fallback updates
+            # until the mirror answers and installs again. After any refresh, autoclean drops
+            # the packages the fresh lists no longer name, so the cache saved keeps none
+            # The first refresh gives up within a minute, with apt's retries off, so an outage
+            # costs a job a minute at most before the cache installs (in the outage of
+            # 2026-11-19 one update kept trying for 7+ minutes). Stopping apt is safe: it moves
+            # an index into place only once it is whole
+            refreshed=false
+            if sudo timeout 60 apt-get update -o APT::Update::Error-Mode=any -o Acquire::Retries=0
+            then
+              refreshed=true
+            else
+              echo "Refreshing from the mirror failed: installing from the apt cache" >&2
+            fi
             if ! install_packages; then
               echo "Installing from the apt cache failed: updating from the mirror" >&2
-              sudo apt-get update
+              update_from_the_mirror
               install_packages
+              refreshed=true
+            fi
+            if [ "$refreshed" = true ]; then
               sudo apt-get autoclean
             fi
             # apt leaves root-owned files (partial/ is root or _apt, mode 700): the cache saves
@@ -558,7 +613,7 @@ jobs:
             sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-cache"
 
       - save_cache:
-          key: apt-v1-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
+          key: apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-{{ checksum "test-results/apt-cache-week" }}
           paths:
             - ~/apt-cache
 
