@@ -2,8 +2,9 @@
 
 Status: PLAN, for the owner's review (written 2026-11-20 against main at 4e6c7144; nothing built).
 Decided by the owner on 2026-11-20: the viewer's own-context move is a later sub-plan (question 1)
-and the playback scope stays in its engine (question 2). One question is open (question 3, recast
-after a root-cause triage of Bitmappy's tile); the rest are rulings the owner may overturn.
+and the playback scope stays in its engine (question 2). Question 3 is decided too (option B: Bitmappy is fixed on its own branch,
+after a root-cause triage of its tile); the text-input demo's key repeat stays open; the rest are
+rulings the owner may overturn.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task (execution is subagent-driven for every Arcade sub-plan: decision 4 of plans/2026-10-25-engine-context.md). Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -207,7 +208,7 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
     length divergence, which `ReplaySources.finish_run` makes `FAILED`: Task 4 tests both);
     and `LOOPED` as the transient state after a restart (the spec's "looped"; it reads as
     `PLAYING` from the next tick). The error text and the replay's report are kept for the
-    Arcade's label. What a diverged demo does next is the recast question 3.
+    Arcade's label. What a diverged demo does next is question 3's small defence.
 11. **Muted is the default and is the context's route.** A new `DemoPlayer` is silent (a new
     `InnerGame` is, rule 5). `audible` and `set_audible(*, audible)` delegate to the current
     `InnerGame`, and a looped player's new game gets the player's setting before its first
@@ -313,35 +314,33 @@ below). Sweeping for siblings, the callers of the display, key and mouse state i
 engine code makes are `ui/inputs.py:195` and `ui/text_widgets.py` (the engine's own, fixable
 in the engine); the rest are game or app code (Bitmappy, the text-input demo).
 
-### Question 3, recast: is a diverging demo a policy question or a bug? (open)
+### Question 3: decided (the owner, 2026-11-20): option B, Bitmappy stops calling pygame for its screen
 
-It is a bug, for the demos that diverge today; the divergence policy is a small defence for a
-demo that drifts later. The fix options for the bug:
+The owner: "I think this particular situation warrants fixing bitmappy not to use pygame calls
+directly." Bitmappy reads its scene's screen (`display_surface()` or `self.screen`) at the three
+sites (`film_strip_coordinator.py:348`, `visual_indicators.py:326`, `animated_canvas.py:1631`).
+This is an explicit exception to "no changes to a game for wrapping" (2026-11-12), chosen
+because the bug shows only in a tile: standalone, Bitmappy's demo replays all 900 frames as
+recorded, and also with `-r 1280x720` (the recording fixes 800x480). **Option A (a scoped
+replacement of pygame functions per context) is not approved; the 2026-11-12 rule "no pygame
+function is replaced" stands.** Option C (keep the xfail) is dropped.
 
-- **A (recommended): a context-scoped answer for the process-global pygame calls**, installed by
-  `InnerGame` while an inner context's code runs and removed after (the display surface answers
-  with the render target; the key repeat, text input and cursor calls act on the context's own
-  copy and reach SDL only for the context that owns the window). It fixes Bitmappy and the
-  text-input demo with no game change, which the owner's rule requires, and the whole class at
-  one place. Its cost: it replaces pygame functions for the duration of a tile's frames, which
-  sub-plan 3 and 4 ruled out ("no pygame function is replaced", written about the mixer). The
-  owner would have to say that rule does not cover this scoped case. It is not this sub-plan's
-  work; it is a small sub-plan of its own, before the Arcade screen needs Bitmappy.
-- **B: Bitmappy reads its scene's screen** (`display_surface()` or `self.screen`) at the three
-  sites (`film_strip_coordinator.py:348`, `visual_indicators.py:326`, `animated_canvas.py:1631`),
-  and the demo drops its `set_repeat`. It is the cleaner code, and the app is a member of this
-  repository, but it breaks "wrapping a game needs no changes to the game". Bitmappy's bug exists
-  outside the Arcade too (a window not 800x480).
-- **C: keep the strict xfails and hold the policy.** The Arcade would show Bitmappy frozen after
-  one frame from its first run.
-
-Then the divergence policy, for a demo that drifts after it was recorded: **restart once, and
-if the next run diverges at the same frame, freeze on the last frame with the "error" label and
-stop restarting** (recommended), against the spec's "the tile restarts its demo and goes on,
-logged once". With today's Bitmappy and no fix, "restart each time" would rebuild it (73 to 180
-ms measured, 3.1 s in one run) every other Arcade frame. With fix A the policy is rarely
-reached, and the recommendation costs a few lines. The owner decides A, B or C first; the
-policy follows.
+- **Prerequisite, owned by a separate branch** (the coordinating session, not a task of this
+  plan): the Bitmappy fix. It lifts the strict xfail in
+  `tests/test_every_recording_replays_inside_an_inner_game.py` (`DIVERGES_INSIDE_A_TILE`) and its
+  entry in `plans/future-work.md`. This sub-plan's proof (Task 6) expects Bitmappy's tile to
+  match; until that branch merges the proof keeps the xfail, and nothing here depends on it
+  otherwise.
+- **Still open, not decided: the text-input demo's key repeat** (and the rest of the class:
+  text input start and stop, the cursor, the font resolution, Bitmappy's `spawn` start method).
+  Option A is ruled out for them, so each needs its own answer: an engine-side change where the
+  call is the engine's (`ui/inputs.py:195`, `ui/text_widgets.py`), and the owner's call, case by
+  case, where it is a game's (`text_input_demo/__init__.py:69`). The strict xfail stays.
+- **The divergence policy stays, as a small defence** for a demo that drifts after it was
+  recorded: restart once, and if the next run diverges at the same frame, freeze on the last
+  frame with the "error" label and stop restarting (the spec's "restart and go on, logged once"
+  would otherwise rebuild a diverging tile, 73 to 180 ms measured, every other Arcade frame).
+  It is a few lines in `DemoPlayer` (Task 4) and rarely reached once Bitmappy is fixed.
 
 ## Review Focus
 
@@ -462,7 +461,7 @@ tests in `tests/engine/test_inner_game.py` and `tests/replay/test_rebuild.py` (u
     that behaves differently from its recording is `DIVERGED` (a mismatched frame, and a
     recording longer than the run: the length divergence that arrives as `FAILED`); the other
     players are unaffected by any of these.
-  - the divergence policy as the owner decides (question 3: restart once then freeze, or restart).
+  - the divergence policy as the owner decides (question 3: restart once, then freeze).
   - guard: the module imports no game and reads no clock but the budget's.
 - [ ] Implement; full suite; commit (`Demo player: a recorded game that loops, fast-forwards and paces itself`).
 
