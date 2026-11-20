@@ -2780,8 +2780,10 @@ def infra_test(session: nox.Session) -> None:
     session.run(
         'uv', 'run', '--project', _INFRA_PROJECT, '--frozen', 'pytest', 'infra/tests', external=True
     )
-    # The CloudFront Function is JavaScript: Node's own test runner, no packages to install
-    session.run('node', '--test', 'infra/tests/functions', external=True)
+    # The CloudFront Function is JavaScript: Node's own test runner, no packages to install. A
+    # glob, which node expands itself (no shell runs here): Node 24, CircleCI's, loads a folder
+    # named after --test as one module ("Cannot find module"); only newer Nodes search it
+    session.run('node', '--test', 'infra/tests/functions/**/*.test.mjs', external=True)
 
 
 @nox.session(venv_backend='none', name='infra-diff', default=False)

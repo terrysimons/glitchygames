@@ -32,7 +32,7 @@ of this project on `main` (the OIDC token's `vcs-ref`). The site itself is `src/
 measures no replay).
 
 ```bash
-nox -s infra-test          # pytest infra/tests (CDK templates built with infra/cdk.json's feature flags) + node --test infra/tests/functions
+nox -s infra-test          # pytest infra/tests (CDK templates built with infra/cdk.json's feature flags) + node --test 'infra/tests/functions/**/*.test.mjs'
 nox -s infra-diff -- --profile P     # cdk diff (needs AWS credentials and GLITCHY_SITE_BUDGET_EMAIL, never written in the repo)
 nox -s infra-deploy -- --profile P   # cdk deploy --all (or `-- GlitchyGamesDnsZones --profile P` first); the owner's Mac only
 nox -s site-publish        # Upload src/website (or `-- --source DIR`) and invalidate; `-- --dry-run` changes nothing

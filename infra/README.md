@@ -32,7 +32,7 @@ The domains stay registered at Namecheap; only their name servers point at Route
 ## The nox sessions
 
 ```bash
-nox -s infra-test                                   # pytest infra/tests + node --test infra/tests/functions (no AWS)
+nox -s infra-test                                   # pytest infra/tests + node --test 'infra/tests/functions/**/*.test.mjs' (no AWS)
 GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-diff -- --profile <profile>                 # What a deploy would change
 GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-diff -- GlitchyGamesSite --profile <profile>
 GLITCHY_SITE_BUDGET_EMAIL=... nox -s infra-deploy -- GlitchyGamesDnsZones --profile <profile>

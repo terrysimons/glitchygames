@@ -2891,6 +2891,36 @@ def test_the_infra_tests_run_on_every_branch():
     assert 'nox -s infra-test' in circleci_job_definition(name='test-infra')
 
 
+def test_the_infra_sessions_node_tests_name_their_files_never_a_folder():
+    """``nox -s infra-test`` hands ``node --test`` files or globs that match every test file.
+
+    Node 26 searches a folder named after ``--test``, but Node 24 (CircleCI's ``-node`` image)
+    loads it as one module and fails with "Cannot find module" (every ``test-infra`` run from
+    2026-10-28 to 2026-11-20 failed so, while local runs on Node 26 passed). A glob works on
+    Node 22, 24 and 26.
+    """
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+    noxfile.infra_test(session)
+    node_commands = [command for command in session.commands if command[0] == 'node']
+    assert len(node_commands) == 1, session.commands
+    node_command = node_commands[0]
+    assert node_command[1] == '--test'
+    patterns = node_command[2:]
+
+    named: set[Path] = set()
+    for pattern in patterns:
+        assert not (PROJECT_ROOT / pattern).is_dir(), f'{pattern} is a folder'
+        matches = {path for path in PROJECT_ROOT.glob(pattern) if path.is_file()}
+        assert matches, f'{pattern} matches no file'
+        named |= matches
+
+    test_files = set((PROJECT_ROOT / 'infra' / 'tests' / 'functions').rglob('*.test.mjs'))
+    assert test_files, 'infra/tests/functions holds no *.test.mjs: the check is stale'
+    assert named == test_files
+
+
 def test_the_site_deploys_from_main_after_the_docs_publish():
     """play.glitchy.games is published from main only, after the docs publish and infra tests.
 

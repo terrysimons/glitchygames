@@ -1,7 +1,8 @@
 // The viewer-request CloudFront Function both distributions run
 // (infra/src/glitchy_site/functions/redirect_to_play.js): every host but play.glitchy.games is
 // sent there with a 301, path and query kept; on play.glitchy.games, directory URLs fetch their
-// index.html. Run with `node --test infra/tests/functions` (nox -s infra-test).
+// index.html. Run with `node --test 'infra/tests/functions/**/*.test.mjs'` (nox -s infra-test;
+// a glob, since Node 24 loads a folder named after --test as one module).
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
