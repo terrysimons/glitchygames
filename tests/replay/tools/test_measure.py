@@ -1036,9 +1036,10 @@ class TestClearingPublishedRows:
         before = ledger_text(rows=[published_row, *unpublished_rows])
         pending.write_text(before, encoding='utf-8')
         characters = int(len(ledger_text(rows=unpublished_rows)) * fraction)
-        cut_writes_short(mocker=mocker, characters=characters)
-
-        with pytest.raises(KeyboardInterrupt):
+        with (
+            pytest.raises(KeyboardInterrupt),
+            cut_writes_short(mocker=mocker, characters=characters),
+        ):
             clear_published(pending_path=pending, published_text=ledger_text(rows=[published_row]))
 
         assert pending.read_text(encoding='utf-8') == before

@@ -1,9 +1,10 @@
 """Writes cut short part way, as a Ctrl-C, a kill or a power cut leaves them.
 
-``cut_writes_short(mocker=..., characters=N)`` makes every file opened for writing through
-``Path.open`` (which ``Path.write_text`` uses too) take only its first ``N`` characters, then
-raise ``KeyboardInterrupt`` from the write that would pass them: what was written stays on disk,
-as it would after the process was stopped there. Files opened for reading are untouched.
+``with cut_writes_short(mocker=..., characters=N):`` makes every file opened for writing through
+``Path.open`` (which ``Path.write_text`` uses too) in the block take only its first ``N``
+characters, then raise ``KeyboardInterrupt`` from the write that would pass them: what was
+written stays on disk, as it would after the process was stopped there. Files opened for reading
+are untouched, and the patch ends with the block, even when the block raises.
 
 Used by the tests that a durable record (a ledger row file, the pending ledger) is written whole
 or not at all (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md).
@@ -11,12 +12,13 @@ or not at all (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md).
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
     from types import TracebackType
-    from unittest.mock import MagicMock
 
     from pytest_mock import MockerFixture
 
@@ -84,15 +86,20 @@ class CutShortFile:
         return getattr(self.stream, name)
 
 
-def cut_writes_short(*, mocker: MockerFixture, characters: int) -> MagicMock:
-    """Cut every write through ``Path.open`` short after ``characters`` characters.
+@contextlib.contextmanager
+def cut_writes_short(*, mocker: MockerFixture, characters: int) -> Generator[None]:
+    """Cut every write through ``Path.open`` short after ``characters`` characters, in the block.
+
+    The patch ends with the block, even when the block raises: a test that fails inside it still
+    makes its teardown writes whole (the harness's failure records), and its KeyboardInterrupt
+    never reaches them.
 
     Args:
-        mocker: The test's mocker (the patch ends with the test).
+        mocker: The test's mocker.
         characters: How many characters each file opened for writing takes.
 
-    Returns:
-        The patch, for ``mocker.stop`` to end early (a test cutting several writes short).
+    Yields:
+        Nothing: the block runs with writes cut short.
 
     """
     real_open = Path.open
@@ -105,4 +112,8 @@ def cut_writes_short(*, mocker: MockerFixture, characters: int) -> MagicMock:
             return stream
         return CutShortFile(stream=stream, characters=characters)
 
-    return mocker.patch.object(Path, 'open', autospec=True, side_effect=open_cut_short)
+    patch = mocker.patch.object(Path, 'open', autospec=True, side_effect=open_cut_short)
+    try:
+        yield
+    finally:
+        mocker.stop(patch)

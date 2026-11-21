@@ -42,7 +42,7 @@ from typing import TYPE_CHECKING, Any, Self, cast
 from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames.build_info import RevisionSource, SourceRevision
-from glitchygames.output_files import write_aside_then_replace
+from glitchygames.output_files import write_text_whole
 from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -998,9 +998,8 @@ def write_row_files(*, rows: Iterable[LedgerRow], directory: Path) -> list[Path]
 def write_ledger_file(*, path: Path, rows: Iterable[LedgerRow]) -> None:
     """Write a ledger file whole or not at all: a stopped write leaves the earlier file as it was.
 
-    The rows go to the file's partial copy, are flushed to the disk (a Pi's SD card can lose
-    power), then replace the file (``output_files.write_aside_then_replace``), so a reader, a
-    later measurement or the Pi hook never sees a truncated row
+    Through ``output_files.write_text_whole`` (synced to the disk, as a Pi's SD card can lose
+    power), so a reader, a later measurement or the Pi hook never sees a truncated row
     (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md).
 
     Args:
@@ -1008,15 +1007,7 @@ def write_ledger_file(*, path: Path, rows: Iterable[LedgerRow]) -> None:
         rows: Its rows, in order.
 
     """
-    text = ledger_text(rows=rows)
-
-    def write_and_flush(aside: Path) -> None:
-        with aside.open('w', encoding='utf-8') as stream:
-            stream.write(text)
-            stream.flush()
-            os.fsync(stream.fileno())
-
-    write_aside_then_replace(destination=path, write=write_and_flush)
+    write_text_whole(destination=path, text=ledger_text(rows=rows))
 
 
 def append_ledger_rows(*, path: Path, rows: Iterable[LedgerRow]) -> None:

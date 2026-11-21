@@ -753,9 +753,10 @@ class TestRowFiles:
         """
         row = ledger_row().model_copy(update={'code_tree': TREE})
         characters = int(len(ledger_text(rows=[row])) * fraction)
-        cut_writes_short(mocker=mocker, characters=characters)
-
-        with pytest.raises(KeyboardInterrupt):
+        with (
+            pytest.raises(KeyboardInterrupt),
+            cut_writes_short(mocker=mocker, characters=characters),
+        ):
             write_row_files(rows=[row], directory=tmp_path)
 
         assert sorted(path.name for path in tmp_path.iterdir()) == []
@@ -784,11 +785,11 @@ class TestLedgerWritesAreWholeOrNothing:
             path = tmp_path / f'{characters}' / 'ledger.jsonl'
             path.parent.mkdir()
             write_ledger_file(path=path, rows=old_rows)
-            cut_short = cut_writes_short(mocker=mocker, characters=characters)
-
-            with contextlib.suppress(KeyboardInterrupt):
+            with (
+                contextlib.suppress(KeyboardInterrupt),
+                cut_writes_short(mocker=mocker, characters=characters),
+            ):
                 write_ledger_file(path=path, rows=new_rows)
-            mocker.stop(cut_short)
 
             assert read_ledger_file(path=path).rows in {tuple(old_rows), tuple(new_rows)}
             assert [child.name for child in path.parent.iterdir()] == ['ledger.jsonl']
@@ -800,10 +801,11 @@ class TestLedgerWritesAreWholeOrNothing:
         for characters in range(len(cut_text) + 1):
             path = tmp_path / f'{characters}.jsonl'
             append_ledger_rows(path=path, rows=[earlier])
-            cut_short = cut_writes_short(mocker=mocker, characters=characters)
-            with contextlib.suppress(KeyboardInterrupt):
+            with (
+                contextlib.suppress(KeyboardInterrupt),
+                cut_writes_short(mocker=mocker, characters=characters),
+            ):
                 append_ledger_rows(path=path, rows=cut)
-            mocker.stop(cut_short)
 
             append_ledger_rows(path=path, rows=[later])
 
