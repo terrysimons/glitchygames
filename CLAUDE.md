@@ -344,11 +344,11 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
 
 ## Code Style
 
-Python 3.15 (code must still parse and type-check as 3.14: lint and type checks target it, for
-the browser builds' Pyodide), ruff (100-character
+Python 3.15 (parses and type-checks as 3.14 for the browser builds' Pyodide), ruff (100-character
 lines, import order), Google-style docstrings, basedpyright and ty. Data classes are pydantic
-models. Bugs: one file each in `bugs/` (`YYYY-MM-DD-short-slug.md`); the older numbered entries are
-in BUGS.md.
+models. No `assert` outside tests (`-O` strips it): `glitchygames.checks.required(value, what=...)`
+for a value never None, else an explicit raise. Bugs: one file each in `bugs/`
+(`YYYY-MM-DD-short-slug.md`); the older numbered entries are in BUGS.md.
 
 ## Docs
 
