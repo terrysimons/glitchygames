@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any, TypedDict
 
 from glitchygames import clock
+from glitchygames.checks import required
 
 LOG = logging.getLogger('game.tools.controller_selection')
 
@@ -80,8 +81,10 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
         """
         if self.state.selected_animation != animation_name:
             # Preserve frame index when switching animations
-            assert self.state.navigation_history is not None
-            self.state.navigation_history.append({
+            navigation_history = required(
+                self.state.navigation_history, what="the controller's navigation history"
+            )
+            navigation_history.append({
                 'animation': self.state.selected_animation,
                 'frame': self.state.selected_frame,
                 'timestamp': clock.wall_clock_epoch_seconds(),
@@ -120,8 +123,10 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
             # Only add to history if we had a previous selection (not initial empty state)
             if animation_changed and self.state.selected_animation:
                 # Preserve frame index when switching animations
-                assert self.state.navigation_history is not None
-                self.state.navigation_history.append({
+                navigation_history = required(
+                    self.state.navigation_history, what="the controller's navigation history"
+                )
+                navigation_history.append({
                     'animation': self.state.selected_animation,
                     'frame': self.state.selected_frame,
                     'timestamp': clock.wall_clock_epoch_seconds(),
@@ -246,8 +251,10 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
             target_frame = 0
 
         # Check if we have a previous selection for this animation
-        assert self.state.navigation_history is not None
-        for history_entry in reversed(self.state.navigation_history):
+        navigation_history = required(
+            self.state.navigation_history, what="the controller's navigation history"
+        )
+        for history_entry in reversed(navigation_history):
             if history_entry['animation'] == new_animation:
                 # Use the frame from the last time we were on this animation
                 target_frame = history_entry['frame']
@@ -279,13 +286,17 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
             List of navigation history entries
 
         """
-        assert self.state.navigation_history is not None
-        return self.state.navigation_history.copy()
+        navigation_history = required(
+            self.state.navigation_history, what="the controller's navigation history"
+        )
+        return navigation_history.copy()
 
     def clear_navigation_history(self) -> None:
         """Clear the navigation history."""
-        assert self.state.navigation_history is not None
-        self.state.navigation_history.clear()
+        navigation_history = required(
+            self.state.navigation_history, what="the controller's navigation history"
+        )
+        navigation_history.clear()
 
     def get_state_summary(self) -> dict[str, Any]:
         """Get a summary of the controller selection state.
@@ -314,8 +325,10 @@ class ControllerSelection:  # ruff: ignore[too-many-public-methods]
         self.state.selected_frame = 0
         self.state.is_active = False
         self.state.last_update_time = clock.elapsed_seconds()
-        assert self.state.navigation_history is not None
-        self.state.navigation_history.clear()
+        navigation_history = required(
+            self.state.navigation_history, what="the controller's navigation history"
+        )
+        navigation_history.clear()
         LOG.debug('Controller %s reset to default state', self.controller_id)
 
     def clone_state_to(self, target_controller: ControllerSelection) -> None:

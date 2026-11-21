@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViewsABC
 from glitchygames.render_target import display_surface
@@ -189,10 +190,7 @@ class Sprite(RootSprite, metaclass=ReadOnlyViewsABC):  # ruff: ignore[too-many-p
 
         # Each sprite maintains a reference to the screen: an inner context's render target,
         # else the display (glitchygames/render_target.py)
-        self.screen = display_surface()
-        assert self.screen is not None, (
-            'Display surface must be initialized before creating sprites'
-        )
+        self.screen: pygame.Surface = required(display_surface(), what='the display surface')
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
 

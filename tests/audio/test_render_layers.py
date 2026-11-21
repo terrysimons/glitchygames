@@ -1,12 +1,16 @@
 """Layered sources (AUD-SRC-004): every layer is heard, at its own level and shaping."""
 
+import dataclasses
 import warnings
 
 import numpy as np
+import pytest
 
 from glitchygames.audio.instrument import Filter, Instrument, Noise, Source
 from glitchygames.audio.pitch import Hz
-from glitchygames.audio.render import render_sound
+from glitchygames.audio.render import _render_source, render_sound
+from glitchygames.audio.spec import NoteEvent
+from glitchygames.checks import MissingValueError
 from tests.audio.measuring import spectrum_peak_db
 from tests.audio.render_specs import HELD_ENVELOPE, layered_spec, spec_for
 
@@ -70,3 +74,36 @@ def test_a_denormal_noise_level_is_silence():
         warnings.simplefilter('error')
         samples = render_sound(spec_for(instrument, pitch=Hz(200.0), length=0.05)).samples
     assert np.all(samples == 0.0)
+
+
+def test_a_noise_source_without_a_random_generator_raises_missing_value():
+    """The render builds a generator for every noise source; one missing is a bug, said by name."""
+    spec = spec_for(Instrument(noise='white', envelope=HELD_ENVELOPE), length=0.1)
+
+    with pytest.raises(
+        MissingValueError, match=r"^the noise source's random generator is missing$"
+    ):
+        _render_source(
+            spec,
+            spec.sources[0],
+            NoteEvent(start_seconds=0.0, hz=440.0, length_seconds=0.1),
+            gate_frames=100,
+            frame_count=100,
+            generator=None,
+        )
+
+
+def test_a_source_with_neither_wave_nor_noise_raises_missing_value():
+    """A source is built with a wave or noise; one with neither is a bug, said by name."""
+    spec = spec_for(Instrument(wave='sine', envelope=HELD_ENVELOPE), pitch=Hz(440.0), length=0.1)
+    empty_source = dataclasses.replace(spec.sources[0], wave=None, noise=None)
+
+    with pytest.raises(MissingValueError, match=r"^the source's wave is missing$"):
+        _render_source(
+            spec,
+            empty_source,
+            NoteEvent(start_seconds=0.0, hz=440.0, length_seconds=0.1),
+            gate_frames=100,
+            frame_count=100,
+            generator=None,
+        )

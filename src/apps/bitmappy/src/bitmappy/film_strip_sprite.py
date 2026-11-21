@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, override
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.input.state import current_input
 from glitchygames.sprites import BitmappySprite
@@ -94,12 +95,12 @@ class FilmStripSprite(BitmappySprite):
 
     def force_redraw(self) -> None:
         """Force a redraw of the film strip."""
-        assert self.film_strip_widget is not None
+        film_strip_widget = required(self.film_strip_widget, what='the film strip widget')
         # Clear the surface with copper brown to match film strip
         self.image.fill((100, 70, 55))  # Copper brown background
 
         # Render the film strip widget
-        self.film_strip_widget.render(self.image)
+        film_strip_widget.render(self.image)
 
     @override
     def kill(self) -> None:
@@ -236,12 +237,12 @@ class FilmStripSprite(BitmappySprite):
             Tuple of (frame, pixel_data) or None if unavailable.
 
         """
-        assert self.film_strip_widget is not None
-        if not self.film_strip_widget.animated_sprite:
+        film_strip_widget = required(self.film_strip_widget, what='the film strip widget')
+        if not film_strip_widget.animated_sprite:
             LOG.debug('FilmStripSprite: No animated sprite available for color sampling')
             return None
 
-        frames = self.film_strip_widget.animated_sprite._animations.get(animation, [])  # type: ignore[reportPrivateUsage]
+        frames = film_strip_widget.animated_sprite._animations.get(animation, [])  # type: ignore[reportPrivateUsage]
         if frame_idx >= len(frames):
             LOG.debug(f'FilmStripSprite: Frame index {frame_idx} out of range')
             return None
@@ -275,8 +276,8 @@ class FilmStripSprite(BitmappySprite):
         if hasattr(frame, 'image') and frame.image:
             return frame.image.get_size()
 
-        assert self.film_strip_widget is not None
-        parent_canvas = self.film_strip_widget.parent_canvas
+        film_strip_widget = required(self.film_strip_widget, what='the film strip widget')
+        parent_canvas = film_strip_widget.parent_canvas
         width = parent_canvas.pixels_across if parent_canvas else 32
         height = parent_canvas.pixels_tall if parent_canvas else 32
         return width, height
@@ -292,11 +293,11 @@ class FilmStripSprite(BitmappySprite):
             The frame layout Rect, or None if not found.
 
         """
-        assert self.film_strip_widget is not None
+        film_strip_widget = required(self.film_strip_widget, what='the film strip widget')
         for (
             anim_name,
             frame_idx_check,
-        ), frame_rect in self.film_strip_widget.frame_layouts.items():
+        ), frame_rect in film_strip_widget.frame_layouts.items():
             if anim_name == animation and frame_idx_check == frame_idx:
                 return frame_rect
 
@@ -489,9 +490,9 @@ class FilmStripSprite(BitmappySprite):
         film_x = mouse_position[0] - self.rect.x
         film_y = mouse_position[1] - self.rect.y
 
-        assert self.film_strip_widget is not None
+        film_strip_widget = required(self.film_strip_widget, what='the film strip widget')
         # Check if drop is on a specific frame
-        clicked_frame = self.film_strip_widget.get_frame_at_position((int(film_x), int(film_y)))
+        clicked_frame = film_strip_widget.get_frame_at_position((int(film_x), int(film_y)))
 
         if clicked_frame:
             # Drop on existing frame - replace its contents
@@ -562,14 +563,14 @@ class FilmStripSprite(BitmappySprite):
             frame_info: Tuple of (animation, frame_idx) for the hovered frame.
 
         """
-        assert self.film_strip_widget is not None
+        film_strip_widget = required(self.film_strip_widget, what='the film strip widget')
         animation, frame_idx = frame_info
         LOG.debug(f'FilmStripSprite: Hovering over frame {animation}[{frame_idx}]')
 
         # Set hover state in the film strip widget
-        self.film_strip_widget.hovered_frame = frame_info
+        film_strip_widget.hovered_frame = frame_info
         # Keep strip hover active even when hovering over frame
-        self.film_strip_widget.mark_dirty()
+        film_strip_widget.mark_dirty()
 
         # Mark this sprite as dirty to trigger redraw
         self.dirty = 1
@@ -581,26 +582,26 @@ class FilmStripSprite(BitmappySprite):
             animation_name: Name of the animation being previewed.
 
         """
-        assert self.film_strip_widget is not None
+        film_strip_widget = required(self.film_strip_widget, what='the film strip widget')
         LOG.debug(f'FilmStripSprite: Hovering over preview {animation_name}')
 
         # Set hover state in the film strip widget
-        self.film_strip_widget.hovered_preview = animation_name
+        film_strip_widget.hovered_preview = animation_name
         # Keep strip hover active even when hovering over preview
-        self.film_strip_widget.mark_dirty()
+        film_strip_widget.mark_dirty()
 
         # Mark this sprite as dirty to trigger redraw
         self.dirty = 1
 
     def _show_strip_hover_effect(self) -> None:
         """Show visual feedback for hovering over the film strip area."""
-        assert self.film_strip_widget is not None
+        film_strip_widget = required(self.film_strip_widget, what='the film strip widget')
         LOG.debug('FilmStripSprite: Hovering over film strip area')
 
         # Set hover state in the film strip widget
-        self.film_strip_widget.hovered_frame = None
-        self.film_strip_widget.is_hovering_strip = True
-        self.film_strip_widget.mark_dirty()
+        film_strip_widget.hovered_frame = None
+        film_strip_widget.is_hovering_strip = True
+        film_strip_widget.mark_dirty()
 
         # Mark this sprite as dirty to trigger redraw
         self.dirty = 1
@@ -728,7 +729,7 @@ class FilmStripSprite(BitmappySprite):
             True if successful, False otherwise.
 
         """
-        assert self.film_strip_widget is not None
+        film_strip_widget = required(self.film_strip_widget, what='the film strip widget')
         LOG.debug(f'FilmStripSprite: Replacing frame {animation}[{frame_idx}] with image')
 
         # Convert image to sprite frame
@@ -737,11 +738,11 @@ class FilmStripSprite(BitmappySprite):
             return False
 
         # Get the current frame and replace it
-        if not self.film_strip_widget.animated_sprite:
+        if not film_strip_widget.animated_sprite:
             LOG.error('FilmStripSprite: No animated sprite available')
             return False
 
-        frames = self.film_strip_widget.animated_sprite._animations.get(animation, [])  # type: ignore[reportPrivateUsage]
+        frames = film_strip_widget.animated_sprite._animations.get(animation, [])  # type: ignore[reportPrivateUsage]
         if frame_idx >= len(frames):
             LOG.error(f'FilmStripSprite: Frame index {frame_idx} out of range')
             return False
@@ -750,12 +751,12 @@ class FilmStripSprite(BitmappySprite):
         frames[frame_idx] = new_frame
 
         # Mark as dirty for redraw
-        self.film_strip_widget.mark_dirty()
+        film_strip_widget.mark_dirty()
 
         # Update canvas if this is the current frame
         if self._should_update_canvas_frame(animation, frame_idx):
-            assert self.parent_scene is not None
-            self.parent_scene.canvas.show_frame(animation, frame_idx)
+            parent_scene = required(self.parent_scene, what='the parent scene')
+            parent_scene.canvas.show_frame(animation, frame_idx)
 
         LOG.debug(f'FilmStripSprite: Successfully replaced frame {animation}[{frame_idx}]')
         return True
@@ -772,7 +773,7 @@ class FilmStripSprite(BitmappySprite):
             True if successful, False otherwise.
 
         """
-        assert self.film_strip_widget is not None
+        film_strip_widget = required(self.film_strip_widget, what='the film strip widget')
         LOG.debug('FilmStripSprite: Inserting new frame from image')
 
         # Convert image to sprite frame
@@ -781,21 +782,23 @@ class FilmStripSprite(BitmappySprite):
             return False
 
         # Determine which animation to add to
-        current_animation = self.film_strip_widget.current_animation
+        current_animation = film_strip_widget.current_animation
         if not current_animation:
             LOG.error('FilmStripSprite: No current animation selected')
             return False
 
         # Determine insertion position based on drop location.
         # Currently inserts at the end; position-based insertion could be added later.
-        assert self.film_strip_widget.animated_sprite is not None
-        insert_index = len(self.film_strip_widget.animated_sprite._animations[current_animation])  # type: ignore[reportPrivateUsage]
+        animated_sprite = required(
+            film_strip_widget.animated_sprite, what="the film strip's animated sprite"
+        )
+        insert_index = len(animated_sprite._animations[current_animation])  # type: ignore[reportPrivateUsage]
 
         # Insert the frame
-        self.film_strip_widget.animated_sprite.add_frame(current_animation, new_frame, insert_index)
+        animated_sprite.add_frame(current_animation, new_frame, insert_index)
 
         # Mark as dirty for redraw
-        self.film_strip_widget.mark_dirty()
+        film_strip_widget.mark_dirty()
 
         # Tell the editor's film strip coordinator about the insertion (asking the scene, which
         # has no on_frame_inserted, never reached it: BUGS.md #119)
@@ -804,7 +807,7 @@ class FilmStripSprite(BitmappySprite):
             coordinator.on_frame_inserted(current_animation, insert_index)
 
         # Select the newly created frame
-        self.film_strip_widget.set_current_frame(current_animation, insert_index)
+        film_strip_widget.set_current_frame(current_animation, insert_index)
 
         LOG.debug(
             'FilmStripSprite: Successfully inserted new frame at'
