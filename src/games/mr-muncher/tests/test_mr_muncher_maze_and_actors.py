@@ -14,6 +14,7 @@ import pytest
 from pydantic import ValidationError
 
 from glitchygames.display_mode import set_display_mode
+from glitchygames.fonts import font_manager
 from glitchygames.randomness import random_stream, reset_streams
 from mr_muncher import drawing, scenery
 from mr_muncher.actors import (
@@ -816,19 +817,19 @@ class TestScenery:
     """Text helpers and the still sprites."""
 
     def test_a_fitted_font_shrinks_until_its_texts_fit(self):
-        font = scenery.fitted_font(bold=True, texts=('MUNCHER',), width=96, largest=20)
+        font = font_manager.fitted_font(bold=True, texts=('MUNCHER',), width=96, largest=20)
         assert font.size('MUNCHER')[0] <= 96
-        assert scenery.bundled_font(bold=True, size=font.get_height()) is not font
-        bigger = scenery.fitted_font(bold=True, texts=('MUNCHER',), width=200, largest=20)
+        assert font_manager.bundled_font(bold=True, size=font.get_height()) is not font
+        bigger = font_manager.fitted_font(bold=True, texts=('MUNCHER',), width=200, largest=20)
         assert bigger.size('MUNCHER')[0] > font.size('MUNCHER')[0]
 
     def test_a_fitted_font_stops_at_the_smallest_size(self):
-        font = scenery.fitted_font(bold=False, texts=('far too wide',), width=1, largest=12)
-        assert font.size('x') == scenery.bundled_font(bold=False, size=8).size('x')
+        font = font_manager.fitted_font(bold=False, texts=('far too wide',), width=1, largest=12)
+        assert font.size('x') == font_manager.bundled_font(bold=False, size=8).size('x')
 
     def test_rendered_text_is_drawn_in_its_colour(self):
-        line = scenery.render_text(
-            font=scenery.bundled_font(bold=True, size=20), text='#', color=(255, 0, 0)
+        line = font_manager.render_line(
+            font=font_manager.bundled_font(bold=True, size=20), text='#', color=(255, 0, 0)
         )
         assert (255, 0, 0) in _colors(line)
 
@@ -1021,43 +1022,3 @@ class TestAutopilot:
     def test_on_a_tile_with_no_way_on_it_says_nothing(self, scene):
         scene.player.place_at(position=(0, 0))
         assert Autopilot().choose_direction(scene=scene) is None
-
-
-# Characterization (game code plan, sub-plan 1): the engine's text helpers draw exactly what
-# scenery.py's copies drew. Removed with the copies, once the game calls the engine's.
-CHARACTERIZATION_TEXTS = ('MR. MUNCHER', 'Press Space to start', 'SCORE 012340', 'W')
-
-
-@pytest.mark.parametrize('bold', [True, False])
-@pytest.mark.parametrize('size', range(8, 65))
-def test_the_engines_bundled_font_draws_what_scenery_drew(bold, size):
-    """Same size, metrics and pixels as scenery.bundled_font and render_text, sizes 8 to 64."""
-    from glitchygames.fonts import font_manager
-    from mr_muncher import scenery
-
-    old = scenery.bundled_font(bold=bold, size=size)
-    new = font_manager.bundled_font(bold=bold, size=size)
-
-    assert new.point_size == old.point_size
-    for text in CHARACTERIZATION_TEXTS:
-        assert new.size(text) == old.size(text)
-        assert pygame.image.tobytes(
-            font_manager.render_line(font=new, text=text, color=(255, 255, 0)), 'RGBA'
-        ) == pygame.image.tobytes(
-            scenery.render_text(font=old, text=text, color=(255, 255, 0)), 'RGBA'
-        )
-
-
-@pytest.mark.parametrize('bold', [True, False])
-@pytest.mark.parametrize('width', [1, 20, 45, 46, 60, 90, 150, 240, 400, 640, 2000])
-@pytest.mark.parametrize('largest', [8, 9, 12, 32, 48, 64])
-@pytest.mark.parametrize('texts', [(), ('W',), CHARACTERIZATION_TEXTS, ('GAME OVER, PRESS SPACE',)])
-def test_the_engines_fitted_font_chooses_what_scenery_chose(bold, width, largest, texts):
-    """Same chosen size as scenery.fitted_font, over widths, sizes and texts."""
-    from glitchygames.fonts import font_manager
-    from mr_muncher import scenery
-
-    old = scenery.fitted_font(bold=bold, texts=texts, width=width, largest=largest)
-    new = font_manager.fitted_font(bold=bold, texts=texts, width=width, largest=largest)
-
-    assert new.point_size == old.point_size
