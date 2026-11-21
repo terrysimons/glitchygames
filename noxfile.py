@@ -445,7 +445,7 @@ def docs_deploy(session: nox.Session) -> None:
     if not build_only:
         # Only main is published: a branch's history would publish its measured rows as landed
         # though their code never reached main (glitchygames/code_tree.py landed_code_trees)
-        session.run('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main', external=True)
+        _require_head_on_origin_main(session)
     # A deploy publishes the merged ledger in place of the published one, so it must start from
     # what gh-pages holds now: only a build tolerates a failed fetch
     session.run(
@@ -2855,6 +2855,16 @@ def infra_deploy(session: nox.Session) -> None:
     _run_cdk(session, 'deploy', *stacks, '--require-approval', 'broadening')
 
 
+def _require_head_on_origin_main(session: nox.Session) -> None:
+    """Fail the session unless HEAD is on origin/main (what the deploys may publish).
+
+    Args:
+        session: The nox session.
+
+    """
+    session.run('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main', external=True)
+
+
 # What site-publish publishes when given nothing: the website (for now its page and the mockup)
 # (docs/specs/2026-10-27-glitchy-games-website-design.md, What gets published at launch)
 _SITE_DEFAULT_SOURCE = 'src/website'
@@ -2867,14 +2877,31 @@ def site_publish(session: nox.Session) -> None:
     CircleCI's deploy-site job runs it after a merge to main (OIDC credentials); the owner can
     run it from the Mac with their own profile.
 
+    A publish is refused unless HEAD is on origin/main and the source has no uncommitted changes:
+    the docs and the site deploy side by side, each under its own lock (the owner, 2026-11-20), so
+    only what main holds may reach the site. ``--dry-run`` changes nothing and skips the checks;
+    ``--allow-unmerged`` skips them on purpose, for a preview from a branch.
+
     Usage:
         nox -s site-publish                                   # src/website
         nox -s site-publish -- --source build/browser/site    # Another directory
         nox -s site-publish -- --dry-run                      # Print the plan, change nothing
+        nox -s site-publish -- --allow-unmerged               # Publish a branch's preview
     """
-    arguments = list(session.posargs)
+    arguments = [argument for argument in session.posargs if argument != '--allow-unmerged']
     if '--source' not in arguments:
         arguments = ['--source', _SITE_DEFAULT_SOURCE, *arguments]
+    if '--allow-unmerged' not in session.posargs and '--dry-run' not in arguments:
+        _require_head_on_origin_main(session)
+        source = arguments[arguments.index('--source') + 1]
+        changes = session.run(
+            'git', 'status', '--porcelain', '--', source, external=True, silent=True
+        )
+        if changes and changes.strip():
+            session.error(
+                f'{source} has uncommitted changes; commit them, or preview with '
+                f'--allow-unmerged:\n{changes}'
+            )
     session.run(
         'uv',
         'run',
