@@ -267,10 +267,9 @@ class Instrument:
                 controls (tremolo, parameters, routes) on an instrument that is not live or that
                 do not fit it.
         """
-        given = [argument for argument in (wave, noise, sources) if argument is not None]
-        if len(given) != 1:
-            message = 'an instrument takes exactly one of wave, noise or sources'
-            raise ValueError(message)
+        exactly_one_message = 'an instrument takes exactly one of wave, noise or sources'
+        if sum(argument is not None for argument in (wave, noise, sources)) > 1:
+            raise ValueError(exactly_one_message)
         layers: tuple[tuple[str, Source], ...]
         if sources is not None:
             if not sources:
@@ -282,10 +281,12 @@ class Instrument:
             layers = tuple((name, _as_source(entry)) for name, entry in sources.items())
         elif wave is not None:
             layers = ((DEFAULT_SOURCE_NAME, _as_source(wave)),)
-        else:
+        elif noise is not None:
             noise_layer = Noise(noise) if isinstance(noise, str) else noise
-            assert noise_layer is not None
             layers = ((DEFAULT_SOURCE_NAME, _as_source(noise_layer)),)
+        else:
+            # None of the three was given (more than one was refused above)
+            raise ValueError(exactly_one_message)
         if not 0.0 <= drive <= DRIVE_HIGHEST:
             message = f'drive must be between 0 and {DRIVE_HIGHEST}, got {drive}'
             raise ValueError(message)
@@ -507,11 +508,12 @@ def _source_spec(source: Source, *, tuning: Tuning, sample_rate: int) -> SourceS
     level = source.level
     duty = 0.5
     if isinstance(content, Noise):
-        assert content.taps is not None  # Noise.__post_init__ sets the width's default
         noise_spec = NoiseSpec(
             kind=content.kind,
             bits=content.bits,
-            taps=content.taps,
+            # Noise.__post_init__ already set the width's default taps; this is the same choice,
+            # written out because the field's type still allows None
+            taps=content.taps if content.taps is not None else default_lfsr_taps(content.bits),
             rate_hz=(
                 _hertz(content.rate, tuning=tuning, sample_rate=sample_rate)
                 if content.rate is not None

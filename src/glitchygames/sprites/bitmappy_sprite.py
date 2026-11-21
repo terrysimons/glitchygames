@@ -181,6 +181,10 @@ class BitmappySprite(Sprite):
         Returns:
             tuple[pygame.Surface, pygame.FRect | pygame.Rect, str]: The result.
 
+        Raises:
+            ValueError: If the factory cannot load the file and no filename was given for the
+                static-only fallback.
+
         """
         self.log.debug('=== Starting load from %s ===', filename)
 
@@ -192,11 +196,12 @@ class BitmappySprite(Sprite):
         except ValueError as e:
             # If factory fails, fall back to old static-only loading
             self.log.debug('Factory failed, falling back to static-only loading: %s', e)
-            assert filename is not None, 'filename must be provided for static-only loading'
+            if filename is None:
+                message = 'filename must be provided for static-only loading'
+                raise ValueError(message) from e
             return self._load_static_only(filename)
 
         # Convert AnimatedSprite to BitmappySprite format: a copy of its current image
-        assert animated_sprite.image is not None, 'AnimatedSprite must have an image'
         self.image = animated_sprite.image.copy()
 
         self.rect = self.image.get_rect()

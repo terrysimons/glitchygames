@@ -193,7 +193,8 @@ def raspberry_pi(*, name: str, address: str) -> RaspberryPi:
 RASPBERRY_PIS = (
     raspberry_pi(name='raspberry-pi-4-4gb-ubuntu', address='172.23.23.155'),
     raspberry_pi(name='raspberry-pi-5-8gb-ubuntu', address='172.23.23.140'),
-    raspberry_pi(name='raspberry-pi-5-16gb-ubuntu', address='172.23.23.161'),
+    # Reached by its mDNS name: its address is a DHCP lease (the inventory's ansible_host)
+    raspberry_pi(name='raspberry-pi-5-16gb-ubuntu', address='rpi5-ubuntu-2604.local'),
     # Reached by its mDNS name: its address is a DHCP lease (the inventory's ansible_host)
     raspberry_pi(
         name='raspberry-pi-5-16gb-raspberry-pi-os',
