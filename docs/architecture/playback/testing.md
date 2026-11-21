@@ -218,6 +218,14 @@ drivers, the owner's Mac). Every ordinary run keeps the files' order (`-p no:ran
 - A shuffle only reorders (`--randomly-dont-reset-seed`, as `nox -s test-random`), so coverage,
   the driver comparison and each test's own randomness are unchanged.
 
+- The first rolled run found one (CircleCI job 4458, seed 4083822362): the zombies game's
+  scene-name test imported every module of the package, `__main__` included, and a later
+  `python -m` test then tripped runpy's warning that `__main__` was already imported. The walk
+  now skips `__main__`, and every `python -m` test runs through
+  `glitchygames.testing.entry_points.run_package_as_main`, which removes `<package>.__main__`
+  from `sys.modules` first; `tests/test_suite_collection.py` fails on any direct
+  `runpy.run_module` in a test.
+
 ## Memory by test file
 
 **Intent:** when the guard stops a run, find which test files make the test process grow

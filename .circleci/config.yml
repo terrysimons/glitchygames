@@ -876,6 +876,14 @@ jobs:
       - run:
           name: "Deploy the docs (nox -s docs-deploy -- --no-measure)"
           no_output_timeout: 60m
+          environment:
+            # The browser wheel's build runs `uv venv` on its cached toolchain folder when the
+            # cached venv's python doesn't run; uv then asks on this step's terminal whether to
+            # replace it, which no one answers (jobs 4431, 4443 hung to the 60-minute limit).
+            # This makes uv replace it without asking (closing stdin doesn't: uv reads the
+            # terminal). The script's own fix, uv venv --clear, is a submodule change
+            # (plans/future-work.md)
+            UV_VENV_CLEAR: "1"
           command: |
             set -euo pipefail
             export PATH="$HOME/.local/bin:$PATH"

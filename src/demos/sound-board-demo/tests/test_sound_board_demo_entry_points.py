@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import importlib.metadata
-import runpy
 from typing import TYPE_CHECKING
 
 import sound_board_demo
+from glitchygames.testing.entry_points import run_package_as_main
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -26,6 +26,6 @@ def test_python_dash_m_sound_board_demo_runs_the_demos_main(mocker: MockerFixtur
     """``python -m sound_board_demo`` runs the package's ``__main__`` with ``main`` replaced."""
     main = mocker.patch.object(sound_board_demo, 'main')
 
-    runpy.run_module('sound_board_demo', run_name='__main__')
+    run_package_as_main(package='sound_board_demo')
 
     main.assert_called_once_with()

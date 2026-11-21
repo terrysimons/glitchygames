@@ -3351,3 +3351,29 @@ def test_the_site_deploy_role_arn_stays_out_of_the_repository():
     assert 'arn:aws:' not in configuration
     assert '"${SITE_DEPLOY_ROLE_ARN:-}"' in definition
     assert 'Project Settings > Environment Variables' in definition
+
+
+def test_every_step_that_builds_the_browser_wheel_lets_uv_replace_a_stale_venv():
+    """Each step running nox -s docs-deploy sets UV_VENV_CLEAR=1 (the browser wheel's build).
+
+    The build (third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh) runs
+    ``uv venv`` on its cached toolchain folder when the cached venv's python doesn't run, and uv
+    0.13.9 then asks "A virtual environment already exists ... replace it? [y/n]" on the step's
+    terminal, which no one answers: deploy-docs hung until the step's 60-minute no-output limit
+    (jobs 4431, 4443). Closing stdin doesn't stop it (uv reads the answer from the terminal;
+    tried 2026-11-21); UV_VENV_CLEAR=1 replaces the venv without asking. The script's own fix
+    (``uv venv --clear``) is a submodule change, recorded in plans/future-work.md.
+    """
+    configuration = yaml.safe_load(CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8'))
+    builds = [
+        (name, step['run'])
+        for name, job in configuration['jobs'].items()
+        for step in job.get('steps', [])
+        if isinstance(step, dict)
+        and isinstance(step.get('run'), dict)
+        and 'nox -s docs-deploy' in step['run'].get('command', '')
+    ]
+
+    assert [name for name, _ in builds] == ['deploy-docs']
+    for name, run in builds:
+        assert run.get('environment', {}).get('UV_VENV_CLEAR') == '1', name
