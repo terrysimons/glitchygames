@@ -36,10 +36,10 @@ Everything runs on Python 3.15: the tests (`noxfile.TEST_PYTHONS`), every other 
 it stays only the oldest the code must parse and type-check as (`requires-python`, ruff's
 `target-version`, the type checkers' python version), because the browser builds' Pyodide 314 runs
 it: nothing tests on 3.14, so keep to what 3.14 has. Move those to 3.15 when a Pyodide on 3.15
-ships. Each Linux and Windows job is split across two machines (`parallelism: 2`), as the suite
-alone ran past CircleCI's one-hour job limit on Linux. A split job's machines each run a share
-(`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a `coverage-combine-*` job holds
-their coverage, combined, to 100%.
+ships. Each Linux and Windows job is split across three machines (`parallelism: 3`), as the
+suite alone ran past CircleCI's one-hour job limit on Linux. A split job's machines each run a
+share (`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a `coverage-combine-*` job
+holds their coverage, combined, to 100%. Each CI test machine rolls fixed or shuffled order.
 
 The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
 from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).
@@ -51,7 +51,7 @@ pytest                      # full suite, 100% coverage; outside CI also on the 
                             # failing on any frame that differs (see Testing Guidelines)
 pytest --dummy-only         # fast iteration: dummy driver only
                             # addopts already has -n auto and -p no:randomly (fixed order;
-                            # only nox -s test-random shuffles)
+                            # nox -s test-random shuffles; GLITCHYGAMES_TEST_ORDER: noxfile.py)
 ruff format src tests scripts noxfile.py
 ruff check src tests scripts noxfile.py     # --select I --fix for import order
 basedpyright                # pyrightconfig.json
@@ -344,11 +344,11 @@ Space and quit with Esc, so a game's own pause must not be on Esc (Mr. Muncher's
 
 ## Code Style
 
-Python 3.15 (code must still parse and type-check as 3.14: lint and type checks target it, for
-the browser builds' Pyodide), ruff (100-character
+Python 3.15 (parses and type-checks as 3.14 for the browser builds' Pyodide), ruff (100-character
 lines, import order), Google-style docstrings, basedpyright and ty. Data classes are pydantic
-models. Bugs: one file each in `bugs/` (`YYYY-MM-DD-short-slug.md`); the older numbered entries are
-in BUGS.md.
+models. No `assert` outside tests (`-O` strips it): `glitchygames.checks.required(value, what=...)`
+for a value never None, else an explicit raise. Bugs: one file each in `bugs/`
+(`YYYY-MM-DD-short-slug.md`); the older numbered entries are in BUGS.md.
 
 ## Docs
 

@@ -255,6 +255,7 @@ import pygame
 from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames import clock
+from glitchygames.checks import required
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
 from glitchygames.game_frames import game_frame_clock
@@ -1812,10 +1813,7 @@ class ReplaySources:
 
         """
         del frame_number
-        frame = self._current_frame()
-        # Frames run only while the recording has one: a headless replay stops after its last
-        # frame, a watched one holds there (rules 8 and 14)
-        assert frame is not None
+        frame = self._recorded_frame_being_replayed()
         return [
             ControlEvent.from_json(record)
             for record in frame.get(CONTROL_EVENTS_FIELD, [])
@@ -1847,10 +1845,7 @@ class ReplaySources:
         """
         # dt is the recorded one by construction; audio work is never compared
         del dt, audio_frame
-        frame = self._current_frame()
-        # Frames run only while the recording has one: a headless replay stops after its last
-        # frame, a watched one holds there (rules 8 and 14)
-        assert frame is not None
+        frame = self._recorded_frame_being_replayed()
         # Compared until the replay ended (a watched replay may run on after its end, rule 14)
         if self.result.end_reason == RUNNING_END_REASON:
             # Sampled exactly as the recorder samples a recorded frame
@@ -1927,15 +1922,13 @@ class ReplaySources:
 
         """
         # Only a frame sink makes a headless replay draw (the engine's _connect_the_frame_stream)
-        assert self.frame_sink is not None
+        frame_sink = required(self.frame_sink, what="the replay's frame sink")
         game_frames = game_frame_clock()
         if not game_frames.is_game_frame:
             return
         # A game frame always shows itself
-        assert game_frames.shown_game_frame is not None
-        if not self.frame_sink.write_frame(
-            frame_index=game_frames.shown_game_frame, surface=surface
-        ):
+        shown_game_frame = required(game_frames.shown_game_frame, what='the shown game frame')
+        if not frame_sink.write_frame(frame_index=shown_game_frame, surface=surface):
             self.frame_sink_closed = True
 
     def finish_run(self: Self) -> None:
@@ -2008,6 +2001,16 @@ class ReplaySources:
 
     def _current_frame(self: Self) -> dict[str, Any] | None:
         return self.recording.frame(frame_index=self._frame_index)
+
+    def _recorded_frame_being_replayed(self: Self) -> dict[str, Any]:
+        """Return the recorded frame being replayed, which frames run only while it exists.
+
+        A headless replay stops after its last frame, a watched one holds there (rules 8 and 14).
+
+        Returns:
+            The recorded frame.
+        """
+        return required(self._current_frame(), what=f'recorded frame {self._frame_index}')
 
     def _note_unpumped_batches(self: Self, *, frame: dict[str, Any]) -> None:
         """Count the external events of the frame's batches no pump served (rule 8).
@@ -2175,10 +2178,7 @@ class ReplaySources:
             frozenset({FPSEVENT}) if self.options.fps_source == REAL_REPLAY_FPS else frozenset()
         )
         live_origins = [INTERNAL_ORIGIN] * len(live_internal_events)
-        frame = self._current_frame()
-        # Frames run only while the recording has one: a headless replay stops after its last
-        # frame, a watched one holds there (rules 8 and 14)
-        assert frame is not None
+        frame = self._recorded_frame_being_replayed()
         batches = frame.get(EVENT_BATCHES_FIELD, [])
         if self._pump_index >= len(batches):
             self._note_frame_divergence(
@@ -2303,10 +2303,7 @@ class ReplaySources:
             The events, their origins, and the live internal events left for the batch.
 
         """
-        frame = self._current_frame()
-        # Frames run only while the recording has one: a headless replay stops after its last
-        # frame, a watched one holds there (rules 8 and 14)
-        assert frame is not None
+        frame = self._recorded_frame_being_replayed()
         unmatched = [
             (event, event_to_record(event=event, origin=INTERNAL_ORIGIN))
             for event in live_internal_events

@@ -410,14 +410,19 @@ def test_the_shared_harness_is_a_plugin_loaded_before_any_other(pytestconfig):
     assert not (TESTS_ROOT / 'conftest.py').exists(), 'the harness lives in tests/harness.py'
 
 
-def test_a_test_still_running_after_ten_minutes_prints_where_every_thread_waits(pytestconfig):
+def test_a_test_still_running_after_ten_minutes_prints_where_every_thread_waits():
     """A hung test names itself (pytest's faulthandler_timeout), as a crashed one does.
 
     A crash is reported at once (tests/harness.py); a hang that is not a crash (a thread waiting
     on one that died quietly) would otherwise run silently until someone noticed
     (bugs/2026-11-20-a-crash-on-the-audio-thread-hung-the-process.md).
+
+    This reads what the project declares, not the running session's value: compare-drivers'
+    native runs override it on purpose (`-o faulthandler_timeout=110` with pytest-timeout's
+    120 s limit, noxfile.py's _NATIVE_RUN_TIMEOUT_ARGUMENTS, tested in
+    tests/test_driver_frame_matrix.py), and the declared ten minutes holds everywhere else.
     """
-    assert float(pytestconfig.getini('faulthandler_timeout')) == 600
+    assert float(PYTEST_SETTINGS['faulthandler_timeout']) == 600
 
 
 def test_the_engine_is_imported_from_its_installed_package_never_the_source_tree():
@@ -1325,6 +1330,11 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_measure_staged_replays.py': ('scripts/measure_staged_replays.py',),
     'tests/test_microphone_capture_check.py': ('scripts/microphone_capture_check.py',),
     'tests/test_mkdocs_hooks_browser_games.py': ('scripts/mkdocs_hooks.py',),
+    'tests/test_native_audio_health.py': (
+        'scripts/driver_configurations.py',
+        'scripts/native_audio_health.py',
+    ),
+    'tests/test_patch_pre_push_hook.py': ('scripts/patch_pre_push_hook.py',),
     'tests/test_record_bundled_demos.py': (
         'scripts/record_bundled_demos.py',
         'scripts/demo_inputs.py',
@@ -2084,3 +2094,33 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
         'src/engine.py:1: import glitchygames.examples',
         'zensical.yml:1: path: src/glitchygames/examples',
     ]
+
+
+def test_no_test_runs_a_package_as_main_but_through_the_shared_helper():
+    """Every ``python -m`` test runs through glitchygames.testing.entry_points.run_package_as_main.
+
+    A direct ``runpy.run_module(package, run_name='__main__')`` fails whenever an earlier test
+    in the worker imported ``<package>.__main__`` (runpy's warning, an error in this suite): the
+    zombies game's test failed so under a shuffled order (CircleCI job 4458, seed 4083822362)
+    once a walk of its modules ran first. The helper removes the module before the run, so no
+    test of ``python -m`` depends on the order. A test checking the helper itself patches runpy,
+    and never calls it.
+    """
+    root = Path(__file__).resolve().parent.parent
+    test_files = [
+        *(root / 'tests').rglob('*.py'),
+        *(root / 'src').glob('*/*/tests/**/*.py'),
+    ]
+    direct_runs = [
+        path.relative_to(root).as_posix()
+        for path in test_files
+        for node in ast.walk(ast.parse(path.read_text(encoding='utf-8')))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == 'run_module'
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == 'runpy'
+    ]
+
+    assert test_files, 'no test file found: the scan is stale'
+    assert direct_runs == []
