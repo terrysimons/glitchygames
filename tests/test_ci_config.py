@@ -723,19 +723,24 @@ def circleci_workflow_job(*, name: str) -> str:
     return match['body']
 
 
-def test_the_docs_deploy_after_main_passes_on_macos():
-    """Docs deploy from main only, as soon as the macOS job passes, under the deploys' one lock.
+DOCS_DEPLOY_LOCK = 'serial-group: << pipeline.project.slug >>/deploy-docs'
+SITE_DEPLOY_LOCK = 'serial-group: << pipeline.project.slug >>/deploy-site'
 
-    macOS is the fastest test job, so the deploy overlaps the Linux and Windows jobs instead of
-    adding its time after them; the same tree passed all three in its pull request. It holds the
-    same serial group as deploy-site (the owner, 2026-11-20: "migrate deploy-docs to the same
-    lock that does deploy-site"): one deploy of either kind at a time, across pipelines.
+
+def test_the_docs_deploy_starts_as_soon_as_main_changes_under_its_own_lock():
+    """Docs deploy from main only, at once, waiting for no job, one docs deploy at a time.
+
+    The owner, 2026-11-20: "Docs only run after merging to main, so let's actually run it in
+    parallel to the other jobs". Weighed against a merge that turns main red publishing a broken
+    browser game (as #227's did to the tests): "For now I want faster". Its lock is its own, so
+    two quick merges cannot race gh-pages, and a deploy that waited its turn finds main's docs
+    already published and stops.
     """
     entry = circleci_workflow_job(name='deploy-docs')
 
-    assert 'requires:\n            - test-python-3-15-macos\n' in entry
+    assert 'requires:' not in entry
     assert 'branches:\n              only: main\n' in entry
-    assert 'serial-group: << pipeline.project.slug >>/deploy-site' in entry
+    assert DOCS_DEPLOY_LOCK in entry
 
 
 def test_the_docs_deploy_runs_on_linux_and_leaves_the_macs_to_the_tests():
@@ -1574,11 +1579,12 @@ def test_every_linux_job_installs_the_linux_jobs_system_packages():
 def test_every_linux_and_windows_test_job_is_split_and_its_coverage_combined(
     platform_marker, platform, save_command, combine_job
 ):
-    """Each runs on two machines, saves each's coverage, and one combine job applies the rule.
+    """Each runs on three machines, saves each's coverage, and one combine job applies the rule.
 
     The owner, 2026-11-18 (one Python ran past the one-hour limit on Linux, jobs 3705, 3707):
-    "yes" to two machines a job, and "Do it for windows too". tests/circleci_test_split.py picks
-    each machine's share; the combine job holds the shares together to 100%.
+    "yes" to two machines a job, and "Do it for windows too"; 2026-11-20: "split Linux, Windows
+    by 3 instead of 2". tests/circleci_test_split.py picks each machine's share; the combine job
+    holds the shares together to 100%.
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     workflow = configuration[configuration.index('\nworkflows:\n') :]
@@ -1590,7 +1596,7 @@ def test_every_linux_and_windows_test_job_is_split_and_its_coverage_combined(
         session = re.search(r'session: (?P<session>test-[0-9.]+)\n', job)
         assert session is not None, name
         share = f'{platform}-{session["session"]}'
-        assert '    parallelism: 2\n' in job, name
+        assert '    parallelism: 3\n' in job, name
         assert '      GLITCHYGAMES_TEST_SPLIT: "circleci"\n' in job, name
         assert f'      - {save_command}:\n          share: {share}\n' in job, name
         # Saved after the tests ran, so the data is the run's
@@ -1829,6 +1835,290 @@ def test_an_unsplit_run_adds_no_arguments():
     assert noxfile.split_share_pytest_arguments(environment={}) == []
 
 
+# The test session's order switch, which CircleCI's test jobs set to "roll"
+SUITE_ORDER_VARIABLE = 'GLITCHYGAMES_TEST_ORDER'
+
+
+@pytest.fixture(autouse=True)
+def suite_order_record_in_tmp_path(tmp_path, monkeypatch):
+    """A test session run here writes its order record under tmp_path, not test-results/."""
+    import noxfile
+
+    record = tmp_path / 'test-results' / 'test-order.txt'
+    monkeypatch.setattr(noxfile, 'SUITE_ORDER_RECORD', record)
+    return record
+
+
+def test_the_suite_order_is_fixed_unless_a_run_asks_for_another():
+    """Unset or ``fixed``: the files' own order, nothing rolled, pytest-randomly left blocked."""
+    import noxfile
+
+    for environment in ({}, {SUITE_ORDER_VARIABLE: 'fixed'}):
+        order = noxfile.choose_suite_order(environment=environment)
+
+        assert order == noxfile.SuiteOrder(seed=None, rolled=False), environment
+        assert noxfile.suite_order_pytest_arguments(order=order) == []
+
+
+def test_a_rolled_order_flips_a_coin_then_draws_a_seed():
+    """``roll``: a draw of two picks fixed (0) or shuffled (1); shuffled then draws its seed.
+
+    The owner, 2026-11-20: "roll to decide if we're randomizing or not, and then also roll the
+    seed if we are randomizing".
+    """
+    import noxfile
+
+    for coin, expected_draws, expected in (
+        ([0], [2], noxfile.SuiteOrder(seed=None, rolled=True)),
+        (
+            [1, 4242],
+            [2, noxfile.RANDOM_ORDER_SEED_LIMIT],
+            noxfile.SuiteOrder(seed=4242, rolled=True),
+        ),
+    ):
+        results = iter(coin)
+        draws: list[int] = []
+
+        def draw(limit: int, results=results, draws=draws) -> int:
+            draws.append(limit)
+            return next(results)
+
+        order = noxfile.choose_suite_order(environment={SUITE_ORDER_VARIABLE: 'roll'}, draw=draw)
+
+        assert order == expected
+        assert draws == expected_draws
+
+    shuffled = noxfile.SuiteOrder(seed=4242, rolled=True)
+    assert noxfile.suite_order_pytest_arguments(order=shuffled) == [
+        '-p',
+        'randomly',
+        '--randomly-dont-reset-seed',
+        '--randomly-seed=4242',
+    ]
+
+
+# A CircleCI machine's identity: its workflow's workspace (kept by a rerun from failed, which
+# gets a new workflow ID), its job and its machine index
+CIRCLECI_MACHINE = {
+    SUITE_ORDER_VARIABLE: 'roll',
+    'CIRCLE_WORKFLOW_WORKSPACE_ID': 'workspace-7f3a',
+    'CIRCLE_WORKFLOW_ID': 'workspace-7f3a',
+    'CIRCLE_JOB': 'test-python-3-15-linux',
+    'CIRCLE_NODE_INDEX': '1',
+}
+
+
+def _refuse_to_draw(limit: int) -> int:
+    message = f'drew below {limit}: a CircleCI roll comes from the workflow, not a draw'
+    raise AssertionError(message)
+
+
+def test_a_rerun_of_a_circleci_machine_rolls_what_its_first_run_rolled():
+    """The roll is a function of the workspace, job and machine: a rerun gets the same order.
+
+    The owner, 2026-11-20 ("Yes"): a rerun from failed keeps CIRCLE_WORKFLOW_WORKSPACE_ID (a
+    community report, unverified until a real rerun shows it), so a shuffle-only failure comes
+    back on rerun instead of vanishing.
+    """
+    import noxfile
+
+    first_run = noxfile.choose_suite_order(environment=CIRCLECI_MACHINE, draw=_refuse_to_draw)
+    rerun = noxfile.choose_suite_order(
+        environment=CIRCLECI_MACHINE | {'CIRCLE_WORKFLOW_ID': 'rerun-90c1'},
+        draw=_refuse_to_draw,
+    )
+
+    assert (first_run.seed, first_run.rolled) == (rerun.seed, rerun.rolled)
+    assert first_run.rolled
+    assert first_run.workspace == rerun.workspace == 'workspace-7f3a'
+    assert not first_run.rerun
+    assert rerun.rerun
+
+
+def test_each_workflow_and_machine_rolls_its_own_order():
+    """New workspaces (new pushes) come up both ways, seeds in range; machines roll apart."""
+    import noxfile
+
+    orders = [
+        noxfile.choose_suite_order(
+            environment=CIRCLECI_MACHINE
+            | {'CIRCLE_WORKFLOW_WORKSPACE_ID': f'w{index}', 'CIRCLE_WORKFLOW_ID': f'w{index}'},
+            draw=_refuse_to_draw,
+        )
+        for index in range(200)
+    ]
+    seeds = [order.seed for order in orders if order.seed is not None]
+    machines = {
+        noxfile.choose_suite_order(
+            environment=CIRCLECI_MACHINE | {'CIRCLE_NODE_INDEX': str(index)},
+            draw=_refuse_to_draw,
+        )
+        for index in range(20)
+    } | {
+        noxfile.choose_suite_order(
+            environment=CIRCLECI_MACHINE | {'CIRCLE_JOB': f'job-{index}'},
+            draw=_refuse_to_draw,
+        )
+        for index in range(20)
+    }
+
+    assert 0 < len(seeds) < len(orders)
+    assert len(set(seeds)) == len(seeds)
+    assert all(0 <= seed < noxfile.RANDOM_ORDER_SEED_LIMIT for seed in seeds)
+    assert len(machines) > 2
+
+
+def test_without_a_circleci_workspace_a_roll_draws_at_random():
+    """Unset or empty (a local run): the draw decides, and the order says so."""
+    import noxfile
+
+    for workspace in ({}, {'CIRCLE_WORKFLOW_WORKSPACE_ID': ''}):
+        environment = {SUITE_ORDER_VARIABLE: 'roll', **workspace}
+        order = noxfile.choose_suite_order(environment=environment, draw=lambda limit: 0)
+
+        assert order == noxfile.SuiteOrder(seed=None, rolled=True, workspace=None, rerun=False)
+        assert 'at random' in noxfile.describe_suite_order(order=order)
+
+
+def test_the_order_says_whether_it_is_a_first_run_or_a_rerun():
+    """The log line names the workspace and the kind of run, so a rerun's order can be trusted."""
+    import noxfile
+
+    first_run = noxfile.choose_suite_order(environment=CIRCLECI_MACHINE)
+    rerun = noxfile.choose_suite_order(
+        environment=CIRCLECI_MACHINE | {'CIRCLE_WORKFLOW_ID': 'rerun-90c1'}
+    )
+
+    assert 'workspace-7f3a' in noxfile.describe_suite_order(order=first_run)
+    assert 'first run' in noxfile.describe_suite_order(order=first_run)
+    assert 'rerun' in noxfile.describe_suite_order(order=rerun)
+    assert 'same roll as its first run' in noxfile.describe_suite_order(order=rerun)
+
+
+def test_rolling_comes_up_both_ways_with_seeds_in_range():
+    """The real draw: over 200 rolls both outcomes appear (a miss is 2**-199), seeds in range."""
+    import noxfile
+
+    orders = [
+        noxfile.choose_suite_order(environment={SUITE_ORDER_VARIABLE: 'roll'}) for _ in range(200)
+    ]
+    seeds = [order.seed for order in orders if order.seed is not None]
+
+    assert all(order.rolled for order in orders)
+    assert 0 < len(seeds) < len(orders)
+    assert all(0 <= seed < noxfile.RANDOM_ORDER_SEED_LIMIT for seed in seeds)
+
+
+def test_a_seed_replays_that_shuffled_order():
+    """A number: that seed, nothing rolled (how a rolled CI run's order is replayed)."""
+    import noxfile
+
+    order = noxfile.choose_suite_order(environment={SUITE_ORDER_VARIABLE: '4242'})
+
+    assert order == noxfile.SuiteOrder(seed=4242, rolled=False)
+
+
+def test_an_unknown_suite_order_stops_the_run():
+    """Anything else, or a seed outside pytest-randomly's range, stops rather than guess."""
+    import noxfile
+
+    for value in ('shuffle', 'Roll', '-1', str(noxfile.RANDOM_ORDER_SEED_LIMIT), ''):
+        with pytest.raises(ValueError, match=SUITE_ORDER_VARIABLE):
+            noxfile.choose_suite_order(environment={SUITE_ORDER_VARIABLE: value})
+
+
+def test_the_test_session_prints_its_order_and_passes_it_to_pytest(monkeypatch):
+    """The order is logged before pytest runs, shuffled or fixed, and a shuffle reaches pytest."""
+    import noxfile
+
+    installed = '.nox/test-3-15/lib/python3.15/site-packages/glitchygames'
+    monkeypatch.setenv(SUITE_ORDER_VARIABLE, '4242')
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
+    noxfile.test(session)
+    (pytest_run,) = [command for command in session.commands if command[0] == 'pytest']
+
+    assert '--randomly-seed=4242' in pytest_run
+    assert pytest_run[pytest_run.index('randomly') - 1] == '-p'
+    assert [log for log in session.logs if 'Test order: shuffled, seed 4242' in log]
+
+    monkeypatch.delenv(SUITE_ORDER_VARIABLE)
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
+    noxfile.test(session)
+    (pytest_run,) = [command for command in session.commands if command[0] == 'pytest']
+
+    assert not [argument for argument in pytest_run if 'randomly' in argument]
+    assert [log for log in session.logs if log.startswith('Test order: fixed')]
+
+
+def test_the_test_session_writes_its_order_for_the_jobs_artifacts(
+    monkeypatch, suite_order_record_in_tmp_path
+):
+    """test-results/test-order.txt holds the order, seed, workspace and kind of run, before pytest.
+
+    CircleCI uploads test-results/ with ``when: always``, so a failed job's roll is a file beside
+    its test-split.txt.
+    """
+    import noxfile
+
+    installed = '.nox/test-3-15/lib/python3.15/site-packages/glitchygames'
+    for name, value in (CIRCLECI_MACHINE | {'CIRCLE_WORKFLOW_ID': 'rerun-90c1'}).items():
+        monkeypatch.setenv(name, value)
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
+    noxfile.test(session)
+    order = noxfile.choose_suite_order(environment=CIRCLECI_MACHINE)
+    record = suite_order_record_in_tmp_path.read_text(encoding='utf-8').splitlines()
+
+    assert record[0] == noxfile.describe_suite_order(
+        order=noxfile.choose_suite_order(
+            environment=CIRCLECI_MACHINE | {'CIRCLE_WORKFLOW_ID': 'rerun-90c1'}
+        )
+    )
+    assert f'order={"fixed" if order.seed is None else "shuffled"}' in record
+    assert f'seed={"" if order.seed is None else order.seed}' in record
+    assert 'workspace=workspace-7f3a' in record
+    assert 'rerun=yes' in record
+
+
+def test_a_failed_test_session_restates_its_order_and_how_to_replay_it(monkeypatch):
+    """After a failure (the log's start is 26,000 tests back) the order and replay come again."""
+    import noxfile
+    from nox.command import CommandFailed
+
+    installed = '.nox/test-3-15/lib/python3.15/site-packages/glitchygames'
+    monkeypatch.setenv(SUITE_ORDER_VARIABLE, '4242')
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
+    record = session.run
+
+    def run(*command: str, **options: object) -> str | None:
+        if command[0] == 'pytest':
+            reason = 'pytest failed'
+            raise CommandFailed(reason)
+        return record(*command, **options)
+
+    monkeypatch.setattr(session, 'run', run)
+
+    with pytest.raises(RuntimeError) as failure:
+        noxfile.test(session)
+
+    message = str(failure.value)
+    assert 'Test order: shuffled, seed 4242' in message
+    assert f'{SUITE_ORDER_VARIABLE}=4242' in message
+
+
+def test_every_ci_test_job_rolls_its_suite_order():
+    """Each job that runs the suite sets ``roll``, so each machine flips its own coin."""
+    jobs = {name: job for name, job in circleci_job_texts().items() if 'session: test-3.15' in job}
+
+    assert set(jobs) == {
+        'test-python-3-15-macos',
+        'test-python-3-15-linux',
+        'test-python-3-15-windows',
+        'build-and-test-raspberry-pi-4-4gb-ubuntu',
+    }
+    for name, job in jobs.items():
+        assert f'      {SUITE_ORDER_VARIABLE}: "roll"\n' in job, name
+
+
 def test_the_combine_session_installs_the_locked_coverage():
     """coverage-combine installs coverage at uv.lock's version, which the lock does pin."""
     import noxfile
@@ -1860,7 +2150,11 @@ def test_the_macos_job_is_not_split_and_holds_its_own_coverage():
 
 
 def test_random_order_is_off_unless_asked_for():
-    """pytest-randomly is blocked in addopts: CI and every ordinary run keep the files' order."""
+    """pytest-randomly is blocked in addopts: every ordinary run keeps the files' order.
+
+    Only nox -s test-random and the test session's GLITCHYGAMES_TEST_ORDER (CircleCI's test
+    jobs roll it) turn it back on.
+    """
     pyproject = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
     addopts = shlex.split(pyproject['tool']['pytest']['ini_options']['addopts'])
 
@@ -2169,7 +2463,7 @@ def test_each_comparison_run_has_the_workers_asked_for(workers):
 
     noxfile._run_fingerprinted_tests(
         session,
-        configuration={'environment': {}, 'runs_in_linux_container': False},
+        configuration={'name': 'dummy', 'environment': {}, 'runs_in_linux_container': False},
         directory=Path('runs/dummy-1'),
         arguments=[],
         settings=noxfile._RunSettings(workers=workers),
@@ -2318,7 +2612,11 @@ def test_compare_drivers_fails_on_a_difference_only_when_asked(
     mocker.patch.object(noxfile, '_COMPARE_DRIVERS_LOCK', tmp_path / 'compare-drivers.lock')
     mocker.patch.object(noxfile, '_set_aside_previous_comparison')
     restore = mocker.patch.object(noxfile, '_restore_previous_comparison')
-    mocker.patch.object(noxfile, '_compare_driver_configurations', return_value=differing)
+    mocker.patch.object(
+        noxfile,
+        '_compare_driver_configurations',
+        return_value=noxfile._DifferingTests(frames=differing, audio=[]),
+    )
     session = RecordingSession(posargs=posargs)
 
     if fails:
@@ -2339,7 +2637,11 @@ def test_a_second_compare_drivers_is_refused_while_one_runs(mocker, tmp_path):
     from filelock import FileLock
 
     lock_path = tmp_path / 'compare-drivers.lock'
-    compare = mocker.patch.object(noxfile, '_compare_driver_configurations', return_value=[])
+    compare = mocker.patch.object(
+        noxfile,
+        '_compare_driver_configurations',
+        return_value=noxfile._DifferingTests(frames=[], audio=[]),
+    )
     mocker.patch.object(noxfile, '_set_aside_previous_comparison')
     mocker.patch.object(noxfile, '_COMPARE_DRIVERS_LOCK', lock_path)
     mocker.patch.object(noxfile, '_COMPARE_DRIVERS_PREVIOUS', tmp_path / 'previous')
@@ -3021,18 +3323,30 @@ def test_the_infra_sessions_node_tests_name_their_files_never_a_folder():
     assert named == test_files
 
 
-def test_the_site_deploys_from_main_after_the_docs_publish():
-    """play.glitchy.games is published from main only, after the docs publish and infra tests.
+def test_the_site_deploys_from_main_once_the_infra_tests_pass():
+    """play.glitchy.games is published from main only, once test-infra passes, beside the docs.
 
-    The owner (2026-10-28): "it should run on main after docs publish". deploy-docs itself
-    waits for the macOS job, so the site never publishes ahead of a passing build.
+    The owner, 2026-11-20: "essentially would like docs and site publish to happen in parallel"
+    (it was "after docs publish", 2026-10-28). The site publishes ``src/website``, not the docs'
+    output, so it needs nothing from deploy-docs; test-infra still tests the code that publishes.
     """
     entry = circleci_workflow_job(name='deploy-site')
 
-    assert 'requires:\n            - deploy-docs\n            - test-infra\n' in entry
+    assert 'requires:\n            - test-infra\n          filters:' in entry
     assert 'branches:\n              only: main\n' in entry
-    assert 'serial-group: << pipeline.project.slug >>/deploy-site' in entry
+    assert SITE_DEPLOY_LOCK in entry
     assert 'nox -s site-publish' in circleci_job_definition(name='deploy-site')
+
+
+def test_the_docs_and_site_deploys_run_side_by_side():
+    """Neither deploy waits for the other: different locks, and neither requires the other."""
+    docs_entry = circleci_workflow_job(name='deploy-docs')
+    site_entry = circleci_workflow_job(name='deploy-site')
+
+    assert SITE_DEPLOY_LOCK not in docs_entry
+    assert DOCS_DEPLOY_LOCK not in site_entry
+    assert '- deploy-docs\n' not in site_entry
+    assert '- deploy-site\n' not in docs_entry
 
 
 def test_the_site_deploy_uses_oidc_not_stored_keys():
@@ -3062,3 +3376,117 @@ def test_the_site_deploy_role_arn_stays_out_of_the_repository():
     assert 'arn:aws:' not in configuration
     assert '"${SITE_DEPLOY_ROLE_ARN:-}"' in definition
     assert 'Project Settings > Environment Variables' in definition
+
+
+def test_every_step_that_builds_the_browser_wheel_lets_uv_replace_a_stale_venv():
+    """Each step running nox -s docs-deploy sets UV_VENV_CLEAR=1 (the browser wheel's build).
+
+    The build (third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh) runs
+    ``uv venv`` on its cached toolchain folder when the cached venv's python doesn't run, and uv
+    0.13.9 then asks "A virtual environment already exists ... replace it? [y/n]" on the step's
+    terminal, which no one answers: deploy-docs hung until the step's 60-minute no-output limit
+    (jobs 4431, 4443). Closing stdin doesn't stop it (uv reads the answer from the terminal;
+    tried 2026-11-21); UV_VENV_CLEAR=1 replaces the venv without asking. The script's own fix
+    (``uv venv --clear``) is a submodule change, recorded in plans/future-work.md.
+    """
+    configuration = yaml.safe_load(CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8'))
+    builds = [
+        (name, step['run'])
+        for name, job in configuration['jobs'].items()
+        for step in job.get('steps', [])
+        if isinstance(step, dict)
+        and isinstance(step.get('run'), dict)
+        and 'nox -s docs-deploy' in step['run'].get('command', '')
+    ]
+
+    assert [name for name, _ in builds] == ['deploy-docs']
+    for name, run in builds:
+        assert run.get('environment', {}).get('UV_VENV_CLEAR') == '1', name
+
+
+# The command that refuses a checkout not on main (docs-deploy and site-publish share it)
+ON_MAIN_CHECK = ('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main')
+
+
+def site_publish_session(*, posargs: list[str], git_status: str = '') -> RecordingSession:
+    """Run ``nox -s site-publish`` with these arguments against a recording session.
+
+    Args:
+        posargs: The session's arguments.
+        git_status: What ``git status --porcelain`` prints for the source (empty: clean).
+
+    Returns:
+        The session, holding the commands it ran.
+
+    """
+    import noxfile
+
+    session = RecordingSession(posargs=posargs, outputs={'git': git_status})
+    noxfile.site_publish(session)
+    return session
+
+
+def publish_command(session: RecordingSession) -> tuple[str, ...]:
+    """Return the session's ``glitchy_site.publish`` command.
+
+    Returns:
+        The command.
+
+    """
+    (command,) = [command for command in session.commands if 'glitchy_site.publish' in command]
+    return command
+
+
+def test_the_site_publishes_only_a_clean_checkout_on_main():
+    """A publish checks HEAD is on origin/main and the source is committed, before uploading.
+
+    The site's deploy has its own lock now, beside the docs' (the owner, 2026-11-20), so a
+    branch or an edited checkout must not reach play.glitchy.games, as docs-deploy refuses one.
+    """
+    session = site_publish_session(posargs=[])
+
+    publish_at = session.commands.index(publish_command(session))
+    assert ON_MAIN_CHECK in session.commands[:publish_at]
+    assert ('git', 'status', '--porcelain', '--', 'src/website') in session.commands[:publish_at]
+
+
+def test_the_site_refuses_to_publish_uncommitted_changes():
+    """An edited file in the source stops the publish before anything is uploaded."""
+    import noxfile
+
+    session = RecordingSession(posargs=[], outputs={'git': ' M src/website/index.html\n'})
+
+    with pytest.raises(RuntimeError, match='uncommitted'):
+        noxfile.site_publish(session)
+
+    assert not [command for command in session.commands if 'glitchy_site.publish' in command]
+
+
+@pytest.mark.parametrize('flag', ['--dry-run', '--allow-unmerged'])
+def test_a_dry_run_or_a_preview_publishes_without_the_main_check(flag):
+    """--dry-run changes nothing, and --allow-unmerged is the deliberate local preview."""
+    session = site_publish_session(posargs=[flag], git_status=' M src/website/index.html\n')
+
+    assert ON_MAIN_CHECK not in session.commands
+    assert '--allow-unmerged' not in publish_command(session)
+    assert ('--dry-run' in publish_command(session)) is (flag == '--dry-run')
+
+
+def test_the_docs_deploy_shares_the_on_main_check():
+    """docs-deploy refuses a checkout off main with the same command as site-publish."""
+    assert ON_MAIN_CHECK in docs_deploy_commands(posargs=['--no-measure'])
+    assert ON_MAIN_CHECK not in docs_deploy_commands(posargs=['--build-only', '--no-measure'])
+
+
+def test_the_site_deploy_publishes_mains_latest_commit():
+    """The deploy moves to main's tip before publishing, so an older pipeline cannot win.
+
+    With its own lock and only test-infra to wait for (the owner, 2026-11-20), a site deploy
+    from an older pipeline could otherwise finish after a newer one and put the older site back.
+    """
+    definition = circleci_job_definition(name='deploy-site')
+
+    move = definition.index('git checkout --quiet --detach origin/main')
+    assert 'git fetch --quiet origin main' in definition[:move]
+    publish = definition.index('            nox -s site-publish\n')
+    assert definition.index('- checkout') < move < publish

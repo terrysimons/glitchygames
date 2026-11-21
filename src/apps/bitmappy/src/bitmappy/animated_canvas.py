@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Self, cast, override
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.input.state import current_input
 from glitchygames.render_target import display_surface
@@ -619,13 +620,13 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             # Also don't track frame selection if we're in the middle of film strip operations
             if self._should_track_frame_selection():
                 # Track frame selection as a film strip operation instead of global
-                assert self.parent_scene is not None
-                self.parent_scene.film_strip_operation_tracker.add_frame_selection(animation, frame)
+                parent_scene = required(self.parent_scene, what='the parent scene')
+                parent_scene.film_strip_operation_tracker.add_frame_selection(animation, frame)
             elif self._loading_sprite and hasattr(self.parent_scene, 'undo_redo_manager'):
                 # No undo step, but the next selection must go back to this frame of the loaded
                 # sprite, not to a frame of the previous one (BUGS.md #211 item 5)
-                assert self.parent_scene is not None
-                self.parent_scene.undo_redo_manager.set_current_frame(animation, frame)
+                parent_scene = required(self.parent_scene, what='the parent scene')
+                parent_scene.undo_redo_manager.set_current_frame(animation, frame)
 
             # Force the canvas to redraw with the new frame
             self.force_redraw()
@@ -1601,8 +1602,11 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
             )
             self.log.debug('self.parent_scene type: %s', type(self.parent_scene))
 
-        if hasattr(self, 'parent_scene') and hasattr(self.parent_scene, 'debug_text'):
-            assert self.parent_scene is not None
+        if (
+            hasattr(self, 'parent_scene')
+            and self.parent_scene is not None
+            and hasattr(self.parent_scene, 'debug_text')
+        ):
             # Get description from loaded sprite, or use default prompt if empty
             description = getattr(loaded_sprite, 'description', '')
             self.log.debug("Loaded sprite description: '%s'", description)

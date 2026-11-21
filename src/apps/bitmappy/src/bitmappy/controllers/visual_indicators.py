@@ -20,6 +20,7 @@ from bitmappy.controllers.modes import (
 from bitmappy.controllers.selection import (
     ControllerSelection,  # ruff: ignore[typing-only-first-party-import] - used at runtime
 )
+from glitchygames.checks import required
 from glitchygames.render_target import display_surface
 from glitchygames.sprites import BitmappySprite
 
@@ -469,8 +470,7 @@ class VisualIndicators:
         total_width = (len(controllers) - 1) * indicator_spacing
 
         # Calculate starting position to center the group
-        slider_rect = slider.rect
-        assert slider_rect is not None
+        slider_rect = required(slider.rect, what="the slider's rect")
         start_x = int(slider_rect.centerx) - (total_width // 2)
         center_y = int(slider_rect.centery)
 
