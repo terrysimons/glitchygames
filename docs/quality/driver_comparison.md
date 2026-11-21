@@ -200,7 +200,7 @@ plays theirs through PulseAudio too.
 
 `nox -s test-linux-x11` runs the suite on Linux for its drivers; `nox -s test-linux-ci` runs it
 the way CircleCI's Linux job does, to reproduce that job's failures here. It reads the job
-(`test-python-3-15-linux`) from `.circleci/config.yml`: its image (`cimg/python` at
+(`test-python-3-15-linux`) from `.circleci/continue_config.yml`: its image (`cimg/python` at
 `PYTHON_VERSION`), its resource class's memory and CPUs (`small`: 2 GB, no swap, and one
 CPU, given to `docker run` as `--memory`, `--memory-swap` and `--cpus`) and its environment
 (`PYTEST_WORKERS=0`: one serial process; `GLITCHYGAMES_TEST_RSS_LIMIT_MB=1400`:

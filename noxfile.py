@@ -184,7 +184,9 @@ def _lint_circleci(session: nox.Session) -> None:
     if not shutil.which('circleci'):
         session.log('circleci CLI not found on PATH; skipping config validation.')
         return
-    session.run('circleci', 'config', 'validate', external=True)
+    # Both: the setup configuration and the configuration it continues with
+    session.run('circleci', 'config', 'validate', '.circleci/config.yml', external=True)
+    session.run('circleci', 'config', 'validate', str(_CIRCLECI_CONFIG), external=True)
 
 
 def _lint_github_actions(session: nox.Session) -> None:
@@ -826,6 +828,43 @@ def test(session: nox.Session) -> None:
         session.error(f'The tests failed. {description}')
 
 
+# The test files that read Markdown (each names a Markdown file in its code), which a docs-only
+# pull request still runs (nox -s test-markdown, CircleCI's markdown-checks job: the owner,
+# 2026-11-20). tests/test_ci_config.py holds the list to exactly the test files that name one
+MARKDOWN_TEST_FILES = (
+    'tests/audio/test_channel_fades.py',
+    'tests/benchmarks/test_logging_cost.py',
+    'tests/replay/tools/test_performance_pages.py',
+    'tests/test_ansible_ai_service.py',
+    'tests/test_ci_change_scope.py',
+    'tests/test_ci_config.py',
+    'tests/test_claude_md.py',
+    'tests/test_code_tree.py',
+    'tests/test_docs_claims.py',
+    'tests/test_gen_ref_pages.py',
+    'tests/test_generate_complexity_graphs.py',
+    'tests/test_instrument_audit_quote_check.py',
+    'tests/test_measure_staged_replays.py',
+    'tests/test_our_stored_paths.py',
+    'tests/test_read_only_views.py',
+    'tests/test_suite_collection.py',
+    'tests/test_workspace_config.py',
+)
+
+
+@nox.session(python=list(TEST_PYTHONS[-1:]), reuse_venv=False, name='test-markdown', default=False)
+def test_markdown(session: nox.Session) -> None:
+    """Run the tests that read Markdown (MARKDOWN_TEST_FILES): a docs-only change's tests.
+
+    On the installed, stamped engine as the test session has it, the dummy drivers only, in the
+    files' own order. Coverage is off: a part of the suite can't reach the 100% rule, and the
+    change touched no code.
+    """
+    _install_from_lockfile(session)
+    _stamp_installed_engine(session)
+    session.run('pytest', *MARKDOWN_TEST_FILES, '--no-cov', '--dummy-only')
+
+
 # A machine's share of a split CI job (tests/circleci_test_split.py): its coverage rule off, its
 # JUnit report naming each test's file
 SPLIT_SHARE_PYTEST_ARGUMENTS = ('--cov-fail-under=0', '-o', 'junit_family=xunit1')
@@ -1378,7 +1417,9 @@ def test_linux_x11(session: nox.Session) -> None:
 # CPUs of its resource classes (https://circleci.com/docs/configuration-reference/#resourceclass),
 # where the container's checkout goes and where its test-results/ come back to (git-ignored), the
 # uv cache kept between runs, and where the list of files to copy is mounted
-_CIRCLECI_CONFIG = Path('.circleci/config.yml')
+# The workflows' configuration (.circleci/config.yml only chooses which tests run, then continues
+# with this one)
+_CIRCLECI_CONFIG = Path('.circleci/continue_config.yml')
 _CIRCLECI_LINUX_JOB = 'test-python-3-15-linux'
 # The reusable command that installs the Linux jobs' system packages (the job runs it)
 _CIRCLECI_LINUX_SYSTEM_DEPENDENCIES = 'install-linux-system-dependencies'
@@ -1726,7 +1767,7 @@ def _linux_ci_script(
 def test_linux_ci(session: nox.Session) -> None:
     """Run the tests as CircleCI's Linux job does, in Docker, with its memory and CPUs.
 
-    Reads the job (``test-python-3-15-linux``) from .circleci/config.yml: its image
+    Reads the job (``test-python-3-15-linux``) from .circleci/continue_config.yml: its image
     (``cimg/python:<PYTHON_VERSION>``), its resource class's memory and CPUs (``small``:
     2 GB and 1 CPU; the container gets no swap, as the job has none) and its environment
     (``PYTEST_WORKERS=0``: serial; ``GLITCHYGAMES_TEST_RSS_LIMIT_MB``: tests/memory_guard.py),
