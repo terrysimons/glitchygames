@@ -292,6 +292,18 @@ class TestPauseSceneBehaviour:
         assert pause_scene.debug_subject is pause_scene
         _draw_the_active_scene(isolated_scene_manager)
 
+    def test_setup_without_a_game_engine_stops(self, isolated_scene_manager):
+        """The pause overlay shows the running game, which only a game engine knows.
+
+        A pause screen runs only inside a running game, so a missing engine is a bug. Today this
+        asserts; the assert sweep makes it raise glitchygames.checks.MissingValueError. TODO:
+        expect MissingValueError, with "<what> is missing", once feat/checks-required is on main.
+        """
+        isolated_scene_manager.game_engine = None
+
+        with pytest.raises(AssertionError):
+            isolated_scene_manager.switch_to_scene(PauseScene())
+
     def test_escape_quits(self, isolated_scene_manager):
         """ESC on the pause screen quits: the scene manager posts QUIT to the real queue."""
         pause_scene = self._pause_scene_after(isolated_scene_manager, previous_scene=None)
