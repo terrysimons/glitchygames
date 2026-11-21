@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.fonts import FontManager
 
 if TYPE_CHECKING:
@@ -338,8 +339,10 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
             The y position for frames.
 
         """
-        assert self.widget.animated_sprite is not None
-        if len(self.widget.animated_sprite.animations) == 1:
+        animated_sprite = required(
+            self.widget.animated_sprite, what="the film strip's animated sprite"
+        )
+        if len(animated_sprite.animations) == 1:
             # Center frames between top sprockets (y=7) and bottom sprockets (y=rect.height-15)
             top_sprocket_y = 7
             bottom_sprocket_y = self.widget.rect.height - 15
@@ -614,10 +617,12 @@ class FilmStripLayout:  # ruff: ignore[too-many-public-methods]
             int: The resulting integer value.
 
         """
-        assert self.widget.animated_sprite is not None
+        animated_sprite = required(
+            self.widget.animated_sprite, what="the film strip's animated sprite"
+        )
         frames_width = 0
-        animation_names = list(self.widget.animated_sprite.animations.keys())
-        for i, (_, frames) in enumerate(self.widget.animated_sprite.animations.items()):
+        animation_names = list(animated_sprite.animations.keys())
+        for i, (_, frames) in enumerate(animated_sprite.animations.items()):
             frames_width += len(frames) * (self.widget.frame_width + self.widget.frame_spacing)
             # Add sprocket width between animations (not after the last one)
             if i < len(animation_names) - 1:

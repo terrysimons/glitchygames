@@ -1,8 +1,8 @@
 # glitchy.games website on AWS — Design
 
 - **Date:** 2026-10-27
-- **Status:** DRAFT, awaiting the owner's review (builder-checked 2026-10-28). Nothing is built
-  yet.
+- **Status:** Built (2026-11-20): live at https://play.glitchy.games (#117; the go-live is
+  Task 8 of `plans/2026-10-28-glitchy-games-website-implementation.md`).
 - **Later, separate plans:** email at the domains; self-hosting PyScript/Pyodide (both in
   `plans/future-work.md`, Website); a real home page at `glitchy.games`; `docs.glitchy.games`;
   the other 24 domains.

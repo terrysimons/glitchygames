@@ -3218,3 +3218,62 @@ class TestSceneManagerPlayDeeperCoverage:
         manager.start = mocker.Mock()
         manager.play()
         manager.start.assert_called_once()
+
+
+# What a scene raises when a value its own code always sets is missing. Today these sites assert;
+# the assert sweep (fix/assert-sweep-engine-scenes) makes each one raise
+# glitchygames.checks.MissingValueError instead. TODO: switch this to MissingValueError, with the
+# "<what> is missing" message, once feat/checks-required (the shared helper) is on main.
+MISSING_VALUE_ERROR = AssertionError
+
+
+class TestMissingDisplaySurfaceStopsTheScene:
+    """A scene step that draws needs a display surface; without one it stops with an error.
+
+    A scene is built after the display exists, so a missing surface is a bug, never a game's
+    mistake.
+    """
+
+    def test_a_scene_built_before_the_display_exists_stops(self, mocker):
+        """Building a scene reads the display's size, so it needs a display surface."""
+        mocker.patch('glitchygames.scenes.scene.display_surface', return_value=None)
+
+        with pytest.raises(MISSING_VALUE_ERROR):
+            Scene()
+
+    def test_a_scene_whose_display_goes_away_while_it_is_built_stops(self, mocker):
+        """The scene's background is made in the display's format, so it needs the surface too."""
+        # The scene manager reads the display surface once, as it is first built: build it
+        # first, so the two reads below are the scene's own
+        SceneManager()
+        mocker.patch(
+            'glitchygames.scenes.scene.display_surface',
+            side_effect=[pygame.display.get_surface(), None],
+        )
+
+        with pytest.raises(MISSING_VALUE_ERROR):
+            Scene()
+
+    def test_a_screenshot_stops_without_a_display_surface(self):
+        """A screenshot copies the display surface."""
+        scene = Scene()
+        scene.screen = None
+
+        with pytest.raises(MISSING_VALUE_ERROR):
+            _ = scene.screenshot
+
+    def test_a_background_color_stops_without_a_display_surface(self):
+        """A new background color repaints the display surface."""
+        scene = Scene()
+        scene.screen = None
+
+        with pytest.raises(MISSING_VALUE_ERROR):
+            scene.background_color = BLUE
+
+    def test_a_background_pattern_stops_without_a_display_surface(self):
+        """A new background pattern repaints the display surface."""
+        scene = Scene()
+        scene.screen = None
+
+        with pytest.raises(MISSING_VALUE_ERROR):
+            scene.background_pattern = BackgroundPattern.CHANNEL_THREE

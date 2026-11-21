@@ -25,6 +25,7 @@ from pydantic import ValidationError
 
 from glitchygames import logical_names, recording_history
 from glitchygames.build_info import RevisionSource, engine_source_revision
+from glitchygames.checks import MissingValueError
 from glitchygames.debug import DebugPanel
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
@@ -6561,3 +6562,42 @@ class TestRebaseline:
             f'Rebaselined 500 frames to {new_path}: no frames differ; 3 recorded input events '
             'not delivered (first at frame 812); ended at frame 500 of 9800'
         )
+
+
+class TestAReplayInAStateItsCodeNeverReaches:
+    """A replay that breaks its own invariants raises MissingValueError, never a refusal."""
+
+    def test_the_error_is_not_a_refusal(self):
+        assert not issubclass(MissingValueError, ReplayRefusedError)
+
+    def test_every_step_that_needs_the_recorded_frame_names_its_absence(self):
+        """A recording with no frame at the replay's position is named, not asserted."""
+        sources = minimal_sources(frames=[])
+
+        with pytest.raises(MissingValueError, match=r'^recorded frame 0 is missing$'):
+            sources.control_events_for_frame(frame_number=0)
+        with pytest.raises(MissingValueError, match=r'^recorded frame 0 is missing$'):
+            sources.end_frame(frame_number=0, dt=0.0, scene=None, control_events=[])
+        with pytest.raises(MissingValueError, match=r'^recorded frame 0 is missing$'):
+            sources._merged_batch(live_internal_events=[])
+        with pytest.raises(MissingValueError, match=r'^recorded frame 0 is missing$'):
+            sources._resumed_frame_redelivered_events(live_internal_events=[])
+
+    def test_a_frame_handed_to_a_missing_frame_sink_is_named(self):
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        surface = pygame.Surface((1, 1))
+
+        with pytest.raises(MissingValueError, match=r"^the replay's frame sink is missing$"):
+            sources._hand_frame_to_sink(surface=surface)
+
+    def test_a_game_frame_that_shows_no_game_frame_is_named(self, mocker):
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        sources.frame_sink = mocker.Mock()
+        mocker.patch.object(
+            driver_module,
+            'game_frame_clock',
+            return_value=mocker.Mock(is_game_frame=True, shown_game_frame=None),
+        )
+
+        with pytest.raises(MissingValueError, match=r'^the shown game frame is missing$'):
+            sources._hand_frame_to_sink(surface=pygame.Surface((1, 1)))

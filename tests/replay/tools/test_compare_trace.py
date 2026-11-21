@@ -32,6 +32,7 @@ import pygame
 import pytest
 
 from glitchygames.argument_types import percent_from_zero_to_one_hundred
+from glitchygames.checks import MissingValueError
 from glitchygames.engine import GameEngine
 from glitchygames.engine import game_engine as game_engine_module
 from glitchygames.exit_codes import ExitCode
@@ -1899,6 +1900,33 @@ def test_a_frame_stream_whose_token_cannot_be_sent_closes_its_socket(mocker):
 
     assert len(created) == 1
     assert created[0].fileno() == -1
+
+
+def test_an_onion_skin_used_before_its_child_started_names_the_missing_value(color_game, mocker):
+    """Each step that needs what ``_start`` makes names the missing piece."""
+    onion_skin = OnionSkin(
+        old_path=color_game.old,
+        alpha_percent=DEFAULT_COMPARE_ALPHA_PERCENT,
+        game_command=[sys.executable, '-c', 'pass'],
+        pause_at_frame=None,
+    )
+
+    with pytest.raises(MissingValueError, match=r"^the onion skin's listener is missing$"):
+        onion_skin._accept()
+    onion_skin._listener = mocker.Mock()
+    with pytest.raises(MissingValueError, match=r"^the onion skin's child process is missing$"):
+        onion_skin._accept()
+    with pytest.raises(MissingValueError, match=r"^the onion skin's child process is missing$"):
+        onion_skin._never_connected()
+    with pytest.raises(MissingValueError, match=r"^the onion skin's connection is missing$"):
+        onion_skin._read_one_frame(size=(1, 1))
+    with pytest.raises(MissingValueError, match=r"^the onion skin's child process is missing$"):
+        onion_skin._end(reason='test', stalled=True)
+    # A child without its output file (``_start`` makes both)
+    mocker.patch.object(compare, 'stop_command')
+    onion_skin.process = mocker.Mock(returncode=ExitCode.UNUSABLE_INPUT)
+    with pytest.raises(MissingValueError, match=r"^the onion skin's output file is missing$"):
+        onion_skin._end(reason='test', stalled=True)
 
 
 def test_an_onion_skin_that_fails_to_start_its_child_closes_its_listener(color_game, mocker):
