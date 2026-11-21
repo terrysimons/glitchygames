@@ -135,6 +135,7 @@ import numpy as np
 import pygame
 
 from glitchygames import clock
+from glitchygames.checks import required
 from glitchygames.debug.overlay import load_debug_font
 from glitchygames.debug.panels import HUD_MARGIN, HUD_TEXT_COLOR, blit_text
 from glitchygames.exit_codes import ExitCode
@@ -766,14 +767,14 @@ class OnionSkin:
             True once connected; False when OLD ended without connecting.
 
         """
-        assert self._listener is not None
-        assert self.process is not None
+        listener = required(self._listener, what="the onion skin's listener")
+        process = required(self.process, what="the onion skin's child process")
         deadline = clock.measured_seconds() + CHILD_CONNECT_TIMEOUT_SECONDS
         while True:
             try:
-                connection, _ = self._listener.accept()
+                connection, _ = listener.accept()
             except TimeoutError:
-                if self.process.poll() is None and clock.measured_seconds() < deadline:
+                if process.poll() is None and clock.measured_seconds() < deadline:
                     continue
                 return self._never_connected()
             token_wait_seconds = max(
@@ -799,9 +800,9 @@ class OnionSkin:
             False (``_accept``'s answer: not connected).
 
         """
-        assert self.process is not None
+        process = required(self.process, what="the onion skin's child process")
         # Ended, or too slow: stopped either way (stop_command reaps an ended one)
-        stop_command(process=self.process)
+        stop_command(process=process)
         self._end(reason='it never connected to stream its frames', stalled=False)
         return False
 
@@ -835,9 +836,9 @@ class OnionSkin:
             size: NEW's presented frame's width and height.
 
         """
-        assert self._connection is not None
+        connection = required(self._connection, what="the onion skin's connection")
         try:
-            header = receive_exactly(connection=self._connection, count=FRAME_HEADER.size)
+            header = receive_exactly(connection=connection, count=FRAME_HEADER.size)
         except StreamEndedError as ended:
             self._end(reason=ended.reason, stalled=ended.stalled)
             return
@@ -849,9 +850,7 @@ class OnionSkin:
             )
             return
         try:
-            pixels = receive_exactly(
-                connection=self._connection, count=width * height * BYTES_PER_PIXEL
-            )
+            pixels = receive_exactly(connection=connection, count=width * height * BYTES_PER_PIXEL)
         except StreamEndedError as ended:
             self._end(reason=f'{ended.reason} part way through a frame', stalled=ended.stalled)
             return
@@ -888,20 +887,20 @@ class OnionSkin:
         self._has_ended = True
         # Closed first: a child still streaming then fails its next write and stops itself
         self._close_sockets()
-        assert self.process is not None
+        process = required(self.process, what="the onion skin's child process")
         if not stalled:
             with contextlib.suppress(TimeoutExpired):
                 # A child whose stream ended is ending itself: its exit status says how
-                self.process.wait(timeout=STOP_GRACE_SECONDS)
-        stop_command(process=self.process)
-        status = self.process.returncode
+                process.wait(timeout=STOP_GRACE_SECONDS)
+        stop_command(process=process)
+        status = process.returncode
         if self._held is not None and status == ExitCode.SUCCESS:
             LOG.info('%s ended at frame %d (%s)', self.old_path, self._held.frame_index, reason)
             return
         # Started (_start) before anything ends
-        assert self._output is not None
-        self._output.seek(0)
-        output = self._output.read()
+        output_file = required(self._output, what="the onion skin's output file")
+        output_file.seek(0)
+        output = output_file.read()
         what = (
             'OLD could not be replayed'
             if self._held is None

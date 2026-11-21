@@ -85,6 +85,7 @@ from glitchygames.audio.synth import (
     to_pcm16,
 )
 from glitchygames.audio.voices import SoundHandle
+from glitchygames.checks import required
 
 if TYPE_CHECKING:
     from glitchygames.audio.accounting import AudioAccountant
@@ -96,6 +97,7 @@ if TYPE_CHECKING:
 log: logging.Logger = logging.getLogger('game.audio.library')
 
 Int16Array = npt.NDArray[np.int16]
+
 
 # What ``sound()`` takes, and a game declares in ``Scene.SOUNDS``: a short name or a path, an
 # instrument, an effect, or a mix (instrument parts compiled into one sound)
@@ -195,12 +197,13 @@ class SharedSoundCache:
 
         Returns:
             The samples kept.
+
         """
-        assert sound.samples_int16 is not None
+        samples_int16 = required(sound.samples_int16, what="the sound's compiled samples")
         # Shared by every context's Sound: nothing may write them in place
-        sound.samples_int16.flags.writeable = False
+        samples_int16.flags.writeable = False
         compiled = CompiledSamples(
-            samples_int16=sound.samples_int16,
+            samples_int16=samples_int16,
             peak=sound.peak,
             sample_rate=sound.sample_rate,
         )
@@ -776,13 +779,14 @@ def _compiled_frame_count(sound: Sound) -> int:
 
     Returns:
         The frame count.
+
     """
     if sound.spec is not None:
         return rendered_frame_count(sound.spec)
     if sound.mix is not None:
         return sound.mix.frame_count()
-    assert sound.effect is not None
-    return sound.effect.frame_count(sample_rate=sound.sample_rate)
+    effect = required(sound.effect, what="the sound's effect")
+    return effect.frame_count(sample_rate=sound.sample_rate)
 
 
 def _nothing_plays(_sound: Sound) -> bool:
@@ -1124,7 +1128,7 @@ class SoundLibrary:
 
     def _hold(self, sound: Sound) -> None:
         """Keep a compiled sound in memory; over the limit, drop the least recently played."""
-        assert sound.samples_int16 is not None
+        required(sound.samples_int16, what="the sound's compiled samples")
         self._play_order[sound.identity_key] = sound
         self._play_order.move_to_end(sound.identity_key)
         if self._bytes_held() <= self._memory_limit_bytes:
@@ -1218,10 +1222,10 @@ class SoundLibrary:
 
     def _write_to_disk(self, sound: Sound, *, disk: DiskSoundCache) -> None:
         """Write a compiled sound's file (a write the system refuses is logged, not raised)."""
-        assert sound.samples_int16 is not None
+        samples_int16 = required(sound.samples_int16, what="the sound's compiled samples")
         if disk.write(
             identity_key=sound.identity_key,
-            samples_int16=sound.samples_int16,
+            samples_int16=samples_int16,
             peak=sound.peak,
             sample_rate=sound.sample_rate,
         ):
@@ -1348,9 +1352,9 @@ class SoundLibrary:
                 playback_defaults=entry.playback_defaults,
                 recorded_file=path,
             )
-        assert entry.instrument is not None
+        instrument = required(entry.instrument, what="the sound entry's instrument")
         return self._instrument_sound(
-            entry.instrument,
+            instrument,
             name=entry.name,
             request=request,
             defaults=entry.playback_defaults,
@@ -1506,9 +1510,13 @@ class SoundLibrary:
             KeyError: For a short name with no sound directory. (Other failures come from the
                 helpers: ``SoundAssetError`` for a name in both ``add_effects`` and the
                 directory or a bad path, ``KeyError`` for an unknown name.)
+            TypeError: If the request's source is not a string (only a string source is
+                resolved through a file entry).
         """
         source = request.source
-        assert isinstance(source, str)
+        if not isinstance(source, str):
+            message = f'only a string source names a sound file entry, got {type(source).__name__}'
+            raise TypeError(message)
         directory = request.scene_sound_directory
         package_root = request.package_root
         if is_path_reference(source):
@@ -1591,7 +1599,7 @@ class SoundLibrary:
                 ``SoundAssetError``.)
         """
         self._register_waves(sound_file)
-        assert table_name is not None
+        table_name = required(table_name, what="the requested sound file entry's name")
         if table_name not in sound_file.sounds:
             known = ', '.join(sound_file.sounds) or 'none'
             message = f'{sound_file.path} has no sound {table_name!r} (it defines: {known})'
@@ -1628,6 +1636,7 @@ def compile_sound(sound: Sound) -> None:
 
     Args:
         sound: The sound, compiled or not; its samples are replaced.
+
     """
     if sound.recorded_file is not None:
         _decode_recorded_file(sound)
@@ -1648,9 +1657,9 @@ def compile_sound(sound: Sound) -> None:
             sample_rate=sound.sample_rate,
         )
     else:
-        assert sound.effect is not None
+        effect = required(sound.effect, what="the sound's effect")
         # Version 0 recipes compile through today's renderer, unchanged (impl spec 10.4)
-        samples = sound.effect.render(sample_rate=sound.sample_rate)
+        samples = effect.render(sample_rate=sound.sample_rate)
         sound.install(
             samples_float=samples,
             samples_int16=to_pcm16(samples),
@@ -1665,8 +1674,7 @@ def _decode_recorded_file(sound: Sound) -> None:
     Raises:
         SoundAssetError: When the file cannot be loaded, or cannot be decoded without a mixer.
     """
-    path = sound.recorded_file
-    assert path is not None
+    path = required(sound.recorded_file, what="the sound's recorded file")
     settings = pygame.mixer.get_init()
     if settings is not None:
         try:

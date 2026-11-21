@@ -14,6 +14,13 @@ from glitchygames.audio.assets import (
     EnvelopeTable,
     SoundEntry,
     SoundFile,
+    SoundTable,
+    SourceTable,
+    WaveTable,
+    _checked_pitch,
+    _sound_entry,
+    _source_from_table,
+    _wave_from_table,
     clear_sound_file_cache,
     is_path_reference,
     load_sound_file,
@@ -22,8 +29,10 @@ from glitchygames.audio.assets import (
 from glitchygames.audio.effects import Effect
 from glitchygames.audio.exceptions import GlitchyGamesAudioError, SoundAssetError
 from glitchygames.audio.instrument import Instrument, Noise
+from glitchygames.audio.pitch import Hz, Midi, Note
 from glitchygames.audio.spec import ENVELOPE_PRESETS, EnvelopeSpec, PlaybackDefaults
 from glitchygames.audio.waves import Harmonics, Wave, current_wave_registry
+from glitchygames.checks import MissingValueError
 from glitchygames.engine_context import EngineContext
 
 FIXTURES = Path(__file__).parent / 'fixtures'
@@ -1096,3 +1105,43 @@ def test_a_live_instrument_that_cannot_work_is_refused_where_it_goes_wrong(
 
     assert path in str(raised.value)
     assert reason in str(raised.value)
+
+
+@pytest.mark.parametrize('pitch', [Note('A4'), Midi(69)])
+def test_a_pitch_object_the_engine_accepts_but_a_file_cannot_hold_is_a_value_error(pitch):
+    """A pitch in a file is text or a number: a Note or Midi resolve_pitch takes is refused."""
+    with pytest.raises(ValueError, match='a pitch is a note name or a float in hertz'):
+        _checked_pitch(pitch)
+
+
+def test_a_float_pitch_in_hertz_is_kept_as_written():
+    """Hz is a float: it is a number a file can hold."""
+    assert _checked_pitch(Hz(440.0)) == 440.0
+
+
+def test_a_wave_table_of_no_kind_raises_a_named_error_instead_of_asserting():
+    """WaveTable validation requires one kind; a table built around it is a bug, said by name."""
+    with pytest.raises(MissingValueError, match=r'^the wave table\'s points is missing$'):
+        _wave_from_table(WaveTable.model_construct())
+
+
+def test_a_source_table_with_neither_wave_nor_noise_raises_a_named_error():
+    """SourceTable validation requires a wave or noise; a table built around it is a bug."""
+    with pytest.raises(MissingValueError, match=r'^the source table\'s noise is missing$'):
+        _source_from_table(
+            SourceTable.model_construct(), waves={}, location='sounds.x', problems=[]
+        )
+
+
+def test_a_sound_table_with_neither_instrument_nor_file_raises_a_named_error(tmp_path):
+    """SoundTable validation requires an instrument or file; a table built around it is a bug."""
+    with pytest.raises(MissingValueError, match=r'^the sound table\'s instrument is missing$'):
+        _sound_entry(
+            'x',
+            SoundTable.model_construct(),
+            path=tmp_path / 'x.toml',
+            boundary=tmp_path,
+            instruments={},
+            dependencies={},
+            problems=[],
+        )
