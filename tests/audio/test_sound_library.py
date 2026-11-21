@@ -6,14 +6,24 @@ import numpy as np
 import pygame
 import pytest
 
-from glitchygames.audio.assets import clear_sound_file_cache
+from glitchygames.audio.assets import SoundEntry, clear_sound_file_cache, load_sound_file
 from glitchygames.audio.effects import Effect, Tone
 from glitchygames.audio.exceptions import SoundAssetError, SoundRenderError
 from glitchygames.audio.instrument import Instrument
-from glitchygames.audio.library import CacheMode, compile_sound
+from glitchygames.audio.library import (
+    CacheMode,
+    SharedSoundCache,
+    Sound,
+    SoundRequest,
+    _compiled_frame_count,
+    _decode_recorded_file,
+    compile_sound,
+)
+from glitchygames.audio.pitch import Tuning
 from glitchygames.audio.spec import PlaybackDefaults
 from glitchygames.audio.synth import Envelope, Waveform, to_pcm16
 from glitchygames.audio.waves import Harmonics, Wave, current_wave_registry
+from glitchygames.checks import MissingValueError
 from glitchygames.engine_context import EngineContext
 from tests.audio.library_support import (
     FIXTURE_SOUNDS,
@@ -690,3 +700,86 @@ def test_a_live_sound_from_a_sound_file_is_live_with_its_routes(tmp_path):
     assert sound.is_live
     assert sound.live_instrument is not None
     assert [route.destination for route in sound.live_instrument.routes] == ['pitch']
+
+
+def _bare_sound() -> Sound:
+    """A sound with no spec, mix, effect, recorded file or samples: nothing to compile or keep."""
+    return Sound(
+        name='bare',
+        identity_key='bare-key',
+        sample_rate=44100,
+        playback_defaults=PlaybackDefaults(),
+    )
+
+
+def test_keeping_an_uncompiled_sound_raises_a_named_error_instead_of_asserting():
+    """The shared cache holds samples only; a sound with none is a bug, said by name."""
+    with pytest.raises(MissingValueError, match=r'^the sound\'s compiled samples is missing$'):
+        SharedSoundCache().keep(_bare_sound())
+
+
+def test_counting_the_frames_of_a_sound_with_no_source_raises_a_named_error():
+    """A sound is a spec, a mix or an effect: one with none cannot be counted."""
+    with pytest.raises(MissingValueError, match=r'^the sound\'s effect is missing$'):
+        _compiled_frame_count(_bare_sound())
+
+
+def test_holding_an_uncompiled_sound_raises_a_named_error():
+    """The memory accounting needs the samples: an uncompiled sound is refused by name."""
+    library, _ = make_library()
+
+    with pytest.raises(MissingValueError, match=r'^the sound\'s compiled samples is missing$'):
+        library._hold(_bare_sound())
+
+
+def test_writing_an_uncompiled_sound_to_disk_raises_a_named_error(mocker):
+    """The disk layer stores samples: an uncompiled sound is refused by name, nothing written."""
+    library, _ = make_library()
+    disk = mocker.Mock()
+
+    with pytest.raises(MissingValueError, match=r'^the sound\'s compiled samples is missing$'):
+        library._write_to_disk(_bare_sound(), disk=disk)
+
+    disk.write.assert_not_called()
+
+
+def test_compiling_a_sound_with_no_source_raises_a_named_error():
+    """compile_sound takes a recorded file, spec, mix or effect: a sound with none is a bug."""
+    with pytest.raises(MissingValueError, match=r'^the sound\'s effect is missing$'):
+        compile_sound(_bare_sound())
+
+
+def test_decoding_a_sound_with_no_recorded_file_raises_a_named_error():
+    """Only a recorded sound is decoded: any other is a bug, said by name."""
+    with pytest.raises(MissingValueError, match=r'^the sound\'s recorded file is missing$'):
+        _decode_recorded_file(_bare_sound())
+
+
+def test_a_sound_entry_with_nothing_to_build_from_raises_a_named_error(mocker):
+    """An entry names an effect, a file or an instrument; one that names none is a bug."""
+    library, _ = make_library()
+    mocker.patch.object(library, '_resolve_entry', return_value=SoundEntry(name='empty'))
+    request = SoundRequest(source='empty', scene_sound_directory=None)
+
+    with pytest.raises(MissingValueError, match=r'^the sound entry\'s instrument is missing$'):
+        library._build(request, sample_rate=44100, tuning=Tuning())
+
+
+def test_resolving_a_source_that_is_not_a_string_raises_a_named_error():
+    """Only a name or a path is resolved through a sound file: an instrument never is."""
+    library, _ = make_library()
+    request = SoundRequest(source=PULSE_INSTRUMENT, scene_sound_directory=None)
+
+    with pytest.raises(TypeError, match='only a string source names a sound file'):
+        library._resolve_entry(request)
+
+
+def test_taking_a_sound_from_a_file_without_a_name_raises_a_named_error():
+    """A sound file entry is always asked for by name: asking without one is a bug."""
+    library, _ = make_library()
+    sound_file = load_sound_file(FIXTURES / 'sounds' / 'pickups.toml')
+
+    with pytest.raises(
+        MissingValueError, match=r'^the requested sound file entry\'s name is missing$'
+    ):
+        library._entry_in(sound_file, None)

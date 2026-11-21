@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any, override
 import pygame
 import pytest
 
+from glitchygames.checks import MissingValueError
+from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import logical_name
 from glitchygames.process import OutputCapture, run_command
@@ -30,6 +32,8 @@ from glitchygames.replay.tools.golden_traces import (
     GOLDEN_TRACE_SOURCE,
     RANDOM_SEED,
     GameSceneClasses,
+    GoldenTraceSceneManager,
+    GoldenTraceSceneManagerError,
     InputScript,
     InputScriptError,
     golden_game,
@@ -396,6 +400,51 @@ def test_a_run_whose_engine_is_gone_still_tears_down():
 
     assert pygame.event.peek(pygame.USEREVENT) is False
     assert SceneManager() is not manager
+
+
+def test_a_run_whose_scene_ends_mid_recording_names_the_frame():
+    """A scene that ends during the run raises a named error at the frame that lacks it."""
+
+    def end_the_scene(**_observed: Any) -> None:
+        SceneManager().active_scene = None
+
+    with pytest.raises(
+        MissingValueError, match=r"^the golden game's active scene at frame 1 is missing$"
+    ):
+        record_trace(
+            scene_class=NudgedScene,
+            script=InputScript(),
+            frame_count=GOLDEN_FRAME_COUNT,
+            frame_observer=end_the_scene,
+        )
+
+
+def test_an_engine_that_installs_another_scene_manager_raises_a_named_error(mocker):
+    """The harness's scene manager must be the engine's: another is a named error."""
+    mocker.patch.object(GoldenTraceSceneManager, 'install', return_value=mocker.Mock())
+
+    with (
+        pytest.raises(GoldenTraceSceneManagerError, match='did not install'),
+        golden_game(scene_class=NudgedScene, random_seed=RANDOM_SEED),
+    ):
+        pass  # pragma: no cover - the engine's scene manager check raises before the body
+
+
+def test_a_replay_engine_without_replay_sources_raises_a_named_error(tmp_path, mocker):
+    """A harness replay needs the engine's replay sources: without them it names the lack."""
+    recording_path = tmp_path / 'nudged.jsonl.gz'
+    record_trace(
+        scene_class=NudgedScene,
+        script=nudged_script(),
+        frame_count=GOLDEN_FRAME_COUNT,
+        recording_path=recording_path,
+    )
+    mocker.patch.object(GameEngine, '_start_requested_replay', return_value=None)
+
+    with pytest.raises(MissingValueError, match=r"^the golden game's replay sources is missing$"):
+        replay_golden_recording(
+            scene_class=NudgedScene, script=nudged_script(), path=recording_path
+        )
 
 
 def golden_trace_options(

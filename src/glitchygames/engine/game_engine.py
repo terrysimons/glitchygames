@@ -47,6 +47,7 @@ from glitchygames.backgrounds import (
     set_active_default_background_pattern,
 )
 from glitchygames.build_info import engine_source_revision
+from glitchygames.checks import required
 from glitchygames.color import PURPLE
 from glitchygames.crt_power_on import (
     CrtPowerOnMode,
@@ -2700,10 +2701,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             return
 
         def run_the_tool() -> int:
-            tool_exit_code = run_game_flag_tool(options=options, game=game)
             # A tool with a game handler always ends the run (its code, or a refusal's)
-            assert tool_exit_code is not None
-            return tool_exit_code
+            return required(
+                run_game_flag_tool(options=options, game=game),
+                what="the game-flag tool's exit code",
+            )
 
         # The crash boundary and signal handling start()'s run gives a game (_crash_boundary),
         # so a tool ends the process with the exit codes it had when it ran inside start(); the
@@ -3178,9 +3180,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         address_text = options.get('replay_frame_stream')
         if address_text is None:
             return
-        address = FrameStreamAddress.parse(text=address_text)
         # Refused before the replay started when it does not read (frame_stream_refusal)
-        assert address is not None
+        address = required(
+            FrameStreamAddress.parse(text=address_text), what="the replay frame stream's address"
+        )
         try:
             self.frame_stream = FrameStream.connect(
                 address=address,

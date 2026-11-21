@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 
 import pygame
 
+from glitchygames.checks import required
+
 if TYPE_CHECKING:
     from bitmappy.film_strip import FilmStripWidget
     from glitchygames.sprites import SpriteFrame
@@ -340,8 +342,7 @@ class FilmStripAnimation:
 
     def dump_animated_sprite_debug(self) -> None:
         """Dump animated sprite debug info."""
-        assert self.widget.animated_sprite is not None
-        sprite = self.widget.animated_sprite
+        sprite = required(self.widget.animated_sprite, what="the film strip's animated sprite")
         LOG.debug('AnimatedSprite debug info:')
         LOG.debug(
             '  current_animation: %s',

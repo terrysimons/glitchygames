@@ -163,6 +163,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | `test_requests_while_a_flush_runs_get_one_more_pass_and_never_overlap` depends on the wall clock: the stand-in `syncfs` takes a real 10 ms (`SYNC_SECONDS`) and the test assumes five requests 1 ms apart all land during the first pass. Under the full parallel suite the sleeps stretch, a request lands in the second pass, and a third runs (`assert 3 == 2`; seed 4023912552 failed the website branch's pre-push gate, 2026-11-20; passes alone, with its file, and under that seed alone) | `tests/test_browser_storage.py` (from #238) | Fix: the test completes the stand-in's write-back itself (an event it sets), so "during the running pass" holds by construction. Then sweep the suite for other tests that sleep against a real-time stand-in (the wall-clock rule in CLAUDE.md's Testing Guidelines). |
 | Frames loaded from TOML keep magenta (255, 0, 255) opaque (no colorkey, alpha 255), so the visible-pixel hitbox fallback of a magenta-keyed sprite is its whole frame (ghosty: `Rect(0, 0, 32, 32)`) | `src/glitchygames/sprites/animated.py` (loader), `src/glitchygames/collision/bounds.py` | Found while testing the viewport-save hitbox rule; confirm whether games rely on explicit hitboxes or set a colorkey themselves. |
 | A real AI request has not been run in the packaged binary (needs an API key or network) | `dist/bitmappy` | Do once by hand to fully close BUGS.md #47. |
+| The browser wheel's build runs `uv venv` on its cached toolchain folder whenever the cached venv's `bin/python` doesn't run (likely a link into uv's managed-Python folder, which the cache doesn't hold: unverified), and uv asks on the terminal whether to replace it: deploy-docs hung to its 60-minute no-output limit (jobs 4431, 4443, 2026-11-20). #257 set `UV_VENV_CLEAR=1` on the step (closing stdin doesn't stop uv's prompt, tried 2026-11-21) | `third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh` lines 39-41 (submodule); `.circleci/config.yml` deploy-docs | Fix in the submodule: `uv venv --clear`, and check the venv's python actually runs before reusing it. Then shorten the step's `no_output_timeout` to just above the build's longest silent stretch, so a stuck step fails in minutes. |
 | `scripts/raw_sprite_loader.py` cannot start: `BitmappyLegacySprite` calls `Sprite.__init__` without x and y, and `inflate` draws zero-size rects (nothing) | `scripts/raw_sprite_loader.py:~41, ~84` | Found while deleting `legacy_sprite_loader.py` (BUGS.md #46). Tests use only its `deflate`; fix or fold into Galimore import (sub-plan E). |
 | ~~`FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels~~ | `src/glitchygames/bitmappy/history/commands.py` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). **Done** (#93, `606fa59b`): `FrameAddCommand._insert_frame` (the method's name now) uses `set_pixel_data` on an SRCALPHA frame and restores an explicit hitbox. |
 | Undoing an animation delete restores the sprite data but only refreshes existing film strip widgets, so the restored animation appears to get no film strip until strips are rebuilt (`on_sprite_loaded`) | `src/glitchygames/bitmappy/history/commands.py` (`AnimationAddCommand._add_animation`) | Found while fixing BUGS.md #51; not checked in the running app. |
@@ -705,6 +706,24 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
     the `glitchy.games` hosts' 301s carry `strict-transport-security`, the `.ai` ones don't), so
     a browser's first `http://glitchygames.ai` request isn't upgraded by the browser itself.
     Give `GlitchyGamesAiRedirect`'s behavior the same security headers policy as the site's.
+- **One CircleCI job publishes the docs and the site** (the owner, 2026-11-20). Today
+  `deploy-docs` and `deploy-site` are two jobs that run side by side, each under its own
+  serial-group lock (`ci/deploys-in-parallel`). The owner wants them as one job, with the two
+  publishes still running in parallel inside it: for example two background steps, or the docs
+  build and the S3 upload started together. Keep what the two jobs guarantee today:
+  - the docs deploy waits for no test job;
+  - the site publish waits for `test-infra`;
+  - two back-to-back merges cannot race gh-pages;
+  - a deploy whose main is already published stops.
+- **The site deploy stops when main is already live** (2026-11-20, the follow-up to
+  `ci/deploys-in-parallel`). `deploy-site` now moves to main's tip before publishing, but it
+  publishes again even when that commit is already live, unlike the docs deploy, which reads
+  gh-pages and stops. Proposed:
+  - `glitchy_site.publish` writes the commit into a small marker object in the bucket, for
+    example `site_build.json`, like the docs' `play/site_build.json`;
+  - the job's first step reads it back, over plain HTTP from play.glitchy.games so no IAM
+    change is needed, and halts when it matches;
+  - if IAM must change after all, that stack deploy is the owner's.
 - **Email at the domains** (the owner, 2026-10-28: "a later task"; needs a plan). The Route 53
   move drops Namecheap's email forwarding (unused today); a provider (e.g. Amazon SES) would
   add MX, SPF, DKIM and DMARC records to the zones.
@@ -730,6 +749,16 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
 - A changed-pixels-only canvas redraw (the canvas repaints every pixel on each redraw). The old
   `dirty_pixels` list was removed unread (BUGS.md #178.15, 2026-11-01); a new design must also
   mark everything on pan, frame switch, hover and onion-skin changes.
+- **In the browser, Save works like Load** (the owner, 2026-11-20). Load already skips the in-game
+  dialog and opens the browser's file picker (`editor.py` `on_load_dialog_event`, through
+  `glitchygames.user_files`), but Save still opens the in-game dialog, asks for a typed name
+  (on a phone, with no keyboard) and then downloads (`ui/dialogs.py` `on_confirm_event`). In the
+  browser, Save skips the dialog: Chromium browsers get the real "Save as" dialog
+  (`showSaveFilePicker`) with a suggested name; Safari and Firefox get a download with that
+  name (on iPhone, the share sheet's Save to Files). The suggested name is the name the sprite
+  was loaded with, or `sprite.toml`. The desktop keeps its dialog. Check in Chrome, Safari and
+  on a phone. The phone keyboard for other text input is in
+  `plans/2026-11-20-window-owner-events.md` (question 8).
 
 ## AI (Lucid Circuit; plans/lucid-circuit.md)
 
@@ -900,7 +929,9 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   (`recording.private_event_queue`), so the Arcade never applies them, the same way a tile sets
   no caption and changes none of SDL's blocked event types. A recorded event also replays.
   Bitmappy then posts the event instead of calling pygame (the owner allows this change to
-  Bitmappy, as for its screen). Build it with the key-repeat event below (one mechanism). Tests:
+  Bitmappy, as for its screen). Build it with the key-repeat event below (one mechanism).
+  **Planned: plans/2026-11-20-window-owner-events.md** (one event type, a context slot, replay
+  compatibility for old recordings, the guard widening). Tests:
   a tile that hides its cursor leaves the outer cursor as it was; a game in the default context
   still hides and shows it; the event is recorded and replayed; and the workspace guard
   (`tests/test_workspace_config.py`) widens to `pygame.mouse.set_visible` once Bitmappy no
@@ -916,11 +947,24 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   SDL only in the context that owns the window. The engine's `InputBox` goes through the same
   engine path rather than calling SDL (engine code needs no event: it can set the context's
   repeat directly), and the demo posts the event (a change to the demo, as for Bitmappy's).
-  Worth deciding with it: the text widgets' text input start and stop
+  Planned with the cursor event: plans/2026-11-20-window-owner-events.md. Worth deciding with it: the text widgets' text input start and stop
   (`src/glitchygames/ui/text_widgets.py`), the same class. Tests: the text-input demo's tile
   leaves the outer repeat at `(0, 0)` and its strict xfail is removed; a game in the default
   context still gets its repeat; the event is recorded and replayed; and the workspace guard
   widens to `pygame.key.set_repeat`.
+- **A game's own window-setting defaults, and its last active settings, for when it is wrapped
+  (the owner, 2026-11-20).** First step, in plans/2026-11-20-window-owner-events.md: a launched
+  game starts from SDL's values from before any game wrote them, so a game behaves the same
+  launched from the Arcade as alone (example: the Arcade hides the cursor for its own; Paddle
+  Slap, launched from it and never naming the cursor, starts with the normal cursor). Next:
+  1. A game declares a set of default window settings (cursor shown or hidden, cursor shape, key
+     repeat, text input), applied when it starts or becomes the window's owner, instead of SDL's
+     defaults.
+  2. The engine records each game's latest active settings (what it last applied), so when the
+     game is wrapped again (launched from the Arcade, or its tile becoming live) the host swaps
+     to that game's own settings, its defaults overlaid by what it last had, rather than SDL's.
+  Decide with it where the latest settings live (the game's saves, or the host's state) and how
+  a replay serves them (recorded at start, like the save snapshot), so a replay matches.
 
 - **The hosted start skips `_begin_start` (and `_begin_run`).** An inner game's `start()`
   builds the game and returns (`render_target.hosted_start_requested()`), so the startup options
@@ -1010,6 +1054,18 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 
 ## Games
 
+- **Game code that belongs in the engine (the owner's overnight audit, 2026-11-20).** A platformer kit
+  shared by Brave Adventurer and Clockwork Keep, the high-score table (four copies), shadowed HUD
+  text, an idle-to-demo loop, and the font helpers in Mr. Muncher and Zombies. Planned, ordered by
+  golden risk: plans/2026-11-20-game-code-into-the-engine.md (approved 2026-11-20; HUD labels
+  become sprites with one checked re-record between Arcade sub-plans 5 and 6).
+- **Player names on high scores** (the owner, 2026-11-20). No game records who set a score today:
+  each entry is the score and, for Clockwork and Mr. Muncher, the floor or level. Arcade games
+  ask for three initials; ours could take the name from the player roster
+  (plans/2026-10-28-player-roster-design.md) when the player is known, and offer an initials
+  entry when not. Decide with the roster and per-player tables. An optional `name` on the
+  high-score entry models keeps today's save files loading.
+
 - **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
   onto the screen, so it has no sprites: the AI's sprite tools see nothing, the stable ids name nothing, and replays
   compare nothing of it, which is why it posts a GAMEEVENT per death and seat change to give its replay something to
@@ -1035,6 +1091,22 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   site, each page loaded, each picker clicked, no console error) would keep them working. The
   frame x commit heatmaps stay on each recording's own page; they could join the performance
   explorer as a chart of their own.
+- **Automated browser testing: Playwright for desktop, Appium for phones and iPads** (the owner,
+  2026-11-20). Today the play pages and docs explorers are checked by hand or by scratch
+  Playwright scripts. Recommended split:
+  - **Playwright** (Python), as a nox session and in CI: desktop Chromium, Firefox and WebKit,
+    plus mobile emulation (screen sizes, touch events, device profiles). Covers each game's play
+    page booting to its title with no Python or console error, the touch controls
+    (`browser/touch_controls.js`), Load and Save (including Save working like Load,
+    Bitmappy above), the IndexedDB sound cache across a reload, and this item's docs explorers.
+  - **Appium** for real devices: Safari on iPhone and iPad (XCUITest; the iOS simulator in CI
+    where it runs, real devices by hand or on a schedule) and Chrome on Android (UiAutomator2).
+    It covers what emulation cannot: the on-screen keyboard raised by text input
+    (`plans/2026-11-20-window-owner-events.md`, question 8), the iOS share sheet's Save to Files,
+    iOS audio unlock on the first tap, and the touch layout on real screens.
+  - **Selenium**: not planned. It would add only real desktop Safari (`safaridriver`), which
+    Playwright's WebKit approximates; add it if a bug shows in desktop Safari that WebKit misses
+    (Appium speaks the same WebDriver protocol, so it is a small step then).
 - **A per-game AI sweep of performance bottlenecks** (the owner, 2026-11-07). For each game, have the AI
   read what our benchmarks record (the run ledger in `quality/replay-ledger/`, each recording's
   `processing_seconds` and `FrameProfile`, the slowest frames and scenes in each `RunSummary`, and
@@ -1204,6 +1276,14 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 
 ## Developer environment
 
+- **The local x11 Docker image on Ubuntu 26.04** (the owner, 2026-11-20: "use the latest 26.04
+  images, since that's our target OS for Raspberry Pi"). `scripts/linux_x11/Dockerfile`
+  (`nox -s test-linux-x11`, compare-drivers' x11-linux) is `python:3.15-slim`, Debian 13
+  (trixie), since #96 for convenience only. Rebuild it on `ubuntu:26.04` with Python 3.15.2
+  from uv, keeping its X11 and PulseAudio client libraries. Already on 26.04 (checked
+  2026-11-20): `test-linux-ci` (`cimg/python:3.15.2` is Ubuntu 26.04.1, the same image CircleCI
+  runs) and `deb-package` (`ubuntu:26.04`; its older release `ubuntu:24.04` stays, #237's check
+  that the .deb installs on the oldest supported release).
 - **A leaner CLAUDE.md through path-scoped rules** (the owner, 2026-11-20; after #117, which
   moved the Website section to `.claude/rules/website.md`). CLAUDE.md sits at
   `tests/test_claude_md.py`'s 360-line limit. Sections that matter only in their own folders
@@ -1482,6 +1562,22 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   Each becomes an explicit check raising an error with a real message; the 100% coverage gate
   may need a test per new branch. Then remove S101 from the ignore list so none returns.
   Decide with the owner whether `scripts/` (hand-run tools, never shipped) is in scope.
+  - The owner's decisions (2026-11-20): a None-check is `glitchygames.checks.required(value,
+    what=...)`, which raises `MissingValueError` ("<what> is missing"); any other condition is an
+    explicit raise of the error that fits. One branch per package, each by one session:
+    engine (`fix/assert-replacement-engine`), engine `scenes/` (dev-glitchygames-97), Bitmappy
+    (`fix/assert-sweep-bitmappy`), then games and demos, and `scripts/` (in scope). Last, as its
+    own step after every package: remove S101 from ruff's ignore list (the per-file ignores keep
+    asserts allowed in tests only), so any assert in a non-test file fails, and tighten bandit
+    past B101's filter. No list of files still to do is kept in the code (a saved ratchet guard
+    is in the gitignored `build/assert-sweep-final-step/` of the
+    `glitchygames-assert-replacement-engine` worktree; keep it when that worktree is removed).
+  - Progress (2026-11-20): `InnerGame`'s three (#246) and 78 in 27 engine
+    files (`fix/assert-replacement-engine`) are done; one, in `audio/assets.py`'s pitch check,
+    could fire in normal use (a `Note` or `Midi` pitch in a Python-built table) and is now a
+    `ValueError`. Left (counted by `ast`, 2026-11-20): `scenes/` 25 (its `_run_scene_frame`
+    assert fires when a scene ends before `run_frame`), Bitmappy 35, games and demos 14,
+    `scripts/` 43.
 - **Stereo synthesis** (the owner, 2026-11-15: "couldn't we make them stereo since we own the
   sound waves?"; its own branch, after the sound migration). The renderer makes mono samples
   and every sound, live and baked, pans by the constant-power law (`voices.constant_power_gains`,
