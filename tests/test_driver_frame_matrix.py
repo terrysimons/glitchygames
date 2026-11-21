@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 import noxfile
 import pytest
+from scripts.driver_configurations import NATIVE_CONFIGURATIONS
 from scripts.driver_frame_matrix import (
     MATRIX_JSON_NAME,
     MATRIX_MARKDOWN_NAME,
@@ -710,6 +711,10 @@ class TestNativeRunTimeLimit:
 
     def test_the_stack_dump_comes_before_the_kill(self):
         assert noxfile._NATIVE_RUN_STACK_DUMP_SECONDS < noxfile._NATIVE_RUN_TIMEOUT_SECONDS
+
+    def test_the_noxfiles_native_names_are_the_driver_configurations_native_ones(self):
+        """The noxfile keeps its own copy (CI's nox cannot import the project): the two agree."""
+        assert set(noxfile._NATIVE_CONFIGURATION_NAMES) == set(NATIVE_CONFIGURATIONS)
 
     def test_a_hung_test_in_an_xdist_run_fails_with_every_threads_stack(self, tmp_path):
         """The real pytest, xdist and pytest-timeout: the hung test fails, the others pass."""
