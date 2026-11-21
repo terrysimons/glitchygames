@@ -27,7 +27,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, TextIO
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
     from pathlib import Path
 
 # What run_command raises for a child that outlives its timeout (subprocess's own exception,
@@ -39,6 +39,12 @@ CompletedProcess = subprocess.CompletedProcess
 RunningProcess = subprocess.Popen
 # How long stop_command lets a child end on its own before killing it
 STOP_GRACE_SECONDS = 10.0
+# How often stop_command looks again whether a stopped child's process group is gone
+GROUP_LOOK_SECONDS = 0.01
+
+
+class ProcessGroupSurvivedError(RuntimeError):
+    """A stopped child's process group still has processes a grace after it was killed."""
 
 
 class OutputCapture(StrEnum):
@@ -272,6 +278,11 @@ def stop_command(*, process: subprocess.Popen[str], first_signal: int = signal.S
     A child that has already ended is only reaped, also when it ends between the check and a
     signal (``_signal_the_group``).
 
+    On POSIX, once the child it signalled is reaped, nothing is left in its group when this
+    returns (``_empty_the_group``): macOS can let a member forked during a group signal run on,
+    so a member still there is given the grace (after a gentle stop) and then killed until the
+    group is gone, or ``ProcessGroupSurvivedError`` is raised.
+
     The group signal reaches the child and every process it started that stayed in its group
     (a pytest run's xdist workers); a grandchild that started a session of its own is not in it.
     A pytest run should be stopped with ``first_signal=signal.SIGINT``: pytest turns it into an
@@ -295,20 +306,86 @@ def stop_command(*, process: subprocess.Popen[str], first_signal: int = signal.S
             process.kill()
             process.wait()
         return
+    last_signal = _stop_the_leader(process=process, first_signal=first_signal)
+    _empty_the_group(process=process, killed=last_signal == signal.SIGKILL)
+
+
+def _stop_the_leader(*, process: subprocess.Popen[str], first_signal: int) -> int:
+    """Signal a running child's group, escalating a grace apart, until the child ends (POSIX).
+
+    Args:
+        process: The child (its process group leader).
+        first_signal: The first signal for the group.
+
+    Returns:
+        The last signal sent to the group (the one that ended the child, or that it was
+        ending as it came).
+
+    """
     escalation = [first_signal]
     if first_signal != signal.SIGTERM:
         escalation.append(signal.SIGTERM)
     for signal_number in escalation:
         if not _signal_the_group(process=process, signal_number=signal_number):
-            return
+            return signal_number
         try:
             process.wait(timeout=STOP_GRACE_SECONDS)
         except subprocess.TimeoutExpired:
             continue
-        return
-    if not _signal_the_group(process=process, signal_number=signal.SIGKILL):
-        return
-    process.wait()
+        return signal_number
+    if _signal_the_group(process=process, signal_number=signal.SIGKILL):
+        process.wait()
+    return signal.SIGKILL
+
+
+def _empty_the_group(
+    *, process: subprocess.Popen[str], killed: bool, sleep: Callable[[float], None] | None = None
+) -> None:
+    """Make sure nothing is left in a stopped child's process group (POSIX).
+
+    A group signal can miss a member the group forks while it is delivered: macOS lets the new
+    process run on (bugs/2026-11-20-killpg-misses-a-process-forked-during-it-on-macos.md), so
+    the leader ends and the member keeps running, holding whatever the child held (its pipes).
+    So after the leader is reaped the group is looked at, every GROUP_LOOK_SECONDS: a member
+    still in it after a gentle stop gets the grace to end on its own (it may still be handling
+    the signal), then the group is killed, again at each look until it is gone
+    (``ProcessLookupError``). After a kill the group is killed at once. The bounds count looks,
+    not seconds read from a clock, so the wait ends whatever a clock does. The group id stays
+    the leader's pid while any member is left (no new process can take a pid a live group
+    uses), so nothing outside the group is signalled.
+
+    macOS refuses a signal (``PermissionError``) to a group whose members are all ending
+    (zombies until their new parent reaps them): the group is looked at again until it is gone.
+
+    Args:
+        process: The child, already reaped (its process group leader).
+        killed: Whether the leader was stopped with SIGKILL.
+        sleep: Sleeps between looks (None: ``glitchygames.clock.raw_sleep``).
+
+    Raises:
+        ProcessGroupSurvivedError: If the group is not gone a grace after it was first killed.
+
+    """
+    # Resolved at call time: this module imports nothing from the engine when imported (the
+    # pytest plugin imports it at configuration time), and a test's patch on the clock applies
+    from glitchygames import clock
+
+    sleep = sleep or clock.raw_sleep
+    looks_in_a_grace = max(1, round(STOP_GRACE_SECONDS / GROUP_LOOK_SECONDS))
+    gentle_looks = 0 if killed else looks_in_a_grace
+    for look in range(gentle_looks + looks_in_a_grace):
+        try:
+            os.killpg(process.pid, signal.SIGKILL if look >= gentle_looks else 0)
+        except ProcessLookupError:
+            return
+        except PermissionError:
+            pass
+        sleep(GROUP_LOOK_SECONDS)
+    message = (
+        f'Process group {process.pid} still has processes a grace after SIGKILL '
+        f"(list them: ps -A -o pid,pgid,command | awk '$2 == {process.pid}')"
+    )
+    raise ProcessGroupSurvivedError(message)
 
 
 def _signal_the_group(*, process: subprocess.Popen[str], signal_number: int) -> bool:

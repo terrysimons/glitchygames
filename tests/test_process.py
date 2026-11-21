@@ -191,6 +191,53 @@ class TestStartCommand:
         assert output_path.read_text(encoding='utf-8').strip() == 'given'
 
 
+class StandInGroup:
+    """``os.killpg`` for a stand-in child's process group, answering as a real group does.
+
+    Every signal is recorded in ``calls``. Once the child (the group's leader) has been reaped,
+    the group has no members (a stand-in child starts nothing), so every signal then raises
+    ``ProcessLookupError``, as killpg does for a group that is gone. Before that each call
+    answers with the next of ``answers`` (None: delivered; an exception class: raised), and
+    with delivery once they run out. Build it after the child's ``wait`` is configured: it
+    wraps that wait to learn when the child is reaped.
+    """
+
+    def __init__(self, *, child, answers=()):
+        """Wrap the child's wait, and keep the answers for the calls before it is reaped."""
+        self.calls: list[tuple[int, int]] = []
+        self._answers = list(answers)
+        self._reaped = False
+        configured = child.wait.side_effect
+        returned = child.wait.return_value
+        # Mock keeps a list side_effect as an iterator
+        outcomes = configured if hasattr(configured, '__next__') else None
+
+        def reaping_wait(*args, **kwargs):
+            if outcomes is not None:
+                outcome = next(outcomes)
+            elif configured is not None:
+                outcome = configured
+            else:
+                outcome = returned
+            if isinstance(outcome, BaseException) or (
+                isinstance(outcome, type) and issubclass(outcome, BaseException)
+            ):
+                raise outcome
+            self._reaped = True
+            return outcome
+
+        child.wait.side_effect = reaping_wait
+
+    def __call__(self, group: int, signal_number: int) -> None:
+        self.calls.append((group, signal_number))
+        if self._reaped:
+            raise ProcessLookupError
+        if self._answers:
+            answer = self._answers.pop(0)
+            if answer is not None:
+                raise answer
+
+
 class TestStopCommandOnEveryPlatform:
     """stop_command's steps with a stand-in child, for both platforms' branches on every host.
 
@@ -225,7 +272,8 @@ class TestStopCommandOnEveryPlatform:
         child = mocker.Mock(pid=4242)
         child.poll.return_value = None
         child.wait.return_value = 0
-        group_signal = mocker.patch.object(process.os, 'killpg', create=True)
+        group = StandInGroup(child=child)
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True, side_effect=group)
 
         stop_command(process=child)
 
@@ -235,13 +283,15 @@ class TestStopCommandOnEveryPlatform:
             child.kill.assert_not_called()
             group_signal.assert_not_called()
         else:
-            assert [call.args for call in group_signal.call_args_list] == [(4242, signal.SIGTERM)]
+            # Asked once, then the group is looked at (signal 0) and found gone
+            assert group.calls == [(4242, signal.SIGTERM), (4242, 0)]
 
     def test_a_child_that_outlives_the_grace_period_is_killed_and_reaped(self, mocker, platform):
         child = mocker.Mock(pid=4242)
         child.poll.return_value = None
         child.wait.side_effect = [process.TimeoutExpired(cmd='game', timeout=1.0), 0]
-        group_signal = mocker.patch.object(process.os, 'killpg', create=True)
+        group = StandInGroup(child=child)
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True, side_effect=group)
 
         stop_command(process=child)
 
@@ -253,8 +303,10 @@ class TestStopCommandOnEveryPlatform:
             child.kill.assert_called_once_with()
             group_signal.assert_not_called()
         else:
-            assert [call.args for call in group_signal.call_args_list] == [
+            # After the kill, whatever is left in the group is killed at once: nothing is
+            assert group.calls == [
                 (4242, signal.SIGTERM),
+                (4242, SIGKILL_NUMBER),
                 (4242, SIGKILL_NUMBER),
             ]
 
@@ -274,7 +326,8 @@ class TestStopCommandOnEveryPlatform:
             *[process.TimeoutExpired(cmd='pytest', timeout=1.0)] * graces_outlived,
             0,
         ]
-        group_signal = mocker.patch.object(process.os, 'killpg', create=True)
+        group = StandInGroup(child=child)
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True, side_effect=group)
 
         stop_command(process=child, first_signal=signal.SIGINT)
 
@@ -283,9 +336,10 @@ class TestStopCommandOnEveryPlatform:
             child.kill.assert_called_once_with()
             group_signal.assert_not_called()
         else:
-            assert [call.args for call in group_signal.call_args_list] == [
+            assert group.calls == [
                 (4242, signal.SIGINT),
                 (4242, signal.SIGTERM),
+                (4242, SIGKILL_NUMBER),
                 (4242, SIGKILL_NUMBER),
             ]
             assert child.wait.call_count == 3
@@ -311,12 +365,13 @@ class TestStopCommandRacingTheChildsEnd:
         child = mocker.Mock(pid=4242)
         child.poll.return_value = None
         child.wait.return_value = 0
-        group_signal = mocker.patch.object(process.os, 'killpg', create=True, side_effect=error)
+        group = StandInGroup(child=child, answers=[error])
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=group)
 
         stop_command(process=child)
 
-        # Signalled once (no SIGKILL), then waited for
-        assert group_signal.call_count == 1
+        # Signalled once (no SIGKILL), waited for, then the group is looked at and found gone
+        assert group.calls == [(4242, signal.SIGTERM), (4242, 0)]
         child.wait.assert_called_once_with(timeout=process.STOP_GRACE_SECONDS)
 
     @pytest.mark.parametrize('error', [PermissionError, ProcessLookupError])
@@ -324,11 +379,14 @@ class TestStopCommandRacingTheChildsEnd:
         child = mocker.Mock(pid=4242)
         child.poll.return_value = None
         child.wait.side_effect = [process.TimeoutExpired(cmd='game', timeout=1.0), 0]
-        mocker.patch.object(process.os, 'killpg', create=True, side_effect=[None, error])
+        group = StandInGroup(child=child, answers=[None, error])
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=group)
 
         stop_command(process=child)
 
         assert child.wait.call_count == 2
+        # The kill raced the child's end: whatever is left is killed at once, and nothing is
+        assert group.calls[-1] == (4242, SIGKILL_NUMBER)
 
     def test_a_signal_refused_while_the_child_keeps_running_is_raised(self, mocker):
         child = mocker.Mock(pid=4242)
@@ -338,6 +396,96 @@ class TestStopCommandRacingTheChildsEnd:
 
         with pytest.raises(PermissionError):
             stop_command(process=child)
+
+
+class TestStopCommandEmptiesTheGroup:
+    """When stop_command returns, nothing is left in the child's process group (POSIX).
+
+    The group answers through a stand-in killpg built from its contract: a signal reaches every
+    member present, ESRCH (ProcessLookupError) once no member is left, and on macOS EPERM
+    (PermissionError) while every member left is ending. The grace is five looks long, and the
+    looks do not sleep.
+    """
+
+    LOOKS_IN_A_GRACE = 5
+
+    @pytest.fixture(autouse=True)
+    def posix(self, mocker):
+        mocker.patch.object(process.sys, 'platform', 'linux')
+        mocker.patch.object(
+            process, 'signal', SimpleNamespace(SIGTERM=signal.SIGTERM, SIGKILL=SIGKILL_NUMBER)
+        )
+        mocker.patch.object(process, 'STOP_GRACE_SECONDS', 0.05)
+        mocker.patch.object(process, 'GROUP_LOOK_SECONDS', 0.01)
+        mocker.patch('glitchygames.clock.raw_sleep')
+
+    @staticmethod
+    def _group_answering(answers):
+        """Return a stand-in killpg answering each call with the next answer, and its calls.
+
+        Returns:
+            The stand-in and the list it records each (group, signal) call in.
+        """
+        calls = []
+        remaining = list(answers)
+
+        def killpg(group: int, signal_number: int) -> None:
+            calls.append((group, signal_number))
+            answer = remaining.pop(0)
+            if answer is not None:
+                raise answer
+
+        return killpg, calls
+
+    def test_a_member_left_after_a_gentle_stop_gets_the_grace_then_is_killed(self, mocker):
+        """It may still be handling the signal: looked at for the grace, then killed."""
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.return_value = 0
+        looks = [None] * self.LOOKS_IN_A_GRACE
+        killpg, calls = self._group_answering([None, *looks, None, ProcessLookupError])
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=killpg)
+
+        stop_command(process=child)
+
+        assert calls == [
+            (4242, signal.SIGTERM),
+            *[(4242, 0)] * self.LOOKS_IN_A_GRACE,
+            (4242, SIGKILL_NUMBER),
+            (4242, SIGKILL_NUMBER),
+        ]
+
+    def test_a_group_that_outlives_the_kill_raises_naming_it(self, mocker):
+        """Never a silent return: the error names the group and how to list what is left."""
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.return_value = 0
+        killpg, calls = self._group_answering([None] * (1 + 2 * self.LOOKS_IN_A_GRACE))
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=killpg)
+
+        with pytest.raises(
+            process.ProcessGroupSurvivedError, match=r'Process group 4242 .*\$2 == 4242'
+        ):
+            stop_command(process=child)
+
+        assert calls[-self.LOOKS_IN_A_GRACE :] == [(4242, SIGKILL_NUMBER)] * self.LOOKS_IN_A_GRACE
+
+    def test_a_group_of_ending_members_is_looked_at_until_it_is_gone(self, mocker):
+        """A group whose members are all ending refuses signals on macOS: no error, look again."""
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.return_value = 0
+        killpg, calls = self._group_answering([
+            None,
+            PermissionError,
+            PermissionError,
+            ProcessLookupError,
+        ])
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=killpg)
+
+        stop_command(process=child)
+
+        assert calls == [(4242, signal.SIGTERM), (4242, 0), (4242, 0), (4242, 0)]
 
 
 @pytest.mark.skipif(sys.platform == 'win32', reason='process groups are POSIX')
@@ -412,6 +560,46 @@ class TestStopCommand:
         assert output_path.read_text(encoding='utf-8').splitlines()[1:] == (
             [last_words] if last_words else []
         )
+
+    @pytest.mark.parametrize('first_signal', [signal.SIGTERM, signal.SIGKILL])
+    def test_a_member_the_group_signal_missed_is_stopped_too(self, tmp_path, mocker, first_signal):
+        """When stop_command returns, nothing is left in the child's group.
+
+        On macOS a group signal can miss a member the group forks while the signal is
+        delivered (bugs/2026-11-20-killpg-misses-a-process-forked-during-it-on-macos.md): the
+        leader dies and the new member runs on, holding the child's pipes. The stand-in signal
+        follows killpg's contract for that case: the first one reaches the leader only, as if
+        the member were forked during its delivery; every later one is the real killpg.
+        """
+        real_killpg = os.killpg
+        missed = []
+
+        def killpg_missing_a_forked_member(group: int, signal_number: int) -> None:
+            if not missed and signal_number != 0:
+                missed.append(signal_number)
+                os.kill(group, signal_number)
+                return
+            real_killpg(group, signal_number)
+
+        mocker.patch.object(process.os, 'killpg', side_effect=killpg_missing_a_forked_member)
+        # A gently stopped group's member gets the grace before the kill: keep it short
+        mocker.patch.object(process, 'STOP_GRACE_SECONDS', 0.5)
+        output_path = tmp_path / 'output.txt'
+        with output_path.open('w', encoding='utf-8') as output:
+            child = start_command(
+                command=['/bin/sh', '-c', 'sleep 60 & echo "$!"; wait'],
+                environment=os.environ,
+                output=output,
+            )
+            member_pid = int(first_line(path=output_path))
+
+            stop_command(process=child, first_signal=first_signal)
+
+        assert missed == [first_signal]
+        assert child.returncode is not None
+        with pytest.raises(ProcessLookupError):
+            real_killpg(child.pid, 0)
+        assert not is_running(pid=member_pid)
 
     def test_a_finished_child_is_only_reaped(self, tmp_path):
         """Nothing is signalled once the child has ended."""
