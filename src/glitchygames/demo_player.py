@@ -35,15 +35,22 @@ The rules:
    later tick), and the real time it takes is gone from the budget the next players share.
 4. **A divergence restarts once, then freezes** (the owner's decision 4). The first divergence a
    player meets (a frame that differs, or a recording longer than the run) is logged and the
-   game rebuilt from frame 0 (until that rebuild, which may wait for a later tick's budget, the
-   player reads ``PLAYING``, with the divergence's report); the second freezes it with
-   ``DIVERGED``, logged, on the diverged frame. A frozen player (``DIVERGED``, ``CRASHED`` or
-   ``COULD_NOT_START``) runs nothing more, and its last frame stays readable on ``surface``.
+   game rebuilt from frame 0 (until that rebuild, which a tick or a fast-forward makes when the
+   budget allows, the player reads ``PLAYING``, with the divergence's report); the second
+   freezes it with ``DIVERGED``, logged, on the diverged frame. A frozen player (``DIVERGED``,
+   ``CRASHED`` or ``COULD_NOT_START``, or one the host finished: ``is_frozen``) runs nothing
+   more, and its last frame stays readable on ``surface``.
 5. **Fast-forward is silent, sliced and resumable** (decision 8): ``fast_forward(to_frame=...,
-   budget=...)`` is the current game's (``InnerGame.fast_forward``), so it is refused while the
-   player is audible and frame ``to_frame`` is then the next tick's. A player with no running
-   game (frozen, never started, or waiting to loop) reaches no frame: False. A divergence on
-   the way is the player's (rule 4). ``poster_frame`` chooses where a tile's demo starts.
+   budget=...)`` runs the current game's (``InnerGame.fast_forward``), so it is refused while
+   the player is audible and frame ``to_frame`` is then the next tick's. An end or a divergence
+   on the way is the player's, as in a tick (rules 2 to 4): a player waiting for its next game
+   builds it on the fast-forward too, charged to the budget (at most one build a call, and only
+   while the budget is not spent), and goes on toward ``to_frame`` in it; a second divergence
+   freezes it. So a host may fast-forward a tile to its poster before ever ticking it: it gets
+   there, or the player freezes. False means one of two things, told apart by ``is_frozen``:
+   the budget was spent first (call again), or the player is frozen and never gets there (its
+   ``outcome`` says why, unless the host finished it). ``poster_frame`` chooses where a tile's
+   demo starts.
 6. **Silent by default, and the setting is the player's** (decision 11). A new player is silent;
    ``set_audible`` switches the current game, and a looped game gets the player's setting
    before its first frame, so a heard tile stays heard across its loop. A looped game that
@@ -207,6 +214,15 @@ class DemoPlayer:
         return DemoOutcome(state=self._state, error=self._error, report=self._report)
 
     @property
+    def is_frozen(self: Self) -> bool:
+        """True once nothing more runs: could not start, crashed, diverged twice, or finished.
+
+        A finished player's ``outcome`` keeps the state it had, so this, not the state, tells a
+        host that a False from ``fast_forward`` is final (rule 5).
+        """
+        return self._frozen
+
+    @property
     def generation(self: Self) -> int:
         """How many games were built (0 when the recording could not be read)."""
         return self._generation
@@ -317,26 +333,42 @@ class DemoPlayer:
         return frames_run
 
     def fast_forward(self: Self, *, to_frame: int, budget: TickBudget) -> bool:
-        """Run the current game silently toward a frame until there or the budget is spent.
+        """Run the player silently toward a frame until there, frozen, or the budget is spent.
 
-        Rule 5: ``InnerGame.fast_forward``'s contract, for a running game.
+        Rule 5: ``InnerGame.fast_forward``'s contract for the running game, and a tick's rules
+        for what ends on the way. A player waiting for its next game (after an end or its first
+        divergence) builds it here when the budget is not spent, charged to the budget as a
+        tick's build is (rule 3), at most once a call; a build that spends the budget runs no
+        frame until the next call. A second divergence freezes the player (rule 4).
 
         Args:
             to_frame: The frame to stand at (the next tick's first), less than ``frame_count``.
             budget: The real time it may take, possibly shared with other players.
 
         Returns:
-            True when the game stands at or past ``to_frame``; False when the budget was spent
-            first (call again), or the player has no running game.
+            True when the current game stands at or past ``to_frame``. False otherwise, for one
+            of two reasons ``is_frozen`` tells apart: not frozen, the budget was spent first
+            (call again); frozen, the player never gets there (``outcome`` says why).
 
         """
-        game = self._running_game()
-        if game is None:
-            return False
-        reached = game.fast_forward(to_frame=to_frame, budget=budget)
-        if game.outcome.state is not InnerGameState.RUNNING:
+        built = False
+        while not self._frozen:
+            if self._needs_new_game:
+                if built or budget.is_spent:
+                    return False
+                self._start_new_game()
+                built = True
+                continue
+            if built and budget.is_spent:
+                return False
+            game = self._current_game()
+            reached = game.fast_forward(to_frame=to_frame, budget=budget)
+            if game.outcome.state is InnerGameState.RUNNING:
+                return reached
+            # It ended or diverged on the way: a loop or a restart is built on the next pass
+            # (budget allowing), a second divergence or a failure freezes the player
             self._settle_the_end(game=game)
-        return reached
+        return False
 
     def finish(self: Self) -> None:
         """Finish the current game, giving its channels back; nothing runs afterwards (rule 9)."""

@@ -908,24 +908,137 @@ class TestAFastForward:
     ):
         """A tampered frame before the target: False, and the divergence policy's first restart.
 
-        Until the rebuild the player reads PLAYING, never DIVERGED (which means frozen: rule 4),
-        with the divergence's report.
+        The budget lasts to the diverging frame only, so the rebuild waits. Until it, the player
+        reads PLAYING, never DIVERGED (which means frozen: rule 4), with the divergence's report.
         """
         tamper_first_sprite_rect(recording_path=rally.recording, frame_number=TAMPERED_FRAME)
         player = players.make(command=rally.command, recording=rally.recording)
+        diverging_frames = TAMPERED_FRAME + 1
 
         reached = player.fast_forward(
-            to_frame=player.frame_count - 1, budget=players.clock.budget(frame_count=MOST_TICKS)
+            to_frame=player.frame_count - 1,
+            budget=players.clock.budget(frame_count=diverging_frames),
         )
 
         assert reached is False
         assert player.generation == 1
         assert player.outcome.state is DemoState.PLAYING
+        assert player.is_frozen is False
         assert player.outcome.report is not None
         assert player.outcome.report.startswith(f'Replay diverged at frame {TAMPERED_FRAME}')
         tick(player=player, clock=players.clock, frames_of_time=1, budget_frames=1)
         assert player.generation == 2
         assert player.outcome.state is DemoState.LOOPED
+
+    def test_a_poster_fast_forward_without_ticks_restarts_then_freezes_on_a_divergence(
+        self,
+        rally: InstalledStandIn,
+        players: Players,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """A recording diverging before its poster, sliced with no tick: restart, then DIVERGED.
+
+        The host's natural order (fast-forward a tile to its poster before ticking it) must not
+        wait forever on a player waiting for its rebuild (the final review's I1): the
+        fast-forward builds it, and the second divergence freezes the player, which says so.
+        """
+        tamper_first_sprite_rect(recording_path=rally.recording, frame_number=TAMPERED_FRAME)
+        caplog.set_level('WARNING', logger='game.demo_player')
+        player = players.make(command=rally.command, recording=rally.recording)
+        poster = player.frame_count - 1
+        results: list[bool] = []
+        generations: set[int] = set()
+
+        for _call in range(MOST_TICKS):
+            if player.outcome.state is DemoState.DIVERGED:
+                break
+            results.append(
+                player.fast_forward(to_frame=poster, budget=players.clock.budget(frame_count=3))
+            )
+            generations.add(player.generation)
+
+        assert player.outcome.state is DemoState.DIVERGED
+        assert generations == {1, 2}
+        assert not any(results)
+        assert player.is_frozen is True
+        assert player.outcome.report is not None
+        assert player.outcome.report.startswith(f'Replay diverged at frame {TAMPERED_FRAME}')
+        logged = [record.getMessage() for record in caplog.records]
+        assert len(logged) == 2
+        assert 'restarting once' in logged[0]
+        assert 'frozen' in logged[1]
+        # A frozen player's False is final: nothing more runs, on any later call
+        frozen_at = player.frame_index
+        assert player.fast_forward(to_frame=5, budget=players.clock.budget(frame_count=3)) is False
+        assert player.frame_index == frozen_at
+        assert player.generation == 2
+
+    def test_a_fast_forward_after_an_end_builds_the_next_game_and_goes_on(
+        self,
+        rally: InstalledStandIn,
+        players: Players,
+        tmp_path: Path,
+    ):
+        """At its end, waiting to loop, with no tick: the fast-forward loops it and gets there."""
+        to_frame = 5
+        player = players.make(command=rally.command, recording=rally.recording)
+        alone = play_alone(
+            console_script=rally.command, recording=rally.recording, work_directory=tmp_path
+        )
+        assert player.fast_forward(
+            to_frame=player.frame_count - 1, budget=players.clock.budget(frame_count=MOST_TICKS)
+        )
+        # The last frame spends the one-frame budget: the game ends, and its loop waits
+        tick(player=player, clock=players.clock, frames_of_time=1, budget_frames=1)
+        assert player.generation == 1
+
+        reached = player.fast_forward(
+            to_frame=to_frame, budget=players.clock.budget(frame_count=MOST_TICKS)
+        )
+
+        assert reached is True
+        assert player.generation == 2
+        assert player.frame_index == to_frame
+        assert player.outcome.state is DemoState.LOOPED
+        assert player.is_frozen is False
+        assert tick(player=player, clock=players.clock, frames_of_time=1, budget_frames=1) == 1
+        assert pixel_hash(player.surface) == alone.pixel_hashes[to_frame]
+        assert player.outcome.state is DemoState.PLAYING
+
+    def test_a_fast_forwards_build_is_charged_to_the_budget(
+        self,
+        rally: InstalledStandIn,
+        players: Players,
+    ):
+        """No build on a spent budget; a build that spends it runs no frame on that call."""
+        player = players.make(
+            command=rally.command,
+            recording=rally.recording,
+            on_new_game=lambda _inner_game: players.clock.charge_frames(
+                frame_count=BUILD_COST_FRAMES
+            ),
+        )
+        assert player.fast_forward(
+            to_frame=player.frame_count - 1, budget=players.clock.budget(frame_count=MOST_TICKS)
+        )
+        tick(player=player, clock=players.clock, frames_of_time=1, budget_frames=1)
+        assert player.generation == 1
+
+        spent = player.fast_forward(to_frame=5, budget=players.clock.budget(frame_count=0))
+        assert spent is False
+        assert player.generation == 1
+        built = player.fast_forward(
+            to_frame=5, budget=players.clock.budget(frame_count=BUILD_COST_FRAMES)
+        )
+        assert built is False
+        assert player.generation == 2
+        assert player.frame_index == 0
+        assert player.is_frozen is False
+        went_on = player.fast_forward(
+            to_frame=5, budget=players.clock.budget(frame_count=MOST_TICKS)
+        )
+        assert went_on is True
+        assert player.frame_index == 5
 
 
 class TestAPosterFrame:
@@ -1259,6 +1372,7 @@ class TestFinishing:
         assert inner_game.context.value(slot=INNER_CHANNELS_SLOT).partition is None
         assert tick(player=player, clock=players.clock, frames_of_time=3, budget_frames=100) == 0
         assert player.fast_forward(to_frame=5, budget=players.clock.budget(frame_count=1)) is False
+        assert player.is_frozen is True
 
 
 def test_the_module_imports_no_game_and_reads_no_clock_but_the_budgets():
