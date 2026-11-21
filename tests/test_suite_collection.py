@@ -2088,3 +2088,33 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
         'src/engine.py:1: import glitchygames.examples',
         'zensical.yml:1: path: src/glitchygames/examples',
     ]
+
+
+def test_no_test_runs_a_package_as_main_but_through_the_shared_helper():
+    """Every ``python -m`` test runs through glitchygames.testing.entry_points.run_package_as_main.
+
+    A direct ``runpy.run_module(package, run_name='__main__')`` fails whenever an earlier test
+    in the worker imported ``<package>.__main__`` (runpy's warning, an error in this suite): the
+    zombies game's test failed so under a shuffled order (CircleCI job 4458, seed 4083822362)
+    once a walk of its modules ran first. The helper removes the module before the run, so no
+    test of ``python -m`` depends on the order. A test checking the helper itself patches runpy,
+    and never calls it.
+    """
+    root = Path(__file__).resolve().parent.parent
+    test_files = [
+        *(root / 'tests').rglob('*.py'),
+        *(root / 'src').glob('*/*/tests/**/*.py'),
+    ]
+    direct_runs = [
+        path.relative_to(root).as_posix()
+        for path in test_files
+        for node in ast.walk(ast.parse(path.read_text(encoding='utf-8')))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == 'run_module'
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == 'runpy'
+    ]
+
+    assert test_files, 'no test file found: the scan is stale'
+    assert direct_runs == []

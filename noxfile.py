@@ -3,6 +3,7 @@
 import argparse
 import contextlib
 import dataclasses
+import hashlib
 import json
 import os
 import platform
@@ -21,7 +22,7 @@ import nox
 from nox.command import CommandFailed
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Mapping, Sequence
+    from collections.abc import Callable, Generator, Mapping, Sequence
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
@@ -445,7 +446,7 @@ def docs_deploy(session: nox.Session) -> None:
     if not build_only:
         # Only main is published: a branch's history would publish its measured rows as landed
         # though their code never reached main (glitchygames/code_tree.py landed_code_trees)
-        session.run('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main', external=True)
+        _require_head_on_origin_main(session)
     # A deploy publishes the merged ledger in place of the published one, so it must start from
     # what gh-pages holds now: only a build tolerates a failed fetch
     session.run(
@@ -759,7 +760,14 @@ TEST_PYTHONS = ('3.15',)
 
 @nox.session(python=list(TEST_PYTHONS), reuse_venv=False)
 def test(session: nox.Session) -> None:
-    """Run the tests on one Python of TEST_PYTHONS (nox -s test runs them all)."""
+    """Run the tests on one Python of TEST_PYTHONS (nox -s test runs them all).
+
+    GLITCHYGAMES_TEST_ORDER picks the order (``choose_suite_order``): unset or ``fixed``, the
+    files' own; ``roll``, a coin flip for fixed or shuffled and a seed (CircleCI's test jobs; on
+    CircleCI both come from the workspace, job and machine, so a rerun repeats them); a number,
+    that seed's shuffle. The order is logged before the run and after a failure, and written to
+    test-results/test-order.txt.
+    """
     # The installed copy is built (not editable), so it has no git checkout: the stamp gives it
     # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare. It is
     # written into the installed copy, never the checkout, so a build running alongside neither
@@ -799,9 +807,23 @@ def test(session: nox.Session) -> None:
     # names each test's file (xunit1), from which CircleCI learns the timings it splits by
     args.extend(split_share_pytest_arguments(environment=os.environ))
 
+    # The suite's order (GLITCHYGAMES_TEST_ORDER; CircleCI's test jobs roll it), printed before
+    # the run and again after a failure, whose log starts 26,000 tests back
+    try:
+        order = choose_suite_order(environment=os.environ)
+    except ValueError as refusal:
+        session.error(str(refusal))
+    description = describe_suite_order(order=order)
+    session.log(description)
+    write_suite_order_record(order=order, description=description)
+    args.extend(suite_order_pytest_arguments(order=order))
+
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
     # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
-    session.run('pytest', *args)
+    try:
+        session.run('pytest', *args)
+    except CommandFailed:
+        session.error(f'The tests failed. {description}')
 
 
 # A machine's share of a split CI job (tests/circleci_test_split.py): its coverage rule off, its
@@ -823,6 +845,163 @@ def split_share_pytest_arguments(*, environment: Mapping[str, str]) -> list[str]
     if environment.get('GLITCHYGAMES_TEST_SPLIT') is None:
         return []
     return list(SPLIT_SHARE_PYTEST_ARGUMENTS)
+
+
+# The test session's order switch: unset or "fixed" keeps the files' order; "roll" flips a coin
+# for fixed or shuffled and, shuffled, draws the seed (CircleCI's test jobs set it: the owner,
+# 2026-11-20, "roll to decide if we're randomizing or not, and then also roll the seed if we are
+# randomizing"); a number replays that seed's shuffle
+SUITE_ORDER_VARIABLE = 'GLITCHYGAMES_TEST_ORDER'
+SUITE_ORDER_FIXED = 'fixed'
+SUITE_ORDER_ROLL = 'roll'
+# On CircleCI a roll is a function of the machine, not a draw, so a rerun repeats its first run's
+# roll (the owner, 2026-11-20: "Yes"). The workflow's workspace ID is new each pipeline and, by a
+# community report not yet seen here, kept by "Rerun workflow from failed", which gets a new
+# workflow ID: the two differ only on a rerun. Unset or empty (a local run), the roll is a draw
+CIRCLECI_WORKSPACE_VARIABLE = 'CIRCLE_WORKFLOW_WORKSPACE_ID'
+CIRCLECI_WORKFLOW_VARIABLE = 'CIRCLE_WORKFLOW_ID'
+CIRCLECI_JOB_VARIABLE = 'CIRCLE_JOB'
+CIRCLECI_NODE_INDEX_VARIABLE = 'CIRCLE_NODE_INDEX'
+# The order and how it was chosen, for the job's artifacts (test-results/ is stored when: always)
+SUITE_ORDER_RECORD = Path('test-results') / 'test-order.txt'
+
+
+@dataclasses.dataclass(frozen=True)
+class SuiteOrder:
+    """The order the test session runs the suite in.
+
+    A dataclass, not pydantic: the noxfile runs in nox's own environment (CI's nox is a uv tool
+    without the project's packages).
+
+    Attributes:
+        seed: pytest-randomly's seed for a shuffled run, or None for the files' own order.
+        rolled: Whether a coin flip chose it (``roll``), rather than the environment naming it.
+        workspace: The CircleCI workspace a roll came from, or None (a draw, or not rolled).
+        machine: The CircleCI job and machine index a roll came from, or None.
+        rerun: Whether the workflow is a rerun (its ID differs from its workspace's).
+
+    """
+
+    seed: int | None
+    rolled: bool
+    workspace: str | None = None
+    machine: str | None = None
+    rerun: bool = False
+
+
+def choose_suite_order(
+    *, environment: Mapping[str, str], draw: Callable[[int], int] | None = None
+) -> SuiteOrder:
+    """Choose the suite's order from GLITCHYGAMES_TEST_ORDER, rolling it when asked to.
+
+    Args:
+        environment: The session's environment.
+        draw: Draws a whole number below its argument; None uses ``secrets.randbelow``. A roll
+            without a CircleCI workspace draws twice: below 2 for the coin (1 shuffles), then
+            the seed. With one, nothing is drawn: SHA-256 of the workspace, job and machine
+            index gives the coin (its first byte's low bit) and the seed (its next four bytes).
+
+    Returns:
+        The order.
+
+    Raises:
+        ValueError: If the variable holds anything but ``fixed``, ``roll`` or a seed in
+            pytest-randomly's range.
+
+    """
+    if draw is None:
+        draw = secrets.randbelow
+    value = environment.get(SUITE_ORDER_VARIABLE)
+    if value is None or value == SUITE_ORDER_FIXED:
+        return SuiteOrder(seed=None, rolled=False)
+    if value == SUITE_ORDER_ROLL:
+        workspace = environment.get(CIRCLECI_WORKSPACE_VARIABLE) or None
+        if workspace is None:
+            if draw(2) == 0:
+                return SuiteOrder(seed=None, rolled=True)
+            return SuiteOrder(seed=draw(RANDOM_ORDER_SEED_LIMIT), rolled=True)
+        job = environment.get(CIRCLECI_JOB_VARIABLE, '')
+        node_index = environment.get(CIRCLECI_NODE_INDEX_VARIABLE, '0')
+        digest = hashlib.sha256(f'{workspace}\n{job}\n{node_index}'.encode()).digest()
+        seed = int.from_bytes(digest[1:5], 'big') % RANDOM_ORDER_SEED_LIMIT
+        return SuiteOrder(
+            seed=seed if digest[0] % 2 else None,
+            rolled=True,
+            workspace=workspace,
+            machine=f'{job} machine {node_index}',
+            rerun=environment.get(CIRCLECI_WORKFLOW_VARIABLE, workspace) != workspace,
+        )
+    if value.isdecimal() and int(value) < RANDOM_ORDER_SEED_LIMIT:
+        return SuiteOrder(seed=int(value), rolled=False)
+    message = (
+        f'{SUITE_ORDER_VARIABLE}={value!r}: expected {SUITE_ORDER_FIXED!r}, {SUITE_ORDER_ROLL!r} '
+        f'or a seed from 0 to {RANDOM_ORDER_SEED_LIMIT - 1}'
+    )
+    raise ValueError(message)
+
+
+def suite_order_pytest_arguments(*, order: SuiteOrder) -> list[str]:
+    """Return the pytest arguments for an order: none for fixed, pytest-randomly's for a seed.
+
+    Args:
+        order: The order.
+
+    Returns:
+        The arguments (a shuffle reorders only, as nox -s test-random does).
+
+    """
+    if order.seed is None:
+        return []
+    return [*RANDOM_ORDER_PYTEST_ARGUMENTS, f'--randomly-seed={order.seed}']
+
+
+def describe_suite_order(*, order: SuiteOrder) -> str:
+    """Describe an order for the job's log, with how to replay a shuffled one.
+
+    Args:
+        order: The order.
+
+    Returns:
+        One line starting "Test order:".
+
+    """
+    if order.workspace is not None:
+        run = 'rerun: same roll as its first run' if order.rerun else 'first run'
+        how = f' (rolled from CircleCI workspace {order.workspace}, {order.machine}; {run})'
+    elif order.rolled:
+        how = ' (rolled at random: no CircleCI workspace)'
+    else:
+        how = ''
+    if order.seed is None:
+        return f"Test order: fixed{how}, the files' own order"
+    return (
+        f'Test order: shuffled, seed {order.seed}{how}. Replay it with '
+        f'{SUITE_ORDER_VARIABLE}={order.seed} nox -s test-3.15, or with pytest '
+        f'{shlex.join(suite_order_pytest_arguments(order=order))} -n 0; a split CI machine '
+        f'shuffled only its share, the files in test-results/test-split.txt (its artifacts), '
+        f'so name those files to replay its order'
+    )
+
+
+def write_suite_order_record(*, order: SuiteOrder, description: str) -> None:
+    """Write the order and how it was chosen to SUITE_ORDER_RECORD, for the job's artifacts.
+
+    Args:
+        order: The order.
+        description: Its log line (``describe_suite_order``), written first.
+
+    """
+    lines = [
+        description,
+        f'order={"fixed" if order.seed is None else "shuffled"}',
+        f'seed={"" if order.seed is None else order.seed}',
+        f'rolled={"yes" if order.rolled else "no"}',
+        f'workspace={order.workspace or ""}',
+        f'machine={order.machine or ""}',
+        f'rerun={"yes" if order.rerun else "no"}',
+    ]
+    SUITE_ORDER_RECORD.parent.mkdir(parents=True, exist_ok=True)
+    SUITE_ORDER_RECORD.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
 # Where a split CI job's machines leave their coverage data (``.coverage.<name>`` files), and
@@ -873,8 +1052,9 @@ def coverage_combine(session: nox.Session) -> None:
 
 
 # pytest-randomly, turned on for a shuffled run (pyproject.toml's addopts block it everywhere
-# else, so CI and every other run keep the files' order): reorder only, with random.seed() left
-# as each test sets it, so a shuffled run differs from the others in its order alone
+# else, so every other run keeps the files' order; the test session's GLITCHYGAMES_TEST_ORDER,
+# which CircleCI rolls, turns it on too): reorder only, with random.seed() left as each test
+# sets it, so a shuffled run differs from the others in its order alone
 RANDOM_ORDER_PYTEST_ARGUMENTS = ('-p', 'randomly', '--randomly-dont-reset-seed')
 # The seeds pytest-randomly takes (it seeds numpy's generator, whose seeds are 32-bit)
 RANDOM_ORDER_SEED_LIMIT = 2**32
@@ -2974,6 +3154,16 @@ def infra_deploy(session: nox.Session) -> None:
     _run_cdk(session, 'deploy', *stacks, '--require-approval', 'broadening')
 
 
+def _require_head_on_origin_main(session: nox.Session) -> None:
+    """Fail the session unless HEAD is on origin/main (what the deploys may publish).
+
+    Args:
+        session: The nox session.
+
+    """
+    session.run('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main', external=True)
+
+
 # What site-publish publishes when given nothing: the website (for now its page and the mockup)
 # (docs/specs/2026-10-27-glitchy-games-website-design.md, What gets published at launch)
 _SITE_DEFAULT_SOURCE = 'src/website'
@@ -2986,14 +3176,31 @@ def site_publish(session: nox.Session) -> None:
     CircleCI's deploy-site job runs it after a merge to main (OIDC credentials); the owner can
     run it from the Mac with their own profile.
 
+    A publish is refused unless HEAD is on origin/main and the source has no uncommitted changes:
+    the docs and the site deploy side by side, each under its own lock (the owner, 2026-11-20), so
+    only what main holds may reach the site. ``--dry-run`` changes nothing and skips the checks;
+    ``--allow-unmerged`` skips them on purpose, for a preview from a branch.
+
     Usage:
         nox -s site-publish                                   # src/website
         nox -s site-publish -- --source build/browser/site    # Another directory
         nox -s site-publish -- --dry-run                      # Print the plan, change nothing
+        nox -s site-publish -- --allow-unmerged               # Publish a branch's preview
     """
-    arguments = list(session.posargs)
+    arguments = [argument for argument in session.posargs if argument != '--allow-unmerged']
     if '--source' not in arguments:
         arguments = ['--source', _SITE_DEFAULT_SOURCE, *arguments]
+    if '--allow-unmerged' not in session.posargs and '--dry-run' not in arguments:
+        _require_head_on_origin_main(session)
+        source = arguments[arguments.index('--source') + 1]
+        changes = session.run(
+            'git', 'status', '--porcelain', '--', source, external=True, silent=True
+        )
+        if changes and changes.strip():
+            session.error(
+                f'{source} has uncommitted changes; commit them, or preview with '
+                f'--allow-unmerged:\n{changes}'
+            )
     session.run(
         'uv',
         'run',
