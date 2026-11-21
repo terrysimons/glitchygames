@@ -100,10 +100,13 @@ motion is for. A poster frame at the 90% mark of the slowest demo (Mr. Muncher, 
 costs about 1.5 s of fast-forward, and all ten posters together about 2 s on average: it must
 be sliced across Arcade frames, as the spec says. A loop's restart is a build of 9 to 40 ms
 (a frame or three at 60 Hz): it must be charged to the frame budget and spread, never done for
-all tiles in one frame. **Measured by Task 6, 2026-11-20:** 9 to 40 ms holds for seven of the
-eleven bundled demos only. Bitmappy's build is 355 to 450 ms (its worst Arcade frame 376 ms,
-about 22 frames), Zombies Ain't My Neighbors' 100 to 176 ms warm and 860 ms cold, and Mr.
-Muncher's 207 ms cold. The numbers and their causes are in docs/architecture/engine_context.md
+all tiles in one frame. **Measured by Task 6, 2026-11-20:** 9 to 40 ms holds warm for seven of
+the eleven bundled demos only. The four over it: Bitmappy's build is 355 to 450 ms (its worst
+Arcade frame 376 ms, about 22 frames), Zombies Ain't My Neighbors' 100 to 176 ms warm and 860 ms
+cold, and Brave Adventurer's two demos' 33 to 71 ms (classic 33 to 69 ms, papyrus 35 to 71 ms).
+A cold first build is longer: Mr. Muncher's is 24 ms warm, within the range, but 207 ms cold.
+(Corrected 2026-11-20 by the final review: Brave Adventurer was missing and Mr. Muncher listed
+as over the range.) The numbers and their causes are in docs/architecture/engine_context.md
 (Performance, "Demo players"), `tests/benchmarks/test_demo_player_benchmarks.py` and
 plans/future-work.md ("Arcade (sub-plan 5 follow-ups)").
 
@@ -158,6 +161,10 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
    in a context (the audit's finding 1). Shared and new: `RecordedFramePacer` (the viewer's
    accumulator, pure), `TickBudget` (a real-time allowance), a time-sliced fast-forward on
    `InnerGame`, and one public "recorded duration of the next frame" on `ReplaySources`.
+   **Superseded 2026-11-20 (Task 2's ruling):** the accessor is
+   `RecordedFrames.next_frame_seconds(frame_index=...)` (`replay/driver.py`), on the recording
+   rather than `ReplaySources`, since the rule belongs with the recording; `InnerGame` and the
+   viewer's `hold_frame` both read it.
 2. **`RecordedFramePacer` and `TickBudget` live in `src/glitchygames/replay/pacer.py`** (new).
    The pacer owns what `ReplayViewer` owns today that is not a key or a status line: the
    accumulator, the phase offset, the owed limit (`MAX_OWED_INNER_FRAMES`), rule 2's
@@ -213,11 +220,13 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
    that tick: ten tiles looping at different times spread their hitches; no tile is skipped.
    Task 6 measures the real distribution (including Bitmappy's cold build and the odd 3 s
    reading) before the numbers here are trusted. **Measured by Task 6, 2026-11-20:** the 9 to
-   40 ms holds for seven of the eleven bundled demos. Bitmappy builds in 355 to 450 ms (one
-   loop held the Arcade for about 22 frames, 376 ms; most of it is its AI worker started and
-   joined inside the build, and the join's 2 s timeout plus 1 s after terminating is the likely
-   reading of the 3 s build), Zombies Ain't My Neighbors in 100 to 176 ms warm (mostly
-   re-decoding its recording) and 860 ms cold, Mr. Muncher in 207 ms cold. Recorded in
+   40 ms holds warm for seven of the eleven bundled demos. The four over it: Bitmappy builds in
+   355 to 450 ms (one loop held the Arcade for about 22 frames, 376 ms; most of it is its AI
+   worker started and joined inside the build, and the join's 2 s timeout plus 1 s after
+   terminating is the likely reading of the 3 s build), Zombies Ain't My Neighbors in 100 to
+   176 ms warm (mostly re-decoding its recording) and 860 ms cold, and Brave Adventurer's two
+   demos in 33 to 71 ms. Mr. Muncher is within the range warm (24 ms) and 207 ms only cold.
+   (Corrected 2026-11-20 by the final review, as above.) Recorded in
    docs/architecture/engine_context.md (Performance, "Demo players"),
    `tests/benchmarks/test_demo_player_benchmarks.py` and plans/future-work.md ("Arcade (sub-plan
    5 follow-ups)", with options). The policy above stands as written; whether to change it is
@@ -244,7 +253,10 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
     and `LOOPED` as the transient state after a restart (the spec's "looped"; it reads as
     `PLAYING` from the next tick). The error text and the replay's report are kept for the
     Arcade's label. What a diverged demo does next (the spec says restart and go on, logged
-    once) is open: question 4.
+    once) is open: question 4. **Superseded 2026-11-20:** a length divergence arrives as `ENDED`
+    with `diverged` True, not as `FAILED` (Task 4's ruling; the `InnerGameOutcome` docstring
+    says so), so `DIVERGED` is `ENDED` with `diverged` True in both cases; and question 4 is
+    decided: restart once, then freeze (owner decision 4, `demo_player.py` rule 4).
 11. **Muted is the default and is the context's route.** A new `DemoPlayer` is silent (a new
     `InnerGame` is, rule 5). `audible` and `set_audible(*, audible)` delegate to the current
     `InnerGame`, and a looped player's new game gets the player's setting before its first
@@ -526,9 +538,14 @@ the owner agreed 2026-11-20 that these are a rule breach; the sweep of the rest 
     `CRASHED` with the traceback logged and the last frame still readable; a stand-in game
     that behaves differently from its recording is `DIVERGED` (a mismatched frame, and a
     recording longer than the run: the length divergence that arrives as `FAILED`); the other
-    players are unaffected by any of these.
+    players are unaffected by any of these. **Superseded 2026-11-20:** the length divergence
+    arrives as `ENDED` with `diverged` True (Task 4's ruling), and is tested as that.
   - the divergence policy as the owner decides in question 4 (this plan's proposal: restart
     once, then freeze); until decided, the player reports `DIVERGED` and does not restart.
+    **Superseded 2026-11-20:** decided by the owner (decision 4): the first divergence restarts
+    the game from frame 0 (the player reads `PLAYING` until the rebuild), the second freezes it
+    as `DIVERGED`; built and tested in Task 4. After the final review (I1), a fast-forward also
+    builds the waiting game, so the policy holds on that path too.
   - guard: the module imports no game and reads no clock but the budget's.
 - [ ] Implement; full suite; commit (`Demo player: a recorded game that loops, fast-forwards and paces itself`).
 
@@ -590,7 +607,8 @@ stays valid. Its guard is every watched-replay test and golden replay, unchanged
   (passes one `TickBudget` to the top player, then the leftover to the others, starting at a
   rotating index), the heard player (`set_audible`), the poster stream
   (`random_stream('arcade-posters')`) and the "title on the test pattern until ready" screen
-  (`fast_forward` returning not-reached), the overlay restore (`on_new_game`), the "no demo" /
+  (`fast_forward` returning not-reached while `is_frozen` is False; a frozen player shows its
+  label instead: the final review's I1, 2026-11-20), the overlay restore (`on_new_game`), the "no demo" /
   "error" labels (`DemoOutcome`) and the freeze for a diverged demo (question 4). Bitmappy's
   tile replays once its fix (81e8f045) is merged. Until the cursor and key-repeat events exist,
   the Arcade must live with a Bitmappy tile hiding its cursor and the text-input tile changing

@@ -19,11 +19,12 @@ The rules:
    limit, so a stalled host does not make its tiles burst. The budget is real time, so how far
    a tile has got after a given host frame depends on the machine: a recorded Arcade session
    replays its inputs, never its tiles' progress frame for frame (the owner's decision 5).
-   Everything is synchronous: nothing awaits inside a tick. A host sharing a budget too small
-   for every player's owed frames gives each at most one frame a turn (``most_frames=1``) and
-   starts each tick with the player after the last one that ran: otherwise a player that fell
-   behind takes the whole budget to catch up while the others wait for theirs (decision 3's
-   reason; tests/test_demo_player.py measures it).
+   Everything is synchronous: nothing awaits inside a tick. Sharing the budget fairly is the
+   host's choice, not the player's: a host whose budget is too small for every player's owed
+   frames should give each at most one frame a turn (``most_frames=1``) and start each host
+   frame with the player after the last one that ran, otherwise a player that fell behind takes
+   the whole budget to catch up while the others wait for theirs (decision 3's reason;
+   tests/test_demo_player.py's ``TestASharedBudget`` measures that policy).
 2. **A demo's end loops it** (decision 6). When the game ends matched, its ``InnerGame`` is
    already finished (it gives its channels back: rule 6 of inner_game.py) and a new one is built
    from the same command and recording, in a new context, from frame 0. ``on_new_game`` runs on

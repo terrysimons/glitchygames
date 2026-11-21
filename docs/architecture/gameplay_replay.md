@@ -1108,13 +1108,15 @@ demo (`scripts/record_scripted_session.py --script-only --output PATH` records o
 game's golden script).
 
 Bundled demos are recordings shipped in a game's package as package data,
-`<package>/demos/<name>.jsonl.gz`. Every Arcade tile has one, ten in all: PaddleSlap's
+`<package>/demos/<name>.jsonl.gz`. There are eleven, from which the Arcade's ten tiles are
+chosen (the Arcade screen's sub-plan decides which ten): PaddleSlap's
 `paddleslap/demos/rally.jsonl.gz`, which its game-over screen plays after 10 seconds without a
 press; Clockwork Keep's `climb`; Brave Adventurer's `classic` and `papyrus` (both in its
 launcher's package, `brave_adventurer_modes/demos/`, whose console script replays the edition
 each header names); Mr. Muncher's `chase`; Drawing Fire's `battle`; Bitmappy's `drawing` (a
 smiley drawn on the canvas); the dt demo's `timing`, the text-input demo's `typing` and the
-joystick demo's `pad` (a stand-in pad, 'GlitchyGames Demo Pad'). Each is recorded by one
+joystick demo's `pad` (a stand-in pad, 'GlitchyGames Demo Pad'); and Zombies Ain't My
+Neighbors' `neighborhood_four_kids`. Each is recorded by one
 command from its recipe in `scripts/record_bundled_demos.py` (`DEMO_RECIPES`: the scene, the
 input script, the frame count, the package and name, and the session's options):
 

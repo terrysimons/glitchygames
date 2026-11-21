@@ -147,7 +147,8 @@ the contract; `plans/2026-11-12-arcade-3-inner-game.md`):
     `on_new_game` running before its first frame, the build charged to the budget. A divergence
     restarts it once, then freezes it on the diverged frame (`DemoOutcome`, `DemoState`).
     `fast_forward(to_frame=..., budget=...)` runs silent, sliced and resumable toward a poster
-    frame (`poster_frame`, drawn from the host's named stream). The budget is real time
+    frame (`poster_frame`, drawn from the host's named stream), building a waiting loop or
+    restart itself, so it gets there or the player freezes (`is_frozen`). The budget is real time
     (`clock.measured_seconds`), so how far a tile gets in a host frame depends on the machine: a
     recorded Arcade session replays its inputs exactly, but not its tiles' progress frame for
     frame (tiles may be a frame or two apart, as a watched replay's viewer already is), and
@@ -234,7 +235,8 @@ outer game that steps others (the Arcade's wrapper) reports the aggregate of eve
 
 ## Performance
 
-What each kind of read costs (Apple M4 Max, Python 3.14):
+What each kind of read costs (Apple M4 Max; Python 3.14, except the `ten demo players` row, measured
+on Python 3.15):
 
 | Read | Cost per read | Measured |
 |---|---|---|
@@ -244,7 +246,7 @@ What each kind of read costs (Apple M4 Max, Python 3.14):
 | `read-only view` | 210 ns | `GameEngine.OPTIONS` with an engine running; Task 17, 2026-11-10, median (2.32 slot reads) |
 | `current_engine()` | 113 ns | Task 17, 2026-11-10, median (1.25 slot reads) |
 | `context switch` | 430 ns | `with context.active():` entered and left; `timeit`; the owner, 2026-10-28 |
-| `ten demo players` | 6.9 ms | one Arcade frame of ten `DemoPlayer`s of the real bundled demos sharing an 11 ms budget; Arcade sub-plan 5's Task 6, 2026-11-20, median (Demo players, below) |
+| `ten demo players` | 6.9 ms | one Arcade frame of ten `DemoPlayer`s of the real bundled demos sharing an 11 ms budget; Arcade sub-plan 5's Task 6, 2026-11-20, Apple M4 Max, Python 3.15, median (Demo players, below) |
 
 The four Task 17 rows are the medians of gate (c)'s per-read benchmarks
 (`tests/benchmarks/test_engine_context_benchmarks.py`, `-k reading`, pytest-benchmark, one run on
@@ -290,14 +292,14 @@ The rules that follow:
 ### Demo players
 
 Measured by `tests/benchmarks/test_demo_player_benchmarks.py` (pytest-benchmark under
-`--benchmark-only`, dummy drivers, one run on 2026-11-20, the machine's one-minute load 3.2 to
-3.7): ten `DemoPlayer`s of the real bundled demos (all but the text-input demo), each paid one
+`--benchmark-only`, dummy drivers, one run on 2026-11-20 on an Apple M4 Max with Python 3.15, the
+machine's one-minute load 3.2 to 3.7): ten `DemoPlayer`s of the real bundled demos (all but the text-input demo), each paid one
 60 Hz Arcade frame a round and sharing one `INNER_FRAME_BUDGET_SECONDS` (11 ms) budget:
 
 - **Per Arcade frame:** median 6.9 ms (minimum 3.2 ms, mean 7.1 ms) for about ten frames a round
   (mean 9.97, at most 17 after a hitch); every player kept speed 1.00 over 1,200 rounds (Mr.
-  Muncher 1.02). The budget was spent in 19 of the 1,200 rounds, in which the players looped
-  twelve times. The worst round, 376 ms, matches a Bitmappy build (below; Bitmappy looped once),
+  Muncher 1.02). The budget was spent in 19 of the 1,200 rounds, and the players looped twelve
+  times in all over the 1,200. The worst round, 376 ms, matches a Bitmappy build (below; Bitmappy looped once),
   not traced round by round: one build held the Arcade for about 22 frames.
 - **A restart's build** (`InnerGame.replay`, the call decision 7 charges to the budget), five
   per demo, the first with the harness's emptied sound and sprite caches: dt, joystick and
@@ -312,7 +314,7 @@ Measured by `tests/benchmarks/test_demo_player_benchmarks.py` (pytest-benchmark 
   for a log line even at `--log-level error`). That join waits up to
   `AI_WORKER_JOIN_TIMEOUT_SECONDS` (2 s) and then 1 s more after terminating, so a slow worker
   start costs about 3 s: the likely reading of the 3.1 s build the plan's first measurement saw
-  (its 73 to 180 ms readings were on a less loaded run; neither is reproduced here).
+  (neither that 3.1 s nor its 73 to 180 ms readings is reproduced here).
 - **The ten posters' fast-forward** (seed 5, the 11 ms budget shared each Arcade frame): about
   2.6 s in total (three rounds, 2.60 to 2.68 s), 180 Arcade frames (3 s at 60 Hz) before every
   tile stands at its poster.

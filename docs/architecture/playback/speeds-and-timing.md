@@ -150,11 +150,16 @@ period (so a browser's 120 Hz frame is not taken for a 60 Hz one). Each host fra
 starts one `TickBudget` of `INNER_FRAME_BUDGET_SECONDS` and hands it to its players in turn:
 `tick(elapsed_seconds=..., budget=...)` pays the pacer the host's frame time, never a clock the
 player reads, and runs the frames owed while the budget lasts, so what one player leaves the next
-gets. A player that cannot keep up plays every frame in slow motion; a host whose budget is too
-small for all its players gives each at most one frame a turn (`most_frames=1`), starting each
-frame after the last one that ran. A loop's build (a new `InnerGame` from frame 0) is one call,
+gets. A player that cannot keep up plays every frame in slow motion. How the budget is shared
+is the host's choice, not the player's: a host whose budget is too small for all its players
+should give each at most one frame a turn (`tick`'s `most_frames=1`) and start each host frame
+with the player after the last one that ran, or a player that fell behind takes the whole budget
+to catch up while the others wait (`TestASharedBudget` in `tests/test_demo_player.py` measures
+that policy: ten players, three frames a tick, none waiting more than four ticks). No host does
+this yet: the Arcade screen (sub-plan 6) is the first. A loop's build (a new `InnerGame` from frame 0) is one call,
 made on the player's turn and charged to the shared budget. A fast-forward to a poster frame runs
-silent, one budget slice per host frame, until it gets there.
+silent, one budget slice per host frame, until it gets there or the player freezes (a second
+divergence on the way; `is_frozen` tells a final False from a spent budget).
 
 The frames a tile runs are its recording's, exactly: only when they run differs. But the budget
 is real time (`clock.measured_seconds`), so how many frames a tile runs in a host frame depends on

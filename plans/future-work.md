@@ -1019,11 +1019,13 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   owner to a later Arcade sub-plan, not done. Its design questions (where the outer viewer game
   lives, the dropped real key presses above, where the viewer's controls and frame sink live,
   and what an in-process step back replaces) are in that plan, "The viewer's own context".
-- **A loop's build is too long for one Arcade frame for three tiles** (measured 2026-11-20,
-  docs/architecture/engine_context.md, Performance): Bitmappy 355 to 450 ms (its AI worker,
-  above, and about 147 ms of `load_ai_training_data` rendering 71 sprite files as text for a log
-  line at any log level), Zombies Ain't My Neighbors 100 to 176 ms warm (about 160 ms of it
-  reading and decoding its 1,538-frame recording again) and 860 ms cold, Mr. Muncher 207 ms cold.
+- **A loop's build runs past decision 7's 9 to 40 ms for four of the eleven bundled demos**
+  (measured warm 2026-11-20, docs/architecture/engine_context.md, Performance): Bitmappy 355 to
+  450 ms (its AI worker, above, and about 147 ms of `load_ai_training_data` rendering 71 sprite
+  files as text for a log line at any log level), Zombies Ain't My Neighbors 100 to 176 ms warm
+  (about 160 ms of it reading and decoding its 1,538-frame recording again) and 860 ms cold, and
+  Brave Adventurer's two demos 33 to 71 ms. A cold first build is longer (Mr. Muncher: 24 ms
+  warm, 207 ms cold).
   The build is one indivisible call charged to the budget (decision 7), so a looping Bitmappy
   tile holds the whole Arcade for about 22 frames (the benchmark's worst round, 376 ms). Options
   for sub-plan 6: keep the decoded recording across a player's loops (an engine change: the
@@ -1039,9 +1041,9 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   its golden replay to compare tile pixels, option B of that plan's audit (the frames each tile
   ran per tick recorded as an internal event) is what it needs.
 - **The ten-tile set leaves one bundled demo out.** There are eleven bundled demos (Brave
-  Adventurer has two, and Zombies Ain't My Neighbors' `neighborhood_four_kids` is one), while
-  the gameplay replay page still says "ten in all"; the benchmark leaves out the text-input demo
-  (its key repeat). Sub-plan 6 decides the real ten and fixes the page.
+  Adventurer has two, and Zombies Ain't My Neighbors' `neighborhood_four_kids` is one); the
+  benchmark leaves out the text-input demo (its key repeat). Sub-plan 6 decides the real ten.
+  (2026-11-20: the gameplay replay page now lists all eleven, instead of "ten in all".)
 
 ## Games
 
