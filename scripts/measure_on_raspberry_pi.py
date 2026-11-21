@@ -193,6 +193,11 @@ RASPBERRY_PIS = (
     raspberry_pi(name='raspberry-pi-5-16gb-ubuntu', address='rpi5-ubuntu-2604.local'),
     # Reached by its mDNS name: its address is a DHCP lease (the inventory's ansible_host)
     raspberry_pi(
+        name='raspberry-pi-5-8gb-raspberry-pi-os',
+        address='glitchygames-pi5-8gb-raspberry-pi-os.local',
+    ),
+    # Reached by its mDNS name: its address is a DHCP lease (the inventory's ansible_host)
+    raspberry_pi(
         name='raspberry-pi-5-16gb-raspberry-pi-os',
         address='glitchygames-pi5-16gb-raspberrypios.local',
     ),

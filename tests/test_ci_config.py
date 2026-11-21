@@ -255,6 +255,7 @@ def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
         'raspberry-pi-4-4gb-ubuntu',
         'raspberry-pi-5-8gb-ubuntu',
         'raspberry-pi-5-16gb-ubuntu',
+        'raspberry-pi-5-8gb-raspberry-pi-os',
         'raspberry-pi-5-16gb-raspberry-pi-os',
     ]
     for host, variables in hosts.items():
@@ -269,6 +270,7 @@ def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
     [
         'raspberry-pi-5-8gb-ubuntu',
         'raspberry-pi-5-16gb-ubuntu',
+        'raspberry-pi-5-8gb-raspberry-pi-os',
         'raspberry-pi-5-16gb-raspberry-pi-os',
     ],
 )
@@ -2794,6 +2796,7 @@ def raspberry_pi_job() -> str:
         'raspberry-pi-4-4gb-ubuntu',
         'raspberry-pi-5-8gb-ubuntu',
         'raspberry-pi-5-16gb-ubuntu',
+        'raspberry-pi-5-8gb-raspberry-pi-os',
         'raspberry-pi-5-16gb-raspberry-pi-os',
     ],
 )

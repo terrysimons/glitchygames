@@ -811,6 +811,12 @@ jobs:
     <<: *raspberry-pi-job
     resource_class: terrysimons/raspberry-pi-5-16gb-raspberry-pi-os
 
+  # And on the 8 GB Raspberry Pi 5 running Raspberry Pi OS (Trixie; the owner, 2026-11-21): the
+  # same job again. Its resource class is not created yet, and the job is off in the workflow
+  build-and-test-raspberry-pi-5-8gb-raspberry-pi-os:
+    <<: *raspberry-pi-job
+    resource_class: terrysimons/raspberry-pi-5-8gb-raspberry-pi-os
+
   # Publishes the docs (https://terrysimons.github.io/glitchygames/, the gh-pages branch) after
   # a merge to main: nox -s docs-deploy, browser games (play/) included, without measuring the
   # replays (CI machines vary; their timings would be noise in the run ledger). It starts as soon
@@ -1002,11 +1008,12 @@ workflows:
             - test-python-3-15-windows
       # Off: the Pis measure replays when the owner pushes, and take no CI jobs
       # (plans/2026-11-04-raspberry-pi-ci-runner.md; the Pi 5 likewise, the owner, 2026-11-08,
-      # the 8 GB Pi 5, 2026-11-14, and the Raspberry Pi OS Pi 5, 2026-11-16). deploy-docs must not
-      # wait for these if they return
+      # the 8 GB Pi 5, 2026-11-14, and the Raspberry Pi OS Pi 5s, 2026-11-16 and 2026-11-21).
+      # deploy-docs must not wait for these if they return
       # - build-and-test-raspberry-pi-4-4gb-ubuntu
       # - build-and-test-raspberry-pi-5-16gb-ubuntu
       # - build-and-test-raspberry-pi-5-8gb-ubuntu
+      # - build-and-test-raspberry-pi-5-8gb-raspberry-pi-os
       # - build-and-test-raspberry-pi-5-16gb-raspberry-pi-os
       # After a merge to main, at once, beside the test jobs (the owner, 2026-11-20: "Docs only
       # run after merging to main, so let's actually run it in parallel to the other jobs"; on a
