@@ -4445,6 +4445,13 @@ SIGKILL and SIGSTOP cannot be caught, Python ignores SIGPIPE, and SIGQUIT keeps 
 convention. An engine started off the main thread cannot install its handlers, so SIGTERM then
 ends it the system's default way, without the teardown. An exception raised before the run
 starts (while the engine is being constructed) exits with Python's default status 1.</p>
+<p>A crash (SIGSEGV, SIGBUS, SIGFPE, or SIGQUIT) ends the process at once, by the signal, with
+every thread's traceback on stderr (faulthandler): no teardown, no recording closed.</p>
+<p>pygame's own crash handler is not used. It is installed when <code>pygame</code> is imported and calls
+<code>pygame.quit()</code> before dying. On a thread without the <abbr title="Global interpreter lock: lets one Python thread run at a time">GIL</abbr> (<abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s audio thread) it hangs the
+process forever instead (bugs/2026-11-20-a-crash-on-the-audio-thread-hung-the-process.md).
+The engine (<code>report_fatal_signals_with_faulthandler</code>) puts those signals back to their
+defaults and enables faulthandler as it is constructed, unless faulthandler is already on.</p>
 <h2 id="comparing-processing-time-compare-processing">Comparing processing time (<code>--compare-processing</code>)<a class="headerlink" href="#comparing-processing-time-compare-processing" title="Permanent link">#</a></h2>
 <p>A recording holds each frame's <strong>processing time</strong> (<code>processing_seconds</code>): the frame's work
 (logic, events, frame services, positioning and rendering), without presenting it, without the
@@ -5160,7 +5167,7 @@ play: they have no hitbox and change nothing the game does.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 09:56:14 UTC">November 19, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 00:03:49 UTC">November 21, 2026</span>
   </span>
 
     
