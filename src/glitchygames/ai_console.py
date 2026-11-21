@@ -49,6 +49,7 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock
 from glitchygames.ai_link import LinkState
+from glitchygames.checks import required
 from glitchygames.clipboard import ClipboardUnavailableError, system_clipboard
 from glitchygames.debug.overlay import OVERLAY_KEYS, load_debug_font
 from glitchygames.debug.panels import HUD_TEXT_COLOR, blit_text
@@ -504,8 +505,7 @@ class AiConsole:
             surface: The presented frame.
 
         """
-        if self._font is None:
-            self._font = load_debug_font()
+        self._loaded_font()
         if not self.is_open:
             if self._notice is None:
                 self._notice = self._rendered(text='AI replied: ` to read', color=NOTE_COLOR)
@@ -725,13 +725,13 @@ class AiConsole:
             and then does what it always does, so Enter runs the match and Left starts editing it.
 
         """
-        assert self._search_query is not None  # _edit only calls this during a search
+        search_query = required(self._search_query, what="the AI console's search query")
         if event.key == pygame.K_ESCAPE:
             self._set_input(text=self._search_original)
             self._search_query = None
             return True
         if event.key == pygame.K_BACKSPACE:
-            self._search_query = self._search_query[:-1]
+            self._search_query = search_query[:-1]
             self._find_match(before=None)
             return True
         action = self._action_for(event=event)
@@ -743,7 +743,7 @@ class AiConsole:
             return False
         text = getattr(event, 'unicode', '')
         if text and text.isprintable():
-            self._search_query += text
+            self._search_query = search_query + text
             self._find_match(before=None)
         return True
 
@@ -1339,13 +1339,24 @@ class AiConsole:
         self._panel = None
         return line
 
+    def _loaded_font(self) -> pygame.font.Font:
+        """Return the console's font, loading it the first time it is needed.
+
+        Returns:
+            The debug font.
+
+        """
+        if self._font is None:
+            self._font = load_debug_font()
+        return self._font
+
     def _set_request_line(
         self, *, request: AiRequest, text: str, color: tuple[int, int, int]
     ) -> None:
         """Change a request's own line, wherever it is now: other commands may have run since."""
-        assert request.line is not None  # _ask gives every request its line
-        request.line.text = text
-        request.line.color = color
+        line = required(request.line, what="the AI request's transcript line")
+        line.text = text
+        line.color = color
         self._panel = None
 
     def _rendered(self, *, text: str, color: tuple[int, int, int]) -> pygame.Surface:
@@ -1355,8 +1366,7 @@ class AiConsole:
             The rendered text.
 
         """
-        assert self._font is not None  # draw() loads it first
-        return self._font.render(text, antialias=FontManager.antialias(), color=color)
+        return self._loaded_font().render(text, antialias=FontManager.antialias(), color=color)
 
     def _rendered_panel(self, *, width: int, height: int) -> pygame.Surface:
         """Render the whole console. Kept until something in it changes.
@@ -1365,7 +1375,7 @@ class AiConsole:
             The panel: the newest lines that fit, above the input line.
 
         """
-        assert self._font is not None  # draw() loads it first
+        font = self._loaded_font()
         panel_height = round(height * HEIGHT_FRACTION)
         panel = pygame.Surface((width, panel_height), pygame.SRCALPHA)
         panel.fill(BACKGROUND_COLOR)
@@ -1373,7 +1383,7 @@ class AiConsole:
         lines = [
             (wrapped, line.color)
             for line in self._transcript
-            for wrapped in wrapped_lines(text=line.text, font=self._font, width=text_width)
+            for wrapped in wrapped_lines(text=line.text, font=font, width=text_width)
         ]
         input_top = panel_height - LINE_HEIGHT_PIXELS - MARGIN_PIXELS
         fitting = max(1, input_top // LINE_HEIGHT_PIXELS)
@@ -1400,14 +1410,14 @@ class AiConsole:
 
     def _draw_input_line(self, *, panel: pygame.Surface, input_top: int, text_width: int) -> None:
         """Draw the prompt and input. It follows the cursor, what's right of it clipped."""
-        assert self._font is not None  # draw() loads it first
+        font = self._loaded_font()
         # Drawn in pieces so the cursor sits between them
         prefix = self._input_prompt()
-        room = max(1, text_width - self._font.size(prefix)[0])
-        before = fitting_tail(text=self.input_text[: self.cursor], font=self._font, width=room)
+        room = max(1, text_width - font.size(prefix)[0])
+        before = fitting_tail(text=self.input_text[: self.cursor], font=font, width=room)
         prompt = f'{prefix}{before}'
         panel.blit(self._rendered(text=prompt, color=INPUT_COLOR), (MARGIN_PIXELS, input_top))
-        cursor_left = MARGIN_PIXELS + self._font.size(prompt)[0]
+        cursor_left = MARGIN_PIXELS + font.size(prompt)[0]
         pygame.draw.line(
             panel,
             INPUT_COLOR,

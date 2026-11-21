@@ -285,6 +285,29 @@ def sound_migrate_command(
     )
 
 
+def _recipes_and_problems(sound_file: SoundFile) -> tuple[dict[str, Effect], list[str]]:
+    """Split a loaded file's entries into recipes and the problems that stop a migration.
+
+    A version 0 file holds only recipes: an entry without one (a version 1 file handed in) is a
+    problem, not a recipe.
+
+    Args:
+        sound_file: The loaded version 0 file.
+
+    Returns:
+        The recipes by sound name, and one line per problem, in file order.
+    """
+    recipes: dict[str, Effect] = {}
+    problems: list[str] = []
+    for name, entry in sound_file.sounds.items():
+        if entry.effect is None:
+            problems.append(f'recipes.{name}: not a recipe (only a version 0 file can be migrated)')
+            continue
+        recipes[name] = entry.effect
+        problems.extend(_recipe_problems(entry.effect))
+    return recipes, problems
+
+
 def migration_problems(sound_file: SoundFile) -> list[str]:
     """Name every field of a version 0 file that version 1 cannot say yet.
 
@@ -294,11 +317,7 @@ def migration_problems(sound_file: SoundFile) -> list[str]:
     Returns:
         One line per problem (``recipes.<name>.tones[i].<field>: why``), in file order.
     """
-    problems: list[str] = []
-    for entry in sound_file.sounds.values():
-        assert entry.effect is not None  # every entry of a version 0 file is a recipe
-        problems.extend(_recipe_problems(entry.effect))
-    return problems
+    return _recipes_and_problems(sound_file)[1]
 
 
 def _recipe_problems(recipe: Effect) -> list[str]:
@@ -407,14 +426,12 @@ def migrated_document(sound_file: SoundFile) -> dict[str, Any]:
     Raises:
         ValueError: When a recipe cannot be migrated (naming each problem).
     """
-    problems = migration_problems(sound_file)
+    recipes, problems = _recipes_and_problems(sound_file)
     if problems:
         raise ValueError('\n'.join(problems))
     instruments: dict[str, Any] = {}
     sounds: dict[str, Any] = {}
-    for name, entry in sound_file.sounds.items():
-        recipe = entry.effect
-        assert recipe is not None
+    for name, recipe in recipes.items():
         instruments[name] = _instrument_table(recipe)
         sounds[name] = _sound_table(recipe, instrument=name)
     return {
