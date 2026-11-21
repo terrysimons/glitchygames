@@ -1054,6 +1054,23 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   with palette swaps), it gets ids, sprite comparison, hitboxes in the debug overlay, and the AI's tools for free.
   Its golden replay will change, so re-recording it is a reviewed step, and the GAMEEVENTs can stay or go once the
   sprites carry what they did. Check the per-frame cost against the run ledger, since it draws many soldiers.
+- **Drawing Fire on college-ruled paper, then its scenery** (the owner, 2026-11-20, from an Arcade
+  mockup; take only these, and not verbatim). Today the battle is drawn on a plain page.
+  1. **The paper:** a college-ruled sheet behind everything: an off-white page, evenly spaced
+     faint horizontal rules, and the red margin line near the left edge. Drawn once into the
+     background (a cached surface, never per frame), opaque (CLAUDE.md, Opaque frames), and sized
+     from the screen so the rule spacing scales with the window.
+  2. **The ground:** a clean, single ink line for the hill contour (not the wobbled pencil stroke
+     the ground uses today, `drawing.py` `draw_terrain`), with the dirt below it filled a slightly
+     off colour from the paper (a warm beige), so the ground reads as solid against the page.
+     Soldiers, sandbags and bullets keep their pencil look.
+  3. **Then the scenery:** more than one hill shape, details on the ground and in the sky, in
+     the same notebook style; designed with the owner when it starts.
+  Replays: Drawing Fire draws to the screen, not sprites, so its golden compares its posted
+  events, not pixels; the look can change without re-recording, but `compare-drivers` and
+  `--audit` digests see the new pixels (check both). The terrain's shape (`Terrain.ground_y`,
+  what soldiers stand on and the line of sight) must not change in steps 1-2: only how it is
+  drawn. Pairs well with converting it to sprites (above), but neither waits on the other.
 
 ## Performance and pacing
 
