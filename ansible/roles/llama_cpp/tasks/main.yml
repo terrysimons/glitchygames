@@ -28,16 +28,28 @@
 - name: Build llama.cpp
   when: not llama_cpp_installed_binary.stat.exists
   block:
+    # The number alone, in KiB, as the last line (ai_free_space_command, group_vars): df's table
+    # names the filesystem first, and a name holding a space moved the field
+    # (bugs/2026-11-20-free-space-read-from-the-wrong-column.md)
     - name: Measure the free disk space
       ansible.builtin.command:
-        argv: [df, -m, "{{ ai_home }}"]
+        argv: "{{ ai_free_space_command + [ai_home] }}"
       register: llama_cpp_disk
       changed_when: false
+      failed_when: false
+
+    # A free space that can't be read doesn't stop the build, as in setup.sh: the check only saves
+    # a build that would fail anyway
+    - name: Say when the free disk space can't be read
+      ansible.builtin.debug:
+        msg: "Free disk space unknown ({{ llama_cpp_disk.stderr | default('no answer') }}); building anyway"
+      when: llama_cpp_disk.stdout_lines | last | default('') | trim is not match('^[0-9]+$')
 
     - name: Refuse to build without the disk space
       ansible.builtin.assert:
-        that: (llama_cpp_disk.stdout_lines[-1].split()[3] | int) >= llama_cpp_required_free_megabytes
+        that: (llama_cpp_disk.stdout_lines | last | int) // 1024 >= llama_cpp_required_free_megabytes
         fail_msg: "The build needs {{ llama_cpp_required_free_megabytes }} MB free"
+      when: llama_cpp_disk.stdout_lines | last | default('') | trim is match('^[0-9]+$')
 
     - name: Make the cache directory
       ansible.builtin.file:

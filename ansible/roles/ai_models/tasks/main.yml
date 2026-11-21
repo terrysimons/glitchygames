@@ -42,20 +42,32 @@
              | map(attribute='item.bytes')
              | sum }}
 
+    # The number alone, as the last line (ai_free_space_command, group_vars): df's table names the
+    # filesystem first, and a name holding a space moved the field
+    # (bugs/2026-11-20-free-space-read-from-the-wrong-column.md)
     - name: Measure the free disk space
       ansible.builtin.command:
-        argv: [df, -k, "{{ ai_models_directory }}"]
+        argv: "{{ ai_free_space_command + [ai_models_directory] }}"
       register: ai_models_disk
       changed_when: false
+      failed_when: false
+
+    # A free space that can't be read doesn't stop the download, as in setup.sh: the check only
+    # saves one that would fail anyway
+    - name: Say when the free disk space can't be read
+      ansible.builtin.debug:
+        msg: "Free disk space unknown ({{ ai_models_disk.stderr | default('no answer') }}); downloading anyway"
+      when: ai_models_disk.stdout_lines | last | default('') | trim is not match('^[0-9]+$')
 
     - name: Refuse to start a download that won't fit
       ansible.builtin.assert:
         that: >-
-          (ai_models_disk.stdout_lines[-1].split()[3] | int) * 1024
+          (ai_models_disk.stdout_lines | last | int) * 1024
           >= (ai_models_missing_bytes | int) + ai_models_free_margin_bytes
         fail_msg: >-
           {{ ai_models_missing_bytes }} bytes to download, plus {{ ai_models_free_margin_bytes }} left
-          free, and only {{ (ai_models_disk.stdout_lines[-1].split()[3] | int) * 1024 }} available
+          free, and only {{ (ai_models_disk.stdout_lines | last | int) * 1024 }} available
+      when: ai_models_disk.stdout_lines | last | default('') | trim is match('^[0-9]+$')
 
     - name: Download and verify the models
       ansible.builtin.include_tasks: download.yml
