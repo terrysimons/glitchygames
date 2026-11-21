@@ -693,7 +693,6 @@ def test_a_row_named_for_the_pushed_tree_but_measuring_another_is_refused(
         ('{tree}-raspberry-pi-4-row.json', json.dumps({'code_tree': FOREIGN_TREE})),
         (f'{FOREIGN_TREE[:12]}-raspberry-pi-4-row.json', json.dumps({'code_tree': FOREIGN_TREE})),
         ('history-raspberry-pi-4-row.json', json.dumps({'code_tree': FOREIGN_TREE})),
-        ('{tree}-raspberry-pi-4-row.json', 'not json'),
         ('{tree}-raspberry-pi-4-row.json', json.dumps(['a', 'list'])),
         ('{tree}-raspberry-pi-4-row.txt', json.dumps({'code_tree': '{full_tree}'})),
     ],
@@ -701,7 +700,6 @@ def test_a_row_named_for_the_pushed_tree_but_measuring_another_is_refused(
         'named-for-the-tree-holding-another',
         'named-for-another-tree',
         'history-holding-a-tree',
-        'not-json',
         'not-a-row',
         'not-a-row-file',
     ],
@@ -730,6 +728,40 @@ def test_fetching_refuses_any_file_that_is_not_a_row_of_the_pushed_tree(
         )
     assert not (repository / good_row).exists()
     assert not (repository / bad_file).exists()
+
+
+@pytest.mark.parametrize(
+    'cut_at', [0, 1, 20, -1], ids=['empty', 'one-character', 'part-way', 'all-but-the-brace']
+)
+def test_fetching_skips_and_names_a_row_file_cut_short(repository, raspberry_pi, capsys, cut_at):
+    """A row file a stopped write left part written is skipped, named, and blocks no other row.
+
+    Before, it refused every row the Pi sent, on every push of that tree, until someone deleted
+    the file in the Pi's clone (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md). A row file
+    that reads but holds another tree is still refused: that check guards what is staged.
+    """
+    code_tree = code_tree_of(repository=repository)
+    good_row = row_of(code_tree=code_tree, machine='raspberry-pi-4-4gb-ubuntu')
+    cut_row = f'{LEDGER}/{code_tree[:12]}-raspberry-pi-4-cut-row.json'
+    whole = json.dumps({'code_tree': code_tree, 'recording': 'golden.jsonl.gz'})
+    archive = archive_of({
+        good_row: json.dumps({'code_tree': code_tree}).encode(),
+        cut_row: whole[:cut_at].encode(),
+    })
+
+    fetched = measure_on_raspberry_pi._fetch_rows(
+        repository=repository,
+        raspberry_pi=raspberry_pi,
+        archive=archive,
+        ledger_directory=LEDGER,
+        code_tree=code_tree,
+    )
+
+    assert fetched == [good_row]
+    assert (repository / good_row).exists()
+    assert not (repository / cut_row).exists()
+    output = capsys.readouterr().out
+    assert f'raspberry-pi-4-4gb-ubuntu: skipped {cut_row}' in output
 
 
 def test_fetching_refuses_a_file_outside_the_ledger(repository, raspberry_pi):
