@@ -100,7 +100,12 @@ motion is for. A poster frame at the 90% mark of the slowest demo (Mr. Muncher, 
 costs about 1.5 s of fast-forward, and all ten posters together about 2 s on average: it must
 be sliced across Arcade frames, as the spec says. A loop's restart is a build of 9 to 40 ms
 (a frame or three at 60 Hz): it must be charged to the frame budget and spread, never done for
-all tiles in one frame.
+all tiles in one frame. **Measured by Task 6, 2026-11-20:** 9 to 40 ms holds for seven of the
+eleven bundled demos only. Bitmappy's build is 355 to 450 ms (its worst Arcade frame 376 ms,
+about 22 frames), Zombies Ain't My Neighbors' 100 to 176 ms warm and 860 ms cold, and Mr.
+Muncher's 207 ms cold. The numbers and their causes are in docs/architecture/engine_context.md
+(Performance, "Demo players"), `tests/benchmarks/test_demo_player_benchmarks.py` and
+plans/future-work.md ("Arcade (sub-plan 5 follow-ups)").
 
 ## What the spike did, and which part is this sub-plan's
 
@@ -207,7 +212,16 @@ The spike has no budget, no slow motion, no fast-forward and no poster frame; th
    already spent, and the build's cost is subtracted from the budget the other players share
    that tick: ten tiles looping at different times spread their hitches; no tile is skipped.
    Task 6 measures the real distribution (including Bitmappy's cold build and the odd 3 s
-   reading) before the numbers here are trusted.
+   reading) before the numbers here are trusted. **Measured by Task 6, 2026-11-20:** the 9 to
+   40 ms holds for seven of the eleven bundled demos. Bitmappy builds in 355 to 450 ms (one
+   loop held the Arcade for about 22 frames, 376 ms; most of it is its AI worker started and
+   joined inside the build, and the join's 2 s timeout plus 1 s after terminating is the likely
+   reading of the 3 s build), Zombies Ain't My Neighbors in 100 to 176 ms warm (mostly
+   re-decoding its recording) and 860 ms cold, Mr. Muncher in 207 ms cold. Recorded in
+   docs/architecture/engine_context.md (Performance, "Demo players"),
+   `tests/benchmarks/test_demo_player_benchmarks.py` and plans/future-work.md ("Arcade (sub-plan
+   5 follow-ups)", with options). The policy above stands as written; whether to change it is
+   the owner's call.
 8. **Fast-forward is silent, sliced and resumable.** `fast_forward(*, to_frame, budget)` runs
    frames `[frames_run, to_frame)` of the current game until done or the budget is spent, and
    returns whether it reached `to_frame`; the next call continues. It is refused while the
