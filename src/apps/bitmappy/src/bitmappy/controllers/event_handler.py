@@ -38,6 +38,7 @@ from glitchygames import (
     clock,
     events,
 )
+from glitchygames.checks import required
 from glitchygames.input.state import current_input
 
 if TYPE_CHECKING:
@@ -270,9 +271,11 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
 
         # Handle controller assignment on first button press
         if controller_info.status.value == 'connected':
-            controller_id = self.editor.multi_controller_manager.assign_controller(instance_id)
             # A known, connected controller is always assigned
-            assert controller_id is not None
+            controller_id = required(
+                self.editor.multi_controller_manager.assign_controller(instance_id),
+                what=f'the controller id assigned to instance {instance_id}',
+            )
             # Create controller selection for this controller
             self.editor.controller_selections[controller_id] = ControllerSelection(
                 controller_id,

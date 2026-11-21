@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 from glitchygames import clock
+from glitchygames.checks import required
 from glitchygames.events import ResourceManager
 from glitchygames.events.voice_backends import get_microphone_backend
 
@@ -258,7 +259,7 @@ class VoiceEventManager(ResourceManager):
             source: The open microphone.
 
         """
-        assert sr is not None
+        speech_recognition = required(sr, what='the speech_recognition package')
         # Listen for audio with timeout
         self.log.debug('Listening for voice input...')
         audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=10)
@@ -266,11 +267,11 @@ class VoiceEventManager(ResourceManager):
         # Recognize speech
         try:
             text = self.recognizer.recognize_google(audio).lower()
-        except sr.UnknownValueError:
+        except speech_recognition.UnknownValueError:
             # Speech was unintelligible, continue listening
             self.log.debug('Could not understand audio')
             return
-        except sr.RequestError:
+        except speech_recognition.RequestError:
             self.log.error('Speech recognition service error')  # ruff: ignore[error-instead-of-exception]
             # Wait a bit before trying again
             self._wait(seconds=2)

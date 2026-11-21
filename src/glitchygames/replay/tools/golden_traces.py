@@ -56,6 +56,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, overri
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.engine import GameEngine, RunningGame
 from glitchygames.engine_context import current_context
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
@@ -106,6 +107,10 @@ ENVIRONMENT_EVENT_TYPES: tuple[int, ...] = (
 
 class InputScriptError(ValueError):
     """An input script reference (``MODULE:NAME``) that names no input script."""
+
+
+class GoldenTraceSceneManagerError(RuntimeError):
+    """The engine did not install the harness's scene manager (a bug, not a game failure)."""
 
 
 class GameSceneClasses(MutableMapping[str, type[Scene]]):
@@ -577,6 +582,9 @@ def _start_game(
     Returns:
         The scene manager with the game scene active.
 
+    Raises:
+        GoldenTraceSceneManagerError: If the engine did not install the harness's scene manager.
+
     """
     manager = GoldenTraceSceneManager.install()
     with command_line([
@@ -591,7 +599,9 @@ def _start_game(
         *(extra_arguments or []),
     ]):
         engine = GoldenTraceEngine(game=scene_class)
-    assert engine.scene_manager is manager
+    if engine.scene_manager is not manager:
+        message = "The golden game's engine did not install the harness's scene manager"
+        raise GoldenTraceSceneManagerError(message)
     engine.install_game(scene_class=scene_class)
     return manager
 
@@ -682,39 +692,48 @@ def record_trace(
     frames: list[dict[str, Any]] = []
     sprite_ids = StableSpriteIds()
     with golden_game(scene_class=scene_class, random_seed=random_seed) as manager:
-        engine = manager.game_engine
-        assert engine is not None
+        engine = required(manager.game_engine, what="the golden game's engine")
         rolled_seed = (
             {} if random_seed is not None else {RANDOM_SEED_HEADER_FIELD: engine.random_seed}
         )
         if before_recording is not None:
-            assert manager.active_scene is not None
-            before_recording(manager.active_scene)
+            before_recording(
+                required(
+                    manager.active_scene,
+                    what="the golden game's active scene before the recording starts",
+                )
+            )
         if recording_path is not None:
             engine.start_trace_recording(path=recording_path)
         for frame_number in range(frame_count):
             manager.dt = FRAME_SECONDS
             discard_environment_events()
-            assert manager.active_scene is not None
+            scene = required(
+                manager.active_scene, what=f"the golden game's active scene at frame {frame_number}"
+            )
             for placement in script.placements.get(frame_number, []):
-                placement(manager.active_scene)
+                placement(scene)
             if script.per_frame is not None:
-                for event in script.per_frame(manager.active_scene):
+                for event in script.per_frame(scene):
                     pygame.event.post(event)
             for event in script.key_events.get(frame_number, []):
                 pygame.event.post(event)
             manager.run_frame()
+            sampled_scene = required(
+                manager.active_scene,
+                what=f"the golden game's active scene after frame {frame_number}",
+            )
             frames.append(
                 sample_scene_frame(
                     frame_number=frame_number,
-                    scene=manager.active_scene,
+                    scene=sampled_scene,
                     sprite_ids=sprite_ids,
                 )
             )
             if frame_observer is not None:
                 frame_observer(
                     frame_number=frame_number,
-                    scene=manager.active_scene,
+                    scene=sampled_scene,
                     sprite_ids=sprite_ids,
                 )
     return {
@@ -757,10 +776,8 @@ def replay_golden_recording(
         random_seed=None,
         extra_arguments=['--replay-trace', str(path), '--headless'],
     ) as manager:
-        engine = manager.game_engine
-        assert engine is not None
-        sources = engine.replay_sources
-        assert sources is not None
+        engine = required(manager.game_engine, what="the golden game's engine")
+        sources = required(engine.replay_sources, what="the golden game's replay sources")
         frame_number = 0
         while (
             not sources.stop_requested
