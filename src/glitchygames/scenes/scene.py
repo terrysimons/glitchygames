@@ -3091,6 +3091,11 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         # Redraw the new scene's background to clear out any artifacts
         if self.screen is not None:
             self.screen.blit(self.active_scene.background, (0, 0))
+            # The whole surface changed: the next present flips it all, not only the new scene's
+            # dirty rects, or the window keeps the old scene around its sprites (hidden by SCALED
+            # windows, which present everything; bugs/2026-11-21-a-resumed-scene-presents-only-
+            # its-dirty-rects.md)
+            self._display_is_stale = True
 
     def _apply_scene_fps(self) -> None:
         """Apply scene-specific FPS configuration."""
