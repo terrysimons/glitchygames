@@ -11,6 +11,12 @@
   - late, not leaked: the child dies moments after the check, which looks once, too soon under load; the fix is a bounded wait for the child's exit, which is what the stop promises;
   - leaked: under load a child escapes `process.stop_command` (a suspect: a child forked after the group signal was sent); the fix is in the stop, with a regression test that drives that race.
   For the third, the log does not say whether the 60 s went on the game starting (its pid file) or on the command stopping.
+- **Related fix checked** (dev-glitchygames-97, 2026-11-20, against `fix/killpg-misses-forked-process`, which SIGKILLs a group member that missed the SIGINT; the guard skips unreaped zombies): not a duplicate.
+  - `test_a_stopped_native_run_leaves_no_process_its_tests_started`: not covered. The stand-in's child is in a session of its own, outside the group, and stops only if the inner test's SIGINT cleanup runs; a SIGKILL of a member that missed the SIGINT still skips that cleanup.
+  - `test_sigint_to_the_runs_group_leaves_nothing`: partly covered (a dying worker, by that branch's `end_the_run` change and the guard skipping zombies), but not a stand-in child left in its own session after a missed SIGINT.
+  - `test_a_signal_stops_and_reaps_the_commands_child_and_exits_with_its_code[2]`: not covered; it is the command's own SIGINT teardown.
+  - An option 97 recorded, not built, for this triage to decide: send the gentle signal once more to members still in the group before the SIGKILL, at the risk of interrupting a cleanup already running.
+  The triage starts after the current set of work clears (the owner's freeze on new work, 2026-11-20).
 - **Test gap**: each test checks a process outcome once against an instant or a fixed deadline, so a slow machine and a real leak fail the same way and can't be told apart from the failure.
 - **Triage plan**: reproduce under deliberate load (the three tests in a loop, ~50 runs, beside a CPU load on every core) to measure the rate; on a "left running" failure, keep polling the child for a few seconds and log when it dies and its parent; split the third test's 60 s into start-up and stop. Then fix by what that shows, and give every test that checks a process or signal outcome against a fixed instant one shared bounded wait. The plan goes to the coordinating session for its cross-check before coding.
 - **Evidence**: the failing run's full log and the load figures, in the main checkout's gitignored `build/load-flakes-2026-11-20/`.
