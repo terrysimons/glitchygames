@@ -163,6 +163,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | `test_requests_while_a_flush_runs_get_one_more_pass_and_never_overlap` depends on the wall clock: the stand-in `syncfs` takes a real 10 ms (`SYNC_SECONDS`) and the test assumes five requests 1 ms apart all land during the first pass. Under the full parallel suite the sleeps stretch, a request lands in the second pass, and a third runs (`assert 3 == 2`; seed 4023912552 failed the website branch's pre-push gate, 2026-11-20; passes alone, with its file, and under that seed alone) | `tests/test_browser_storage.py` (from #238) | Fix: the test completes the stand-in's write-back itself (an event it sets), so "during the running pass" holds by construction. Then sweep the suite for other tests that sleep against a real-time stand-in (the wall-clock rule in CLAUDE.md's Testing Guidelines). |
 | Frames loaded from TOML keep magenta (255, 0, 255) opaque (no colorkey, alpha 255), so the visible-pixel hitbox fallback of a magenta-keyed sprite is its whole frame (ghosty: `Rect(0, 0, 32, 32)`) | `src/glitchygames/sprites/animated.py` (loader), `src/glitchygames/collision/bounds.py` | Found while testing the viewport-save hitbox rule; confirm whether games rely on explicit hitboxes or set a colorkey themselves. |
 | A real AI request has not been run in the packaged binary (needs an API key or network) | `dist/bitmappy` | Do once by hand to fully close BUGS.md #47. |
+| The browser wheel's build runs `uv venv` on its cached toolchain folder whenever the cached venv's `bin/python` doesn't run (likely a link into uv's managed-Python folder, which the cache doesn't hold: unverified), and uv asks on the terminal whether to replace it: deploy-docs hung to its 60-minute no-output limit (jobs 4431, 4443, 2026-11-20). #257 set `UV_VENV_CLEAR=1` on the step (closing stdin doesn't stop uv's prompt, tried 2026-11-21) | `third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh` lines 39-41 (submodule); `.circleci/config.yml` deploy-docs | Fix in the submodule: `uv venv --clear`, and check the venv's python actually runs before reusing it. Then shorten the step's `no_output_timeout` to just above the build's longest silent stretch, so a stuck step fails in minutes. |
 | `scripts/raw_sprite_loader.py` cannot start: `BitmappyLegacySprite` calls `Sprite.__init__` without x and y, and `inflate` draws zero-size rects (nothing) | `scripts/raw_sprite_loader.py:~41, ~84` | Found while deleting `legacy_sprite_loader.py` (BUGS.md #46). Tests use only its `deflate`; fix or fold into Galimore import (sub-plan E). |
 | ~~`FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels~~ | `src/glitchygames/bitmappy/history/commands.py` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). **Done** (#93, `606fa59b`): `FrameAddCommand._insert_frame` (the method's name now) uses `set_pixel_data` on an SRCALPHA frame and restores an explicit hitbox. |
 | Undoing an animation delete restores the sprite data but only refreshes existing film strip widgets, so the restored animation appears to get no film strip until strips are rebuilt (`on_sprite_loaded`) | `src/glitchygames/bitmappy/history/commands.py` (`AnimationAddCommand._add_animation`) | Found while fixing BUGS.md #51; not checked in the running app. |
@@ -705,6 +706,24 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
     the `glitchy.games` hosts' 301s carry `strict-transport-security`, the `.ai` ones don't), so
     a browser's first `http://glitchygames.ai` request isn't upgraded by the browser itself.
     Give `GlitchyGamesAiRedirect`'s behavior the same security headers policy as the site's.
+- **One CircleCI job publishes the docs and the site** (the owner, 2026-11-20). Today
+  `deploy-docs` and `deploy-site` are two jobs that run side by side, each under its own
+  serial-group lock (`ci/deploys-in-parallel`). The owner wants them as one job, with the two
+  publishes still running in parallel inside it: for example two background steps, or the docs
+  build and the S3 upload started together. Keep what the two jobs guarantee today:
+  - the docs deploy waits for no test job;
+  - the site publish waits for `test-infra`;
+  - two back-to-back merges cannot race gh-pages;
+  - a deploy whose main is already published stops.
+- **The site deploy stops when main is already live** (2026-11-20, the follow-up to
+  `ci/deploys-in-parallel`). `deploy-site` now moves to main's tip before publishing, but it
+  publishes again even when that commit is already live, unlike the docs deploy, which reads
+  gh-pages and stops. Proposed:
+  - `glitchy_site.publish` writes the commit into a small marker object in the bucket, for
+    example `site_build.json`, like the docs' `play/site_build.json`;
+  - the job's first step reads it back, over plain HTTP from play.glitchy.games so no IAM
+    change is needed, and halts when it matches;
+  - if IAM must change after all, that stack deploy is the owner's.
 - **Email at the domains** (the owner, 2026-10-28: "a later task"; needs a plan). The Route 53
   move drops Namecheap's email forwarding (unused today); a provider (e.g. Amazon SES) would
   add MX, SPF, DKIM and DMARC records to the zones.
@@ -1277,6 +1296,14 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 
 ## Developer environment
 
+- **The local x11 Docker image on Ubuntu 26.04** (the owner, 2026-11-20: "use the latest 26.04
+  images, since that's our target OS for Raspberry Pi"). `scripts/linux_x11/Dockerfile`
+  (`nox -s test-linux-x11`, compare-drivers' x11-linux) is `python:3.15-slim`, Debian 13
+  (trixie), since #96 for convenience only. Rebuild it on `ubuntu:26.04` with Python 3.15.2
+  from uv, keeping its X11 and PulseAudio client libraries. Already on 26.04 (checked
+  2026-11-20): `test-linux-ci` (`cimg/python:3.15.2` is Ubuntu 26.04.1, the same image CircleCI
+  runs) and `deb-package` (`ubuntu:26.04`; its older release `ubuntu:24.04` stays, #237's check
+  that the .deb installs on the oldest supported release).
 - **A leaner CLAUDE.md through path-scoped rules** (the owner, 2026-11-20; after #117, which
   moved the Website section to `.claude/rules/website.md`). CLAUDE.md sits at
   `tests/test_claude_md.py`'s 360-line limit. Sections that matter only in their own folders
@@ -1555,6 +1582,22 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   Each becomes an explicit check raising an error with a real message; the 100% coverage gate
   may need a test per new branch. Then remove S101 from the ignore list so none returns.
   Decide with the owner whether `scripts/` (hand-run tools, never shipped) is in scope.
+  - The owner's decisions (2026-11-20): a None-check is `glitchygames.checks.required(value,
+    what=...)`, which raises `MissingValueError` ("<what> is missing"); any other condition is an
+    explicit raise of the error that fits. One branch per package, each by one session:
+    engine (`fix/assert-replacement-engine`), engine `scenes/` (dev-glitchygames-97), Bitmappy
+    (`fix/assert-sweep-bitmappy`), then games and demos, and `scripts/` (in scope). Last, as its
+    own step after every package: remove S101 from ruff's ignore list (the per-file ignores keep
+    asserts allowed in tests only), so any assert in a non-test file fails, and tighten bandit
+    past B101's filter. No list of files still to do is kept in the code (a saved ratchet guard
+    is in the gitignored `build/assert-sweep-final-step/` of the
+    `glitchygames-assert-replacement-engine` worktree; keep it when that worktree is removed).
+  - Progress (2026-11-20): `InnerGame`'s three (#246) and 78 in 27 engine
+    files (`fix/assert-replacement-engine`) are done; one, in `audio/assets.py`'s pitch check,
+    could fire in normal use (a `Note` or `Midi` pitch in a Python-built table) and is now a
+    `ValueError`. Left (counted by `ast`, 2026-11-20): `scenes/` 25 (its `_run_scene_frame`
+    assert fires when a scene ends before `run_frame`), Bitmappy 35, games and demos 14,
+    `scripts/` 43.
 - **Stereo synthesis** (the owner, 2026-11-15: "couldn't we make them stereo since we own the
   sound waves?"; its own branch, after the sound migration). The renderer makes mono samples
   and every sound, live and baked, pans by the constant-power law (`voices.constant_power_gains`,

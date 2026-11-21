@@ -345,8 +345,13 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
         Returns:
             pygame.Rect: The union.
 
+        Raises:
+            ValueError: If no frames are given.
+
         """
-        assert frames, 'the anchor reference is built only while the sprite has a frame'
+        if not frames:
+            message = 'The anchor reference is built only while the sprite has a frame'
+            raise ValueError(message)
         frame_hitboxes = [self._native_frame_hitbox(frame) for frame in frames]
         return frame_hitboxes[0].unionall(frame_hitboxes[1:])
 

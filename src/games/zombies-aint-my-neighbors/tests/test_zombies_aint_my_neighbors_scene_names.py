@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import inspect
 import pkgutil
+import sys
 
 import pytest
 
@@ -40,6 +41,10 @@ def game_scene_classes() -> dict[str, type[Scene]]:
     for module_info in pkgutil.walk_packages(
         zombies_aint_my_neighbors.__path__, prefix='zombies_aint_my_neighbors.'
     ):
+        # Never __main__: importing it leaves it in sys.modules, where runpy (the python -m
+        # test) trips on it, and it defines no scene
+        if module_info.name.rsplit('.', 1)[-1] == '__main__':
+            continue
         module = importlib.import_module(module_info.name)
         for name, value in inspect.getmembers(module, inspect.isclass):
             if issubclass(value, Scene) and value.__module__ == module.__name__:
@@ -63,3 +68,12 @@ def test_every_scene_that_names_itself_names_the_game_first():
 
     assert named == EXPECTED_NAMES
     assert all(name == GAME_NAME or name.startswith(f'{GAME_NAME} - ') for name in named.values())
+
+
+def test_finding_the_scenes_never_imports_the_packages_main():
+    """The walk skips ``__main__``: importing it leaves it in sys.modules for runpy to trip on."""
+    sys.modules.pop('zombies_aint_my_neighbors.__main__', None)
+
+    game_scene_classes()
+
+    assert 'zombies_aint_my_neighbors.__main__' not in sys.modules

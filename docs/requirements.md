@@ -37,7 +37,7 @@ marks the target. The ranges are the lowest and highest across a machine's runs.
 
 === "Raspberry Pi 4"
 
-    The Pi 4 has no added cooling and boots from an SD card. At 60 FPS, Brave Adventurer is too
+    The Pi 4 has passive heatsinks (added 2026-11-20; the measurements below were taken without them) and boots from an SD card. At 60 FPS, Brave Adventurer is too
     slow on it; it fits a 30 FPS target. A one-off CircleCI job (build 2857) measured a 30.1 ms
     flip per frame on SDL's `wayland` driver at 2560x1440: on a screen that size, presenting alone
     takes more than the 60 FPS budget.
@@ -84,7 +84,7 @@ Typical
     :   Not recorded in the ledger.
 
     Thermals
-    :   The ledger doesn't record temperature on Linux. The Pi 4, with no added cooling, varies
+    :   The ledger doesn't record temperature on Linux. The Pi 4, measured before its heatsinks, with no added cooling, varies
         about 12% across runs.
 
     Other machines

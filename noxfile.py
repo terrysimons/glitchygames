@@ -3,6 +3,7 @@
 import argparse
 import contextlib
 import dataclasses
+import hashlib
 import json
 import os
 import platform
@@ -21,7 +22,7 @@ import nox
 from nox.command import CommandFailed
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Mapping, Sequence
+    from collections.abc import Callable, Generator, Mapping, Sequence
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
@@ -445,7 +446,7 @@ def docs_deploy(session: nox.Session) -> None:
     if not build_only:
         # Only main is published: a branch's history would publish its measured rows as landed
         # though their code never reached main (glitchygames/code_tree.py landed_code_trees)
-        session.run('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main', external=True)
+        _require_head_on_origin_main(session)
     # A deploy publishes the merged ledger in place of the published one, so it must start from
     # what gh-pages holds now: only a build tolerates a failed fetch
     session.run(
@@ -759,7 +760,14 @@ TEST_PYTHONS = ('3.15',)
 
 @nox.session(python=list(TEST_PYTHONS), reuse_venv=False)
 def test(session: nox.Session) -> None:
-    """Run the tests on one Python of TEST_PYTHONS (nox -s test runs them all)."""
+    """Run the tests on one Python of TEST_PYTHONS (nox -s test runs them all).
+
+    GLITCHYGAMES_TEST_ORDER picks the order (``choose_suite_order``): unset or ``fixed``, the
+    files' own; ``roll``, a coin flip for fixed or shuffled and a seed (CircleCI's test jobs; on
+    CircleCI both come from the workspace, job and machine, so a rerun repeats them); a number,
+    that seed's shuffle. The order is logged before the run and after a failure, and written to
+    test-results/test-order.txt.
+    """
     # The installed copy is built (not editable), so it has no git checkout: the stamp gives it
     # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare. It is
     # written into the installed copy, never the checkout, so a build running alongside neither
@@ -799,9 +807,23 @@ def test(session: nox.Session) -> None:
     # names each test's file (xunit1), from which CircleCI learns the timings it splits by
     args.extend(split_share_pytest_arguments(environment=os.environ))
 
+    # The suite's order (GLITCHYGAMES_TEST_ORDER; CircleCI's test jobs roll it), printed before
+    # the run and again after a failure, whose log starts 26,000 tests back
+    try:
+        order = choose_suite_order(environment=os.environ)
+    except ValueError as refusal:
+        session.error(str(refusal))
+    description = describe_suite_order(order=order)
+    session.log(description)
+    write_suite_order_record(order=order, description=description)
+    args.extend(suite_order_pytest_arguments(order=order))
+
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
     # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
-    session.run('pytest', *args)
+    try:
+        session.run('pytest', *args)
+    except CommandFailed:
+        session.error(f'The tests failed. {description}')
 
 
 # A machine's share of a split CI job (tests/circleci_test_split.py): its coverage rule off, its
@@ -823,6 +845,163 @@ def split_share_pytest_arguments(*, environment: Mapping[str, str]) -> list[str]
     if environment.get('GLITCHYGAMES_TEST_SPLIT') is None:
         return []
     return list(SPLIT_SHARE_PYTEST_ARGUMENTS)
+
+
+# The test session's order switch: unset or "fixed" keeps the files' order; "roll" flips a coin
+# for fixed or shuffled and, shuffled, draws the seed (CircleCI's test jobs set it: the owner,
+# 2026-11-20, "roll to decide if we're randomizing or not, and then also roll the seed if we are
+# randomizing"); a number replays that seed's shuffle
+SUITE_ORDER_VARIABLE = 'GLITCHYGAMES_TEST_ORDER'
+SUITE_ORDER_FIXED = 'fixed'
+SUITE_ORDER_ROLL = 'roll'
+# On CircleCI a roll is a function of the machine, not a draw, so a rerun repeats its first run's
+# roll (the owner, 2026-11-20: "Yes"). The workflow's workspace ID is new each pipeline and, by a
+# community report not yet seen here, kept by "Rerun workflow from failed", which gets a new
+# workflow ID: the two differ only on a rerun. Unset or empty (a local run), the roll is a draw
+CIRCLECI_WORKSPACE_VARIABLE = 'CIRCLE_WORKFLOW_WORKSPACE_ID'
+CIRCLECI_WORKFLOW_VARIABLE = 'CIRCLE_WORKFLOW_ID'
+CIRCLECI_JOB_VARIABLE = 'CIRCLE_JOB'
+CIRCLECI_NODE_INDEX_VARIABLE = 'CIRCLE_NODE_INDEX'
+# The order and how it was chosen, for the job's artifacts (test-results/ is stored when: always)
+SUITE_ORDER_RECORD = Path('test-results') / 'test-order.txt'
+
+
+@dataclasses.dataclass(frozen=True)
+class SuiteOrder:
+    """The order the test session runs the suite in.
+
+    A dataclass, not pydantic: the noxfile runs in nox's own environment (CI's nox is a uv tool
+    without the project's packages).
+
+    Attributes:
+        seed: pytest-randomly's seed for a shuffled run, or None for the files' own order.
+        rolled: Whether a coin flip chose it (``roll``), rather than the environment naming it.
+        workspace: The CircleCI workspace a roll came from, or None (a draw, or not rolled).
+        machine: The CircleCI job and machine index a roll came from, or None.
+        rerun: Whether the workflow is a rerun (its ID differs from its workspace's).
+
+    """
+
+    seed: int | None
+    rolled: bool
+    workspace: str | None = None
+    machine: str | None = None
+    rerun: bool = False
+
+
+def choose_suite_order(
+    *, environment: Mapping[str, str], draw: Callable[[int], int] | None = None
+) -> SuiteOrder:
+    """Choose the suite's order from GLITCHYGAMES_TEST_ORDER, rolling it when asked to.
+
+    Args:
+        environment: The session's environment.
+        draw: Draws a whole number below its argument; None uses ``secrets.randbelow``. A roll
+            without a CircleCI workspace draws twice: below 2 for the coin (1 shuffles), then
+            the seed. With one, nothing is drawn: SHA-256 of the workspace, job and machine
+            index gives the coin (its first byte's low bit) and the seed (its next four bytes).
+
+    Returns:
+        The order.
+
+    Raises:
+        ValueError: If the variable holds anything but ``fixed``, ``roll`` or a seed in
+            pytest-randomly's range.
+
+    """
+    if draw is None:
+        draw = secrets.randbelow
+    value = environment.get(SUITE_ORDER_VARIABLE)
+    if value is None or value == SUITE_ORDER_FIXED:
+        return SuiteOrder(seed=None, rolled=False)
+    if value == SUITE_ORDER_ROLL:
+        workspace = environment.get(CIRCLECI_WORKSPACE_VARIABLE) or None
+        if workspace is None:
+            if draw(2) == 0:
+                return SuiteOrder(seed=None, rolled=True)
+            return SuiteOrder(seed=draw(RANDOM_ORDER_SEED_LIMIT), rolled=True)
+        job = environment.get(CIRCLECI_JOB_VARIABLE, '')
+        node_index = environment.get(CIRCLECI_NODE_INDEX_VARIABLE, '0')
+        digest = hashlib.sha256(f'{workspace}\n{job}\n{node_index}'.encode()).digest()
+        seed = int.from_bytes(digest[1:5], 'big') % RANDOM_ORDER_SEED_LIMIT
+        return SuiteOrder(
+            seed=seed if digest[0] % 2 else None,
+            rolled=True,
+            workspace=workspace,
+            machine=f'{job} machine {node_index}',
+            rerun=environment.get(CIRCLECI_WORKFLOW_VARIABLE, workspace) != workspace,
+        )
+    if value.isdecimal() and int(value) < RANDOM_ORDER_SEED_LIMIT:
+        return SuiteOrder(seed=int(value), rolled=False)
+    message = (
+        f'{SUITE_ORDER_VARIABLE}={value!r}: expected {SUITE_ORDER_FIXED!r}, {SUITE_ORDER_ROLL!r} '
+        f'or a seed from 0 to {RANDOM_ORDER_SEED_LIMIT - 1}'
+    )
+    raise ValueError(message)
+
+
+def suite_order_pytest_arguments(*, order: SuiteOrder) -> list[str]:
+    """Return the pytest arguments for an order: none for fixed, pytest-randomly's for a seed.
+
+    Args:
+        order: The order.
+
+    Returns:
+        The arguments (a shuffle reorders only, as nox -s test-random does).
+
+    """
+    if order.seed is None:
+        return []
+    return [*RANDOM_ORDER_PYTEST_ARGUMENTS, f'--randomly-seed={order.seed}']
+
+
+def describe_suite_order(*, order: SuiteOrder) -> str:
+    """Describe an order for the job's log, with how to replay a shuffled one.
+
+    Args:
+        order: The order.
+
+    Returns:
+        One line starting "Test order:".
+
+    """
+    if order.workspace is not None:
+        run = 'rerun: same roll as its first run' if order.rerun else 'first run'
+        how = f' (rolled from CircleCI workspace {order.workspace}, {order.machine}; {run})'
+    elif order.rolled:
+        how = ' (rolled at random: no CircleCI workspace)'
+    else:
+        how = ''
+    if order.seed is None:
+        return f"Test order: fixed{how}, the files' own order"
+    return (
+        f'Test order: shuffled, seed {order.seed}{how}. Replay it with '
+        f'{SUITE_ORDER_VARIABLE}={order.seed} nox -s test-3.15, or with pytest '
+        f'{shlex.join(suite_order_pytest_arguments(order=order))} -n 0; a split CI machine '
+        f'shuffled only its share, the files in test-results/test-split.txt (its artifacts), '
+        f'so name those files to replay its order'
+    )
+
+
+def write_suite_order_record(*, order: SuiteOrder, description: str) -> None:
+    """Write the order and how it was chosen to SUITE_ORDER_RECORD, for the job's artifacts.
+
+    Args:
+        order: The order.
+        description: Its log line (``describe_suite_order``), written first.
+
+    """
+    lines = [
+        description,
+        f'order={"fixed" if order.seed is None else "shuffled"}',
+        f'seed={"" if order.seed is None else order.seed}',
+        f'rolled={"yes" if order.rolled else "no"}',
+        f'workspace={order.workspace or ""}',
+        f'machine={order.machine or ""}',
+        f'rerun={"yes" if order.rerun else "no"}',
+    ]
+    SUITE_ORDER_RECORD.parent.mkdir(parents=True, exist_ok=True)
+    SUITE_ORDER_RECORD.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
 # Where a split CI job's machines leave their coverage data (``.coverage.<name>`` files), and
@@ -873,8 +1052,9 @@ def coverage_combine(session: nox.Session) -> None:
 
 
 # pytest-randomly, turned on for a shuffled run (pyproject.toml's addopts block it everywhere
-# else, so CI and every other run keep the files' order): reorder only, with random.seed() left
-# as each test sets it, so a shuffled run differs from the others in its order alone
+# else, so every other run keeps the files' order; the test session's GLITCHYGAMES_TEST_ORDER,
+# which CircleCI rolls, turns it on too): reorder only, with random.seed() left as each test
+# sets it, so a shuffled run differs from the others in its order alone
 RANDOM_ORDER_PYTEST_ARGUMENTS = ('-p', 'randomly', '--randomly-dont-reset-seed')
 # The seeds pytest-randomly takes (it seeds numpy's generator, whose seeds are 32-bit)
 RANDOM_ORDER_SEED_LIMIT = 2**32
@@ -2008,6 +2188,48 @@ def _why_no_frame_can_change(session: nox.Session) -> str | None:
 
 
 @dataclasses.dataclass(frozen=True)
+class _DifferingTests:
+    """The tests a comparison found differing, split by cause (node ids).
+
+    Attributes:
+        frames: Tests that present different frames on two configurations.
+        audio: Tests that failed on a native run because the machine's audio was unavailable
+            (``scripts/native_audio_health.py``): not frame differences.
+
+    """
+
+    frames: list[str]
+    audio: list[str]
+
+
+# The configurations that are the machine's own driver (scripts/driver_configurations.py's
+# NATIVE_CONFIGURATIONS; the noxfile cannot import it, CI's nox lacks the project's packages)
+_NATIVE_CONFIGURATION_NAMES = ('cocoa', 'windows', 'wayland', 'x11')
+# A test on the native run that takes longer than this fails (pytest-timeout, the thread method).
+# Native runs only, never CI or a plain pytest: on 2026-11-20 a hung
+# pygame.mixer.init (SDL's audio thread crashed and pygame-ce's parachute handler spun on it,
+# #252) held the native run until it was killed by hand. A crash now fails at once; this limit
+# still catches a hang that is not a crash. The slowest healthy test
+# takes about 30 s, so 120 s is four times that. The thread method ends the worker process (xdist
+# reports the crash and replaces the worker) where the signal method would not interrupt a call
+# stuck inside a C library. Caveat: `os._exit` runs no fixture teardown, so a hung test's
+# children (in sessions of their own) may outlive the worker (not tested; the bug record
+# bugs/2026-11-20-native-run-burned-two-hours-on-a-broken-coreaudio.md)
+_NATIVE_RUN_TIMEOUT_SECONDS = 120
+# Ten seconds before that, faulthandler (pytest's faulthandler_timeout) writes every thread's
+# stack to the worker's real stderr. pytest-timeout's own stack dump goes through the terminal
+# writer, which an xdist worker does not forward (measured: nothing is shown), so without this
+# the failure would name the test and no stack
+_NATIVE_RUN_STACK_DUMP_SECONDS = _NATIVE_RUN_TIMEOUT_SECONDS - 10
+_NATIVE_RUN_TIMEOUT_ARGUMENTS = (
+    f'--timeout={_NATIVE_RUN_TIMEOUT_SECONDS}',
+    '--timeout-method=thread',
+    '-o',
+    f'faulthandler_timeout={_NATIVE_RUN_STACK_DUMP_SECONDS}',
+)
+
+
+@dataclasses.dataclass(frozen=True)
 class _RunSettings:
     """What every run of a comparison shares.
 
@@ -2055,6 +2277,11 @@ def _run_fingerprinted_tests(
         _FRAME_FINGERPRINTS_PLUGIN,
         f'--frame-fingerprints={directory}',
         f'--frame-fingerprints-seed={_COMPARE_DRIVERS_SEED}',
+        *(
+            _NATIVE_RUN_TIMEOUT_ARGUMENTS
+            if configuration['name'] in _NATIVE_CONFIGURATION_NAMES
+            else ()
+        ),
         *arguments,
     ]
     if configuration['runs_in_linux_container']:
@@ -2303,10 +2530,18 @@ def compare_drivers(session: nox.Session) -> None:
             raise
         shutil.rmtree(_COMPARE_DRIVERS_PREVIOUS, ignore_errors=True)
     # A completed comparison: its report stays the last one, whatever this decides
-    if options.fail_on_difference and differing_tests:
+    if differing_tests.audio:
         session.error(
-            f'{len(differing_tests)} test(s) presented different frames on two driver '
-            f'configurations: {", ".join(differing_tests)}. Report and difference images: '
+            f'audio failed in {len(differing_tests.audio)} test(s) on the native driver '
+            f"({', '.join(differing_tests.audio)}): the machine's audio was unavailable "
+            '(CoreAudio error or mixer not initialized), not a frame difference. Run it again; '
+            'if it keeps failing, sudo killall coreaudiod. Report: '
+            f'{output / "matrix.md"}'
+        )
+    if options.fail_on_difference and differing_tests.frames:
+        session.error(
+            f'{len(differing_tests.frames)} test(s) presented different frames on two driver '
+            f'configurations: {", ".join(differing_tests.frames)}. Report and difference images: '
             f'{output / "matrix.md"}. A driver dependence is a bug (BUGS.md); a test whose frames '
             'vary by design takes @pytest.mark.frames_vary(reason=...). '
             'SKIP=compare-drivers git push skips the check'
@@ -2349,7 +2584,7 @@ def _only_comparison(session: nox.Session, *, lock_path: Path) -> Generator[None
 
 def _compare_driver_configurations(
     session: nox.Session, *, output: Path, options: _CompareDriversOptions
-) -> list[str]:
+) -> _DifferingTests:
     """Run compare-drivers' comparison into its (empty) folder: see ``compare_drivers``.
 
     Args:
@@ -2359,10 +2594,24 @@ def _compare_driver_configurations(
 
     Returns:
         The tests whose frames differ between configurations (nondeterministic and
-        ``frames_vary`` tests left out), by node id; none when every configuration agrees.
+        ``frames_vary`` tests left out), by node id, apart from those that failed because the
+        native audio was unavailable (``scripts/native_audio_health.py``); none when every
+        configuration agrees.
 
     """
     configurations = _plan_driver_configurations(session, drivers=options.drivers, output=output)
+    # Before the long runs: a CoreAudio that hangs or refuses to start would otherwise cost hours
+    # and then blame the change's frames (scripts/native_audio_health.py)
+    session.run(
+        'uv',
+        'run',
+        'python',
+        '-m',
+        'scripts.native_audio_health',
+        'probe',
+        f'--plan={output / "plan.json"}',
+        external=True,
+    )
     settings = _RunSettings(
         workers=options.workers,
         container_audio_driver=_prepare_driver_configurations(
@@ -2400,7 +2649,7 @@ def _compare_driver_configurations(
     differing_tests = list(json.loads(request.read_text(encoding='utf-8'))['positions_by_test'])
     if not differing_tests:
         session.log(f'No driver differences: nothing to re-run\n{summary}')
-        return []
+        return _DifferingTests(frames=[], audio=[])
     # One node id per line, passed as @FILE: node ids may hold spaces
     tests_file = output / 'differing-tests.txt'
     tests_file.write_text('\n'.join(differing_tests) + '\n', encoding='utf-8')
@@ -2423,7 +2672,57 @@ def _compare_driver_configurations(
         ),
         external=True,
     )
-    return differing_tests
+    return _split_audio_failures(
+        session,
+        differing_tests=differing_tests,
+        tests_file=tests_file,
+        junit_paths=[
+            output / directory_name / 'junit.xml'
+            for configuration, directory_name in runs
+            if configuration['name'] in _NATIVE_CONFIGURATION_NAMES
+        ],
+    )
+
+
+def _split_audio_failures(
+    session: nox.Session,
+    *,
+    differing_tests: list[str],
+    tests_file: Path,
+    junit_paths: list[Path],
+) -> _DifferingTests:
+    """Split the differing tests into frame differences and audio failures.
+
+    A test that failed on a native run with a mixer-unavailable error (``CoreAudio error``,
+    ``mixer not initialized``) differs because the machine had no audio, not because a frame
+    changed (2026-11-20: 235 such tests were reported as frame differences).
+
+    Args:
+        session: The nox session.
+        differing_tests: Every test found to present different frames.
+        tests_file: Those tests, one node id per line.
+        junit_paths: The native runs' junit reports.
+
+    Returns:
+        The tests split by cause.
+
+    """
+    output = session.run(
+        'uv',
+        'run',
+        'python',
+        '-m',
+        'scripts.native_audio_health',
+        'classify',
+        f'--tests-file={tests_file}',
+        *(f'--junit={junit_path}' for junit_path in junit_paths),
+        external=True,
+        silent=True,
+    )
+    classification = json.loads(str(output))
+    if sorted(classification['audio'] + classification['frames']) != sorted(differing_tests):
+        session.error('the audio classification lost or invented a differing test')
+    return _DifferingTests(frames=classification['frames'], audio=classification['audio'])
 
 
 @nox.session(venv_backend='none', name='browser', default=False)
@@ -2855,6 +3154,16 @@ def infra_deploy(session: nox.Session) -> None:
     _run_cdk(session, 'deploy', *stacks, '--require-approval', 'broadening')
 
 
+def _require_head_on_origin_main(session: nox.Session) -> None:
+    """Fail the session unless HEAD is on origin/main (what the deploys may publish).
+
+    Args:
+        session: The nox session.
+
+    """
+    session.run('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main', external=True)
+
+
 # What site-publish publishes when given nothing: the website (for now its page and the mockup)
 # (docs/specs/2026-10-27-glitchy-games-website-design.md, What gets published at launch)
 _SITE_DEFAULT_SOURCE = 'src/website'
@@ -2867,14 +3176,31 @@ def site_publish(session: nox.Session) -> None:
     CircleCI's deploy-site job runs it after a merge to main (OIDC credentials); the owner can
     run it from the Mac with their own profile.
 
+    A publish is refused unless HEAD is on origin/main and the source has no uncommitted changes:
+    the docs and the site deploy side by side, each under its own lock (the owner, 2026-11-20), so
+    only what main holds may reach the site. ``--dry-run`` changes nothing and skips the checks;
+    ``--allow-unmerged`` skips them on purpose, for a preview from a branch.
+
     Usage:
         nox -s site-publish                                   # src/website
         nox -s site-publish -- --source build/browser/site    # Another directory
         nox -s site-publish -- --dry-run                      # Print the plan, change nothing
+        nox -s site-publish -- --allow-unmerged               # Publish a branch's preview
     """
-    arguments = list(session.posargs)
+    arguments = [argument for argument in session.posargs if argument != '--allow-unmerged']
     if '--source' not in arguments:
         arguments = ['--source', _SITE_DEFAULT_SOURCE, *arguments]
+    if '--allow-unmerged' not in session.posargs and '--dry-run' not in arguments:
+        _require_head_on_origin_main(session)
+        source = arguments[arguments.index('--source') + 1]
+        changes = session.run(
+            'git', 'status', '--porcelain', '--', source, external=True, silent=True
+        )
+        if changes and changes.strip():
+            session.error(
+                f'{source} has uncommitted changes; commit them, or preview with '
+                f'--allow-unmerged:\n{changes}'
+            )
     session.run(
         'uv',
         'run',
