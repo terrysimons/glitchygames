@@ -253,7 +253,7 @@ class TestChildProcessGuard:
             try:
                 leftovers = guard.stop_leftovers()
             finally:
-                kill_if_running(pid=child.pid)
+                child.kill()
                 child.wait()
 
         assert [process.pid for process in leftovers] == [child.pid]
@@ -273,8 +273,10 @@ class TestChildProcessGuard:
             try:
                 leftovers = guard.stop_leftovers()
             finally:
-                for pid in (child.pid, grandchild_pid):
-                    kill_if_running(pid=pid)
+                # Our own child through its Popen (its pid stays ours until reaped); the
+                # grandchild is not ours, so by pid
+                child.kill()
+                kill_if_running(pid=grandchild_pid)
                 child.wait()
 
         assert sorted(process.pid for process in leftovers) == sorted([child.pid, grandchild_pid])

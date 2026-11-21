@@ -40,6 +40,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.process import is_zombie_state
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from pathlib import Path
@@ -50,8 +52,6 @@ PROCESS_LISTING_COMMAND = ('ps', '-A', '-ww', '-o', 'pid=,ppid=,pgid=,stat=,comm
 REAP_TIMEOUT_SECONDS = 10.0
 # The fields before a listing row's command line
 LISTING_FIELDS_BEFORE_COMMAND = 4
-# ps's state letter for a zombie: a process that has exited but its parent has not reaped yet
-ZOMBIE_STATE = 'Z'
 
 
 class ListedProcess(BaseModel):
@@ -68,8 +68,12 @@ class ListedProcess(BaseModel):
 
     @property
     def is_zombie(self) -> bool:
-        """Whether it has exited and only waits for its parent to reap it (it runs nothing)."""
-        return self.state.startswith(ZOMBIE_STATE)
+        """Whether it has exited and only waits for its parent to reap it (it runs nothing).
+
+        The engine's own rule (``glitchygames.process.is_zombie_state``), which ``stop_command``
+        judges a stopped group by: the guard and the stop never disagree.
+        """
+        return is_zombie_state(self.state)
 
 
 def parse_process_listing(*, listing: str) -> list[ListedProcess]:
@@ -286,6 +290,12 @@ def kill_if_running(*, pid: int) -> None:
     can be reaped between the check and the kill, which then raises ``ProcessLookupError``
     (CI job 4416: a zombie the check saw, reaped by init before the kill;
     bugs/2026-11-20-killpg-misses-a-process-forked-during-it-on-macos.md).
+
+    Only for a process that is not this process's own child: kill one's own child through its
+    ``Popen`` (``process.kill()``), whose pid cannot be reused before it is reaped. A pid that
+    is not ours is free once its process is reaped, and the system may give it to an unrelated
+    process before this kill: the window is a pid wrap (macOS and Linux allocate pids in
+    sequence) between the reap and this call, which no identity check here closes.
 
     Args:
         pid: The process.

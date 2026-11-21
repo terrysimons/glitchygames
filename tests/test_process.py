@@ -7,6 +7,7 @@ ends the whole group (a pytest run's xdist workers with it).
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - a stand-in child raises its TimeoutExpired; Popen names the type
@@ -467,6 +468,25 @@ class TestStopCommandEmptiesTheGroup:
             (4242, SIGKILL_NUMBER),
         ]
 
+    def test_killing_after_a_gentle_stop_is_logged(self, mocker, caplog):
+        """A member still tearing down loses its cleanup to the kill: said, so it can be found."""
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.return_value = 0
+        looks = [None] * self.LOOKS_IN_A_GRACE
+        killpg, _ = self._group_answering([None, *looks, ProcessLookupError])
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=killpg)
+
+        with caplog.at_level(logging.WARNING, logger=process.__name__):
+            stop_command(process=child)
+
+        assert [record.getMessage() for record in caplog.records] == [
+            (
+                'Process group 4242 still has processes a grace after the gentle stop; '
+                'killing: none listed'
+            )
+        ]
+
     def test_a_group_that_outlives_the_kill_raises_naming_it(self, mocker):
         """Never a silent return: the error names the group and how to list what is left."""
         child = mocker.Mock(pid=4242)
@@ -674,6 +694,29 @@ class TestStopCommand:
 
         assert f'Process group {child.pid} still has processes' in str(raised.value)
         assert f'{member_pid} sleep 60' in str(raised.value)
+
+    def test_a_group_left_with_only_an_unreaped_zombie_counts_as_empty(self, mocker):
+        """A zombie runs nothing: a group holding only zombies is not a group that survived.
+
+        The member's parent is this process, outside the group, and has not reaped it yet, so
+        the zombie stays in the group after its leader is stopped (macOS answers the group's
+        signals with EPERM, Linux delivers them to nobody). The same zombie rule as the
+        child-process guard's (glitchygames.process.is_zombie_state).
+        """
+        mocker.patch.object(process, 'STOP_GRACE_SECONDS', 0.05)
+        leader = subprocess.Popen(['/bin/sleep', '60'], process_group=0, text=True)
+        member = subprocess.Popen(['/usr/bin/true'], process_group=leader.pid)
+        try:
+            os.waitid(os.P_PID, member.pid, os.WEXITED | os.WNOWAIT)
+
+            stop_command(process=leader)
+
+            assert leader.returncode == -signal.SIGTERM
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                leader.kill()
+            leader.wait()
+            member.wait()
 
     def test_a_finished_child_is_only_reaped(self, tmp_path):
         """Nothing is signalled once the child has ended."""

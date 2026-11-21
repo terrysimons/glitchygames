@@ -19,12 +19,13 @@ plugin can import it at configuration time.
 
 from __future__ import annotations
 
+import logging
 import os
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] — runs the engine's own game commands (argument list, no shell)
 import sys
 from enum import StrEnum
-from typing import TYPE_CHECKING, TextIO
+from typing import TYPE_CHECKING, NamedTuple, TextIO
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -43,6 +44,35 @@ STOP_GRACE_SECONDS = 10.0
 GROUP_LOOK_SECONDS = 0.01
 # ps, by its full path (macOS and Linux keep it in /bin), to name a group's members in an error
 PROCESS_LISTER = '/bin/ps'
+# The fields of each row _list_group asks ps for: pid, process group, state, command line
+GROUP_LISTING_FIELDS = 4
+# ps's state letter for a zombie: a process that has exited and waits for its parent to reap it
+ZOMBIE_STATE = 'Z'
+
+LOG = logging.getLogger(__name__)
+
+
+def is_zombie_state(state: str) -> bool:
+    """Tell whether a ``ps`` state is a zombie's (it has exited: it runs nothing).
+
+    The one rule ``stop_command`` and the test suite's child-process guard both judge by.
+
+    Args:
+        state: ``ps``'s ``stat`` (its first letter is the state; the rest are flags).
+
+    Returns:
+        True for a zombie.
+
+    """
+    return state.startswith(ZOMBIE_STATE)
+
+
+class GroupMember(NamedTuple):
+    """One process of a process group, as ``ps`` lists it."""
+
+    pid: int
+    state: str
+    command: str
 
 
 class ProcessGroupSurvivedError(RuntimeError):
@@ -367,7 +397,11 @@ def _empty_the_group(
     (``ProcessLookupError``). After a kill the group is killed at once. The bounds count looks,
     not seconds read from a clock, so the wait ends whatever a clock does. The group id stays
     the leader's pid while any member is left (no new process can take a pid a live group
-    uses), so nothing outside the group is signalled.
+    uses), so nothing outside the group is signalled then. Once the last member is gone the id
+    is free until the next look (GROUP_LOOK_SECONDS): a new process given that pid that started
+    a group of its own in that time would get the look's signal (a pid wrap within the look,
+    left as is). A group left with only zombies (their parents outside it have not reaped
+    them) counts as empty: they run nothing (``is_zombie_state``, the guard's rule too).
 
     macOS refuses a signal (``PermissionError``) to a group whose members are all ending
     (zombies until their new parent reaps them): the group is looked at again until it is gone.
@@ -389,6 +423,14 @@ def _empty_the_group(
     looks_in_a_grace = max(1, round(STOP_GRACE_SECONDS / GROUP_LOOK_SECONDS))
     gentle_looks = 0 if killed else looks_in_a_grace
     for look in range(gentle_looks + looks_in_a_grace):
+        if look == gentle_looks and gentle_looks:
+            # A member still tearing down after the gentle stop loses its cleanup from here on:
+            # named, so a test's child left running by it points here
+            LOG.warning(
+                'Process group %d still has processes a grace after the gentle stop; killing: %s',
+                process.pid,
+                _describe(members=_list_group(group=process.pid)),
+            )
         try:
             os.killpg(process.pid, signal.SIGKILL if look >= gentle_looks else 0)
         except ProcessLookupError:
@@ -396,34 +438,48 @@ def _empty_the_group(
         except PermissionError:
             pass
         sleep(GROUP_LOOK_SECONDS)
+    members = _list_group(group=process.pid)
+    living = [member for member in members if not is_zombie_state(member.state)]
+    if members and not living:
+        # Only zombies whose parents have not reaped them (a parent outside the group): they
+        # run nothing, so nothing of the group survived
+        return
     message = (
         f'Process group {process.pid} still has processes a grace after SIGKILL: '
-        f'{_group_members(group=process.pid)}'
+        f'{_describe(members=living)}'
     )
     raise ProcessGroupSurvivedError(message)
 
 
-def _group_members(*, group: int) -> str:
-    """Name the processes in a process group, for an error message.
+def _list_group(*, group: int) -> list[GroupMember]:
+    """List the processes in a process group (``ps``: pid, state, command line).
 
     Returns:
-        Each member's pid and command line ("pid command", joined by "; "), or why none were
-        listed.
+        The members, in ``ps``'s order; none when ``ps`` lists none (or fails).
 
     """
     listing = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - /bin/ps with fixed arguments, as an argument list (no shell)
-        [PROCESS_LISTER, '-A', '-ww', '-o', 'pid=,pgid=,command='],
+        [PROCESS_LISTER, '-A', '-ww', '-o', 'pid=,pgid=,stat=,command='],
         capture_output=True,
         text=True,
         check=False,
     )
-    members: list[str] = []
+    members: list[GroupMember] = []
     for line in listing.stdout.splitlines():
-        pid, _, rest = line.strip().partition(' ')
-        member_group, _, command = rest.strip().partition(' ')
-        if member_group == str(group):
-            members.append(f'{pid} {command.strip()}')
-    return '; '.join(members) or f'none listed (ps: {listing.stderr.strip() or "no output"})'
+        fields = line.split(None, GROUP_LISTING_FIELDS - 1)
+        if len(fields) == GROUP_LISTING_FIELDS and fields[1] == str(group):
+            members.append(GroupMember(pid=int(fields[0]), state=fields[2], command=fields[3]))
+    return members
+
+
+def _describe(*, members: list[GroupMember]) -> str:
+    """Name processes for a message: each one's pid and command line.
+
+    Returns:
+        "pid command" for each, joined by "; ", or "none listed".
+
+    """
+    return '; '.join(f'{member.pid} {member.command}' for member in members) or 'none listed'
 
 
 def _signal_the_group(*, process: subprocess.Popen[str], signal_number: int) -> bool:
