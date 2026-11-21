@@ -468,6 +468,8 @@ def guard_from_environment(
         stop=stop,
         source=source,
         read_reclaimable_slab_bytes=read_reclaimable_slab_bytes,
+        # Read now, not bound when ResidentMemoryGuard was defined, so a test can set it
+        interval_seconds=SAMPLE_INTERVAL_SECONDS,
     )
 
 
