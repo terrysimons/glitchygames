@@ -111,11 +111,13 @@ def test_a_round_runs_the_three_files_whole_under_xdist_keeping_its_temporary_fi
     tmp_path: Path,
 ):
     """The round's command runs every test file named, with the workers and the round's basetemp."""
-    command = reproducer.round_command(round_directory=tmp_path, workers='4')
+    command = reproducer.round_command(
+        round_directory=tmp_path, basetemp=tmp_path / 'outside' / 'basetemp', workers='4'
+    )
 
     assert command[-len(reproducer.TEST_FILES) :] == list(reproducer.TEST_FILES)
     assert command[command.index('-n') + 1] == '4'
-    assert command[command.index('--basetemp') + 1] == str(tmp_path / 'basetemp')
+    assert command[command.index('--basetemp') + 1] == str(tmp_path / 'outside' / 'basetemp')
     assert command[command.index('-p') + 1] == 'no:randomly'
 
 
@@ -131,16 +133,19 @@ def test_a_round_counts_as_probed_only_once_a_nested_run_logged_its_start(tmp_pa
     """An empty or outer-only log is not evidence; a nested run under the basetemp is."""
     events = tmp_path / 'events.jsonl'
 
-    nothing_logged = reproducer.probe_reached_a_nested_run(round_directory=tmp_path)
+    basetemp = tmp_path / 'outside' / 'basetemp'
+    nothing_logged = reproducer.probe_reached_a_nested_run(
+        round_directory=tmp_path, basetemp=basetemp
+    )
     events.write_text(
         json.dumps({'kind': 'start', 'pid': 1, 'command': ['python', '-m', 'pytest']}) + '\n',
         encoding='utf-8',
     )
-    outer_only = reproducer.probe_reached_a_nested_run(round_directory=tmp_path)
-    nested = ['python', '-m', 'pytest', '-c', str(tmp_path / 'basetemp' / 'test0' / 'pytest.ini')]
+    outer_only = reproducer.probe_reached_a_nested_run(round_directory=tmp_path, basetemp=basetemp)
+    nested = ['python', '-m', 'pytest', '-c', str(basetemp / 'test0' / 'pytest.ini')]
     with events.open('a', encoding='utf-8') as log:
         log.write(json.dumps({'kind': 'start', 'pid': 2, 'command': nested}) + '\n')
 
     assert nothing_logged is False
     assert outer_only is False
-    assert reproducer.probe_reached_a_nested_run(round_directory=tmp_path) is True
+    assert reproducer.probe_reached_a_nested_run(round_directory=tmp_path, basetemp=basetemp)

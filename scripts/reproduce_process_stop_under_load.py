@@ -7,7 +7,11 @@ under ``-n auto`` as the suite does, and keeps what each round leaves to read:
 
 - the round's pytest output and JUnit report;
 - its ``--basetemp``, so each test's ``tmp_path`` survives: the nested pytest run's log
-  (``native.log``) and ``glitchygames record-trace``'s output (``command-output.txt``);
+  (``native.log``) and ``glitchygames record-trace``'s output (``command-output.txt``). It is a
+  fresh folder outside the repository (``tempfile.mkdtemp``), moved into the round's folder only
+  when the round fails: three of tests/test_driver_comparison.py's end-to-end tests fail when
+  their temporary folder is inside the repository
+  (bugs/2026-11-20-driver-comparison-end-to-end-tests-fail-inside-the-repository.md);
 - the probe's event log (``events.jsonl``, scripts/process_stop_probe/sitecustomize.py): every
   signal any Python process of the round sent (sender, target, signal, where in the code),
   every Python-level handler installed and called, every process's start and normal exit.
@@ -15,7 +19,8 @@ under ``-n auto`` as the suite does, and keeps what each round leaves to read:
 A round that passes keeps only its output and events (its ``--basetemp`` is removed); a failing
 round keeps everything. Rounds stop at ``--rounds`` or once ``--minutes`` have passed (the
 round under way is stopped as Ctrl-C stops it). After each round every process naming its folder
-is killed (``tests.child_process_guard.sweep_processes_naming``) and listed.
+or its ``--basetemp`` is killed (``tests.child_process_guard.sweep_processes_naming``) and
+listed.
 
 Usage (from the repository root, POSIX):
 
@@ -39,6 +44,7 @@ import os
 import shutil
 import signal
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import cast
@@ -63,11 +69,12 @@ DEFAULT_OUTPUT = Path('build/process-stop-triage/under-xdist')
 SECONDS_PER_MINUTE = 60.0
 
 
-def round_command(*, round_directory: Path, workers: str) -> list[str]:
+def round_command(*, round_directory: Path, basetemp: Path, workers: str) -> list[str]:
     """Build one round's pytest command.
 
     Args:
         round_directory: Where the round keeps its files.
+        basetemp: The round's pytest ``--basetemp`` (outside the repository).
         workers: xdist's ``-n`` value.
 
     Returns:
@@ -85,7 +92,7 @@ def round_command(*, round_directory: Path, workers: str) -> list[str]:
         '-n',
         workers,
         '--basetemp',
-        str(round_directory / 'basetemp'),
+        str(basetemp),
         '--junitxml',
         str(round_directory / 'junit.xml'),
         *TEST_FILES,
@@ -112,7 +119,7 @@ def round_environment(*, round_directory: Path) -> dict[str, str]:
     }
 
 
-def probe_reached_a_nested_run(*, round_directory: Path) -> bool:
+def probe_reached_a_nested_run(*, round_directory: Path, basetemp: Path) -> bool:
     """Tell whether the probe logged the start of a nested pytest run of the round.
 
     An empty log is evidence only once the probe is known to have loaded where it matters: a
@@ -121,7 +128,8 @@ def probe_reached_a_nested_run(*, round_directory: Path) -> bool:
     would leave it out silently.
 
     Args:
-        round_directory: The round's folder.
+        round_directory: The round's folder, which holds the probe's log.
+        basetemp: The round's pytest ``--basetemp``.
 
     Returns:
         True when some start event's command names a file under the round's basetemp.
@@ -130,23 +138,26 @@ def probe_reached_a_nested_run(*, round_directory: Path) -> bool:
     events = round_directory / 'events.jsonl'
     if not events.exists():
         return False
-    basetemp = str(round_directory / 'basetemp')
+    basetemp_text = str(basetemp)
     for line in events.read_text(encoding='utf-8').splitlines():
         event = json.loads(line)
         command = event.get('command') if event.get('kind') == 'start' else None
         if not isinstance(command, list):
             continue
         words = cast('list[object]', command)
-        if any(basetemp in str(word) for word in words):
+        if any(basetemp_text in str(word) for word in words):
             return True
     return False
 
 
-def run_round(*, round_directory: Path, workers: str, deadline: float) -> int | None:
+def run_round(
+    *, round_directory: Path, basetemp: Path, workers: str, deadline: float
+) -> int | None:
     """Run one round, stopping it as Ctrl-C does at the deadline.
 
     Args:
         round_directory: Where the round keeps its files (made here).
+        basetemp: The round's pytest ``--basetemp`` (outside the repository).
         workers: xdist's ``-n`` value.
         deadline: The ``time.monotonic()`` reading the round must end by.
 
@@ -157,7 +168,9 @@ def run_round(*, round_directory: Path, workers: str, deadline: float) -> int | 
     round_directory.mkdir(parents=True)
     with (round_directory / 'pytest.log').open('w', encoding='utf-8') as output:
         running = start_command(
-            command=round_command(round_directory=round_directory, workers=workers),
+            command=round_command(
+                round_directory=round_directory, basetemp=basetemp, workers=workers
+            ),
             environment=round_environment(round_directory=round_directory),
             output=output,
         )
@@ -191,11 +204,18 @@ def main(argv: list[str] | None = None) -> int:
         if time.monotonic() >= deadline:
             break
         round_directory = arguments.output / f'round-{round_number:03d}'
+        basetemp = Path(tempfile.mkdtemp(prefix='process-stop-round-')) / 'basetemp'
         status = run_round(
-            round_directory=round_directory, workers=arguments.workers, deadline=deadline
+            round_directory=round_directory,
+            basetemp=basetemp,
+            workers=arguments.workers,
+            deadline=deadline,
         )
-        survivors = sweep_processes_naming(directory=round_directory)
-        probed = probe_reached_a_nested_run(round_directory=round_directory)
+        survivors = [
+            *sweep_processes_naming(directory=round_directory),
+            *sweep_processes_naming(directory=basetemp),
+        ]
+        probed = probe_reached_a_nested_run(round_directory=round_directory, basetemp=basetemp)
         outcome = 'stopped at the deadline' if status is None else f'exit {status}'
         sys.stdout.write(
             f'round {round_number}: {outcome}, {len(survivors)} left running, '
@@ -209,8 +229,9 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.write('the probe did not load in a nested run: its log proves nothing\n')
             return ExitCode.INTERNAL_ERROR
         if status == 0 and not survivors:
-            shutil.rmtree(round_directory / 'basetemp', ignore_errors=True)
+            shutil.rmtree(basetemp.parent, ignore_errors=True)
         else:
+            shutil.move(basetemp, round_directory / 'basetemp')
             failed_rounds.append(round_number)
     sys.stdout.write(f'failed rounds: {failed_rounds or "none"} (kept in {arguments.output})\n')
     return ExitCode.REPLAY_DIVERGED if failed_rounds else ExitCode.SUCCESS
