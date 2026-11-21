@@ -2,11 +2,14 @@
 
 ansible/inventory.yml groups the Pis by OS under ``raspberry_pis``: ``raspberry_pis_ubuntu``
 (Ubuntu 26.04 and 26.10) and ``raspberry_pis_raspberry_pi_os`` (Raspberry Pi OS 64-bit, Trixie;
-no Pi yet). ansible/raspberry_pi_runner.yml's plays use three roles:
+no Pi yet). ansible/raspberry_pi_runner.yml's plays use four roles:
 
 - ``raspberry_pi_os``: refuses a Pi whose OS isn't the one the inventory names.
 - ``raspberry_pi_desktop``: auto-login and a display that stays on, done each OS's way (gdm3 and
   dconf on Ubuntu; lightdm and labwc's swayidle on Raspberry Pi OS, as raspi-config does them).
+- ``raspberry_pi_audio``: HDMI audio on the Ubuntu Pi 5s (each HDMI sink unmuted at the
+  inventory's volume, an HDMI default), as a WirePlumber drop-in and a script that sets each
+  user's running session with wpctl.
 - ``raspberry_pi_firmware``: each Pi's clock and fan settings, as one ``blockinfile`` block per
   board section appended to config.txt (the block is its ``[pi5]``/``[pi4]`` section and ends
   with ``[all]``), with checks for settings typed by hand and against what the firmware applied.
@@ -59,6 +62,9 @@ ANSIBLE_TEMPLATES = jinja2.Environment(
 # Ansible's b64decode filter (https://docs.ansible.com/ansible/latest/collections/ansible/builtin/b64decode_filter.html):
 # base64 text to text, as the tasks decode what slurp reads
 ANSIBLE_TEMPLATES.filters['b64decode'] = lambda value: base64.b64decode(value).decode('utf-8')
+# Ansible's from_json filter (https://docs.ansible.com/ansible/latest/collections/ansible/builtin/from_json_filter.html):
+# JSON text to data, as the HDMI audio tasks read the script's report
+ANSIBLE_TEMPLATES.filters['from_json'] = json.loads
 
 UBUNTU_HEAD = """[all]
 os_prefix=current/
@@ -493,7 +499,7 @@ def test_the_plays_import_their_roles_so_a_run_can_start_at_any_task():
     playbook = PLAYBOOK_PATH.read_text(encoding='utf-8')
 
     assert 'include_role' not in playbook
-    assert playbook.count('ansible.builtin.import_role') == 6
+    assert playbook.count('ansible.builtin.import_role') == 7
 
 
 def test_every_play_checks_the_os_first():
@@ -587,14 +593,18 @@ def test_the_runner_play_sets_up_every_pi_and_each_os_group_gets_a_firmware_play
 
 
 def test_the_runner_play_takes_the_desktop_role():
-    """The runner play sets the desktop up through the role, after the OS check."""
+    """The runner play sets the desktop up through the role, after the OS check, then HDMI audio.
+
+    The audio role comes after the desktop, whose auto-login starts the CI user's session, and in
+    this play, which names the CI and deploy users it sets audio up for.
+    """
     roles = [
         each['ansible.builtin.import_role']['name']
         for each in plays()[0]['tasks']
         if 'ansible.builtin.import_role' in each
     ]
 
-    assert roles == ['raspberry_pi_os', 'raspberry_pi_desktop']
+    assert roles == ['raspberry_pi_os', 'raspberry_pi_desktop', 'raspberry_pi_audio']
 
 
 # --- Each Pi's clock and fan ---------------------------------------------------------------
@@ -2193,3 +2203,636 @@ def test_no_os_group_lists_packages_of_its_own():
     assert "Install what this Pi's OS needs besides" not in [
         each.get('name') for each in plays()[0]['tasks']
     ]
+
+
+# --- HDMI audio on the Ubuntu Pi 5s --------------------------------------------------------
+
+APPLY_HDMI_AUDIO_PATH = ROLES / 'raspberry_pi_audio' / 'files' / 'apply_hdmi_audio.py'
+PIPEWIRE_FIXTURES = PROJECT_ROOT / 'tests' / 'fixtures' / 'pipewire'
+HDMI_AUDIO_DROP_IN_TASK = "Install the HDMI audio defaults for every user's WirePlumber"
+HDMI_AUDIO_APPLY_TASK = (
+    "Set each session's HDMI outputs to the volume, unmuted, with an HDMI default"
+)
+HDMI_AUDIO_CHECK_TASK = "Check each session's HDMI outputs held"
+# Read on the 16 GB Pi 5, 2026-11-20 (its HDMI0 sink, in the deploy user's session)
+PI5_HDMI0_SINK = 'alsa_output.platform-107c701400.hdmi.hdmi-stereo'
+
+
+def audio_tasks() -> list[dict[str, Any]]:
+    """Return the audio role's tasks.
+
+    Returns:
+        The tasks.
+
+    """
+    return role_tasks('raspberry_pi_audio')
+
+
+def audio_variables(host: str = PI5_16GB, **overrides: Any) -> dict[str, Any]:
+    """Return what a host's audio tasks see: the role's defaults and the host's variables.
+
+    The defaults' user list names the play's ci_user and deploy_user, which the play defines.
+
+    Returns:
+        The variables.
+
+    """
+    defaults = yaml_file(ROLES / 'raspberry_pi_audio' / 'defaults' / 'main.yml')
+    variables = {**defaults, **raspberry_pi_hosts()[host], **overrides}
+    for name in ('raspberry_pi_hdmi_audio_config',):
+        variables[name] = render(variables[name], **variables)
+    return variables
+
+
+def load_apply_hdmi_audio() -> Any:
+    """Load the role's HDMI audio script by its path (it is copied to the Pi, not installed).
+
+    Returns:
+        The module.
+
+    Raises:
+        ImportError: When the file can't be loaded.
+
+    """
+    specification = importlib.util.spec_from_file_location(
+        'apply_hdmi_audio', APPLY_HDMI_AUDIO_PATH
+    )
+    if specification is None or specification.loader is None:
+        raise ImportError(APPLY_HDMI_AUDIO_PATH)
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+def pw_dump(host: str) -> list[dict[str, Any]]:
+    """Return a Pi's captured pw-dump: the deploy user's session, 2026-11-20.
+
+    The capture keeps what the script reads (the audio devices and nodes and the ``default``
+    metadata) of ``pw-dump`` run as the deploy user over ssh: on the 16 GB Pi 5, whose seat the
+    owner held, HDMI0's sink with HDMI1's card on its ``off`` profile (no display on HDMI1); on
+    the 8 GB Pi 5, whose seat the CI user held, no sound card at all (only ``auto_null``).
+
+    Returns:
+        The objects.
+
+    """
+    path = PIPEWIRE_FIXTURES / f'{host}-deploy-user-pw-dump.json'
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+class FakePipeWire:
+    """A session's PipeWire as pw-dump and wpctl show it, from a capture, and what was run.
+
+    Built on wpctl's contract (src/tools/wpctl.c, 0.5.13): get-volume prints ``Volume: %.2f``
+    and `` [MUTED]``; set-volume's ``N%`` is N / 100 on the cubic scale; set-profile brings the
+    card's sink (a copy of the captured HDMI0 sink with the card's ``alsa.id``).
+    """
+
+    def __init__(
+        self,
+        objects: list[dict[str, Any]],
+        *,
+        volumes: dict[int, tuple[float, bool]] | None = None,
+        volume_that_sticks: float | None = None,
+    ) -> None:
+        """Hold the objects, each sink's volume (default: as captured, 1.00 unmuted)."""
+        self.objects = json.loads(json.dumps(objects))
+        self.volumes = dict(volumes or {})
+        self.volume_that_sticks = volume_that_sticks
+        self.commands: list[list[str]] = []
+
+    def node(self, node_id: int) -> dict[str, Any]:
+        """Return the object with an id."""
+        (found,) = [item for item in self.objects if item['id'] == node_id]
+        return found
+
+    def run(self, argv: list[str]) -> str:
+        """Answer a command as pw-dump or wpctl would.
+
+        Returns:
+            Its output.
+
+        Raises:
+            AssertionError: For a command the script has no business running.
+
+        """
+        self.commands.append(argv)
+        match argv:
+            case ['pw-dump']:
+                return json.dumps(self.objects)
+            case ['wpctl', 'get-volume', node_id]:
+                level, muted = self.volumes.get(int(node_id), (1.0, False))
+                return f'Volume: {level:.2f}{" [MUTED]" if muted else ""}\n'
+            case ['wpctl', 'set-mute', node_id, '0']:
+                level, _ = self.volumes.get(int(node_id), (1.0, False))
+                self.volumes[int(node_id)] = (level, False)
+            case ['wpctl', 'set-volume', node_id, percent]:
+                _, muted = self.volumes.get(int(node_id), (1.0, False))
+                level = int(percent.rstrip('%')) / 100
+                if self.volume_that_sticks is not None:
+                    level = self.volume_that_sticks
+                self.volumes[int(node_id)] = (level, muted)
+            case ['wpctl', 'set-default', node_id]:
+                self.set_default(str(self.node(int(node_id))['info']['props']['node.name']))
+            case ['wpctl', 'set-profile', device_id, _]:
+                self.add_sink(card=self.node(int(device_id))['info']['props']['alsa.id'])
+            case _:
+                message = f'not a command the script may run: {argv}'
+                raise AssertionError(message)
+        return ''
+
+    def set_default(self, name: str) -> None:
+        """Make a sink the session's default."""
+        for item in self.objects:
+            if item['type'] == 'PipeWire:Interface:Metadata':
+                for entry in item['metadata']:
+                    if entry['key'] == 'default.audio.sink':
+                        entry['value'] = {'name': name}
+
+    def add_sink(self, *, card: str, node_id: int = 90) -> int:
+        """Add a sink for a card, as WirePlumber makes one when its profile turns on.
+
+        Returns:
+            Its id.
+
+        """
+        (template,) = [
+            item for item in pw_dump(PI5_16GB) if item['type'] == 'PipeWire:Interface:Node'
+        ]
+        sink = json.loads(json.dumps(template))
+        sink['id'] = node_id
+        sink['info']['props']['alsa.id'] = card
+        sink['info']['props']['node.name'] = f'alsa_output.{card}.hdmi-stereo'
+        self.objects.append(sink)
+        return node_id
+
+    def set_profile_available(self, *, card: str) -> None:
+        """Offer a card's stereo HDMI profile, as connecting a display does, leaving it off."""
+        for item in self.objects:
+            if item['info' if 'info' in item else 'props'].get('props', {}).get('alsa.id') == card:
+                item['info']['params']['EnumProfile'].append({
+                    'index': 2,
+                    'name': 'output:hdmi-stereo',
+                    'available': 'yes',
+                })
+
+    def changes(self) -> list[list[str]]:
+        """Return the commands that change something."""
+        return [argv for argv in self.commands if argv[0] == 'wpctl' and argv[1] != 'get-volume']
+
+
+def apply_hdmi_audio(pipewire: FakePipeWire, *, dry_run: bool = False) -> dict[str, Any]:
+    """Run the script's apply on a fake session at 75%, never sleeping.
+
+    Returns:
+        Its report.
+
+    """
+    return load_apply_hdmi_audio().apply(
+        volume_percent=75, dry_run=dry_run, run=pipewire.run, sleep=lambda _seconds: None
+    )
+
+
+def test_only_the_ubuntu_pi5s_set_an_hdmi_volume():
+    """75% on both Ubuntu Pi 5s (the owner, 2026-11-20: not the procedure's 100%); none elsewhere.
+
+    The procedure was proven on Ubuntu Pi 5s; the Pi 4 and Raspberry Pi OS keep their audio.
+    """
+    volumes = {
+        host: variables.get('raspberry_pi_hdmi_audio_volume_percent')
+        for host, variables in raspberry_pi_hosts().items()
+    }
+
+    assert {host: volume for host, volume in volumes.items() if volume is not None} == {
+        PI5_8GB: 75,
+        PI5_16GB: 75,
+    }
+
+
+def test_every_hdmi_audio_task_waits_for_a_volume():
+    """No volume named, nothing done: every task of the role waits for it."""
+    for found in audio_tasks():
+        assert str(found['when']).startswith('raspberry_pi_hdmi_audio_volume_percent is defined'), (
+            found['name']
+        )
+
+
+def test_every_hdmi_audio_write_becomes_root():
+    """Files under /etc and /usr/local are root's: each task that writes one becomes root."""
+    for found in audio_tasks():
+        if {'ansible.builtin.copy', 'ansible.builtin.file'} & found.keys():
+            assert found['become'] is True, found['name']
+            assert found.get('become_user') is None, found['name']
+
+
+@pytest.mark.parametrize(
+    ('overrides', 'accepted'),
+    [
+        ({}, True),
+        ({'raspberry_pi_hdmi_audio_volume_percent': 0}, True),
+        ({'raspberry_pi_hdmi_audio_volume_percent': 100}, True),
+        ({'raspberry_pi_hdmi_audio_volume_percent': 101}, False),
+        ({'raspberry_pi_hdmi_audio_volume_percent': -1}, False),
+        ({'raspberry_pi_hdmi_audio_volume_percent': '75'}, False),
+        ({'raspberry_pi_hdmi_audio_volume_percent': 0.75}, False),
+        ({'raspberry_pi_board': 'pi4'}, False),
+        ({'raspberry_pi_os': 'raspberry_pi_os'}, False),
+    ],
+)
+def test_hdmi_audio_settings_the_role_was_not_written_for_are_refused(overrides, accepted):
+    """A whole percentage, on an Ubuntu Pi 5: a fraction (0.75) or a Pi 4 is refused."""
+    conditions = task(audio_tasks(), 'Refuse HDMI audio settings this role was not written for')[
+        'ansible.builtin.assert'
+    ]['that']
+    variables = audio_variables(**overrides)
+
+    assert all(holds(condition, **variables) for condition in conditions) is accepted
+
+
+@NEEDS_A_POSIX_SHELL
+@pytest.mark.skipif(sys.platform == 'win32', reason='Ansible has no Windows control node')
+@pytest.mark.parametrize(
+    ('version_output', 'accepted'),
+    [
+        # wireplumber --version on the Pis, 2026-11-20 (26.04 and 26.10)
+        (
+            'wireplumber\nCompiled with libwireplumber 0.5.13\nLinked with libwireplumber 0.5.13',
+            True,
+        ),
+        (
+            'wireplumber\nCompiled with libwireplumber 0.5.17\nLinked with libwireplumber 0.5.17',
+            True,
+        ),
+        (
+            'wireplumber\nCompiled with libwireplumber 0.4.17\nLinked with libwireplumber 0.4.17',
+            False,
+        ),
+        ('', False),
+    ],
+)
+def test_a_wireplumber_older_than_0_5_is_refused(version_output, accepted, tmp_path):
+    """The drop-in is SPA-JSON, which 0.5 reads; the check runs in Ansible itself.
+
+    Its ``regex`` test, ``regex_search`` filter and ``version`` test are Ansible's, so the real
+    ``ansible-playbook`` runs the role's task as written, on the version lines the Pis print.
+    """
+    check = dict(task(audio_tasks(), 'Refuse a WirePlumber older than 0.5'))
+    del check['when']
+    playbook = tmp_path / 'playbook.yml'
+    playbook.write_text(
+        yaml.safe_dump([
+            {
+                'hosts': 'localhost',
+                'connection': 'local',
+                'gather_facts': False,
+                'vars': {
+                    'ansible_python_interpreter': sys.executable,
+                    'raspberry_pi_wireplumber_version': {
+                        'stdout': version_output,
+                        'stdout_lines': version_output.splitlines(),
+                    },
+                },
+                'tasks': [check],
+            }
+        ]),
+        encoding='utf-8',
+    )
+
+    result = run_command(
+        command=[
+            str(Path(sys.executable).parent / 'ansible-playbook'),
+            '--inventory',
+            'localhost,',
+            str(playbook),
+        ],
+        environment={
+            'PATH': os.environ['PATH'],
+            'HOME': str(tmp_path),
+            'ANSIBLE_HOME': str(tmp_path / 'ansible'),
+            'ANSIBLE_LOCAL_TEMP': str(tmp_path / 'ansible-tmp'),
+        },
+        timeout_seconds=120,
+        capture_output=OutputCapture.TOGETHER,
+    )
+
+    assert (result.returncode == 0) is accepted, result.stdout
+
+
+def hdmi_audio_drop_in(**overrides: Any) -> str:
+    """Return the WirePlumber drop-in as the 16 GB Pi 5 gets it.
+
+    Returns:
+        The file's text.
+
+    """
+    copy = task(audio_tasks(), HDMI_AUDIO_DROP_IN_TASK)['ansible.builtin.copy']
+    return render(copy['content'], **audio_variables(**overrides))
+
+
+def test_the_drop_in_starts_hdmi_sinks_at_75_percent_as_wpctl_reads_it():
+    """The default sink volume is linear, the cube of wpctl's 0.75: 0.421875.
+
+    WirePlumber's own default is 0.4 ^ 3, "40% on the cubic scale" (its settings page), and wpctl
+    reads volumes on that cubic scale, so 0.421875 reads back as 0.75.
+    """
+    drop_in = hdmi_audio_drop_in()
+    (volume,) = re.findall(
+        r'^\s*device\.routes\.default-sink-volume = (\S+)$', drop_in, re.MULTILINE
+    )
+
+    assert volume == '0.421875'
+    assert round(float(volume) ** (1 / 3), 2) == 0.75
+    assert 'wireplumber.settings = {' in drop_in
+    assert '75%' in drop_in
+
+
+def test_the_drop_in_follows_the_inventorys_volume():
+    """The volume is the inventory's, not a number written in the role."""
+    drop_in = hdmi_audio_drop_in(raspberry_pi_hdmi_audio_volume_percent=40)
+
+    assert 'device.routes.default-sink-volume = 0.064000' in drop_in
+
+
+def test_the_drop_in_leaves_hdmi_sinks_unmuted_by_naming_no_mute():
+    """A route WirePlumber remembers nothing of starts unmuted, so the drop-in sets no mute.
+
+    /usr/share/wireplumber/scripts/device/apply-routes.lua, 0.5.13:
+    ``props.mute = props.mute or false``.
+    """
+    assert 'mute' not in hdmi_audio_drop_in().replace('unmuted', '')
+
+
+def test_the_drop_in_puts_hdmi0_ahead_of_hdmi1_and_behind_usb():
+    """HDMI0's sink, matched by its card's alsa.id, outranks HDMI1's 1000 and no USB card (1100+).
+
+    WirePlumber gives a PCM device 0 priority.session 1000 and a USB card 100 more
+    (/usr/share/wireplumber/scripts/monitors/alsa.lua, 0.5.13); both captured HDMI sinks read
+    1000. With no default chosen, the highest priority.session wins.
+    """
+    drop_in = hdmi_audio_drop_in()
+    (priority,) = re.findall(r'priority\.session = (\d+)', drop_in)
+
+    assert 'monitor.alsa.rules = [' in drop_in
+    assert 'media.class = "Audio/Sink"' in drop_in
+    assert 'alsa.id = "vc4hdmi0"' in drop_in
+    assert 'vc4hdmi1' not in drop_in
+    assert 1000 < int(priority) < 1100
+    (captured_sink,) = [
+        item for item in pw_dump(PI5_16GB) if item['type'] == 'PipeWire:Interface:Node'
+    ]
+    assert captured_sink['info']['props']['priority.session'] == 1000
+    assert captured_sink['info']['props']['alsa.id'] == 'vc4hdmi0'
+
+
+def test_the_drop_in_is_a_root_owned_system_wide_fragment():
+    """In /etc/wireplumber/wireplumber.conf.d, which every user's WirePlumber reads."""
+    copy = task(audio_tasks(), HDMI_AUDIO_DROP_IN_TASK)['ansible.builtin.copy']
+
+    assert render(copy['dest'], **audio_variables()) == (
+        '/etc/wireplumber/wireplumber.conf.d/60-glitchygames-hdmi-audio.conf'
+    )
+    assert (copy['owner'], copy['mode']) == ('root', '0644')
+
+
+def test_hdmi_audio_is_set_in_the_ci_users_and_the_deploy_users_sessions():
+    """The CI user's session and the deploy user's, each with its own remembered volumes.
+
+    The runner's jobs play into the CI user's session; the owner plays in the deploy user's.
+    """
+    sessions = task(audio_tasks(), 'Read which users have a PipeWire session')
+
+    assert sessions['loop'] == ['{{ ci_user }}', '{{ deploy_user }}']
+
+
+@pytest.mark.parametrize('name', [HDMI_AUDIO_APPLY_TASK, HDMI_AUDIO_CHECK_TASK])
+@pytest.mark.parametrize(
+    ('user', 'uid', 'through_sudo'), [('circleci', '1001', True), ('terry', '1000', False)]
+)
+def test_the_live_tasks_run_as_each_user_in_their_own_session(name, user, uid, through_sudo):
+    """Each user in their own runtime directory, and only where their PipeWire listens.
+
+    The CI user is reached through sudo; the deploy user's item runs as the login user
+    (become false), the playbook's rule (tests/test_ci_config.py), since Ansible skips sudo
+    when the become user is the login user.
+    """
+    found = task(audio_tasks(), name)
+    variables = {
+        'ci_user': 'circleci',
+        'item': {'item': user, 'stat': {'exists': True}},
+        'ansible_facts': {'getent_passwd': {user: ['x', uid]}},
+    }
+
+    assert render(found['become'], **variables) == str(through_sudo)
+    assert found['become_user'] == '{{ ci_user }}'
+    assert render(found['environment']['XDG_RUNTIME_DIR'], **variables) == f'/run/user/{uid}'
+    assert "selectattr('stat.exists')" in found['loop']
+
+
+def test_a_user_with_no_session_is_reported_pending_not_failed():
+    """No PipeWire socket, no wpctl: the run says pending and goes on."""
+    say = task(audio_tasks(), "Say which users' HDMI audio is pending")
+
+    assert "rejectattr('stat.exists')" in say['loop']
+    assert 'pending: no active session for' in say['ansible.builtin.debug']['msg']
+    stat = task(audio_tasks(), 'Read which users have a PipeWire session')['ansible.builtin.stat']
+    assert (
+        render(
+            stat['path'],
+            item='terry',
+            ansible_facts={'getent_passwd': {'terry': ['x', '1000']}},
+        )
+        == '/run/user/1000/pipewire-0'
+    )
+
+
+@pytest.mark.parametrize(('check_mode', 'dry_run'), [(False, False), (True, True)])
+def test_the_apply_task_does_check_mode_through_the_scripts_dry_run(check_mode, dry_run):
+    """It always runs (check_mode: false); in check mode it only reports (--dry-run)."""
+    found = task(audio_tasks(), HDMI_AUDIO_APPLY_TASK)
+    argv = ast.literal_eval(
+        render(
+            found['ansible.builtin.command']['argv'],
+            ansible_check_mode=check_mode,
+            **audio_variables(),
+        )
+    )
+
+    assert found['check_mode'] is False
+    assert argv[:4] == [
+        '/usr/bin/python3',
+        '/usr/local/lib/glitchygames/apply_hdmi_audio.py',
+        '--volume-percent',
+        '75',
+    ]
+    assert ('--dry-run' in argv) is dry_run
+
+
+def test_the_check_fails_while_anything_is_left_to_change():
+    """A fresh dry run must find nothing to do, and the script must not report a problem."""
+    found = task(audio_tasks(), HDMI_AUDIO_CHECK_TASK)
+    condition = found['failed_when']
+
+    assert '--dry-run' in found['ansible.builtin.command']['argv']
+    assert holds(
+        condition,
+        raspberry_pi_hdmi_audio_check={'rc': 0, 'stdout': json.dumps({'actions': ['wpctl x']})},
+    )
+    assert holds(condition, raspberry_pi_hdmi_audio_check={'rc': 1, 'stdout': '{"actions": []}'})
+    assert not holds(
+        condition, raspberry_pi_hdmi_audio_check={'rc': 0, 'stdout': '{"actions": []}'}
+    )
+
+
+def test_the_reference_pis_hdmi0_at_100_percent_is_set_to_75_and_its_default_kept():
+    """The 16 GB Pi 5 as captured: HDMI0 at 1.00 becomes 0.75; no display on HDMI1 is pending.
+
+    Its default is HDMI0's sink already, a working HDMI default, so it is kept (no set-default).
+    """
+    pipewire = FakePipeWire(pw_dump(PI5_16GB))
+
+    report = apply_hdmi_audio(pipewire)
+
+    assert pipewire.changes() == [
+        ['wpctl', 'set-mute', '73', '0'],
+        ['wpctl', 'set-volume', '73', '75%'],
+    ]
+    assert report['changed'] is True
+    assert report['problems'] == []
+    hdmi0, hdmi1 = report['ports']
+    assert hdmi0 == {
+        'port': 'HDMI0',
+        'sink': PI5_HDMI0_SINK,
+        'before': {'level': 1.0, 'muted': False},
+        'after': {'level': 0.75, 'muted': False},
+    }
+    assert hdmi1['port'] == 'HDMI1'
+    assert 'no audio-capable display' in hdmi1['pending']
+    assert report['default'] == {'before': PI5_HDMI0_SINK, 'after': PI5_HDMI0_SINK}
+
+
+def test_a_second_run_changes_nothing():
+    """Live settings are compared first: what already holds is not set again."""
+    pipewire = FakePipeWire(pw_dump(PI5_16GB), volumes={73: (0.75, False)})
+
+    report = apply_hdmi_audio(pipewire)
+
+    assert pipewire.changes() == []
+    assert report['changed'] is False
+    assert report['actions'] == []
+
+
+def test_a_muted_sink_at_the_volume_is_unmuted():
+    """Muted at 0.75 is not the deployment's state."""
+    pipewire = FakePipeWire(pw_dump(PI5_16GB), volumes={73: (0.75, True)})
+
+    report = apply_hdmi_audio(pipewire)
+
+    assert ['wpctl', 'set-mute', '73', '0'] in pipewire.changes()
+    assert report['ports'][0]['after'] == {'level': 0.75, 'muted': False}
+
+
+def test_a_dry_run_reads_and_changes_nothing():
+    """--dry-run lists the commands and runs none of them."""
+    pipewire = FakePipeWire(pw_dump(PI5_16GB))
+
+    report = apply_hdmi_audio(pipewire, dry_run=True)
+
+    assert pipewire.changes() == []
+    assert report['changed'] is False
+    assert report['actions'] == ['wpctl set-mute 73 0', 'wpctl set-volume 73 75%']
+
+
+def test_a_session_whose_user_does_not_hold_the_seat_is_pending():
+    """The 8 GB Pi 5 as captured from the deploy user: no sound card, only auto_null."""
+    pipewire = FakePipeWire(pw_dump(PI5_8GB))
+
+    report = apply_hdmi_audio(pipewire)
+
+    assert pipewire.changes() == []
+    assert report['ports'] == []
+    assert report['problems'] == []
+    (pending,) = report['pending']
+    assert 'does not hold the seat' in pending
+
+
+def test_a_default_that_is_not_hdmi_becomes_hdmi0():
+    """Not an HDMI default (the null sink): HDMI0's sink becomes the default."""
+    pipewire = FakePipeWire(pw_dump(PI5_16GB), volumes={73: (0.75, False)})
+    pipewire.set_default('auto_null')
+
+    report = apply_hdmi_audio(pipewire)
+
+    assert pipewire.changes() == [['wpctl', 'set-default', '73']]
+    assert report['default'] == {'before': 'auto_null', 'after': PI5_HDMI0_SINK}
+
+
+def test_an_hdmi1_default_is_kept_when_both_ports_have_sinks():
+    """An existing HDMI default is kept, even when HDMI0 is also there."""
+    pipewire = FakePipeWire(pw_dump(PI5_16GB), volumes={73: (0.75, False), 90: (0.75, False)})
+    pipewire.add_sink(card='vc4hdmi1')
+    pipewire.set_default('alsa_output.vc4hdmi1.hdmi-stereo')
+
+    report = apply_hdmi_audio(pipewire)
+
+    assert pipewire.changes() == []
+    assert [port['port'] for port in report['ports']] == ['HDMI0', 'HDMI1']
+    assert report['default']['after'] == 'alsa_output.vc4hdmi1.hdmi-stereo'
+
+
+def test_both_ports_are_set_independently():
+    """Each sink is set on its own: no mirroring, no combined sink."""
+    pipewire = FakePipeWire(pw_dump(PI5_16GB), volumes={90: (0.4, True)})
+    pipewire.add_sink(card='vc4hdmi1')
+
+    report = apply_hdmi_audio(pipewire)
+
+    assert pipewire.changes() == [
+        ['wpctl', 'set-mute', '73', '0'],
+        ['wpctl', 'set-volume', '73', '75%'],
+        ['wpctl', 'set-mute', '90', '0'],
+        ['wpctl', 'set-volume', '90', '75%'],
+    ]
+    assert [port['after'] for port in report['ports']] == [{'level': 0.75, 'muted': False}] * 2
+
+
+def test_an_available_but_inactive_stereo_profile_is_turned_on_and_its_sink_set():
+    """A display on HDMI1 with its card still off: the stereo profile is set, then its sink."""
+    pipewire = FakePipeWire(pw_dump(PI5_16GB), volumes={73: (0.75, False)})
+    pipewire.set_profile_available(card='vc4hdmi1')
+
+    report = apply_hdmi_audio(pipewire)
+
+    assert pipewire.changes() == [
+        ['wpctl', 'set-profile', '69', '2'],
+        ['wpctl', 'set-mute', '90', '0'],
+        ['wpctl', 'set-volume', '90', '75%'],
+    ]
+    assert report['pending'] == []
+    assert report['ports'][1]['after'] == {'level': 0.75, 'muted': False}
+
+
+def test_a_volume_that_does_not_hold_is_a_problem():
+    """A sink that reads back anything but 0.75 unmuted fails the run (exit 1 from main)."""
+    pipewire = FakePipeWire(pw_dump(PI5_16GB), volume_that_sticks=0.5)
+
+    report = apply_hdmi_audio(pipewire)
+
+    (problem,) = report['problems']
+    assert problem == f'HDMI0 ({PI5_HDMI0_SINK}) reads 0.50, not 0.75 unmuted'
+
+
+@pytest.mark.parametrize(
+    ('line', 'level', 'muted'),
+    [('Volume: 0.75\n', 0.75, False), ('Volume: 0.40 [MUTED]\n', 0.40, True)],
+)
+def test_wpctls_volume_line_is_read(line, level, muted):
+    """``Volume: %.2f`` and `` [MUTED]``, as wpctl prints them (src/tools/wpctl.c, 0.5.13)."""
+    volume = load_apply_hdmi_audio().parse_volume(line)
+
+    assert (volume.level, volume.muted) == (level, muted)
+
+
+def test_anything_but_a_volume_line_is_refused():
+    """An unexpected wpctl output is an error, never read as some volume."""
+    with pytest.raises(ValueError, match='not a wpctl volume line'):
+        load_apply_hdmi_audio().parse_volume('Object not found\n')

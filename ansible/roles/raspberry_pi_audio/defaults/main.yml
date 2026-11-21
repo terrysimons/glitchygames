@@ -1,0 +1,13 @@
+---
+# The HDMI port WirePlumber prefers as the default sink when the user has chosen none: the Pi 5's
+# HDMI0 (its card vc4hdmi0). Each HDMI sink's priority.session is 1000 (WirePlumber's own for a
+# PCM device 0: /usr/share/wireplumber/scripts/monitors/alsa.lua, 0.5.13), so 1010 puts HDMI0
+# ahead of HDMI1 and still below any USB card (1100 and up), which WirePlumber prefers as it would
+raspberry_pi_hdmi_audio_preferred_card: vc4hdmi0
+raspberry_pi_hdmi_audio_preferred_priority: 1010
+
+# Where the system-wide WirePlumber drop-in goes ($sysconfdir/wireplumber, /etc on Ubuntu, read by
+# every user's WirePlumber: https://pipewire.pages.freedesktop.org/wireplumber/daemon/locations.html)
+raspberry_pi_hdmi_audio_config_directory: /etc/wireplumber/wireplumber.conf.d
+raspberry_pi_hdmi_audio_config: "{{ raspberry_pi_hdmi_audio_config_directory }}/60-glitchygames-hdmi-audio.conf"
+raspberry_pi_hdmi_audio_script: /usr/local/lib/glitchygames/apply_hdmi_audio.py

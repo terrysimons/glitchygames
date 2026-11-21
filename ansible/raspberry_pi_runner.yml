@@ -332,6 +332,13 @@
       ansible.builtin.import_role:
         name: raspberry_pi_desktop
 
+    # HDMI audio in the CI user's and the deploy user's sessions, on a Pi that sets
+    # raspberry_pi_hdmi_audio_volume_percent (the Ubuntu Pi 5s); after the desktop, whose
+    # auto-login starts the CI user's session. In this play for ci_user and deploy_user
+    - name: Set up HDMI audio
+      ansible.builtin.import_role:
+        name: raspberry_pi_audio
+
     - name: Refuse a runner that could reach the owner's GitHub key
       ansible.builtin.command:
         cmd: test -r /home/{{ deploy_user }}/.ssh/github

@@ -413,3 +413,97 @@ would show any throttling.
 
 Still to check on a first run as the runner's user: `uv` and the Python it downloads on the 16 KB
 page kernel.
+
+## HDMI audio on the Ubuntu Pi 5s (2026-11-20)
+
+The owner's procedure for the Ubuntu Raspberry Pi 5s, built into the playbook as the
+`raspberry_pi_audio` role (imported by the runner play after the desktop). Goal: HDMI0 and HDMI1
+each an independently usable stereo output for whoever runs GlitchyGames, each available HDMI sink
+unmuted at **75%** (the owner, 2026-11-20; the procedure as written said 100%), and a working HDMI
+default for ordinary applications. No mirroring: playing on both at once would need a separate
+routing policy. Scoped by the per-host `raspberry_pi_hdmi_audio_volume_percent: 75`, set on both
+Ubuntu Pi 5s only; a Pi that sets none keeps its audio as it is.
+
+### What happened on the reference Pi
+
+On `rpi5-ubuntu-2604`, HDMI0 played left and right at 48 kHz with the display at 1920x1080. An
+explicit ALSA test worked while the first default-device test was silent, so the cable, display
+and HDMI0 could carry audio (a completed `speaker-test` alone only shows the software took the
+samples). PipeWire listed two HDMI cards and one sink, already the default, at 35% and not muted.
+Commands aimed at a stale id (52) failed; after unmuting the real sink (then id 73), setting 50%
+and playing to it, default playback and GlitchyGames were audible. No command switched HDMI ports.
+The steps were tested together, so the first silence's cause is unknown.
+
+### Read before building (2026-11-20, changing nothing)
+
+- WirePlumber 0.5.13 and PipeWire 1.6.2 on the 26.04 Pi; WirePlumber 0.5.17 and PipeWire 1.6.8 on
+  the 26.10 Pi. Both read SPA-JSON drop-ins (0.4 took Lua). No `pactl` (pulseaudio-utils is not
+  installed); `pw-dump`, `pw-play`, `speaker-test` are.
+- Each user runs their own PipeWire and WirePlumber, and logind gives the sound devices
+  (`/dev/snd/*`, by ACL) only to the session holding the seat. On the 16 GB Pi the owner's own
+  session held it (they switch users to play): its PipeWire had both cards (`vc4hdmi0`,
+  `vc4hdmi1`) and one sink, HDMI0's, at 1.00 (100%) and the default. HDMI1 had no display, so its
+  card sat on the `off` profile with no stereo profile offered. On the 8 GB Pi the CI user's
+  auto-login held the seat, so the owner's PipeWire there had no card at all (only `auto_null`),
+  and the CI user's session can't be read without sudo.
+- WirePlumber remembers each route's volume (`~/.local/state/wireplumber/default-routes`): the
+  16 GB Pi's HDMI0 at 1.0, HDMI1 at 0.064 (WirePlumber's own default, 0.4 cubed, from before).
+
+### How it is built
+
+- **A system-wide WirePlumber drop-in**,
+  `/etc/wireplumber/wireplumber.conf.d/60-glitchygames-hdmi-audio.conf`, read by every user's
+  WirePlumber when it starts. `device.routes.default-sink-volume = 0.421875`: the volume a sink
+  starts at when nothing is remembered for it. It is linear, the cube of wpctl's percentage
+  (WirePlumber's own default is "0.4 ^ 3, 40% on the cubic scale"), so 75% is 0.421875 and
+  `wpctl get-volume` reads 0.75. A route with nothing remembered starts unmuted. And a
+  `monitor.alsa.rules` entry gives HDMI0's sink (matched by its card's `alsa.id`, `vc4hdmi0`)
+  `priority.session = 1010`, above HDMI1's 1000 and below any USB card (1100 and up), so HDMI0 is
+  the default when both are present and the user has chosen none.
+- **The live state, set now** by `apply_hdmi_audio.py` (installed in `/usr/local/lib/glitchygames`)
+  in the CI user's and the deploy user's running sessions, as that user with their
+  `XDG_RUNTIME_DIR`: the procedure's steps 4 to 6. It reads `pw-dump`. For a card with no sink but
+  an available, inactive stereo profile, it sets that profile. It unmutes each HDMI sink not
+  already at 75% and sets it with wpctl, then reads it back. It keeps the default when it is an
+  HDMI sink, otherwise it sets HDMI0's (or the lowest port's). It prints a JSON report per port.
+  Remembered volumes win over the drop-in's default, so this is what moves a sink that was set
+  before (the reference Pi's 100%). WirePlumber remembers what wpctl sets, so the result survives
+  login and reboot. A user with no PipeWire socket is reported "pending: no active session". A
+  session with no HDMI card (another user holds the seat), or a port with no display, is reported
+  pending, not failed. A dry run (`--dry-run`, also used in check mode) must then find nothing left
+  to change.
+- **Not restarted:** WirePlumber reads the drop-in at its next start (login or reboot). A restart
+  now would cut off whatever is playing, and the live step already sets the volumes and default.
+- **Each deploy converges:** a sink someone has turned away from 75% is set back to 75% on the
+  next deploy.
+
+Sources: WirePlumber's settings, ALSA rules, configuration file and locations pages
+(https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/settings.html,
+`.../configuration/alsa.html`, `.../configuration/conf_file.html`,
+`.../daemon/locations.html`); wpctl's cubic mixer scale and its `Volume: %.2f` line
+(`src/tools/wpctl.c` at 0.5.13); `/usr/share/wireplumber/scripts/monitors/alsa.lua` and
+`device/apply-routes.lua` on the Pi (node priorities, the copied `alsa.*` properties, the unmuted
+default). Tests: `tests/test_ansible_raspberry_pis.py` (the role, the drop-in, and the script on
+the Pis' own `pw-dump` captures in `tests/fixtures/pipewire/`).
+
+### Checking it by hand (the procedure's own checks)
+
+Software checks are the playbook's; whether each port is audible is the owner's to hear. With a
+display on each port, or one known-good display moved between them, run these as the user whose
+session holds the seat:
+
+```sh
+aplay -l
+wpctl status -n
+speaker-test -D hdmi:CARD=vc4hdmi0,DEV=0 -c 2 -r 48000 -t wav -l 1
+speaker-test -D hdmi:CARD=vc4hdmi1,DEV=0 -c 2 -r 48000 -t wav -l 1
+wpctl get-volume <sink id>        # Volume: 0.75, with no [MUTED]
+pw-play --target <sink node.name> /usr/share/sounds/alsa/Front_Left.wav
+speaker-test -c 2 -r 48000 -t wav -l 1   # the default sink
+```
+
+Each of these should be heard from the intended display, both channel announcements. Then launch
+GlitchyGames normally, and after the next login or a planned reboot recheck the volume, mute,
+default and playback. Ids are local to the running session: read them afresh after every profile
+or cable change. Still to verify: HDMI1 on both Pis (no display on it when this was built), the
+8 GB Pi's CI session, and persistence across a reboot.
