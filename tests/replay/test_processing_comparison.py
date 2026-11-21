@@ -64,6 +64,17 @@ class TestTheSummary:
             'recording: frame 2 +5.000 ms, frame 0 +1.000 ms'
         )
 
+    def test_a_summary_with_totals_but_no_medians_says_nothing_was_compared(self):
+        """Medians missing beside a change in percent (never built by ``summary``) is no assert."""
+        summary = (
+            compared([(0.002, 0.003)])
+            .summary()
+            .model_copy(update={'recorded_median_seconds': None, 'replayed_median_seconds': None})
+        )
+
+        assert summary.change_percent is not None
+        assert summary.describe().startswith('Processing: nothing to compare')
+
     def test_a_faster_replay_says_less_time_and_names_no_slower_frames(self):
         summary = compared([(0.004, 0.002), (0.004, 0.003)]).summary()
         assert summary.change_percent == pytest.approx(-37.5)

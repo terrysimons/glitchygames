@@ -26,12 +26,14 @@ from glitchygames.ai_console import (
     REPEAT_FIRST_INTERVAL_SECONDS,
     REPEAT_SHORTEST_INTERVAL_SECONDS,
     AiConsole,
+    AiRequest,
     describe_scene,
     fitting_tail,
     wrapped_lines,
 )
 from glitchygames.ai_host import AiHostSources
 from glitchygames.ai_link import AiLink, LinkState, ServiceLocations
+from glitchygames.checks import MissingValueError
 from glitchygames.clipboard import ClipboardUnavailableError
 from glitchygames.debug.overlay import load_debug_font
 from glitchygames.events.sprite_spawn import SPRITE_SPAWN_EVENT, SpriteSpawn
@@ -235,6 +237,34 @@ def scene():
     built = Scene(options={})
     built.all_sprites.add(Watched('Ball'), Watched('Paddle'))
     return built
+
+
+def test_a_search_key_with_no_search_open_raises_missing_value(console):
+    """_edit only calls _edit_search during a search; calling it otherwise is a bug."""
+    assert console._search_query is None
+
+    with pytest.raises(MissingValueError, match=r'^the AI console\'s search query is missing$'):
+        console._edit_search(event=key_event(pygame.KEYDOWN, pygame.K_a))
+
+
+def test_a_request_with_no_transcript_line_raises_missing_value(console):
+    """_ask gives every request its line; one without a line cannot be updated."""
+    request = AiRequest(number=7, question='why?', started_seconds=0.0)
+
+    with pytest.raises(MissingValueError, match=r'^the AI request\'s transcript line is missing$'):
+        console._set_request_line(request=request, text='late', color=(1, 2, 3))
+
+
+def test_the_font_loads_when_first_needed_and_is_kept(console):
+    """A render before draw() loads the font itself, once."""
+    assert console._font is None
+
+    console._rendered(text='hello', color=(255, 255, 255))
+    first_font = console._font
+
+    assert first_font is not None
+    console._rendered(text='again', color=(255, 255, 255))
+    assert console._font is first_font
 
 
 def test_the_grave_key_opens_and_closes_it(tmp_path):

@@ -7,6 +7,7 @@ as a version 1 sound file. Both run no game, on either front end.
 
 from __future__ import annotations
 
+import dataclasses
 import errno
 import tomllib
 import wave
@@ -25,6 +26,7 @@ from glitchygames.replay.tools import command, sound_tools
 from glitchygames.replay.tools.sound_tools import (
     MIGRATED_SUFFIX,
     migrated_document,
+    migration_problems,
     sound_migrate_on_the_game,
     sound_render_on_the_game,
 )
@@ -703,6 +705,22 @@ def test_the_migrated_document_of_a_file_it_cannot_migrate_is_a_value_error(tmp_
 
     with pytest.raises(ValueError, match=r'recipes\.flash\.tones\[0\]\.offset'):
         migrated_document(load_sound_file(recipes))
+
+
+def test_an_entry_that_is_not_a_recipe_is_a_problem_not_an_assertion(tmp_path):
+    """A file whose entry holds no recipe (not version 0) is named, and refused, never asserted."""
+    recipes = write_recipes(tmp_path, UNMIGRATABLE_RECIPES)
+    original = load_sound_file(recipes)
+    name, entry = next(iter(original.sounds.items()))
+    not_a_recipe = dataclasses.replace(
+        original, sounds={**original.sounds, name: dataclasses.replace(entry, effect=None)}
+    )
+
+    problems = migration_problems(not_a_recipe)
+
+    assert f'recipes.{name}: not a recipe (only a version 0 file can be migrated)' in problems
+    with pytest.raises(ValueError, match=f'recipes.{name}: not a recipe'):
+        migrated_document(not_a_recipe)
 
 
 def test_migrate_refuses_the_engines_own_v0_fixture_naming_the_milestones(tmp_path, capsys):

@@ -18,12 +18,14 @@ from glitchygames.audio.offline import (
     QUIET_LEVEL,
     QUIET_SECONDS,
     WAVE_FORMAT_IEEE_FLOAT,
+    _samples_at,
     nominal_end_frame,
 )
 from glitchygames.audio.render import render_sound
 from glitchygames.audio.spec import EnvelopeSpec
 from glitchygames.audio.synth import Envelope, Waveform, to_pcm16
 from glitchygames.audio.voices import constant_power_gains
+from glitchygames.checks import MissingValueError
 from glitchygames.engine_context import EngineContext
 from tests.audio.library_support import (
     PULSE_INSTRUMENT,
@@ -552,3 +554,12 @@ def test_an_event_with_a_negative_volume_is_refused(library_without_mixer):
 
     with pytest.raises(ValueError, match=r'an event volume is 0 or more, got -0\.5'):
         OfflineEvent(seconds=0.0, sound=sound, volume=-0.5)
+
+
+def test_a_copy_that_compiled_no_float_samples_raises_missing_value(mocker, library_without_mixer):
+    """A compiled copy holds float samples; one that does not is a bug, said by name."""
+    sound = library_without_mixer.sound(PULSE_INSTRUMENT, scene_sound_directory=None, pitch='C5')
+    mocker.patch('glitchygames.audio.offline.compile_sound')
+
+    with pytest.raises(MissingValueError, match=r"^the compiled copy's float samples is missing$"):
+        _samples_at(sound, rate=SAMPLE_RATE + 1)

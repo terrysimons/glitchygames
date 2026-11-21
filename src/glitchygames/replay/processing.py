@@ -134,7 +134,15 @@ class ProcessingSummary(BaseModel):
 
         """
         change_percent = self.change_percent
-        if change_percent is None:
+        replayed_median_seconds = self.replayed_median_seconds
+        recorded_median_seconds = self.recorded_median_seconds
+        # Frames were compared when change_percent exists, so both medians exist too; a summary
+        # that says otherwise has nothing to compare
+        if (
+            change_percent is None
+            or replayed_median_seconds is None
+            or recorded_median_seconds is None
+        ):
             return (
                 'Processing: nothing to compare: the recording holds no processing times '
                 f'({self.frames_without_recorded_time} frames replayed)'
@@ -145,11 +153,6 @@ class ProcessingSummary(BaseModel):
             change = f'{-change_percent:.1f}% less time than'
         else:
             change = 'the same time as'
-        # Frames were compared (change_percent is not None), so both medians exist
-        replayed_median_seconds = self.replayed_median_seconds
-        recorded_median_seconds = self.recorded_median_seconds
-        assert replayed_median_seconds is not None
-        assert recorded_median_seconds is not None
         totals = (
             f'Processing: the replay took {change} the recording ({self.frames_compared} '
             f'frames: {self.replayed_total_seconds:.3f} s against '

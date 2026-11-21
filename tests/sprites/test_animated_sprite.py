@@ -3196,6 +3196,13 @@ class TestAnimatedSpriteFrameAnchor:
         assert len(set(hitbox_points)) == 1
         assert set(drawn_points) == set(hitbox_points)
 
+    def test_a_union_of_no_frames_raises_a_named_error(self):
+        """The anchor reference is built only while the sprite has a frame."""
+        sprite = self._sprite(FrameAnchor.BOTTOM)
+
+        with pytest.raises(ValueError, match='only while the sprite has a frame'):
+            sprite._union_of_frame_hitboxes(())
+
     def test_reference_is_cached_until_the_frames_change(self, mocker):
         """The union reference is built once per frame set, not on every draw_offset."""
         sprite = self._sprite(FrameAnchor.BOTTOM)
