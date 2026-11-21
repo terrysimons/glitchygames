@@ -996,6 +996,10 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             assert self.active_scene is not None
             assert self.screen is not None
             self.active_scene.update()
+            if old_player is not None:
+                # Not updated (dirty 0 above, so Scene.update skips its pose), but marked now:
+                # the group erases where the hidden player was drawn
+                old_player.dirty = 1
             self.active_scene.render(self.screen)
         old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
         if old_player is not None:
@@ -1085,6 +1089,10 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
                     player.visible = False
                 player.dirty = 0
             self.active_scene.update()
+            if player is not None:
+                # Not updated (dirty 0 above), but marked now: the group erases where the
+                # hidden player was drawn
+                player.dirty = 1
             self.active_scene.render(self.screen)
             # Restore the player for when gameplay resumes
             if player is not None:
@@ -2918,8 +2926,9 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         """Update the display based on update type."""
         assert self.active_scene is not None
         if self.update_type == 'update':
-            # If no dirty rects, update the entire screen to show background
-            if not self.active_scene.rects:
+            # None asks for the whole screen (a scene drawing outside its sprites); a list sends
+            # exactly those rects, an empty one nothing (no sprite changed: Scene.rects)
+            if self.active_scene.rects is None:
                 pygame.display.update()
             else:
                 pygame.display.update(self.active_scene.rects)
@@ -3601,10 +3610,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             else:
                 sprite.update()
 
-        # Make all of the new scene's sprites dirty to force a redraw
+        # Make all of the new scene's sprites dirty to force a redraw, once: the request is spent
+        # here (set again by SceneManager._force_scene_redraw). Left set, it marked every sprite
+        # dirty every frame since 2021, redrawing everything and hiding any sprite changed
+        # without a dirty mark (glitchygames.testing.full_repaint finds those)
         if self.dirty:
             for sprite in self.all_sprites:
                 sprite.dirty = 1 if not sprite.dirty else sprite.dirty
+            self.dirty = 0
 
     @property
     def all_sprites(self: Self) -> pygame.sprite.LayeredDirty[Any]:

@@ -284,9 +284,11 @@ class TestSceneRendering:
         assert sprite.dirty == 0
 
         self.scene_manager.switch_to_scene(scene)
+        assert scene.dirty == 1
         scene.update()
 
-        assert scene.dirty == 1
+        # The update spends the scene's redraw request on its sprites
+        assert not scene.dirty
         assert sprite.dirty == 1
         scene.render(display)
         assert _count_rgb(display, SPRITE_COLOR) == 4 * 4
@@ -543,3 +545,59 @@ class TestTheFirstPresentAfterASwitch:
         self.scene_manager._show_frame(full_update=False)
 
         assert differing_area(drawn=shadow_window, repainted=display) is None
+
+
+class TestASceneRedrawsEverythingOnce:
+    """A scene marks every sprite dirty for one frame after it becomes active, then stops.
+
+    ``Scene.dirty`` asks for that one full redraw (set when the scene is made and by
+    ``SceneManager._force_scene_redraw``). Nothing cleared it, so every scene marked every sprite
+    dirty on every frame and redrew everything (Mr. Muncher's 255 sprites a frame, all of them),
+    hiding any sprite that changed without being marked.
+    """
+
+    def setup_method(self):
+        """Start from a fresh scene manager."""
+        SceneManager._reset()
+
+    def teardown_method(self):
+        """Leave no scene manager behind."""
+        SceneManager._reset()
+
+    def test_the_scenes_redraw_request_is_spent_by_one_update(self):
+        scene = _scene_with_background(BACKGROUND)
+        sprite = _solid_sprite(color=SPRITE_COLOR, rect=(0, 0, 4, 4))
+        scene.all_sprites.add(sprite)
+        sprite.dirty = 0
+
+        scene.update()
+
+        assert sprite.dirty == 1
+        assert not scene.dirty
+
+    def test_an_unchanged_sprite_is_not_marked_again_on_the_next_frame(self, display):
+        scene = _scene_with_background(BACKGROUND)
+        sprite = _solid_sprite(color=SPRITE_COLOR, rect=(0, 0, 4, 4))
+        scene.all_sprites.add(sprite)
+        scene.update()
+        scene.render(display)
+        scene.render(display)
+
+        scene.update()
+
+        assert sprite.dirty == 0
+
+    def test_a_forced_redraw_marks_every_sprite_once_more(self, display):
+        scene_manager = SceneManager()
+        scene = _scene_with_background(BACKGROUND)
+        sprite = _solid_sprite(color=SPRITE_COLOR, rect=(0, 0, 4, 4))
+        scene.all_sprites.add(sprite)
+        scene_manager.switch_to_scene(scene)
+        scene.update()
+        scene.render(display)
+        scene.render(display)
+
+        scene_manager._force_scene_redraw()
+        scene.update()
+
+        assert sprite.dirty == 1
