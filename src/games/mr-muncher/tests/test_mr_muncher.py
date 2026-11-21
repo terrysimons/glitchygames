@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pygame
 import pytest
@@ -31,6 +32,11 @@ from glitchygames.replay.tools.golden_traces import (
     release,
 )
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.testing.full_repaint import (
+    FullRepaintComparison,
+    compare_each_frame_with_a_full_repaint,
+    default_background,
+)
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.transitions import FadeTransition
 from glitchygames.world import position_world_sprites
@@ -71,6 +77,11 @@ TEST_SEED = 20261023
 # Screen pixels of the default layout: tiles of 20 pixels, the maze from x = 130
 TILE_SIZE = 20
 MAZE_LEFT = 130
+
+if TYPE_CHECKING:
+    import contextlib
+
+    from glitchygames.scenes import Scene
 
 # The member's golden replay, directly in its tests/fixtures/replays/
 GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'
@@ -872,50 +883,38 @@ class TestWholeGames:
             assert manager.active_scene.lives == STARTING_LIVES
 
 
-class FullRepaintComparison:
-    """Check each frame the scene renders against a full repaint of the same frame.
+def _muncher_background(scene: Scene) -> pygame.Surface:
+    """The background a scene shows: Mr. Muncher's flashing maze, or a scene's own.
 
-    The full repaint is the frame's background with every visible sprite blitted over it in
-    layer order: what the screen would show if everything were drawn again. Installed over
-    ``MrMuncherScene.render``, it counts the frames it compared, the frames drawn on the
-    flashing maze, the frames during a SCREEN shake, and the frames rendered after a gap (the
-    scene rendered no frame just before: after a pause, a transition or another scene).
+    Returns:
+        The background surface.
+
     """
+    if isinstance(scene, MrMuncherScene):
+        return scene.frame_background()
+    return default_background(scene)
 
-    def __init__(self, mocker) -> None:
-        """Install the comparison over the scene's render (undone with the test's mocker)."""
-        self.compared = 0
-        self.flashing = 0
-        self.shaken = 0
-        self.after_a_gap = 0
-        self._last_frame_number: int | None = None
-        original_render = MrMuncherScene.render
 
-        def render_and_compare(scene: MrMuncherScene, screen: pygame.Surface) -> None:
-            original_render(scene, screen)
-            self.check(scene=scene, screen=screen)
+def _on_the_flashing_maze(scene: Scene) -> bool:
+    """Whether the scene is Mr. Muncher showing its flashing maze.
 
-        mocker.patch.object(MrMuncherScene, 'render', render_and_compare)
+    Returns:
+        True on the flashing maze.
 
-    def check(self, *, scene: MrMuncherScene, screen: pygame.Surface) -> None:
-        """Compare the frame just rendered with its full repaint, and count it."""
-        background = scene.frame_background()
-        full_repaint = background.copy()
-        for sprite in scene.all_sprites.sprites():
-            if sprite.visible:
-                full_repaint.blit(sprite.image, sprite.rect, sprite.source_rect, sprite.blendmode)
-        frame_number = scene.scene_manager.frame_number
-        assert pygame.image.tobytes(screen, 'RGB') == pygame.image.tobytes(full_repaint, 'RGB'), (
-            f'frame {frame_number} differs from a full repaint'
-        )
-        self.compared += 1
-        if background is scene.flash_background:
-            self.flashing += 1
-        if scene.scene_manager.screen_shake.offset != (0, 0):
-            self.shaken += 1
-        if self._last_frame_number is not None and frame_number != self._last_frame_number + 1:
-            self.after_a_gap += 1
-        self._last_frame_number = frame_number
+    """
+    return isinstance(scene, MrMuncherScene) and scene.frame_background() is scene.flash_background
+
+
+def _compare_with_a_full_repaint() -> contextlib.AbstractContextManager[FullRepaintComparison]:
+    """Compare each frame with a full repaint, counting the frames on the flashing maze.
+
+    Returns:
+        The comparison's context manager (glitchygames.testing.full_repaint).
+
+    """
+    return compare_each_frame_with_a_full_repaint(
+        background_of=_muncher_background, buckets={'flashing': _on_the_flashing_maze}
+    )
 
 
 class TestDrawingOnlyWhatChanged:
@@ -954,7 +953,6 @@ class TestDrawingOnlyWhatChanged:
 
         The golden has a catch, whose SCREEN shake must leave nothing stale behind it.
         """
-        comparison = FullRepaintComparison(mocker)
         mocker.patch('pygame.quit')
         mocker.patch('pygame.display.quit')
         mocker.patch.dict(os.environ)  # --headless sets the SDL driver variables
@@ -962,6 +960,7 @@ class TestDrawingOnlyWhatChanged:
         GoldenTraceSceneManager.install()
         try:
             with (
+                _compare_with_a_full_repaint() as comparison,
                 command_line([
                     '--log-level',
                     'warning',
@@ -980,10 +979,12 @@ class TestDrawingOnlyWhatChanged:
         assert comparison.compared > 1000
         assert comparison.shaken > 0
 
-    def test_a_cleared_level_flashing_equals_a_full_repaint(self, mocker):
+    def test_a_cleared_level_flashing_equals_a_full_repaint(self):
         """Each frame of a level's end, the maze flashing, equals a full repaint."""
-        comparison = FullRepaintComparison(mocker)
-        with golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager:
+        with (
+            golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager,
+            _compare_with_a_full_repaint() as comparison,
+        ):
             first = manager.active_scene
             assert isinstance(first, MrMuncherScene)
             _eat_all_but(first, (12, 18))
@@ -991,13 +992,16 @@ class TestDrawingOnlyWhatChanged:
             assert manager.active_scene is not first  # The next reel began
 
         # The maze flashed on and off: both backgrounds drawn several times
-        assert comparison.flashing > 1
-        assert comparison.compared - comparison.flashing > 1
+        flashing = comparison.bucket_counts['flashing']
+        assert flashing > 1
+        assert comparison.compared - flashing > 1
 
-    def test_the_frames_after_a_pause_equal_a_full_repaint(self, mocker):
+    def test_the_frames_after_a_pause_equal_a_full_repaint(self):
         """After the pause screen drew over the game, the resumed game's frames are whole."""
-        comparison = FullRepaintComparison(mocker)
-        with golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager:
+        with (
+            golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager,
+            _compare_with_a_full_repaint() as comparison,
+        ):
             scene = manager.active_scene
             assert isinstance(scene, MrMuncherScene)
             TestWholeGames()._run(manager, frames=round((scene.ready_seconds + 0.5) * 60))
