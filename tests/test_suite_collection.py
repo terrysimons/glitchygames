@@ -1369,6 +1369,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/replay/test_replays_log_quietly.py': (
         "replays our members' goldens and bundled demos at the tools' log level"
     ),
+    'tests/replay/test_frames_equal_a_full_repaint.py': (
+        "replays our members' goldens and bundled demos against a full repaint, frame by frame"
+    ),
     'tests/test_every_recording_replays_inside_an_inner_game.py': (
         "replays our members' goldens and bundled demos as inner games, beside each other"
     ),
