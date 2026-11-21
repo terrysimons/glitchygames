@@ -276,6 +276,35 @@ class TestStopCommandOnEveryPlatform:
         else:
             assert [call.args for call in group_signal.call_args_list] == [(4242, signal.SIGTERM)]
 
+    @pytest.mark.parametrize(
+        'first_answer',
+        [None, PermissionError],
+        ids=['a-member-still-runs', 'only-zombies-left'],
+    )
+    def test_an_ended_childs_group_that_is_still_there_is_emptied(
+        self, mocker, platform, first_answer
+    ):
+        """Ended already, but its group still answers: what it left gets the signal, then looked at.
+
+        Delivered: a member the child forked still runs. PermissionError: macOS answers EPERM for
+        a group left with only an unreaped zombie. Either way the group is then looked at (signal
+        0) until it is gone. Only the real-process test reached this before, and only when the
+        child's end and the stop fell in the right order, so CI's coverage missed it (#263).
+        """
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = 0
+        group = StandInGroup(child=child, answers=[first_answer, ProcessLookupError])
+        group_signal = mocker.patch.object(process.os, 'killpg', create=True, side_effect=group)
+
+        stop_command(process=child)
+
+        child.wait.assert_not_called()
+        child.terminate.assert_not_called()
+        if platform == 'win32':
+            group_signal.assert_not_called()
+        else:
+            assert group.calls == [(4242, signal.SIGTERM), (4242, 0)]
+
     def test_a_child_that_ends_at_the_first_request_is_only_reaped(self, mocker, platform):
         """Asked once and ended within the grace: waited for once, never asked again or killed.
 
@@ -595,8 +624,12 @@ class TestStopCommand:
             [last_words] if last_words else []
         )
 
-    @pytest.mark.parametrize('first_signal', [signal.SIGTERM, signal.SIGKILL])
-    def test_a_member_the_group_signal_missed_is_stopped_too(self, tmp_path, mocker, first_signal):
+    # By name, read in the test: the parameters are built at collection, also on Windows, whose
+    # signal module has no SIGKILL (the class is skipped there, its parameters are not)
+    @pytest.mark.parametrize('first_signal_name', ['SIGTERM', 'SIGKILL'])
+    def test_a_member_the_group_signal_missed_is_stopped_too(
+        self, tmp_path, mocker, first_signal_name
+    ):
         """When stop_command returns, nothing is left in the child's group.
 
         On macOS a group signal can miss a member the group forks while the signal is
@@ -605,6 +638,7 @@ class TestStopCommand:
         follows killpg's contract for that case: the first one reaches the leader only, as if
         the member were forked during its delivery; every later one is the real killpg.
         """
+        first_signal = getattr(signal, first_signal_name)
         real_killpg = os.killpg
         missed = []
 
