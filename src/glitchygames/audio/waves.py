@@ -222,8 +222,9 @@ def _naive_table(name: str, duty: float | None) -> FloatArray:
         return 1.0 - 4.0 * np.abs((phase + 0.25) % 1.0 - 0.5)
     if name == 'saw':
         return 2.0 * phase - 1.0
-    assert duty is not None
-    return np.where(phase < duty, 1.0, -1.0)
+    # The pulse family: the duty is given, else the name's own (the caller has checked the name)
+    pulse_duty = BUILT_IN_DUTIES[name] if duty is None else duty
+    return np.where(phase < pulse_duty, 1.0, -1.0)
 
 
 def _monotone_cubic(
