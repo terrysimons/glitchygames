@@ -9,7 +9,12 @@ import pytest
 
 from glitchygames.audio.buses import BusTree
 from glitchygames.audio.route import set_audible
-from glitchygames.audio.voices import SoundHandle, VoiceCounters, constant_power_gains
+from glitchygames.audio.voices import (
+    SoundHandle,
+    VoiceCounters,
+    constant_power_gains,
+)
+from glitchygames.checks import MissingValueError
 from glitchygames.engine_context import EngineContext
 from tests.audio.library_support import stop_mixer
 from tests.audio.voice_support import (
@@ -1049,3 +1054,14 @@ def test_going_silent_leaves_a_silenced_channel_alone(channel_calls):
 
     assert channel_calls == [(partition.library[sounding.slot], 'fadeout', (50,))]
     assert silenced.is_playing is True
+
+
+def test_a_slot_with_no_mixer_channel_raises_a_named_error_when_asked_for_its_channel(
+    table, mocker
+):
+    """A table that reaches the mixer holds its heard set; a slot without a channel is a bug."""
+    slot = table._slots[0]
+    mocker.patch.object(table, '_mixer_channel', return_value=None)
+
+    with pytest.raises(MissingValueError, match=r'^the voice slot\'s mixer channel is missing$'):
+        table._channel(slot)

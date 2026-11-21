@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 from glitchygames import clock
+from glitchygames.checks import required
 from glitchygames.color import (
     BLACK,
     RGBA_COMPONENT_COUNT,
@@ -544,9 +545,9 @@ class BitmapEditorScene(Scene):  # ruff: ignore[too-many-public-methods]
 
         # Fallback to screen sampling (RGB only)
         try:
-            assert self.screen is not None
+            screen = required(self.screen, what='the editor screen')
             # Surface.get_at always returns an RGBA Color; ignore the screen's alpha
-            red, green, blue, _ = tuple(self.screen.get_at(event.pos))
+            red, green, blue, _ = tuple(screen.get_at(event.pos))
             alpha = 255  # Screen has no alpha, default to opaque
             self.log.info(
                 'Screen pixel sampled - Red: %s, Green: %s, Blue: %s, Alpha: %s (default)',

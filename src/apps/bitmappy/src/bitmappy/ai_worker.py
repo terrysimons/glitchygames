@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from glitchygames import clock
 from glitchygames.ai import get_sprite_size_hint
 from glitchygames.ai.sprite_generator import PIXEL_ROWS_ERROR_PREFIX
+from glitchygames.checks import required
 from glitchygames.sprites.pixel_utils import normalize_pixel_rows
 
 from .constants import (
@@ -305,8 +306,7 @@ def _create_ai_retry_decorator(
             'AI request failed permanently after %s attempts: %s', retry_state.attempt_number, error
         )
         # Raise the last attempt's own error, as before (not tenacity's RetryError)
-        assert retry_state.outcome is not None
-        return retry_state.outcome.result()
+        return required(retry_state.outcome, what="the last attempt's outcome").result()
 
     return tenacity.retry(
         stop=tenacity.stop_after_attempt(AI_MAX_RETRIES),

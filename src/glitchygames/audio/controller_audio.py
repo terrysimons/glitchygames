@@ -29,6 +29,7 @@ from glitchygames.randomness import random_stream
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+    from types import ModuleType
 
     from speech_recognition import AudioData
 
@@ -654,29 +655,42 @@ class ControllerAudio:
             haptic_mode: Speaker-to-haptic bleed level.
 
         """
-        if mi is None:
+        miniaudio_module = mi
+        if miniaudio_module is None:
             return
 
         # The thread's boundary: a failure is logged, never lost with the thread
         try:
-            self._play_file(file_path=file_path, haptic=haptic, haptic_mode=haptic_mode)
+            self._play_file(
+                miniaudio_module=miniaudio_module,
+                file_path=file_path,
+                haptic=haptic,
+                haptic_mode=haptic_mode,
+            )
         except Exception:
             log.exception('Failed to play audio through controller speaker')
 
-    def _play_file(self, *, file_path: Path, haptic: str | None, haptic_mode: str) -> None:
+    def _play_file(
+        self,
+        *,
+        miniaudio_module: ModuleType,
+        file_path: Path,
+        haptic: str | None,
+        haptic_mode: str,
+    ) -> None:
         """Decode an audio file and play it on speaker + optional haptic (blocking).
 
         Args:
+            miniaudio_module: The imported ``miniaudio`` (the caller has checked it is there).
             file_path: Path to the audio file.
             haptic: Optional haptic preset name.
             haptic_mode: Speaker-to-haptic bleed level.
 
         """
-        assert mi is not None
         # Decode to mono at 48kHz for the DualSense
-        decoded: Any = mi.decode_file(
+        decoded: Any = miniaudio_module.decode_file(
             str(file_path),
-            output_format=mi.SampleFormat.SIGNED16,
+            output_format=miniaudio_module.SampleFormat.SIGNED16,
             nchannels=1,
             sample_rate=DUALSENSE_SAMPLE_RATE,
         )
@@ -727,12 +741,14 @@ class ControllerAudio:
             haptic_mix: Speaker-to-haptic bleed (0.0-1.0).
 
         """
-        if mi is None:
+        miniaudio_module = mi
+        if miniaudio_module is None:
             return
 
         # The thread's boundary: a failure is logged, never lost with the thread
         try:
             self._stream_4channel(
+                miniaudio_module=miniaudio_module,
                 speaker_samples=speaker_samples,
                 haptic_left=haptic_left,
                 haptic_right=haptic_right,
@@ -744,6 +760,7 @@ class ControllerAudio:
     def _stream_4channel(
         self,
         *,
+        miniaudio_module: ModuleType,
         speaker_samples: array.array[int] | None,
         haptic_left: array.array[int] | None,
         haptic_right: array.array[int] | None,
@@ -752,13 +769,13 @@ class ControllerAudio:
         """Build the interleaved 4-channel stream and play it to the end (blocking).
 
         Args:
+            miniaudio_module: The imported ``miniaudio`` (the caller has checked it is there).
             speaker_samples: Mono samples for the speaker (channel 1).
             haptic_left: Samples for left grip motor (channel 2).
             haptic_right: Samples for right grip motor (channel 3).
             haptic_mix: Speaker-to-haptic bleed (0.0-1.0).
 
         """
-        assert mi is not None
         # Build interleaved 4-channel stream
         stream_data = _build_4channel_stream(
             speaker_samples=speaker_samples,
@@ -788,8 +805,8 @@ class ControllerAudio:
                     break
                 num_requested = yield chunk
 
-        device: Any = mi.PlaybackDevice(
-            output_format=mi.SampleFormat.SIGNED16,
+        device: Any = miniaudio_module.PlaybackDevice(
+            output_format=miniaudio_module.SampleFormat.SIGNED16,
             nchannels=DUALSENSE_CHANNELS,
             sample_rate=DUALSENSE_SAMPLE_RATE,
             device_id=self.playback_device_id,

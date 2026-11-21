@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import pygame
 import pytest
 
+from glitchygames.checks import MissingValueError
 from glitchygames.crt_power_on import PowerOnOutcome
 from glitchygames.crt_power_on_sound import CrtPowerOnSound
 from glitchygames.engine import GameEngine
@@ -764,6 +765,36 @@ class TestGameFlagTools:
         assert 'the tool broke' in caplog.text
         # A game takes --log-level, so its tool's crash tells the player to rerun it at info
         assert bug_report_hints_follow_each_traceback(caplog)
+
+    def test_a_tool_that_returns_no_exit_code_exits_internal_error_naming_the_bug(
+        self, mocker, caplog
+    ):
+        """A game-handler tool always ends the run; one that returns None is a bug, not a pass."""
+        tool = tool_that_runs_no_game(calls=[], exit_code=ExitCode.SUCCESS)
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+        mocker.patch.object(game_engine_module, 'run_game_flag_tool', return_value=None)
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.INTERNAL_ERROR
+        assert 'MissingValueError' in caplog.text
+        assert "the game-flag tool's exit code is missing" in caplog.text
+
+    def test_a_frame_stream_address_that_does_not_read_raises_a_named_error(self, mocker):
+        """--replay-frame-stream is refused before the replay starts when it does not read."""
+        engine = GameEngine.__new__(GameEngine)
+
+        with pytest.raises(
+            MissingValueError, match=r'^the replay frame stream\'s address is missing$'
+        ):
+            engine._connect_the_frame_stream(
+                sources=mocker.Mock(), options={'replay_frame_stream': 'not-an-address'}
+            )
 
     def test_ctrl_c_in_a_tool_exits_interrupted(self, mocker):
         """Ctrl-C (KeyboardInterrupt) during a tool exits INTERRUPTED, as during a run."""
