@@ -27,11 +27,23 @@
   last key failed the helper's own `assert` inside `engine.start()`, which the engine reports as
   `INTERNAL_ERROR`: exactly the 70 seen, after frames 4 and 5. So one more viewer wait than the test
   expects would explain it; not shown.
-- **Done (the diagnosis)**: the test callbacks that run inside a game's run (`watched_replay`'s
-  flip and sleeps, `live_play`'s flip) are wrapped by `CallbackFailures`: a callback's failure is
-  kept, and the test fails with it once the run ends ("a test callback failed inside the run
-  ...: AssertionError: the replay waited for the viewer N times, but only K keys were given"),
-  never as the engine's 70. Checked with a planted run given no keys.
+- **Done (the diagnosis)**: a test callback that runs inside a game's run is wrapped by
+  `tests/replay/replay_helpers.py`'s `failing_the_test`: its failure becomes `pytest.fail`, whose
+  exception is a `BaseException` the engine's crash boundary (which catches `Exception`) passes
+  through, so the test fails at once with the callback's message ("a test callback failed inside
+  the run (wait): AssertionError: the replay waited for the viewer N times, but only K keys were
+  given"), never as the engine's 70. Checked with planted runs given too few keys, in both helpers
+  below.
+- **The class, swept** (test callbacks run inside a game's run whose failure the engine would
+  report as its own exit status; `side_effect` callbacks with a check, in test files that run an
+  engine, then each helper's indirect callbacks):
+  - Uncovered, now wrapped: `test_compare_trace.py`'s `watched_replay` (viewer sleeps and flip),
+    `live_play` (flip) and `connect_once_the_listener_is_gone` (the frame stream's connect);
+    `test_gameplay_replay.py`'s `FakeMeasuredClock` sleeps, which run `press_keys_while_held`'s
+    key presses and its callers' `before_each_press` (used by `test_gameplay_replay.py`,
+    `tests/engine/test_game_engine.py` and `tests/replay/test_playback_scope.py`).
+  - Covered (no check that can fail): `tests/replay/test_viewer.py`'s fake sleeps (not inside an
+    engine run), and the `side_effect` lambdas that only record or read a value.
 - **Next step**: on the next occurrence, the test names its own failure if it was a callback's;
   otherwise keep the run's log (the comparison's `cocoa/junit.xml` and
   `gw*.jsonl` under `test-results/driver-comparison/nox/`), and find where the watched replay's
