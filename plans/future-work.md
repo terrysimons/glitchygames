@@ -160,6 +160,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | Undoing an animation delete loses its per-frame hitboxes and rebuilds frames on surfaces without SRCALPHA (alpha lost); frame-add and animation-create undo captures still copy `frame.pixels`, which is fragile | `src/glitchygames/bitmappy/history/commands.py` | Found while fixing BUGS.md #53; same family as #51/#53. |
 | `CollisionManager.check_overlap` computes each sprite's rect once per pass, so a callback that moves a sprite leaves later pairs using its old rect | `src/glitchygames/collision/layers.py` (documented in the docstring) | Harmless in PaddleSlap; matters for generic reuse. |
 | Frame-anchor reference cache doesn't notice a frame hitbox edited in place (only frame add/remove/replace) | `src/glitchygames/sprites/animated.py` (documented) | Nothing edits in place today. |
+| `test_requests_while_a_flush_runs_get_one_more_pass_and_never_overlap` depends on the wall clock: the stand-in `syncfs` takes a real 10 ms (`SYNC_SECONDS`) and the test assumes five requests 1 ms apart all land during the first pass. Under the full parallel suite the sleeps stretch, a request lands in the second pass, and a third runs (`assert 3 == 2`; seed 4023912552 failed the website branch's pre-push gate, 2026-11-20; passes alone, with its file, and under that seed alone) | `tests/test_browser_storage.py` (from #238) | Fix: the test completes the stand-in's write-back itself (an event it sets), so "during the running pass" holds by construction. Then sweep the suite for other tests that sleep against a real-time stand-in (the wall-clock rule in CLAUDE.md's Testing Guidelines). |
 | Frames loaded from TOML keep magenta (255, 0, 255) opaque (no colorkey, alpha 255), so the visible-pixel hitbox fallback of a magenta-keyed sprite is its whole frame (ghosty: `Rect(0, 0, 32, 32)`) | `src/glitchygames/sprites/animated.py` (loader), `src/glitchygames/collision/bounds.py` | Found while testing the viewport-save hitbox rule; confirm whether games rely on explicit hitboxes or set a colorkey themselves. |
 | A real AI request has not been run in the packaged binary (needs an API key or network) | `dist/bitmappy` | Do once by hand to fully close BUGS.md #47. |
 | `scripts/raw_sprite_loader.py` cannot start: `BitmappyLegacySprite` calls `Sprite.__init__` without x and y, and `inflate` draws zero-size rects (nothing) | `scripts/raw_sprite_loader.py:~41, ~84` | Found while deleting `legacy_sprite_loader.py` (BUGS.md #46). Tests use only its `deflate`; fix or fold into Galimore import (sub-plan E). |
@@ -189,6 +190,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | ~~Bitmappy's Arcade tile diverges at frame 0: it sizes its film strip from `pygame.display.get_surface()`, which inside a tile is the Arcade's window, not the tile's 800x480 render target (`FilmStripSprite#0` rect expected `[350, 24, 450, 124]`, got width 6914 or 930)~~ | `src/apps/bitmappy/src/bitmappy/film_strip_coordinator.py:348` (also `animated_canvas.py:1628`, `controllers/visual_indicators.py:326`) | Found 2026-11-12 by the ten-tile check of the full-Arcade spike ported to main (Arcade sub-plan 3); the other nine tiles match their solo replays exactly. Left failing for now (the owner, 2026-11-12). The two fixes on the table each bend a rule: an engine answer for `get_surface` while a tile's context is active (no pygame shims), or Bitmappy reading its scene's screen (no game changes). Held by a strict xfail in `tests/test_every_recording_replays_inside_an_inner_game.py` (Arcade sub-plan 3, Task 4), which runs the tiles inside a 1280x720 outer window: the test display (800x600) is as wide as the demo and hid it (width 930 there). **Fixed** 2026-11-20 (`fix/bitmappy-reads-its-own-screen`; bugs/2026-11-20-bitmappy-tile-read-the-hosts-window.md): the owner chose Bitmappy reading its own screen through the engine's `display_surface()` ("this particular situation warrants fixing bitmappy not to use pygame calls directly"); no pygame function is replaced. The strict xfail is removed, and a guard keeps every game, demo and app off `pygame.display.get_surface()`. |
 | A tile changes the outer game's key repeat (and other window and process settings): the text-input demo's tile leaves SDL's key repeat at `(200, 200)` where the outer game had `(0, 0)` (`pygame.key.get_repeat()`, one per process). The demo's `setup()` calls `pygame.key.set_repeat(350)` and the engine's `InputBox.on_key_up_event` calls `pygame.key.set_repeat(200)` on every key release while the box is active; the outer game (the Arcade) would then get repeated KEYDOWNs for its own held keys. A replay is unaffected (it serves recorded events). The same holds, unmeasured, for SDL's other one-per-process settings an inner game can still reach (found by the branch's final review, 2026-11-12): text input start and stop (the engine's text widgets, `src/glitchygames/ui/text_widgets.py:1218, 1260, 1274, 1328, 1503, 1509`: a tile's active text box would turn the outer game's IME text input on or off), the mouse cursor's visibility (Bitmappy's canvas, `src/apps/bitmappy/src/bitmappy/animated_canvas.py:1153, 1175`), pygame's default font resolution (`pygame.freetype.set_default_resolution` in `FontManager.__init__`, `src/glitchygames/fonts/font_manager.py:307`, from the inner game's `--font-dpi`: the last `FontManager` made wins) and `os.environ.setdefault('SDL_MOUSE_FOCUS_CLICKTHROUGH', '1')` (`src/glitchygames/engine/game_engine.py:1571`, harmless once the outer engine set it) | `src/glitchygames/ui/inputs.py:195` (the engine's), `src/demos/text-input-demo/src/text_input_demo/__init__.py:69` (the demo's; no game changes), also `src/glitchygames/ui/text_widgets.py` (1220, 1262, 1275, 1329, 1504, 1511) | Found 2026-11-12 by Arcade sub-plan 3's Task 4 (the plan's Review Focus 4): `test_a_tile_leaves_the_outer_key_repeat_as_it_was[text-input-demo/typing.jsonl.gz]`, a strict xfail naming this entry; every other recording leaves it. The repeat belongs to the context that owns the window: an inner context should keep its own (a slot) and never call SDL's, the way it keeps no caption and never changes SDL's blocked event types (`events.set_event_types_allowed`); the same for text input, the cursor's visibility (a Bitmappy call: the engine would need a door for it, since no game file changes) and the font resolution. The engine's own widgets setting the repeat on every key release is worth a look on its own. |
 | The pending replay ledger is rewritten in place, its only copy of unpublished rows, so a crash or a full disk mid-write loses them | `src/glitchygames/replay/tools/measure.py` (`pending_path.write_text`) | Found 2026-11-17 sweeping for siblings of bugs/2026-11-17-ai-console-history-seen-part-written.md. Write it aside then into place (`output_files.write_aside_then_replace`). |
+| Zombies' neighborhood golden does not follow its planned route exactly: the route planner plans open-loop at exactly 1/60 s with no input lag, while the recorder keeps real frame times and input reaches the kids a frame after it is posted | `scripts/plan_neighborhood_route.py`, `src/games/zombies-aint-my-neighbors/tests/test_zombies_aint_my_neighbors_golden_route.py` (`test_the_committed_route_is_still_the_plan`) | Found 2026-11-19 by feature 13's Task 3 (plans/2026-11-19-zombies-aint-my-neighbors-13-attract-demo.md), where the same flaw made the demo's first recording rescue one neighbor and never clear (the demo now steers live). The golden still reaches stage 2 (tested), but the route test checks only the plan, not the recording. Steer it live as the demo does, or model the lag and frame times, then re-record (a reviewed step). |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
 
@@ -670,6 +672,42 @@ and "audio buffer ready" flags.
 The doors, deterministic simulation, recordings, the supervisor hook, the input-blocking helper
 (`src/glitchygames/replay/input_blocking.py`), the golden fixtures and `--headless` (any run, not
 only replays; Part 2 Task 1).
+
+## Website (glitchy.games)
+
+Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
+
+- **Build and host PyScript and Pyodide ourselves** (the owner, 2026-10-28; needs a brainstorm
+  first).
+  - Today `browser/index.html` loads PyScript's `core.js` / `core.css` from `pyscript.net` (and
+    Pyodide comes from its CDN), so `play.glitchy.games` depends on third-party CDNs being up
+    and unchanged, and can't send cross-origin isolation headers (COOP/COEP): COEP would block
+    those CDN files.
+  - Self-hosting them (built or vendored, served from our own S3/CloudFront) removes that
+    dependency and makes COOP/COEP (SharedArrayBuffer, threads) and a strict
+    Content-Security-Policy possible.
+  - To brainstorm: build from source or vendor release files; where the build runs (CircleCI
+    beside the pygame-ce WebAssembly wheel); version pinning; the bundle size it adds to the site.
+- **Website follow-ups from the build's final review** (2026-10-28; minors, deferred):
+  - Missing files answer with S3's 403 XML: add a CloudFront error response (403 → a 404 page).
+  - `glitchy_site.publish`: upload non-HTML files before HTML (a page could land before its
+    assets mid-deploy); raise on `delete_objects` `Errors` (now ignored); skip unchanged files
+    (compare MD5 with the ETag) and expire delete markers, before the Arcade's ~30 MB bundle is
+    published on every merge (noncurrent versions count toward the plan's 5 GB S3 credit);
+    allow `.well-known/` (dot-directories are skipped and deleted).
+  - The redirect regroups repeated query keys and drops `=` on empty values (harmless today).
+  - Weak cross-stack references: after replacing the site's bucket or distribution, deploy
+    `GlitchyGamesSiteDeployRole` with `--force` or its role keeps the old ARNs.
+  - CircleCI: give `test-infra`/`deploy-site` a uv cache key with `infra/uv.lock`; a missing
+    `CIRCLE_OIDC_TOKEN_V2` should fail with a clear message, not "unbound variable".
+  - Plan Task 8 Step 7: AWS Budgets email subscribers need no confirmation.
+  - The `glitchygames.ai` redirect distribution sends no HSTS (found at go-live, 2026-11-20:
+    the `glitchy.games` hosts' 301s carry `strict-transport-security`, the `.ai` ones don't), so
+    a browser's first `http://glitchygames.ai` request isn't upgraded by the browser itself.
+    Give `GlitchyGamesAiRedirect`'s behavior the same security headers policy as the site's.
+- **Email at the domains** (the owner, 2026-10-28: "a later task"; needs a plan). The Route 53
+  move drops Namecheap's email forwarding (unused today); a provider (e.g. Amazon SES) would
+  add MX, SPF, DKIM and DMARC records to the zones.
 
 ## Trace format ideas (pending a user decision)
 
@@ -1165,6 +1203,24 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 - Do not redistribute the FF3 reference tile rips or the third-party sound samples from the archives.
 
 ## Developer environment
+
+- **A leaner CLAUDE.md through path-scoped rules** (the owner, 2026-11-20; after #117, which
+  moved the Website section to `.claude/rules/website.md`). CLAUDE.md sits at
+  `tests/test_claude_md.py`'s 360-line limit. Sections that matter only in their own folders
+  become `.claude/rules/<area>.md` with `paths:` (loaded only when Claude reads or edits a
+  matching file): Sound Synthesis (~30 lines, `src/glitchygames/audio/**`), sprite files and
+  the compiled-sprite cache (~10), the Local AI service (~10, `services/ai-service/**`,
+  `ansible/**`, `src/glitchygames/ai_*.py`), Bitmappy (~8), Browser (~6), Docs (~6). The
+  engine-wide rules (doors, randomness, clocks, world space, engine context, sprites as game
+  objects), Testing Guidelines and the commands stay in CLAUDE.md.
+  - One CLAUDE.md line indexes the rules (a rule loads only once a matching file is touched,
+    so a question asked first wouldn't see it), and a test holds every rule file to the index.
+  - Worktrees: a rule's `paths` are relative to the folder holding its `.claude/`, so a session
+    started in the main checkout that edits `.claude/worktrees/<name>/...` matches nothing.
+    Mitigations: start sessions in the worktree (or `/cd` there); write patterns as
+    `**/infra/**` so they also match worktree paths (unverified: test with the
+    `InstructionsLoaded` hook, which logs each rule that loads, before relying on it), and give
+    `.claude/rules/website.md` the same patterns.
 
 - **Name the CI jobs for what they run** (the owner, 2026-11-18: "so it's more obvious what's
   running in CI"). The 3.15 jobs are `test-python-3-15-linux` and `-windows`, but the 3.14 ones are
