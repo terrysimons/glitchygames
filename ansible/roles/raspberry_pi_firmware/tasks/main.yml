@@ -5,7 +5,8 @@
 # board's own section ([pi5], [pi4]: raspberry_pi_board) and ends with [all], so it holds whether
 # or not the file has that section, and nothing after it falls into it. The firmware reads
 # config.txt at boot: a change says a reboot is needed and reboots nothing (rebooting ends the
-# desktop session in use). Tests: tests/test_ansible_raspberry_pis.py
+# desktop session in use). Then its CPU governor (raspberry_pi_cpu_governor, when a Pi sets one): a
+# systemd unit that writes it to every cpufreq policy at boot. Tests: tests/test_ansible_raspberry_pis.py
 
 - name: Read the Pi's model
   ansible.builtin.slurp:
@@ -164,3 +165,70 @@
   register: raspberry_pi_trip_point
   failed_when: (raspberry_pi_trip_point.content | b64decode | int) != ((item.start_celsius * 1000) | int)
   when: not (raspberry_pi_hand_typed_removed.changed or raspberry_pi_firmware_block.changed) and raspberry_pi_fan.kind == 'active-cooler'
+
+# The CPU governor (raspberry_pi_cpu_governor; unset: the Pi's own is left alone). Written by a
+# systemd oneshot unit at every boot to each cpufreq policy, because a sysfs write does not
+# survive one. power-profiles-daemon is enabled on the Ubuntu Pis but has only placeholder
+# balanced and power-saver profiles (read 2026-11-20), so it does not touch cpufreq and does not
+# undo this. Every task here writes /sys or /etc, so each becomes root (become: true) whatever
+# the play's setting
+- name: Read the governors the kernel offers
+  ansible.builtin.slurp:
+    src: /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors
+  register: raspberry_pi_available_governors
+  become: true
+  when: raspberry_pi_cpu_governor is defined
+
+- name: Refuse a governor the kernel does not offer
+  ansible.builtin.assert:
+    that:
+      - raspberry_pi_cpu_governor in (raspberry_pi_available_governors.content | b64decode).split()
+    fail_msg: >-
+      {{ inventory_hostname }}: the kernel offers {{ (raspberry_pi_available_governors.content | b64decode).split() | join(', ') }},
+      not {{ raspberry_pi_cpu_governor }}
+  when: raspberry_pi_cpu_governor is defined
+
+# $$ and not $: systemd expands $NAME in ExecStart itself, so a single $policy would be empty
+- name: Install the unit that sets the CPU governor at boot
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/raspberry-pi-cpu-governor.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by ansible/raspberry_pi_runner.yml (the raspberry_pi_firmware role)
+      [Unit]
+      Description=Set the CPU governor to {{ raspberry_pi_cpu_governor }}
+      After=sysinit.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/bin/sh -c 'for policy in /sys/devices/system/cpu/cpufreq/policy*; do echo {{ raspberry_pi_cpu_governor }} > "$$policy/scaling_governor" || exit 1; done'
+
+      [Install]
+      WantedBy=multi-user.target
+  become: true
+  register: raspberry_pi_governor_unit
+  when: raspberry_pi_cpu_governor is defined
+
+# Restarted when the unit changed, so a new governor applies now; started otherwise
+- name: Enable the governor unit and run it now
+  ansible.builtin.systemd_service:
+    name: raspberry-pi-cpu-governor
+    enabled: true
+    state: "{{ 'restarted' if raspberry_pi_governor_unit.changed else 'started' }}"
+    daemon_reload: true
+  become: true
+  when: raspberry_pi_cpu_governor is defined
+
+- name: Read every cpufreq policy's governor
+  ansible.builtin.shell:
+    cmd: cat /sys/devices/system/cpu/cpufreq/policy*/scaling_governor
+  register: raspberry_pi_applied_governors
+  changed_when: false
+  failed_when: >-
+    raspberry_pi_applied_governors.stdout_lines | length == 0
+    or raspberry_pi_applied_governors.stdout_lines | reject('equalto', raspberry_pi_cpu_governor) | list | length > 0
+  become: true
+  when: raspberry_pi_cpu_governor is defined
