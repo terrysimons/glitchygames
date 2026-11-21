@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import cProfile
+import faulthandler
 import functools
 import logging
 import math
@@ -15,8 +16,10 @@ import platform
 import pprint
 import signal
 import sys
+import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -265,6 +268,70 @@ PORTABLE_VIDEO_DRIVERS = ('offscreen', 'dummy')
 # SIGHUP exists only on Unix and SIGBREAK only on Windows, so each is looked up where it runs.
 # SIGINT needs no handler (KeyboardInterrupt); see glitchygames/exit_codes.py for those not wired
 TERMINATING_SIGNAL_NAMES = ('SIGTERM', 'SIGHUP', 'SIGBREAK')
+
+# The fatal signals pygame-ce's "parachute" takes when pygame is imported (fatal_signals[] in its
+# src_c/base.c), by name: SIGBUS and SIGQUIT do not exist on Windows
+FATAL_SIGNAL_NAMES = ('SIGSEGV', 'SIGBUS', 'SIGFPE', 'SIGQUIT')
+
+
+class FatalSignalHandling(StrEnum):
+    """What ``report_fatal_signals_with_faulthandler`` found or did."""
+
+    ALREADY_REPORTED = 'already reported'
+    REPORTED = 'reported'
+    DEFAULT_ONLY = 'default only'
+    NOT_THE_MAIN_THREAD = 'not the main thread'
+
+
+def fatal_signals() -> list[int]:
+    """Return the FATAL_SIGNAL_NAMES this platform has, as signal numbers."""
+    return [getattr(signal, name) for name in FATAL_SIGNAL_NAMES if hasattr(signal, name)]
+
+
+def report_fatal_signals_with_faulthandler() -> FatalSignalHandling:
+    """Make a fatal signal end the process at once with a traceback, instead of hanging it.
+
+    pygame-ce installs its "parachute" (``pygame_parachute``, src_c/base.c) on each of
+    ``fatal_signals()`` still at its default when ``pygame`` is first imported. It calls
+    ``pygame.quit()`` before dying, which touches Python objects: on a thread without the GIL
+    (SDL's audio thread, where Apple's audio code crashed under a parallel native-driver run)
+    it spins forever and the process never ends
+    (bugs/2026-11-20-a-crash-on-the-audio-thread-hung-the-process.md). This puts each back to
+    its default, then enables faulthandler, which prints every thread's traceback and lets the
+    signal end the process. The parachute's ``pygame.quit()`` is lost; the system restores the
+    display of a process that died.
+
+    Called by ``GameEngine.__init__`` (every game imports pygame before the engine, so the
+    parachute is installed by then) and by the test harness, before pytest enables its own
+    faulthandler (which then only changes where the traceback is written). Harmless in the
+    browser: Pyodide has no threads, and a WebAssembly crash is a trap, not a signal.
+
+    Limitation: when faulthandler is already enabled, nothing is changed, since whoever enabled
+    it chose how crashes are reported. If that was after ``import pygame``, faulthandler hands
+    the signal on to the parachute after its traceback, and the hang remains.
+
+    Returns:
+        ``ALREADY_REPORTED`` when faulthandler was enabled; ``REPORTED`` when it is now;
+        ``DEFAULT_ONLY`` when faulthandler had nowhere to write (no usable stderr, as in a
+        windowed build), so a crash ends the process without a traceback; and
+        ``NOT_THE_MAIN_THREAD`` when called off the main thread, where Python cannot set
+        signal handlers.
+
+    """
+    if faulthandler.is_enabled():
+        return FatalSignalHandling.ALREADY_REPORTED
+    if threading.current_thread() is not threading.main_thread():
+        return FatalSignalHandling.NOT_THE_MAIN_THREAD
+    for signal_number in fatal_signals():
+        signal.signal(signal_number, signal.SIG_DFL)
+    try:
+        faulthandler.enable()
+    except (RuntimeError, AttributeError, ValueError, OSError) as no_stderr:
+        # sys.stderr None (RuntimeError), without a file descriptor (AttributeError, or
+        # io.UnsupportedOperation: an OSError and a ValueError), or closed (ValueError)
+        LOG.debug('faulthandler not enabled (%s): a crash ends the process silently', no_stderr)
+        return FatalSignalHandling.DEFAULT_ONLY
+    return FatalSignalHandling.REPORTED
 
 
 def scene_class_of(game: type[Scene] | Scene) -> type[Scene]:
@@ -1600,6 +1667,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # https://wiki.libsdl.org/SDL2/SDL_HINT_NO_SIGNAL_HANDLERS
         self._warn_about_a_pygame_that_may_own_the_signals()
         os.environ.setdefault(SDL_NO_SIGNAL_HANDLERS_HINT, '1')
+
+        # A crash on a thread without the GIL (SDL's audio thread) must end the process, not
+        # hang it in pygame's parachute: before pygame.init() opens the audio device
+        self.log.debug('Fatal signals: %s', report_fatal_signals_with_faulthandler())
 
         # Shorten the GIL switch interval before audio starts: the mixer's channel-finished
         # callback needs the GIL to queue the next live-voice chunk (BUGS.md #27).
