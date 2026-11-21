@@ -641,7 +641,9 @@ def test_no_tool_option_clashes_with_any_of_our_games_arguments(console_script):
     """Every member's game parser builds with the tool flags added: its --help lists them.
 
     A game argument with a tool's flag would make argparse refuse to build the parser, so the
-    game's --help would fail. Run as the installed console script runs it, in a child.
+    game's --help would fail. Run as the installed console script runs it, in a child. The
+    engine's own options are in the same parser, so --invalid-high-scores (the high-score
+    tables' policy, game code plan sub-plan 2) clashes with no tool and no game either.
     """
     entry_point = game_entry_point(console_script=console_script)
 
@@ -650,6 +652,7 @@ def test_no_tool_option_clashes_with_any_of_our_games_arguments(console_script):
     assert finished.returncode == ExitCode.SUCCESS, finished.stdout
     for tool in TOOLS:
         assert tool.flag in finished.stdout, console_script
+    assert '--invalid-high-scores' in finished.stdout, console_script
 
 
 def test_glitchygames_record_trace_runs_the_game_as_a_child(stand_in_game, tmp_path, capfd):
