@@ -870,8 +870,10 @@ uv run python -m scripts.check_rebaselined_recordings --plan PLAN.toml \
     --fingerprints-before BEFORE --fingerprints-after AFTER
 ```
 
-It fails (exit 1) on any difference the plan does not name, on an allowance that matched
-nothing, and on any test whose frames differ between the two runs; its report counts every
+The pixel step is required: an allowed sprite's records are not compared, so a new sprite one
+pixel off would pass the recordings' part, and the frames are what show where it is drawn. It
+fails (exit 1) on any difference the plan does not name, on an allowance that matched nothing,
+and on any test whose frames differ between the two runs; its report counts every
 allowed difference per recording and the frames it compared, which goes in the PR. The
 comparison is `src/glitchygames/replay/recording_differences.py`, whose docstring says what it
 compares and what it leaves out (the measurement histories, the header fields a rebaseline

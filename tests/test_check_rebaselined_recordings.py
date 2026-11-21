@@ -93,11 +93,30 @@ def _record(nodeid: str, *digests: str) -> RecordedFrames:
     return RecordedFrames(nodeid=nodeid, outcome='passed', presented=frames[:-1], final=frames[-1])
 
 
+def _same_frames(tmp_path: Path) -> list[str]:
+    """Return the pixel-step arguments for two runs that presented the same frames.
+
+    Returns:
+        ``--fingerprints-before DIR --fingerprints-after DIR``.
+
+    """
+    records = [_record(NODE_A, 'red', 'green')]
+    return [
+        '--fingerprints-before',
+        str(_fingerprints(tmp_path / 'same-before', records)),
+        '--fingerprints-after',
+        str(_fingerprints(tmp_path / 'same-after', records)),
+    ]
+
+
 class TestRecordings:
     """Each pair in the plan, compared with its allowances."""
 
     def test_a_plan_whose_pairs_pass_prints_each_report_and_succeeds(self, labelled_pair, capsys):
-        assert run(arguments=['--plan', str(labelled_pair)]) is ExitCode.SUCCESS
+        assert (
+            run(arguments=['--plan', str(labelled_pair), *_same_frames(labelled_pair.parent)])
+            is ExitCode.SUCCESS
+        )
         output = capsys.readouterr().out
         assert 'PASS ' in output
         assert '  allowed: sprite HudLabel#0 in 3 frames' in output
@@ -107,7 +126,10 @@ class TestRecordings:
         old = _recording(tmp_path / 'old.jsonl.gz', frames=_frames())
         new = _recording(tmp_path / 'new.jsonl.gz', frames=_frames(rock_y=51))
         plan = _plan(tmp_path, f'[[pair]]\nold = "{old}"\nnew = "{new}"\n')
-        assert run(arguments=['--plan', str(plan)]) is ExitCode.REPLAY_DIVERGED
+        assert (
+            run(arguments=['--plan', str(plan), *_same_frames(tmp_path)])
+            is ExitCode.REPLAY_DIVERGED
+        )
         output = capsys.readouterr().out
         assert 'FAIL ' in output
         assert (
@@ -119,16 +141,21 @@ class TestRecordings:
         old = _recording(tmp_path / 'old.jsonl.gz', frames=_frames())
         new = _recording(tmp_path / 'new.jsonl.gz', frames=_frames(rock_y=51))
         plan = _plan(tmp_path, f'[[pair]]\nold = "{old}"\nnew = "{new}"\n')
-        run(arguments=['--plan', str(plan), '--limit', '1'])
+        run(arguments=['--plan', str(plan), '--limit', '1', *_same_frames(tmp_path)])
         assert '... and 2 more differences' in capsys.readouterr().out
 
     def test_a_missing_recording_is_missing_input(self, tmp_path, capsys):
         plan = _plan(tmp_path, '[[pair]]\nold = "nowhere.jsonl.gz"\nnew = "neither.jsonl.gz"\n')
-        assert run(arguments=['--plan', str(plan)]) is ExitCode.MISSING_INPUT
+        assert (
+            run(arguments=['--plan', str(plan), *_same_frames(tmp_path)]) is ExitCode.MISSING_INPUT
+        )
         assert 'nowhere.jsonl.gz' in capsys.readouterr().err
 
     def test_a_missing_plan_is_missing_input(self, tmp_path):
-        assert run(arguments=['--plan', str(tmp_path / 'none.toml')]) is ExitCode.MISSING_INPUT
+        assert (
+            run(arguments=['--plan', str(tmp_path / 'none.toml'), *_same_frames(tmp_path)])
+            is ExitCode.MISSING_INPUT
+        )
 
     @pytest.mark.parametrize(
         'text',
@@ -141,7 +168,10 @@ class TestRecordings:
         ids=['no pairs', 'an unknown key', 'no new recording', 'not TOML'],
     )
     def test_an_unusable_plan_is_refused(self, tmp_path, capsys, text):
-        assert run(arguments=['--plan', str(_plan(tmp_path, text))]) is ExitCode.UNUSABLE_INPUT
+        assert (
+            run(arguments=['--plan', str(_plan(tmp_path, text)), *_same_frames(tmp_path)])
+            is ExitCode.UNUSABLE_INPUT
+        )
         assert 'plan' in capsys.readouterr().err
 
 
@@ -224,22 +254,41 @@ class TestPixels:
         assert '1 of 1 recordings changed only as allowed' in output
         assert 'FAIL pixels' in output
 
-    def test_one_fingerprints_run_without_the_other_is_refused(self, labelled_pair, tmp_path):
+    def test_an_allowed_label_one_pixel_off_fails_by_its_pixels(
+        self, labelled_pair, tmp_path, capsys
+    ):
+        """An allowed sprite's records are not compared, so its place is the pixel step's."""
+        exit_code = self._check(
+            labelled_pair,
+            tmp_path,
+            before=[_record(NODE_A, 'score at 10,10')],
+            after=[_record(NODE_A, 'score at 11,10')],
+        )
+        assert exit_code is ExitCode.REPLAY_DIVERGED
+        output = capsys.readouterr().out
+        assert '  allowed: sprite HudLabel#0 in 3 frames' in output
+        assert f'  differs: {NODE_A}' in output
+
+    @pytest.mark.parametrize(
+        'given',
+        [(), ('--fingerprints-before',), ('--fingerprints-after',)],
+        ids=['neither', 'before only', 'after only'],
+    )
+    def test_the_pixel_step_is_required(self, labelled_pair, tmp_path, given):
+        """Without it a moved new sprite would pass: the pixels are the only check of its place."""
+        directory = str(_fingerprints(tmp_path / 'run', [_record(NODE_A, 'red')]))
+        arguments = ['--plan', str(labelled_pair)]
+        for option in given:
+            arguments += [option, directory]
         with pytest.raises(SystemExit) as raised:
-            run(
-                arguments=[
-                    '--plan',
-                    str(labelled_pair),
-                    '--fingerprints-before',
-                    str(_fingerprints(tmp_path / 'before', [_record(NODE_A, 'red')])),
-                ]
-            )
+            run(arguments=arguments)
         assert raised.value.code == ExitCode.ARGUMENT_PARSER_ERROR
 
 
 def test_main_exits_with_the_checks_exit_code(labelled_pair, mocker):
     """The script's entry point exits with what run returned."""
-    mocker.patch.object(sys, 'argv', ['check_rebaselined_recordings', '--plan', str(labelled_pair)])
+    arguments = ['--plan', str(labelled_pair), *_same_frames(labelled_pair.parent)]
+    mocker.patch.object(sys, 'argv', ['check_rebaselined_recordings', *arguments])
     with pytest.raises(SystemExit) as raised:
         main()
     assert raised.value.code is ExitCode.SUCCESS

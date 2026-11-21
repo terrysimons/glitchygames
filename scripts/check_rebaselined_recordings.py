@@ -22,13 +22,15 @@ replaces OLD with NEW only once this check passes. It has two parts:
       where = ["frame", 291, "scene_start", "arguments", "run"]
       reason = "FeatureCardScene gained run (#215) after the recording was made"
 
-- The pixels, when both ``--fingerprints-before DIR`` and ``--fingerprints-after DIR`` are
-  given: two runs of the suite under the frame fingerprints plugin
-  (glitchygames/testing/frame_fingerprints.py), one on the commit before the change and one on
-  the change. Every test both ran must present the same frames (glitchygames/testing/
-  frame_comparison.py, the comparison ``compare_driver_frames.py`` uses), no test may be in one
-  run only, and the report counts the frames compared, so a pass is known to have compared
-  something. Tests marked ``frames_vary`` are not compared, and are counted.
+- The pixels, always (``--fingerprints-before DIR`` and ``--fingerprints-after DIR`` are
+  required): the records of an allowed sprite are not compared, so a new sprite one pixel off
+  would pass the recordings' part; the pixels are what checks where it is drawn. Two runs of
+  the suite under the frame fingerprints plugin (glitchygames/testing/frame_fingerprints.py),
+  one on the commit before the change and one on the change. Every test both ran must present
+  the same frames (glitchygames/testing/frame_comparison.py, the comparison
+  ``compare_driver_frames.py`` uses), no test may be in one run only, and the report counts the
+  frames compared, so a pass is known to have compared something. Tests marked ``frames_vary``
+  are not compared, and are counted.
 
 It prints one report per pair, the pixel report, and a summary, and exits
 ``ExitCode.SUCCESS`` when everything passed, ``ExitCode.REPLAY_DIVERGED`` when anything differed,
@@ -37,7 +39,7 @@ an unusable plan or recording, or a fingerprints run that recorded no test.
 
 Usage:
     uv run python -m scripts.check_rebaselined_recordings --plan PLAN.toml \
-        [--fingerprints-before DIR --fingerprints-after DIR] [--limit N]
+        --fingerprints-before DIR --fingerprints-after DIR [--limit N]
 """
 
 from __future__ import annotations
@@ -190,16 +192,18 @@ def argument_parser() -> argparse.ArgumentParser:
         description='Check that rebaselined recordings changed only as their plan allows'
     )
     parser.add_argument('--plan', type=Path, required=True, help='the pairs and allowances (TOML)')
+    # Required: an allowed sprite's records are not compared, so the pixels are the only check
+    # that a new sprite (a HUD label) sits where the old drawing did
     parser.add_argument(
         '--fingerprints-before',
         type=Path,
-        default=None,
+        required=True,
         help="the suite's frame fingerprints on the commit before the change",
     )
     parser.add_argument(
         '--fingerprints-after',
         type=Path,
-        default=None,
+        required=True,
         help="the suite's frame fingerprints on the change",
     )
     parser.add_argument(
@@ -221,20 +225,15 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
         The exit code.
 
     """
-    parser = argument_parser()
-    options = parser.parse_args(arguments)
-    before: Path | None = options.fingerprints_before
-    after: Path | None = options.fingerprints_after
-    if (before is None) != (after is None):
-        parser.error('--fingerprints-before and --fingerprints-after go together')
+    options = argument_parser().parse_args(arguments)
     try:
         plan = load_plan(path=options.plan)
         comparisons = [
             compare_recordings(old=pair.old, new=pair.new, allowances=pair.allowances)
             for pair in plan.pair
         ]
-        pixels = (
-            None if before is None or after is None else compare_pixels(before=before, after=after)
+        pixels = compare_pixels(
+            before=options.fingerprints_before, after=options.fingerprints_after
         )
     except FileNotFoundError as error:
         sys.stderr.write(f'{error}\n')
@@ -246,14 +245,12 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
         sys.stderr.write(f'{error}\n')
         return ExitCode.UNUSABLE_INPUT
     sys.stdout.write(_summary(comparisons=comparisons, pixels=pixels, limit=options.limit))
-    passed = all(comparison.passed for comparison in comparisons) and (
-        pixels is None or pixels.passed
-    )
+    passed = all(comparison.passed for comparison in comparisons) and pixels.passed
     return ExitCode.SUCCESS if passed else ExitCode.REPLAY_DIVERGED
 
 
 def _summary(
-    *, comparisons: Sequence[RecordingComparison], pixels: PixelComparison | None, limit: int
+    *, comparisons: Sequence[RecordingComparison], pixels: PixelComparison, limit: int
 ) -> str:
     """Return every report and the closing count.
 
@@ -262,8 +259,7 @@ def _summary(
 
     """
     reports = [comparison.report(limit=limit) for comparison in comparisons]
-    if pixels is not None:
-        reports.append(pixels.report())
+    reports.append(pixels.report())
     passed_count = sum(comparison.passed for comparison in comparisons)
     reports.append(f'{passed_count} of {len(comparisons)} recordings changed only as allowed')
     return '\n'.join(reports) + '\n'
