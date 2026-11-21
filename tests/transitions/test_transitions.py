@@ -12,9 +12,13 @@ import math
 import pygame
 import pytest
 
+from glitchygames.checks import MissingValueError
 from glitchygames.transitions.base import Transition, TransitionState
 from glitchygames.transitions.elevator import ElevatorTransition
-from glitchygames.transitions.fade import CrossfadeTransition, FadeTransition
+from glitchygames.transitions.fade import (
+    CrossfadeTransition,
+    FadeTransition,
+)
 from glitchygames.transitions.slide import SlideTransition
 from glitchygames.transitions.wipe import WipeTransition
 
@@ -165,6 +169,26 @@ class TestFadeTransition:
         fade.start(old, new)
         fade.update(0.25)
         fade.render(screen)
+
+
+class TestTransitionsRenderedBeforeStart:
+    """A transition's frame needs the surfaces start() makes; without them it raises."""
+
+    def test_a_fade_frame_before_start_raises_a_named_error(self, surfaces: tuple) -> None:
+        """FadeTransition._render_frame names the missing overlay."""
+        old, new, screen = surfaces
+        fade = FadeTransition(duration=1.0)
+
+        with pytest.raises(MissingValueError, match=r'^the fade\'s overlay is missing$'):
+            fade._render_frame(screen, old, new)
+
+    def test_an_elevator_frame_before_start_raises_a_named_error(self, surfaces: tuple) -> None:
+        """ElevatorTransition._render_frame names the missing composite and platform."""
+        old, new, screen = surfaces
+        elevator = ElevatorTransition(duration=1.0)
+
+        with pytest.raises(MissingValueError, match=r'^the elevator\'s composite is missing$'):
+            elevator._render_frame(screen, old, new)
 
 
 class TestCrossfadeTransition:
