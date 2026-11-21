@@ -1955,6 +1955,35 @@ discussing it found and decided:
   review, 2026-11-19). `film_strip_rendering.convert_magenta_to_transparent` calls `get_at` and
   `set_at` for each pixel of each thumbnail each time the strip renders: editor time, not memory.
   A colorkey or `pygame.transform.threshold` does it in one call.
+- **The sprite memory bug record lacks the CI headroom after the fix** (the owner's call,
+  2026-11-20). `bugs/2026-11-18-sprite-frames-held-a-tuple-per-pixel.md`'s "Measured" line has
+  only the zombies pair (683 against 1353 MiB). After #220, CI peaked at 1248 MiB (machine 0) and
+  1154 MiB (machine 1) against the 1750 MiB limit then, and the heaviest test
+  (`test_every_recording_replays_inside_an_inner_game.py`) peaked at 238.5 MiB. Record them as
+  measured before #230, which moved the limit to 1500 MiB and changed how each machine collects
+  its tests.
+- **A plan run's decisions go into its plan file when the run finishes** (the owner's call,
+  2026-11-20). The superpowers skills keep a run's ledger (its rulings and deferred minors) in
+  `.superpowers/sdd/<plan>/progress.md`, which is gitignored (#236) and deleted after the final
+  review. Copy the rulings no committed file holds into a "Decisions made during the work"
+  section of the plan, as the instrument batch cleanup did on 2026-11-14, so the plan keeps them.
+- **A watched replay in the browser may judder at 120 Hz** (found with
+  bugs/2026-11-20-browser-frames-juddered-at-120-hz.md; not measured). `run_watched_replay_async`
+  ticks the viewer once per animation frame, but `ReplayViewer` snaps only ticks within
+  `TICK_SNAP_WINDOW_SECONDS` of its 60 Hz `CONTROL_TICK_SECONDS`, so at 120 Hz (8.3 ms) no tick
+  snaps and its accumulator meets the drift and jitter `TickPacer` met. The Arcade branch
+  (`feature/arcade-5-playback-core`) moves that accumulator into `replay/pacer.py`'s
+  `RecordedFramePacer`, leaving the snap in `viewer.py`: the Arcade's `DemoPlayer` tiles then pay
+  raw elapsed time with no snap, the same class. Fix it there (the whole-tick cadence of
+  `host.whole_ticks_per_frame`) once that lands. Measure first: the frame probe
+  (`scripts/frame_phase_probe.py`) wraps `TickPacer`, not the replay pacer.
+- **Static text sprites redraw every frame, and a frame with no dirty rects updates the whole
+  screen** (found with the same bug). Zombies Ain't My Neighbors' title and slot pictures
+  (`text.TextPicture`) are `dirty=2`: every frame alpha-blends about 66,600 pixels and updates
+  five rects though only the blink changes (0.35-0.4 ms a frame in Chrome). Before making them
+  `dirty=1` (dirty only when shown, hidden or swapped), change `SceneManager._update_display`,
+  which calls `pygame.display.update()` for the whole screen when a frame has no dirty rects: a
+  still frame would then cost a full update.
 - **Test-suite memory on the Linux CI job: the structural options** (the owner's call;
   bugs/2026-11-17-linux-test-memory-guard-stops.md). #218 brought the peak to 1341-1350 MiB of
   1600; what is left grows from 503 to 859 MiB over 274 files, spread thin. In order of
