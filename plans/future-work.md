@@ -1314,6 +1314,14 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 
 ## Developer environment
 
+- **The local x11 Docker image on Ubuntu 26.04** (the owner, 2026-11-20: "use the latest 26.04
+  images, since that's our target OS for Raspberry Pi"). `scripts/linux_x11/Dockerfile`
+  (`nox -s test-linux-x11`, compare-drivers' x11-linux) is `python:3.15-slim`, Debian 13
+  (trixie), since #96 for convenience only. Rebuild it on `ubuntu:26.04` with Python 3.15.2
+  from uv, keeping its X11 and PulseAudio client libraries. Already on 26.04 (checked
+  2026-11-20): `test-linux-ci` (`cimg/python:3.15.2` is Ubuntu 26.04.1, the same image CircleCI
+  runs) and `deb-package` (`ubuntu:26.04`; its older release `ubuntu:24.04` stays, #237's check
+  that the .deb installs on the oldest supported release).
 - **A leaner CLAUDE.md through path-scoped rules** (the owner, 2026-11-20; after #117, which
   moved the Website section to `.claude/rules/website.md`). CLAUDE.md sits at
   `tests/test_claude_md.py`'s 360-line limit. Sections that matter only in their own folders
@@ -1592,6 +1600,22 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   Each becomes an explicit check raising an error with a real message; the 100% coverage gate
   may need a test per new branch. Then remove S101 from the ignore list so none returns.
   Decide with the owner whether `scripts/` (hand-run tools, never shipped) is in scope.
+  - The owner's decisions (2026-11-20): a None-check is `glitchygames.checks.required(value,
+    what=...)`, which raises `MissingValueError` ("<what> is missing"); any other condition is an
+    explicit raise of the error that fits. One branch per package, each by one session:
+    engine (`fix/assert-replacement-engine`), engine `scenes/` (dev-glitchygames-97), Bitmappy
+    (`fix/assert-sweep-bitmappy`), then games and demos, and `scripts/` (in scope). Last, as its
+    own step after every package: remove S101 from ruff's ignore list (the per-file ignores keep
+    asserts allowed in tests only), so any assert in a non-test file fails, and tighten bandit
+    past B101's filter. No list of files still to do is kept in the code (a saved ratchet guard
+    is in the gitignored `build/assert-sweep-final-step/` of the
+    `glitchygames-assert-replacement-engine` worktree; keep it when that worktree is removed).
+  - Progress (2026-11-20): `InnerGame`'s three (#246) and 78 in 27 engine
+    files (`fix/assert-replacement-engine`) are done; one, in `audio/assets.py`'s pitch check,
+    could fire in normal use (a `Note` or `Midi` pitch in a Python-built table) and is now a
+    `ValueError`. Left (counted by `ast`, 2026-11-20): `scenes/` 25 (its `_run_scene_frame`
+    assert fires when a scene ends before `run_frame`), Bitmappy 35, games and demos 14,
+    `scripts/` 43.
 - **Stereo synthesis** (the owner, 2026-11-15: "couldn't we make them stereo since we own the
   sound waves?"; its own branch, after the sound migration). The renderer makes mono samples
   and every sound, live and baked, pans by the constant-power law (`voices.constant_power_gains`,

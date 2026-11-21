@@ -2463,7 +2463,7 @@ def test_each_comparison_run_has_the_workers_asked_for(workers):
 
     noxfile._run_fingerprinted_tests(
         session,
-        configuration={'environment': {}, 'runs_in_linux_container': False},
+        configuration={'name': 'dummy', 'environment': {}, 'runs_in_linux_container': False},
         directory=Path('runs/dummy-1'),
         arguments=[],
         settings=noxfile._RunSettings(workers=workers),
@@ -2612,7 +2612,11 @@ def test_compare_drivers_fails_on_a_difference_only_when_asked(
     mocker.patch.object(noxfile, '_COMPARE_DRIVERS_LOCK', tmp_path / 'compare-drivers.lock')
     mocker.patch.object(noxfile, '_set_aside_previous_comparison')
     restore = mocker.patch.object(noxfile, '_restore_previous_comparison')
-    mocker.patch.object(noxfile, '_compare_driver_configurations', return_value=differing)
+    mocker.patch.object(
+        noxfile,
+        '_compare_driver_configurations',
+        return_value=noxfile._DifferingTests(frames=differing, audio=[]),
+    )
     session = RecordingSession(posargs=posargs)
 
     if fails:
@@ -2633,7 +2637,11 @@ def test_a_second_compare_drivers_is_refused_while_one_runs(mocker, tmp_path):
     from filelock import FileLock
 
     lock_path = tmp_path / 'compare-drivers.lock'
-    compare = mocker.patch.object(noxfile, '_compare_driver_configurations', return_value=[])
+    compare = mocker.patch.object(
+        noxfile,
+        '_compare_driver_configurations',
+        return_value=noxfile._DifferingTests(frames=[], audio=[]),
+    )
     mocker.patch.object(noxfile, '_set_aside_previous_comparison')
     mocker.patch.object(noxfile, '_COMPARE_DRIVERS_LOCK', lock_path)
     mocker.patch.object(noxfile, '_COMPARE_DRIVERS_PREVIOUS', tmp_path / 'previous')

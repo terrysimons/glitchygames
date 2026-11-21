@@ -68,6 +68,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, cast, override
 import pygame
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator, model_validator
 
+from glitchygames.checks import required
 from glitchygames.scenes import SceneManager
 from glitchygames.sprites.animated import AnimatedSprite
 from glitchygames.supervision import frozen_json_value, thawed_json_value
@@ -442,8 +443,7 @@ class GhostSprite(pygame.sprite.DirtySprite):
         self._drawn_appearance = appearance_key
         self.image = image
         # The size follows the image; the engine owns the position (rect.topleft)
-        rect = self.rect
-        assert rect is not None  # made in __init__
+        rect = required(self.rect, what="the ghost's rect")
         rect.size = image.get_size()
         if self.dirty == 0:
             self.dirty = 1
