@@ -17,11 +17,13 @@ them. Four configurations, dummy run twice:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from typing import TYPE_CHECKING
 
 import noxfile
 import pytest
+from scripts.driver_configurations import NATIVE_CONFIGURATIONS
 from scripts.driver_frame_matrix import (
     MATRIX_JSON_NAME,
     MATRIX_MARKDOWN_NAME,
@@ -38,6 +40,7 @@ from scripts.driver_frame_matrix import (
 )
 
 from glitchygames.exit_codes import ExitCode
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.testing.frame_comparison import LabelledRun
 from glitchygames.testing.frame_fingerprints import RecordedFrames, images_folder_name
 from tests.test_compare_driver_frames import RED, frame, record, save_colour_frame, write_run
@@ -666,3 +669,95 @@ class TestComparisonFolders:
 
         assert list(output.iterdir()) == []
         assert (previous / MATRIX_MARKDOWN_NAME).read_text(encoding='utf-8') == 'complete'
+
+
+class TestNativeRunTimeLimit:
+    """Only the native run's pytest command carries the per-test time limit (pytest-timeout)."""
+
+    def pytest_command(self, *, mocker, tmp_path, configuration_name: str) -> list[str]:
+        """Return the pytest command ``_run_fingerprinted_tests`` runs for a configuration."""
+        session = mocker.Mock()
+        configuration = {
+            'name': configuration_name,
+            'runs_in_linux_container': False,
+            'environment': {},
+        }
+
+        noxfile._run_fingerprinted_tests(
+            session,
+            configuration=configuration,
+            directory=tmp_path / 'run',
+            arguments=['tests/test_x.py'],
+            settings=noxfile._RunSettings(workers='1'),
+        )
+
+        return list(session.run.call_args.args)
+
+    @pytest.mark.parametrize('name', ['cocoa', 'windows', 'wayland', 'x11'])
+    def test_a_native_run_has_the_limit_and_the_stack_dump(self, mocker, tmp_path, name):
+        command = self.pytest_command(mocker=mocker, tmp_path=tmp_path, configuration_name=name)
+
+        assert '--timeout=120' in command
+        assert '--timeout-method=thread' in command
+        assert 'faulthandler_timeout=110' in command
+        # Before the test selection, which ends the command
+        assert command.index('--timeout=120') < command.index('tests/test_x.py')
+
+    @pytest.mark.parametrize('name', ['dummy-1', 'dummy-2', 'x11-macos', 'x11-linux'])
+    def test_the_other_runs_have_no_limit(self, mocker, tmp_path, name):
+        command = self.pytest_command(mocker=mocker, tmp_path=tmp_path, configuration_name=name)
+
+        assert not [argument for argument in command if 'timeout' in argument]
+
+    def test_the_stack_dump_comes_before_the_kill(self):
+        assert noxfile._NATIVE_RUN_STACK_DUMP_SECONDS < noxfile._NATIVE_RUN_TIMEOUT_SECONDS
+
+    def test_the_noxfiles_native_names_are_the_driver_configurations_native_ones(self):
+        """The noxfile keeps its own copy (CI's nox cannot import the project): the two agree."""
+        assert set(noxfile._NATIVE_CONFIGURATION_NAMES) == set(NATIVE_CONFIGURATIONS)
+
+    def test_a_hung_test_in_an_xdist_run_fails_with_every_threads_stack(self, tmp_path):
+        """The real pytest, xdist and pytest-timeout: the hung test fails, the others pass."""
+        (tmp_path / 'test_hang.py').write_text(
+            'import threading, time\n'
+            'def test_fast(): pass\n'
+            'def test_hangs():\n'
+            '    sleeper = threading.Thread(target=time.sleep, args=(30,), daemon=True)\n'
+            '    sleeper.start()\n'
+            '    time.sleep(60)\n',
+            encoding='utf-8',
+        )
+        environment = {key: value for key, value in os.environ.items() if key != 'PYTEST_ADDOPTS'}
+
+        finished = run_command(
+            command=[
+                sys.executable,
+                '-m',
+                'pytest',
+                '-p',
+                'no:cacheprovider',
+                '-p',
+                'no:randomly',
+                '-o',
+                'addopts=',
+                '-n',
+                '2',
+                '--timeout=4',
+                '--timeout-method=thread',
+                '-o',
+                'faulthandler_timeout=2',
+                str(tmp_path / 'test_hang.py'),
+            ],
+            environment=environment,
+            timeout_seconds=60,
+            capture_output=OutputCapture.TOGETHER,
+            working_directory=tmp_path,
+        )
+
+        assert finished.returncode == 1, finished.stdout
+        assert '1 failed, 1 passed' in finished.stdout
+        assert 'worker' in finished.stdout
+        assert 'crashed while running' in finished.stdout
+        # faulthandler's dump names every thread, including the sleeper
+        assert 'Thread 0x' in finished.stdout
+        assert 'test_hang' in finished.stdout

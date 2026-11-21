@@ -2229,6 +2229,48 @@ def _why_no_frame_can_change(session: nox.Session) -> str | None:
 
 
 @dataclasses.dataclass(frozen=True)
+class _DifferingTests:
+    """The tests a comparison found differing, split by cause (node ids).
+
+    Attributes:
+        frames: Tests that present different frames on two configurations.
+        audio: Tests that failed on a native run because the machine's audio was unavailable
+            (``scripts/native_audio_health.py``): not frame differences.
+
+    """
+
+    frames: list[str]
+    audio: list[str]
+
+
+# The configurations that are the machine's own driver (scripts/driver_configurations.py's
+# NATIVE_CONFIGURATIONS; the noxfile cannot import it, CI's nox lacks the project's packages)
+_NATIVE_CONFIGURATION_NAMES = ('cocoa', 'windows', 'wayland', 'x11')
+# A test on the native run that takes longer than this fails (pytest-timeout, the thread method).
+# Native runs only, never CI or a plain pytest: on 2026-11-20 a hung
+# pygame.mixer.init (SDL's audio thread crashed and pygame-ce's parachute handler spun on it,
+# #252) held the native run until it was killed by hand. A crash now fails at once; this limit
+# still catches a hang that is not a crash. The slowest healthy test
+# takes about 30 s, so 120 s is four times that. The thread method ends the worker process (xdist
+# reports the crash and replaces the worker) where the signal method would not interrupt a call
+# stuck inside a C library. Caveat: `os._exit` runs no fixture teardown, so a hung test's
+# children (in sessions of their own) may outlive the worker (not tested; the bug record
+# bugs/2026-11-20-native-run-burned-two-hours-on-a-broken-coreaudio.md)
+_NATIVE_RUN_TIMEOUT_SECONDS = 120
+# Ten seconds before that, faulthandler (pytest's faulthandler_timeout) writes every thread's
+# stack to the worker's real stderr. pytest-timeout's own stack dump goes through the terminal
+# writer, which an xdist worker does not forward (measured: nothing is shown), so without this
+# the failure would name the test and no stack
+_NATIVE_RUN_STACK_DUMP_SECONDS = _NATIVE_RUN_TIMEOUT_SECONDS - 10
+_NATIVE_RUN_TIMEOUT_ARGUMENTS = (
+    f'--timeout={_NATIVE_RUN_TIMEOUT_SECONDS}',
+    '--timeout-method=thread',
+    '-o',
+    f'faulthandler_timeout={_NATIVE_RUN_STACK_DUMP_SECONDS}',
+)
+
+
+@dataclasses.dataclass(frozen=True)
 class _RunSettings:
     """What every run of a comparison shares.
 
@@ -2276,6 +2318,11 @@ def _run_fingerprinted_tests(
         _FRAME_FINGERPRINTS_PLUGIN,
         f'--frame-fingerprints={directory}',
         f'--frame-fingerprints-seed={_COMPARE_DRIVERS_SEED}',
+        *(
+            _NATIVE_RUN_TIMEOUT_ARGUMENTS
+            if configuration['name'] in _NATIVE_CONFIGURATION_NAMES
+            else ()
+        ),
         *arguments,
     ]
     if configuration['runs_in_linux_container']:
@@ -2524,10 +2571,18 @@ def compare_drivers(session: nox.Session) -> None:
             raise
         shutil.rmtree(_COMPARE_DRIVERS_PREVIOUS, ignore_errors=True)
     # A completed comparison: its report stays the last one, whatever this decides
-    if options.fail_on_difference and differing_tests:
+    if differing_tests.audio:
         session.error(
-            f'{len(differing_tests)} test(s) presented different frames on two driver '
-            f'configurations: {", ".join(differing_tests)}. Report and difference images: '
+            f'audio failed in {len(differing_tests.audio)} test(s) on the native driver '
+            f"({', '.join(differing_tests.audio)}): the machine's audio was unavailable "
+            '(CoreAudio error or mixer not initialized), not a frame difference. Run it again; '
+            'if it keeps failing, sudo killall coreaudiod. Report: '
+            f'{output / "matrix.md"}'
+        )
+    if options.fail_on_difference and differing_tests.frames:
+        session.error(
+            f'{len(differing_tests.frames)} test(s) presented different frames on two driver '
+            f'configurations: {", ".join(differing_tests.frames)}. Report and difference images: '
             f'{output / "matrix.md"}. A driver dependence is a bug (BUGS.md); a test whose frames '
             'vary by design takes @pytest.mark.frames_vary(reason=...). '
             'SKIP=compare-drivers git push skips the check'
@@ -2570,7 +2625,7 @@ def _only_comparison(session: nox.Session, *, lock_path: Path) -> Generator[None
 
 def _compare_driver_configurations(
     session: nox.Session, *, output: Path, options: _CompareDriversOptions
-) -> list[str]:
+) -> _DifferingTests:
     """Run compare-drivers' comparison into its (empty) folder: see ``compare_drivers``.
 
     Args:
@@ -2580,10 +2635,24 @@ def _compare_driver_configurations(
 
     Returns:
         The tests whose frames differ between configurations (nondeterministic and
-        ``frames_vary`` tests left out), by node id; none when every configuration agrees.
+        ``frames_vary`` tests left out), by node id, apart from those that failed because the
+        native audio was unavailable (``scripts/native_audio_health.py``); none when every
+        configuration agrees.
 
     """
     configurations = _plan_driver_configurations(session, drivers=options.drivers, output=output)
+    # Before the long runs: a CoreAudio that hangs or refuses to start would otherwise cost hours
+    # and then blame the change's frames (scripts/native_audio_health.py)
+    session.run(
+        'uv',
+        'run',
+        'python',
+        '-m',
+        'scripts.native_audio_health',
+        'probe',
+        f'--plan={output / "plan.json"}',
+        external=True,
+    )
     settings = _RunSettings(
         workers=options.workers,
         container_audio_driver=_prepare_driver_configurations(
@@ -2621,7 +2690,7 @@ def _compare_driver_configurations(
     differing_tests = list(json.loads(request.read_text(encoding='utf-8'))['positions_by_test'])
     if not differing_tests:
         session.log(f'No driver differences: nothing to re-run\n{summary}')
-        return []
+        return _DifferingTests(frames=[], audio=[])
     # One node id per line, passed as @FILE: node ids may hold spaces
     tests_file = output / 'differing-tests.txt'
     tests_file.write_text('\n'.join(differing_tests) + '\n', encoding='utf-8')
@@ -2644,7 +2713,57 @@ def _compare_driver_configurations(
         ),
         external=True,
     )
-    return differing_tests
+    return _split_audio_failures(
+        session,
+        differing_tests=differing_tests,
+        tests_file=tests_file,
+        junit_paths=[
+            output / directory_name / 'junit.xml'
+            for configuration, directory_name in runs
+            if configuration['name'] in _NATIVE_CONFIGURATION_NAMES
+        ],
+    )
+
+
+def _split_audio_failures(
+    session: nox.Session,
+    *,
+    differing_tests: list[str],
+    tests_file: Path,
+    junit_paths: list[Path],
+) -> _DifferingTests:
+    """Split the differing tests into frame differences and audio failures.
+
+    A test that failed on a native run with a mixer-unavailable error (``CoreAudio error``,
+    ``mixer not initialized``) differs because the machine had no audio, not because a frame
+    changed (2026-11-20: 235 such tests were reported as frame differences).
+
+    Args:
+        session: The nox session.
+        differing_tests: Every test found to present different frames.
+        tests_file: Those tests, one node id per line.
+        junit_paths: The native runs' junit reports.
+
+    Returns:
+        The tests split by cause.
+
+    """
+    output = session.run(
+        'uv',
+        'run',
+        'python',
+        '-m',
+        'scripts.native_audio_health',
+        'classify',
+        f'--tests-file={tests_file}',
+        *(f'--junit={junit_path}' for junit_path in junit_paths),
+        external=True,
+        silent=True,
+    )
+    classification = json.loads(str(output))
+    if sorted(classification['audio'] + classification['frames']) != sorted(differing_tests):
+        session.error('the audio classification lost or invented a differing test')
+    return _DifferingTests(frames=classification['frames'], audio=classification['audio'])
 
 
 @nox.session(venv_backend='none', name='browser', default=False)
