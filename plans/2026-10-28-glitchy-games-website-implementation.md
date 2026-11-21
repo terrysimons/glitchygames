@@ -26,6 +26,11 @@ CircleCI.
 > is in `[tool.glitchygames] unmeasured-paths`. The tasks below keep their original paths as a
 > record; the role ARN also moved from a pipeline parameter to a CircleCI project environment
 > variable (Task 7, Task 8 Step 8).
+>
+> **Update 2026-11-20 (go-live):** built and live (#117). Task 2's `node --test
+> infra/tests/functions` became `node --test 'infra/tests/functions/**/*.test.mjs'`: CircleCI's
+> Node 24 loads a folder named after `--test` as one module ("Cannot find module"), and only
+> newer Nodes search it (`tests/test_ci_config.py` checks the pattern names every test file).
 
 ## Global Constraints
 
@@ -127,7 +132,7 @@ tests/test_ci_config.py     + tests for both jobs
     `budget_limit_usd: int = 10`
   - `def site_settings_from_context(*, node: constructs.Node) -> SiteSettings`
 
-- [ ] **Step 1: Create the project.** `infra/pyproject.toml`: name `glitchy-site`,
+- [x] **Step 1: Create the project.** `infra/pyproject.toml`: name `glitchy-site`,
   `requires-python = ">=3.14"`, dependencies `aws-cdk-lib`, `constructs`, `boto3` (latest at
   implementation, pinned by the lock), dependency group `dev` = `pytest`; hatchling build with
   package `src/glitchy_site`; `[tool.pytest.ini_options] testpaths = ["tests"]`. Run
@@ -135,7 +140,7 @@ tests/test_ci_config.py     + tests for both jobs
   `{"app": "uv run --frozen python -m glitchy_site.app", "context": {"circleci_organization_id": "", "circleci_project_id": ""}}`
   (the owner fills both IDs in Task 8).
 
-- [ ] **Step 2: Write the failing tests** in `infra/tests/test_glitchy_site_settings.py`:
+- [x] **Step 2: Write the failing tests** in `infra/tests/test_glitchy_site_settings.py`:
 
 ```python
 def test_settings_come_from_the_context():
@@ -177,22 +182,22 @@ def test_the_budget_setting_names_the_environment_variable():
         site_settings_from_context(node=aws_cdk.App(context=context).node)
 ```
 
-- [ ] **Step 3: Run:** `uv run --project infra pytest infra/tests -q`. Expected: FAIL (import error).
+- [x] **Step 3: Run:** `uv run --project infra pytest infra/tests -q`. Expected: FAIL (import error).
 
-- [ ] **Step 4: Implement `settings.py`** with the names above. `site_settings_from_context`
+- [x] **Step 4: Implement `settings.py`** with the names above. `site_settings_from_context`
   reads each key with `node.try_get_context`; a missing or empty value raises
   `MissingSettingError` naming the key, and for `budget_alert_email` also
   `GLITCHY_SITE_BUDGET_EMAIL`.
 
-- [ ] **Step 5: Run** the same command. Expected: PASS.
+- [x] **Step 5: Run** the same command. Expected: PASS.
 
-- [ ] **Step 6: Add the nox session** `infra-test` (`venv_backend='none'`, `default=False`,
+- [x] **Step 6: Add the nox session** `infra-test` (`venv_backend='none'`, `default=False`,
   beside the other test sessions): runs `uv run --project infra --frozen pytest infra/tests` and,
   from Task 2 on, `node --test infra/tests/functions`. Add `'infra'` to `_CODE_DIRS` and
   `"infra/src"` to `[tool.ruff] src`. Run `nox -s infra-test` and `nox -s lint-code`. Expected:
   both pass.
 
-- [ ] **Step 7: Checkpoint** for the owner (no commit).
+- [x] **Step 7: Checkpoint** for the owner (no commit).
 
 ---
 
@@ -215,7 +220,7 @@ def test_the_budget_setting_names_the_environment_variable():
   - Otherwise return the request; a URI ending `/` gets `index.html` appended, and a URI whose
     last segment has no `.` gets `/index.html` appended.
 
-- [ ] **Step 1: Write the failing tests** with `node:test`. Load the function the way
+- [x] **Step 1: Write the failing tests** with `node:test`. Load the function the way
   CloudFront does (no module system): read the file and evaluate it in a `vm` context, ending
   with `;handler`. A helper `requestFor({host, uri, querystring = {}})` builds the event
   (`{request: {uri, querystring, headers: {host: {value: host}}}}`). Tests:
@@ -245,11 +250,11 @@ test('directory URLs on the canonical host fetch their index', () => {
   (CloudFront passes query values as received, already percent-encoded; the function must not
   encode them again.)
 
-- [ ] **Step 2: Run:** `node --test infra/tests/functions`. Expected: FAIL.
-- [ ] **Step 3: Implement** `redirect_to_play.js` (`var`/`function` style is fine; runtime 2.0
+- [x] **Step 2: Run:** `node --test infra/tests/functions`. Expected: FAIL.
+- [x] **Step 3: Implement** `redirect_to_play.js` (`var`/`function` style is fine; runtime 2.0
   also allows `const`/`let`; no `require`, no network) and `redirect_function.py`.
-- [ ] **Step 4: Run** `nox -s infra-test`. Expected: PASS.
-- [ ] **Step 5: Checkpoint.**
+- [x] **Step 4: Run** `nox -s infra-test`. Expected: PASS.
+- [x] **Step 5: Checkpoint.**
 
 ---
 
@@ -267,16 +272,16 @@ test('directory URLs on the canonical host fetch their index', () => {
   `RemovalPolicy.RETAIN`.
 - Test helper (used by Tasks 3-5): `TEST_ENVIRONMENT = aws_cdk.Environment(account='123456789012', region='us-east-1')`.
 
-- [ ] **Step 1: Write the failing test** `test_the_zones_stack_holds_both_zones_and_names_their_servers`:
+- [x] **Step 1: Write the failing test** `test_the_zones_stack_holds_both_zones_and_names_their_servers`:
   `Template.from_stack(stack).resource_count_is('AWS::Route53::HostedZone', 2)`;
   `has_resource_properties` for `Name` `glitchy.games.` and `glitchygames.ai.`; both outputs
   exist (`template.find_outputs('GlitchyGamesNameServers')` non-empty, likewise the other); no
   `AWS::Route53::RecordSet` other than what CDK adds by default (none: no MX, no TXT; the
   Namecheap email-forwarding records are deliberately not copied).
-- [ ] **Step 2: Run** `uv run --project infra pytest infra/tests -q`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** again. Expected: PASS.
-- [ ] **Step 5: Checkpoint.**
+- [x] **Step 2: Run** `uv run --project infra pytest infra/tests -q`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** again. Expected: PASS.
+- [x] **Step 5: Checkpoint.**
 
 ---
 
@@ -307,7 +312,7 @@ test('directory URLs on the canonical host fetch their index', () => {
   protocol policy, its own `cloudfront.Function` from the same code; A and AAAA alias records
   for both hosts.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_the_site_bucket_is_private_and_versioned`: `PublicAccessBlockConfiguration` all four
     true; `VersioningConfiguration.Status == 'Enabled'`; a lifecycle rule with
     `NoncurrentVersionExpiration.NoncurrentDays == 30`; `DeletionPolicy == 'Retain'`.
@@ -329,10 +334,10 @@ test('directory URLs on the canonical host fetch their index', () => {
     redirect certificate names = `GLITCHYGAMES_AI_HOSTS`; both DNS-validated.
   - `test_the_site_stack_names_its_bucket_and_distribution`: outputs `SiteBucketName` and
     `SiteDistributionId` exist.
-- [ ] **Step 2: Run** the tests. Expected: FAIL.
-- [ ] **Step 3: Implement both stacks.**
-- [ ] **Step 4: Run** `nox -s infra-test`. Expected: PASS.
-- [ ] **Step 5: Checkpoint.**
+- [x] **Step 2: Run** the tests. Expected: FAIL.
+- [x] **Step 3: Implement both stacks.**
+- [x] **Step 4: Run** `nox -s infra-test`. Expected: PASS.
+- [x] **Step 5: Checkpoint.**
 
 ---
 
@@ -377,7 +382,7 @@ test('directory URLs on the canonical host fetch their index', () => {
     `--require-approval broadening`. Both pass `-c budget_alert_email=$GLITCHY_SITE_BUDGET_EMAIL`
     and refuse to start (`session.error`, naming the variable) when it is unset.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_the_deploy_role_trusts_only_this_circleci_project`: the trust policy's `aud` and
     `sub` conditions equal the values above for `organization-id` / `project-id`.
   - `test_the_deploy_role_may_only_publish_the_site`: its policy statements are exactly the
@@ -388,12 +393,12 @@ test('directory URLs on the canonical host fetch their index', () => {
     `app.synth().stacks` names the five stacks, each with region `us-east-1`.
   - `test_the_app_refuses_to_build_without_the_budget_email`: no `budget_alert_email` →
     `MissingSettingError` matching `GLITCHY_SITE_BUDGET_EMAIL` (Review Focus 5).
-- [ ] **Step 2: Run** the tests. Expected: FAIL.
-- [ ] **Step 3: Implement** both stacks, `app.py` and the two nox sessions.
-- [ ] **Step 4: Run** `nox -s infra-test`, then `GLITCHY_SITE_BUDGET_EMAIL= nox -s infra-diff`.
+- [x] **Step 2: Run** the tests. Expected: FAIL.
+- [x] **Step 3: Implement** both stacks, `app.py` and the two nox sessions.
+- [x] **Step 4: Run** `nox -s infra-test`, then `GLITCHY_SITE_BUDGET_EMAIL= nox -s infra-diff`.
   Expected: tests PASS; the diff session stops with the message naming
   `GLITCHY_SITE_BUDGET_EMAIL` before calling `npx`.
-- [ ] **Step 5: Checkpoint.**
+- [x] **Step 5: Checkpoint.**
 
 ---
 
@@ -444,7 +449,7 @@ test('directory URLs on the canonical host fetch their index', () => {
 - nox `site-publish` (`venv_backend='none'`, `default=False`):
   `uv run --project infra --frozen python -m glitchy_site.publish --source <posargs or web/placeholder>`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `test_content_types` (parametrized over the table above, `.wasm` → `application/wasm`
     included) and `test_html_is_cached_briefly_and_the_rest_for_a_day`.
   - `test_the_plan_uploads_every_file_and_deletes_what_is_gone` (`tmp_path` with
@@ -467,14 +472,14 @@ test('directory URLs on the canonical host fetch their index', () => {
     (`image/png`).
   - `test_the_placeholder_loads_nothing_from_elsewhere`: `index.html` has no `http` URL in
     `src=` or `href=` other than the GitHub link.
-- [ ] **Step 2: Run** the tests. Expected: FAIL.
-- [ ] **Step 3: Implement** `publish.py`, the placeholder files and the nox session. Patch
+- [x] **Step 2: Run** the tests. Expected: FAIL.
+- [x] **Step 3: Implement** `publish.py`, the placeholder files and the nox session. Patch
   only the network (Stubber); everything else real (`tmp_path`).
-- [ ] **Step 4: Run** `nox -s infra-test` and
+- [x] **Step 4: Run** `nox -s infra-test` and
   `uv run --project infra --frozen python -m glitchy_site.publish --source web/placeholder --dry-run`.
   Expected: PASS; the dry run prints the two uploads (it needs no credentials: `--dry-run`
   plans against an empty key list and never builds a client).
-- [ ] **Step 5: Checkpoint.**
+- [x] **Step 5: Checkpoint.**
 
 ---
 
@@ -502,7 +507,7 @@ test('directory URLs on the canonical host fetch their index', () => {
     itself; no AWS CLI. In the workflow: `requires: [build-and-test-macos, test-infra]`,
     `filters: branches: only: main`, `serial-group: << pipeline.project.slug >>/deploy-site`.
 
-- [ ] **Step 1: Write the failing tests** in `tests/test_ci_config.py`, using the existing
+- [x] **Step 1: Write the failing tests** in `tests/test_ci_config.py`, using the existing
   `circleci_workflow_job` helper:
   - `test_the_infra_tests_run_on_every_branch`: the `test-infra` entry has no `filters:`; the
     config runs `nox -s infra-test`.
@@ -511,12 +516,12 @@ test('directory URLs on the canonical host fetch their index', () => {
   - `test_the_site_deploy_uses_oidc_not_stored_keys`: the job's text contains
     `CIRCLE_OIDC_TOKEN_V2` and `AWS_WEB_IDENTITY_TOKEN_FILE`, and the whole config contains no
     `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`.
-- [ ] **Step 2: Run** `uv run pytest tests/test_ci_config.py --dummy-only -q`. Expected: the
+- [x] **Step 2: Run** `uv run pytest tests/test_ci_config.py --dummy-only -q`. Expected: the
   three new tests FAIL.
-- [ ] **Step 3: Implement** the parameter, both jobs and the workflow entries.
-- [ ] **Step 4: Run** the same tests, then `nox -s lint-yaml` and `nox -s lint-circleci`.
+- [x] **Step 3: Implement** the parameter, both jobs and the workflow entries.
+- [x] **Step 4: Run** the same tests, then `nox -s lint-yaml` and `nox -s lint-circleci`.
   Expected: PASS.
-- [ ] **Step 5: Checkpoint.**
+- [x] **Step 5: Checkpoint.**
 
 ---
 
@@ -606,11 +611,17 @@ nothing is done without the owner at the keyboard.
 - [x] **Step 7: Budget email.** Confirm the subscription email AWS Budgets sends.
   - Not needed: AWS Budgets emails an address directly, with no subscription to confirm
     (`plans/future-work.md`, Website).
-- [ ] **Step 8: CircleCI.** In CircleCI, Project Settings > Environment Variables, add
+- [x] **Step 8: CircleCI.** In CircleCI, Project Settings > Environment Variables, add
   `SITE_DEPLOY_ROLE_ARN` = the `DeployRoleArn` output (never in `.circleci/config.yml`: it names
   the AWS account). The owner commits and merges the branch. Check: the `deploy-site` job is
   green on `main`.
-- [ ] **Step 9: Verify from outside.**
+  - 2026-11-20: the owner set the variable; #117 merged as `4d1c364a`, and main's pipeline
+    passed on every job. `deploy-site` (job 4206) took 43 s, 31 s of it the job's environment
+    and 4 s `nox -s site-publish`; `deploy-docs` in the same pipeline passed too. Two CI fixes
+    came first: the jobs named the removed pipeline parameter `PYTHON_LATEST_VERSION` (now
+    `PYTHON_VERSION`, with the `pythons` argument `install-deps-posix` requires; a test checks
+    every used parameter is declared), and the Node glob in the update above.
+- [x] **Step 9: Verify from outside.**
   - `curl -sI https://play.glitchy.games/` → `200`, `content-type: text/html; charset=utf-8`,
     `strict-transport-security` present, no `cross-origin-embedder-policy`.
   - `curl -sI https://glitchy.games/x?y=1`, `https://www.glitchy.games/`,
@@ -618,7 +629,19 @@ nothing is done without the owner at the keyboard.
     https://play.glitchy.games/x?y=1` (or `/`).
   - `curl -sI http://play.glitchy.games/` → `301` to `https://`.
   - The page shows the mockup in a browser.
-- [ ] **Step 10: Docs.** Update the spec's Status to "Built (date)", the `Website` section of
+  - 2026-11-20, from outside AWS: `https://play.glitchy.games/` → `200`, `text/html;
+    charset=utf-8`, `strict-transport-security: max-age=31536000`, no
+    `cross-origin-embedder-policy`, `x-cache: Hit from cloudfront`, title "GlitchyGames Arcade
+    — coming soon"; `/arcade-mockup.png` → `200`, `image/png`, the same 420,578 bytes as
+    `src/website/arcade-mockup.png`. `https://glitchy.games/a/b?x=1` → `301` to
+    `https://play.glitchy.games/a/b?x=1`; `https://www.glitchy.games/` and
+    `https://www.glitchygames.ai/` → `301` to `https://play.glitchy.games/`;
+    `https://glitchygames.ai/p?q=2` → `301` to `https://play.glitchy.games/p?q=2` (each
+    `x-cache: FunctionGeneratedResponse`). `http://glitchy.games/` and
+    `http://play.glitchy.games/` → `301` to `https://`. The `.ai` redirect sends no HSTS
+    (`plans/future-work.md`, Website). The page and image were checked by fetching them, not
+    by viewing them in a browser.
+- [x] **Step 10: Docs.** Update the spec's Status to "Built (date)", the `Website` section of
   `plans/future-work.md` if anything new came up, and `CLAUDE.md` with a short "Website
   (`infra/`)" section naming the nox sessions and the spec. The docs' "Play in the Browser" link
   stays on GitHub Pages (the games aren't on `play.glitchy.games` yet).
@@ -627,4 +650,6 @@ nothing is done without the owner at the keyboard.
     edits a file under `infra/` or `src/website/` (or this plan, or the design). `CLAUDE.md` was
     already at `tests/test_claude_md.py`'s 360-line limit, which merging main had made the
     section break.
-- [ ] **Step 11: Checkpoint** for the owner.
+  - 2026-11-20: the spec's Status is "Built (2026-11-20)"; `plans/future-work.md`'s Website
+    section gained the `.ai` redirect's missing HSTS in #117.
+- [ ] **Step 11: Checkpoint** for the owner: the review of the docs PR that ticks Steps 8-10.
