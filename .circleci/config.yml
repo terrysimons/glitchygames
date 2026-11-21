@@ -131,6 +131,135 @@ commands:
             uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"
             nox --version
 
+  # The system packages the Linux jobs need, from apt, with apt's lists and downloads cached:
+  # the test job (test-python-3-15-linux) and the docs deploy (deploy-docs, which runs on Linux
+  # so it takes no Mac from the macOS jobs: the owner, 2026-11-20). One list for both, so one
+  # cache key and one install line (nox -s test-linux-ci reads it)
+  install-linux-system-dependencies:
+    steps:
+      # apt's package lists and the packages it downloaded, kept between jobs, so an Ubuntu mirror
+      # outage cannot stop the job: jobs 3822 and 3827 (2026-11-19) died here when apt-get update
+      # could not reach archive.ubuntu.com or security.ubuntu.com for 7+ minutes, and every later
+      # step failed with "nox: command not found". The owner, 2026-11-19 ("Yeah, 226"): cache them,
+      # install from the cache, and fall back to the mirror. Retries alone were turned down (apt
+      # gives up within about a minute), and so was an image of our own (too heavy for these
+      # packages). The key holds the image, the architecture and every package the step installs:
+      # change the install line and change the key with it (tests/test_ci_config.py). It ends with
+      # this ISO week, as CircleCI never overwrites a key: a key that never changed would keep the
+      # first job's lists until the mirror dropped a version they name, and then every job would
+      # need the mirror again and none could save fresher lists. A new week's first job restores
+      # last week's cache (the fallback key) and saves its own. Only the very first job, with no
+      # cache under any week, needs the mirror; bump the version to start afresh. v2: apt reads
+      # only Ubuntu's main (7.3 MB, not 44), and an existing week's v1 key kept the old cache
+      - run:
+          name: "Name this week's apt cache"
+          command: |
+            mkdir -p test-results
+            date +%G-%V > test-results/apt-cache-week
+
+      - restore_cache:
+          keys:
+            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-rsync-{{ checksum "test-results/apt-cache-week" }}
+            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-rsync-
+
+      - run:
+          name: "Install Linux system dependencies"
+          command: |
+            set -euo pipefail
+            # apt keeps its lists and downloaded packages in ~/apt-cache, which the cache saves
+            # (the image's docker-clean deletes packages from /var/cache/apt/archives only, and
+            # its apt keeps none unless told to), and retries each download. It reads only the
+            # main component of Ubuntu's own sources: our packages are all in main (and a main
+            # package depends only on main), so it fetches about 4 MB of lists instead of 27, and
+            # the image's Docker, git PPA and git-lfs sources, which we install nothing from,
+            # cannot slow or fail it (the owner, 2026-11-19: "only check for updates for
+            # particular packages"; apt's lists come whole per source, never per package). The
+            # copy keeps each source's URIs, suites and key, so either architecture's mirror works
+            sudo sed 's/^Components:.*/Components: main/' /etc/apt/sources.list.d/ubuntu.sources \
+              | sudo tee /etc/apt/glitchygames-ubuntu-main.sources > /dev/null
+            mkdir -p "$HOME/apt-cache/lists/partial" "$HOME/apt-cache/archives/partial"
+            printf '%s\n' \
+              "Dir::State::Lists \"$HOME/apt-cache/lists\";" \
+              "Dir::Cache::Archives \"$HOME/apt-cache/archives\";" \
+              "APT::Keep-Downloaded-Packages \"true\";" \
+              "Binary::apt::APT::Keep-Downloaded-Packages \"true\";" \
+              "Acquire::Retries \"5\";" \
+              "Acquire::http::Timeout \"30\";" \
+              "Dir::Etc::SourceList \"/etc/apt/glitchygames-ubuntu-main.sources\";" \
+              "Dir::Etc::SourceParts \"/nonexistent-glitchygames-sources.d\";" \
+              | sudo tee /etc/apt/apt.conf.d/80glitchygames-apt-cache > /dev/null
+            install_packages() {
+              # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
+              # hidapi's source build on Python 3.15, which has no manylinux wheel for it (job
+              # 3629); the Raspberry Pis install the same. iproute2 (ss) and lsof: the real-socket
+              # port test (tests/test_ansible_ai_service.py) skips without the platform's port
+              # tool. rsync: the pygame-ce browser wheel's build script (deploy-docs). Each split
+              # machine is its own container, so each installs them. nox -s
+              # test-linux-ci reads this line
+              sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config iproute2 lsof rsync
+            }
+            # The fallback's update, tried 5 times. It complements the cache, never replaces it
+            # (retries alone were turned down above): it runs only when the cache cannot
+            # install (a new key, or a stale cache), and there one failed fetch stopped the job
+            # (job 3840, 2026-11-19: node 0's update got an HTTP 520 from archive.ubuntu.com;
+            # Acquire::Retries does not retry that). Error-Mode=any makes a failed fetch fail the
+            # update (apt 3.2 exits 0 after one otherwise). The waits, 30 to 240 seconds, add up
+            # to 7.5 minutes, past the 7+ minute outage of 2026-11-19 and under CircleCI's
+            # 10-minute no-output limit; each failure is printed before its wait
+            update_from_the_mirror() {
+              local waits=(30 60 120 240)
+              local attempts=$(( ${#waits[@]} + 1 ))
+              local attempt=1
+              until sudo apt-get update -o APT::Update::Error-Mode=any; do
+                if (( attempt == attempts )); then
+                  echo "apt-get update failed $attempts times: giving up" >&2
+                  return 1
+                fi
+                local wait_seconds=${waits[attempt - 1]}
+                echo "apt-get update failed (attempt $attempt of $attempts):" \
+                  "trying again in ${wait_seconds}s" >&2
+                sleep "$wait_seconds"
+                attempt=$(( attempt + 1 ))
+              done
+            }
+            # Every run first tries to refresh the lists from the mirror, and goes on without
+            # them if it cannot (the owner, 2026-11-19: "Make the update/upgrade non-fatal if it
+            # fails", "But attempt it every run"). Then the install takes our packages' newest
+            # versions, upgrading only them ("just do it with the packages we care about"): no
+            # apt-get upgrade, so the rest of the image stays as CircleCI built it and nothing
+            # else is cached. With the refresh failed, it installs from the restored lists and
+            # packages; with none restored (a new key) or a stale cache, the fallback updates
+            # until the mirror answers and installs again. After any refresh, autoclean drops
+            # the packages the fresh lists no longer name, so the cache saved keeps none
+            # The first refresh gives up within a minute, with apt's retries off, so an outage
+            # costs a job a minute at most before the cache installs (in the outage of
+            # 2026-11-19 one update kept trying for 7+ minutes). Stopping apt is safe: it moves
+            # an index into place only once it is whole
+            refreshed=false
+            if sudo timeout 60 apt-get update -o APT::Update::Error-Mode=any -o Acquire::Retries=0
+            then
+              refreshed=true
+            else
+              echo "Refreshing from the mirror failed: installing from the apt cache" >&2
+            fi
+            if ! install_packages; then
+              echo "Installing from the apt cache failed: updating from the mirror" >&2
+              update_from_the_mirror
+              install_packages
+              refreshed=true
+            fi
+            if [ "$refreshed" = true ]; then
+              sudo apt-get autoclean
+            fi
+            # apt leaves root-owned files (partial/ is root or _apt, mode 700): the cache saves
+            # them as this user
+            sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-cache"
+
+      - save_cache:
+          key: apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-rsync-{{ checksum "test-results/apt-cache-week" }}
+          paths:
+            - ~/apt-cache
+
   nox-format:
     steps:
       - run:
@@ -503,127 +632,7 @@ jobs:
     steps:
       - checkout
 
-      # apt's package lists and the packages it downloaded, kept between jobs, so an Ubuntu mirror
-      # outage cannot stop the job: jobs 3822 and 3827 (2026-11-19) died here when apt-get update
-      # could not reach archive.ubuntu.com or security.ubuntu.com for 7+ minutes, and every later
-      # step failed with "nox: command not found". The owner, 2026-11-19 ("Yeah, 226"): cache them,
-      # install from the cache, and fall back to the mirror. Retries alone were turned down (apt
-      # gives up within about a minute), and so was an image of our own (too heavy for these
-      # packages). The key holds the image, the architecture and every package the step installs:
-      # change the install line and change the key with it (tests/test_ci_config.py). It ends with
-      # this ISO week, as CircleCI never overwrites a key: a key that never changed would keep the
-      # first job's lists until the mirror dropped a version they name, and then every job would
-      # need the mirror again and none could save fresher lists. A new week's first job restores
-      # last week's cache (the fallback key) and saves its own. Only the very first job, with no
-      # cache under any week, needs the mirror; bump the version to start afresh. v2: apt reads
-      # only Ubuntu's main (7.3 MB, not 44), and an existing week's v1 key kept the old cache
-      - run:
-          name: "Name this week's apt cache"
-          command: |
-            mkdir -p test-results
-            date +%G-%V > test-results/apt-cache-week
-
-      - restore_cache:
-          keys:
-            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-{{ checksum "test-results/apt-cache-week" }}
-            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-
-
-      - run:
-          name: "Install Linux system dependencies"
-          command: |
-            set -euo pipefail
-            # apt keeps its lists and downloaded packages in ~/apt-cache, which the cache saves
-            # (the image's docker-clean deletes packages from /var/cache/apt/archives only, and
-            # its apt keeps none unless told to), and retries each download. It reads only the
-            # main component of Ubuntu's own sources: our packages are all in main (and a main
-            # package depends only on main), so it fetches about 4 MB of lists instead of 27, and
-            # the image's Docker, git PPA and git-lfs sources, which we install nothing from,
-            # cannot slow or fail it (the owner, 2026-11-19: "only check for updates for
-            # particular packages"; apt's lists come whole per source, never per package). The
-            # copy keeps each source's URIs, suites and key, so either architecture's mirror works
-            sudo sed 's/^Components:.*/Components: main/' /etc/apt/sources.list.d/ubuntu.sources \
-              | sudo tee /etc/apt/glitchygames-ubuntu-main.sources > /dev/null
-            mkdir -p "$HOME/apt-cache/lists/partial" "$HOME/apt-cache/archives/partial"
-            printf '%s\n' \
-              "Dir::State::Lists \"$HOME/apt-cache/lists\";" \
-              "Dir::Cache::Archives \"$HOME/apt-cache/archives\";" \
-              "APT::Keep-Downloaded-Packages \"true\";" \
-              "Binary::apt::APT::Keep-Downloaded-Packages \"true\";" \
-              "Acquire::Retries \"5\";" \
-              "Acquire::http::Timeout \"30\";" \
-              "Dir::Etc::SourceList \"/etc/apt/glitchygames-ubuntu-main.sources\";" \
-              "Dir::Etc::SourceParts \"/nonexistent-glitchygames-sources.d\";" \
-              | sudo tee /etc/apt/apt.conf.d/80glitchygames-apt-cache > /dev/null
-            install_packages() {
-              # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
-              # hidapi's source build on Python 3.15, which has no manylinux wheel for it (job
-              # 3629); the Raspberry Pis install the same. iproute2 (ss) and lsof: the real-socket
-              # port test (tests/test_ansible_ai_service.py) skips without the platform's port
-              # tool. Each split machine is its own container, so each installs them. nox -s
-              # test-linux-ci reads this line
-              sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config iproute2 lsof
-            }
-            # The fallback's update, tried 5 times. It complements the cache, never replaces it
-            # (retries alone were turned down above): it runs only when the cache cannot
-            # install (a new key, or a stale cache), and there one failed fetch stopped the job
-            # (job 3840, 2026-11-19: node 0's update got an HTTP 520 from archive.ubuntu.com;
-            # Acquire::Retries does not retry that). Error-Mode=any makes a failed fetch fail the
-            # update (apt 3.2 exits 0 after one otherwise). The waits, 30 to 240 seconds, add up
-            # to 7.5 minutes, past the 7+ minute outage of 2026-11-19 and under CircleCI's
-            # 10-minute no-output limit; each failure is printed before its wait
-            update_from_the_mirror() {
-              local waits=(30 60 120 240)
-              local attempts=$(( ${#waits[@]} + 1 ))
-              local attempt=1
-              until sudo apt-get update -o APT::Update::Error-Mode=any; do
-                if (( attempt == attempts )); then
-                  echo "apt-get update failed $attempts times: giving up" >&2
-                  return 1
-                fi
-                local wait_seconds=${waits[attempt - 1]}
-                echo "apt-get update failed (attempt $attempt of $attempts):" \
-                  "trying again in ${wait_seconds}s" >&2
-                sleep "$wait_seconds"
-                attempt=$(( attempt + 1 ))
-              done
-            }
-            # Every run first tries to refresh the lists from the mirror, and goes on without
-            # them if it cannot (the owner, 2026-11-19: "Make the update/upgrade non-fatal if it
-            # fails", "But attempt it every run"). Then the install takes our packages' newest
-            # versions, upgrading only them ("just do it with the packages we care about"): no
-            # apt-get upgrade, so the rest of the image stays as CircleCI built it and nothing
-            # else is cached. With the refresh failed, it installs from the restored lists and
-            # packages; with none restored (a new key) or a stale cache, the fallback updates
-            # until the mirror answers and installs again. After any refresh, autoclean drops
-            # the packages the fresh lists no longer name, so the cache saved keeps none
-            # The first refresh gives up within a minute, with apt's retries off, so an outage
-            # costs a job a minute at most before the cache installs (in the outage of
-            # 2026-11-19 one update kept trying for 7+ minutes). Stopping apt is safe: it moves
-            # an index into place only once it is whole
-            refreshed=false
-            if sudo timeout 60 apt-get update -o APT::Update::Error-Mode=any -o Acquire::Retries=0
-            then
-              refreshed=true
-            else
-              echo "Refreshing from the mirror failed: installing from the apt cache" >&2
-            fi
-            if ! install_packages; then
-              echo "Installing from the apt cache failed: updating from the mirror" >&2
-              update_from_the_mirror
-              install_packages
-              refreshed=true
-            fi
-            if [ "$refreshed" = true ]; then
-              sudo apt-get autoclean
-            fi
-            # apt leaves root-owned files (partial/ is root or _apt, mode 700): the cache saves
-            # them as this user
-            sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-cache"
-
-      - save_cache:
-          key: apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-{{ checksum "test-results/apt-cache-week" }}
-          paths:
-            - ~/apt-cache
+      - install-linux-system-dependencies
 
       - restore-uv-cache-posix
       - install-deps-posix:
@@ -790,12 +799,17 @@ jobs:
 
   # Publishes the docs (https://terrysimons.github.io/glitchygames/, the gh-pages branch) after
   # a merge to main: nox -s docs-deploy, browser games (play/) included, without measuring the
-  # replays (CI machines vary; their timings would be noise in the run ledger). On macOS, the
-  # fastest job: it starts as soon as macOS passes, alongside the Linux and Windows jobs
+  # replays (CI machines vary; their timings would be noise in the run ledger). It starts as soon
+  # as the macOS job passes (the fastest), alongside the Linux and Windows jobs, but runs on
+  # Linux: on a Mac it took one the pull requests' macOS jobs waited for (the owner, 2026-11-20:
+  # "cross-job contention for the mac")
   deploy-docs:
-    macos:
-      xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
-    resource_class: m4pro.medium
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
+    # large (4 vCPUs, 8 GB): the strict docs build was killed for memory at medium's 4 GB; at 8 GB
+    # the whole deploy build (wheel, seven games, docs) peaked at 5793 MiB, page cache included
+    # (cimg/python:3.15.2, arm64, 2026-11-20)
+    resource_class: large
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
@@ -841,6 +855,8 @@ jobs:
       - restore_cache:
           keys:
             - pygame-ce-pyodide-wheel-v1-{{ checksum ".pygame-ce-commit" }}
+      # hidapi's source build (no Linux wheel for 3.15) and rsync (the wheel's build script)
+      - install-linux-system-dependencies
       - install-deps-posix:
           pythons: << pipeline.parameters.PYTHON_VERSION >>
       - run:
@@ -967,7 +983,9 @@ workflows:
           filters:
             branches:
               only: main
-          serial-group: << pipeline.project.slug >>/deploy-docs
+          # The deploys' one lock, deploy-site's too (the owner, 2026-11-20): one deploy of
+          # either kind at a time, across pipelines
+          serial-group: << pipeline.project.slug >>/deploy-site
       - test-infra
       # After a merge to main, once the docs have published (deploy-docs, which waits for macOS)
       # and the infra tests pass (the owner, 2026-10-28: "it should run on main after docs

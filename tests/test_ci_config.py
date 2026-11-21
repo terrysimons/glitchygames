@@ -724,16 +724,35 @@ def circleci_workflow_job(*, name: str) -> str:
 
 
 def test_the_docs_deploy_after_main_passes_on_macos():
-    """Docs deploy from main only, as soon as the macOS job passes, one deploy at a time.
+    """Docs deploy from main only, as soon as the macOS job passes, under the deploys' one lock.
 
-    macOS is the fastest job, so the deploy overlaps the Linux and Windows jobs instead of
-    adding its time after them; the same tree passed all three in its pull request.
+    macOS is the fastest test job, so the deploy overlaps the Linux and Windows jobs instead of
+    adding its time after them; the same tree passed all three in its pull request. It holds the
+    same serial group as deploy-site (the owner, 2026-11-20: "migrate deploy-docs to the same
+    lock that does deploy-site"): one deploy of either kind at a time, across pipelines.
     """
     entry = circleci_workflow_job(name='deploy-docs')
 
     assert 'requires:\n            - test-python-3-15-macos\n' in entry
     assert 'branches:\n              only: main\n' in entry
-    assert 'serial-group:' in entry
+    assert 'serial-group: << pipeline.project.slug >>/deploy-site' in entry
+
+
+def test_the_docs_deploy_runs_on_linux_and_leaves_the_macs_to_the_tests():
+    """deploy-docs runs in deploy-site's Linux image, never on a Mac.
+
+    The owner, 2026-11-20: the deploy took a Mac that pull requests' macOS jobs waited for
+    ("cross-job contention for the mac"). It only builds the docs and the browser games, which
+    need no Mac.
+    """
+    linux_image = (
+        '    docker:\n      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>\n'
+    )
+    job = circleci_job_definition(name='deploy-docs')
+
+    assert 'macos:' not in job
+    assert job.startswith(linux_image)
+    assert circleci_job_definition(name='deploy-site').startswith(linux_image)
 
 
 def test_the_docs_deploy_publishes_mains_latest_commit_once():
@@ -1046,16 +1065,74 @@ APT_SETTINGS_PATH = Path('etc/apt/apt.conf.d/80glitchygames-apt-cache')
 APT_MAIN_SOURCES_PATH = Path('etc/apt/glitchygames-ubuntu-main.sources')
 
 
+LINUX_SYSTEM_DEPENDENCIES_COMMAND = 'install-linux-system-dependencies'
+
+
 def linux_job_steps() -> list[Any]:
-    """Return the Linux test job's steps, parsed.
+    """Return the steps that install the Linux jobs' system packages, parsed.
+
+    They are the reusable command both Linux jobs run (test-python-3-15-linux and deploy-docs:
+    ``test_both_linux_jobs_install_their_system_packages_through_one_command``).
 
     Returns:
         The steps, in order.
 
     """
-    steps = circleci_jobs()['test-python-3-15-linux']['steps']
+    commands = yaml.safe_load(CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8'))['commands']
+    steps = commands[LINUX_SYSTEM_DEPENDENCIES_COMMAND]['steps']
     assert isinstance(steps, list)
     return steps
+
+
+def test_both_linux_jobs_install_their_system_packages_through_one_command():
+    """The test job and the docs deploy run one install, so one list, cache and fallback.
+
+    The owner, 2026-11-20, moved deploy-docs to Linux. It needs hidapi's source-build packages
+    and rsync (the pygame-ce browser wheel's build script); a second copy of the install step
+    would drift from the first (as a second package list once did: CircleCI job 3629).
+    """
+    import noxfile
+
+    jobs = circleci_jobs()
+
+    for name in ('test-python-3-15-linux', 'deploy-docs'):
+        steps = jobs[name]['steps']
+        assert isinstance(steps, list)
+        assert steps.count(LINUX_SYSTEM_DEPENDENCIES_COMMAND) == 1, name
+        # Before uv and Python: hidapi builds from source while the project installs
+        python_installed = next(
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and 'install-deps-posix' in step
+        )
+        assert steps.index(LINUX_SYSTEM_DEPENDENCIES_COMMAND) < python_installed, name
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    assert len(re.findall(r'sudo apt-get install -y \S', configuration)) == 1
+    assert {'rsync', 'libusb-1.0-0-dev', 'libudev-dev', 'pkg-config'} <= set(
+        noxfile._linux_ci_job_packages(configuration=configuration)
+    )
+
+
+def test_the_linux_package_reader_refuses_a_job_that_skips_the_install_command():
+    """test-linux-ci would otherwise install packages the job itself never installs."""
+    import noxfile
+
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    skipped = configuration.replace(f'      - {LINUX_SYSTEM_DEPENDENCIES_COMMAND}\n', '', 1)
+
+    with pytest.raises(ValueError, match=f'does not run {LINUX_SYSTEM_DEPENDENCIES_COMMAND}'):
+        noxfile._linux_ci_job_packages(configuration=skipped)
+
+
+def test_the_linux_package_reader_refuses_a_command_without_an_install_line():
+    """An install command with no apt line names nothing to install: refused, not empty."""
+    import noxfile
+
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    no_line = configuration.replace('sudo apt-get install -y ', 'sudo apt-get install ', 1)
+
+    with pytest.raises(ValueError, match='has no "sudo apt-get install -y" line'):
+        noxfile._linux_ci_job_packages(configuration=no_line)
 
 
 def apt_install_step_index(*, steps: list[Any]) -> int:
@@ -1453,30 +1530,32 @@ def test_the_install_line_is_the_one_noxfile_reads():
 
     assert noxfile._linux_ci_job_packages(
         configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    ) == ['fontconfig', 'libudev-dev', 'libusb-1.0-0-dev', 'pkg-config', 'iproute2', 'lsof']
+    ) == [
+        'fontconfig',
+        'libudev-dev',
+        'libusb-1.0-0-dev',
+        'pkg-config',
+        'iproute2',
+        'lsof',
+        'rsync',
+    ]
 
 
 def test_every_linux_job_installs_the_linux_jobs_system_packages():
-    """Every Linux test job installs exactly the Linux job's packages, so a new one can't drift.
+    """Every Linux test job installs through the one shared command, so a new one can't drift.
 
-    Since CI runs 3.15 only (2026-11-19) the Linux job is the only Linux test job, so today it is
-    compared with itself: the test guards a second Linux test job added later (another Python,
-    another image). The Linux job must be one of the test jobs it finds, so it never passes on
-    an empty list.
+    Since CI runs 3.15 only (2026-11-19) the Linux job is the only Linux test job: the test
+    guards a second Linux test job added later (another Python, another image). The Linux job
+    must be one of the test jobs it finds, so it never passes on an empty list.
     """
     import noxfile
 
     linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
-    expected = noxfile._linux_ci_job_packages(
-        configuration=CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    )
+
     assert noxfile._CIRCLECI_LINUX_JOB in linux_jobs
     for name, job in linux_jobs.items():
-        install = re.search(
-            r'^\s+sudo apt-get install -y (?P<packages>\S.*)$', job, flags=re.MULTILINE
-        )
-        assert install is not None, name
-        assert install['packages'].split() == expected, name
+        assert f'      - {LINUX_SYSTEM_DEPENDENCIES_COMMAND}\n' in job, name
+        assert 'apt-get install' not in job, name
 
 
 @pytest.mark.parametrize(

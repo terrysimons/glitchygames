@@ -1200,6 +1200,8 @@ def test_linux_x11(session: nox.Session) -> None:
 # uv cache kept between runs, and where the list of files to copy is mounted
 _CIRCLECI_CONFIG = Path('.circleci/config.yml')
 _CIRCLECI_LINUX_JOB = 'test-python-3-15-linux'
+# The reusable command that installs the Linux jobs' system packages (the job runs it)
+_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES = 'install-linux-system-dependencies'
 _CIRCLECI_DOCKER_RESOURCES = {'small': ('2g', '1'), 'medium': ('4g', '2'), 'large': ('8g', '4')}
 _LINUX_CI_RESULTS = Path('test-results/linux-ci')
 _LINUX_CI_PLATFORM = 'linux/amd64'
@@ -1284,26 +1286,61 @@ def _circleci_job(*, configuration: str, name: str) -> str:
     return match['body']
 
 
-def _linux_ci_job_packages(*, configuration: str) -> list[str]:
-    """Return the apt packages the Linux job installs, from its own install line.
+def _circleci_command(*, configuration: str, name: str) -> str:
+    """Return a reusable command's definition under ``commands:`` (its lines, as text).
 
-    Read from the job rather than listed again here, so the Docker reproduction installs exactly
-    what the job does (a second list drifted: hidapi's build packages, CircleCI job 3629).
+    Args:
+        configuration: The CircleCI configuration's text.
+        name: The command.
+
+    Returns:
+        From the line after ``  <name>:`` to the next command's (or the end of ``commands:``).
+
+    Raises:
+        ValueError: If the configuration has no such command.
+
+    """
+    commands = configuration[
+        configuration.index('\ncommands:\n') : configuration.index('\njobs:\n') + 1
+    ]
+    match = re.search(rf'^  {name}:\n(?P<body>(?:(?:    .*)?\n)+)', commands, flags=re.MULTILINE)
+    if match is None:
+        message = f'{_CIRCLECI_CONFIG} has no command {name}'
+        raise ValueError(message)
+    return match['body']
+
+
+def _linux_ci_job_packages(*, configuration: str) -> list[str]:
+    """Return the apt packages the Linux job installs, from the install line it runs.
+
+    Read from the configuration rather than listed again here, so the Docker reproduction
+    installs exactly what the job does (a second list drifted: hidapi's build packages, CircleCI
+    job 3629). The job installs them through the shared command
+    ``_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES`` (deploy-docs runs it too).
 
     Args:
         configuration: The CircleCI configuration's text.
 
     Returns:
-        The packages, in the job's order.
+        The packages, in the install line's order.
 
     Raises:
-        ValueError: If the job has no ``sudo apt-get install -y`` line.
+        ValueError: If the job does not run that command, or the command has no
+            ``sudo apt-get install -y`` line.
 
     """
     job = _circleci_job(configuration=configuration, name=_CIRCLECI_LINUX_JOB)
-    install = re.search(r'^\s+sudo apt-get install -y (?P<packages>\S.*)$', job, flags=re.MULTILINE)
+    if f'      - {_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES}\n' not in job:
+        message = f'{_CIRCLECI_LINUX_JOB} does not run {_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES}'
+        raise ValueError(message)
+    command = _circleci_command(
+        configuration=configuration, name=_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES
+    )
+    install = re.search(
+        r'^\s+sudo apt-get install -y (?P<packages>\S.*)$', command, flags=re.MULTILINE
+    )
     if install is None:
-        message = f'{_CIRCLECI_LINUX_JOB} has no "sudo apt-get install -y" line'
+        message = f'{_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES} has no "sudo apt-get install -y" line'
         raise ValueError(message)
     return install['packages'].split()
 
