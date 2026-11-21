@@ -381,7 +381,9 @@ class ScriptedInputSupervisor:
         """
         next_frame = frame_number + 1
         if self.controls_tail is not None and next_frame >= self.frame_count:
-            self._post_controls_tail(tail_frame=next_frame - self.frame_count)
+            self._post_controls_tail(
+                controls_tail=self.controls_tail, tail_frame=next_frame - self.frame_count
+            )
             return
         if frame_number >= self.frame_count - 1:
             # No event: the loop ends after this frame, so the recording holds no quit request
@@ -397,22 +399,22 @@ class ScriptedInputSupervisor:
         for event in self.script.key_events.get(next_frame, []):
             self._post(event)
 
-    def _post_controls_tail(self: Self, *, tail_frame: int) -> None:
+    def _post_controls_tail(self: Self, *, controls_tail: InputScript, tail_frame: int) -> None:
         """Post a frame of the controls tail; end the run if the game has not quit in time.
 
         Args:
+            controls_tail: The tail being played (key events only: ``scripted_session_refusal``).
             tail_frame: The frame being posted for, counted from the tail's first frame.
 
         """
-        assert self.controls_tail is not None
         if tail_frame == 0:
             for key in sorted(self.held_keys):
                 self._post(release(key))
-        if tail_frame > max(self.controls_tail.key_events) + QUIT_WAIT_FRAMES:
+        if tail_frame > max(controls_tail.key_events) + QUIT_WAIT_FRAMES:
             self.game_did_not_quit = True
             self.scene_manager.quit_requested = True
             return
-        for event in self.controls_tail.key_events.get(tail_frame, []):
+        for event in controls_tail.key_events.get(tail_frame, []):
             self._post(event)
 
     def _post(self: Self, event: pygame.event.Event) -> None:

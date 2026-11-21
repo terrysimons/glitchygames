@@ -82,6 +82,7 @@ from glitchygames.audio.waves import (
     WaveRegistry,
     current_wave_registry,
 )
+from glitchygames.checks import required
 from glitchygames.effects.easing import get_easing
 from glitchygames.engine_context import EngineContext
 
@@ -89,6 +90,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
 log: logging.Logger = logging.getLogger('game.audio.assets')
+
 
 CURRENT_SCHEMA_VERSION: Final[int] = 1
 LEGACY_SCHEMA_VERSION: Final[int] = 0
@@ -218,8 +220,17 @@ def _checked_pitch(value: object) -> PitchValue:
     except TypeError as error:
         message = f'a pitch is a note name or a float in hertz: {error}'
         raise ValueError(message) from None
-    assert isinstance(value, str | float)  # resolve_pitch refuses every other accepted type
-    return value
+    # resolve_pitch also takes Note, Midi and ScaleStep objects; a pitch as a file holds it is
+    # only the text or the number it writes
+    match value:
+        case str() | float():
+            return value
+        case _:
+            message = (
+                f'a pitch is a note name or a float in hertz: '
+                f'cannot use {value!r} of type {type(value).__name__}'
+            )
+            raise ValueError(message)
 
 
 Pitch = Annotated[PitchValue, BeforeValidator(_checked_pitch)]
@@ -1025,9 +1036,9 @@ def _wave_from_table(table: WaveTable) -> Wave:
                 raise ValueError(message)
             return Wave.from_harmonics(Harmonics.drawbars(drawbars))
         return Wave.from_harmonics(Harmonics(**levels))
-    assert table.points is not None  # WaveTable requires exactly one kind
+    points = required(table.points, what="the wave table's points")
     return Wave.from_points(
-        [WavePoint(at=point.at, level=point.level) for point in table.points],
+        [WavePoint(at=point.at, level=point.level) for point in points],
         shape=table.shape,
         normalize=table.normalize,
     )
@@ -1128,12 +1139,12 @@ def _source_from_table(
             problems.append(_Problem(f'{location}.wave', reason))
             return None
     else:
-        assert table.noise is not None  # SourceTable requires exactly one of wave, noise
+        noise_kind = required(table.noise, what="the source table's noise")
         if table.lfsr is None:
-            content = Noise(table.noise)
+            content = Noise(noise_kind)
         else:
             content = Noise(
-                table.noise,
+                noise_kind,
                 bits=table.lfsr.bits,
                 taps=table.lfsr.taps,
                 rate=None if table.lfsr.rate == FOLLOW_THE_NOTE else table.lfsr.rate,
@@ -1372,7 +1383,9 @@ def _load(path: Path, *, package_root: Path | None) -> SoundFile:
         sound_file = _load_version_zero(definitions)
     else:
         sound_file = _load_version_one(
-            definitions, boundary=package_root if package_root is not None else path.parent
+            definitions,
+            tables=definitions.tables,
+            boundary=package_root if package_root is not None else path.parent,
         )
     _CACHE[key] = sound_file
     return sound_file
@@ -1459,18 +1472,24 @@ def _load_version_zero(definitions: _Definitions) -> SoundFile:
     )
 
 
-def _load_version_one(definitions: _Definitions, *, boundary: Path) -> SoundFile:
+def _load_version_one(
+    definitions: _Definitions, *, tables: DefinitionsTable, boundary: Path
+) -> SoundFile:
     """Resolve a version 1 file's sounds against its definitions.
+
+    Args:
+        definitions: The file's stage 1.
+        tables: The tables of the same file (``definitions.tables``, which a version 1 file has).
+        boundary: The directory its references may not leave.
 
     Returns:
         The file. Every problem found in the sounds is listed in one ``SoundAssetError``.
     """
     path = definitions.path
-    assert definitions.tables is not None  # version 1 definitions carry their tables
     problems: list[_Problem] = []
     dependencies: dict[Path, int] = {path: definitions.modification_time}
     sounds: dict[str, SoundEntry] = {}
-    for name, raw_table in definitions.tables.sounds.items():
+    for name, raw_table in tables.sounds.items():
         try:
             sound_table = SoundTable.model_validate(raw_table)
         except ValidationError as error:
@@ -1487,8 +1506,8 @@ def _load_version_one(definitions: _Definitions, *, boundary: Path) -> SoundFile
         )
         if entry is not None:
             sounds[name] = entry
-    for name, raw_effect in definitions.tables.effects.items():
-        if name in definitions.tables.sounds:
+    for name, raw_effect in tables.effects.items():
+        if name in tables.sounds:
             problems.append(
                 _Problem(
                     f'effects.{name}',
@@ -1594,9 +1613,9 @@ def _sound_entry(  # ruff: ignore[too-many-arguments] - one call site
         if recorded is None:
             return None
     else:
-        assert table.instrument is not None  # SoundTable requires one of instrument, file
+        instrument_name = required(table.instrument, what="the sound table's instrument")
         instrument = _referenced_instrument(
-            table.instrument,
+            instrument_name,
             instruments=instruments,
             boundary=boundary,
             base=path.parent,
