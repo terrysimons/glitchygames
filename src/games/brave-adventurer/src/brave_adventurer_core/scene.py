@@ -66,7 +66,6 @@ from glitchygames.fonts import FontManager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
-from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
 if TYPE_CHECKING:
@@ -809,9 +808,8 @@ class BraveAdventurerSceneBase(Scene):
         """
 
     def _pause_game(self: Self) -> None:
-        """Pause the game by switching to the built-in pause scene."""
-        pause_scene = PauseScene(options=self.options)
-        self.next_scene = pause_scene
+        """Pause the game behind the engine's pause screen (Scene.pause)."""
+        self.pause()
 
     # -----------------------------------------------------------------------
     # Input handling (unified via ActionMap)

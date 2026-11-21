@@ -354,8 +354,10 @@ class TestInput:
         assert scene.player.wanted_direction is Direction.UP
 
     @pytest.mark.parametrize('key', [pygame.K_ESCAPE, pygame.K_p])
-    def test_escape_or_p_pauses(self, scene, key):
+    def test_escape_or_p_pauses_through_scene_pause(self, scene, key, mocker):
+        pause = mocker.spy(scene, 'pause')
         _press(scene, key)
+        pause.assert_called_once_with()
         assert isinstance(scene.next_scene, PauseScene)
 
     def test_q_quits(self):
@@ -373,9 +375,11 @@ class TestInput:
         _release(scene, pygame.K_x)
         assert scene.next_scene is None
 
-    def test_losing_focus_pauses_but_not_once_the_game_is_over(self, scene):
+    def test_losing_focus_pauses_but_not_once_the_game_is_over(self, scene, mocker):
+        pause = mocker.spy(scene, 'pause')
         focus_lost = HashableEvent(pygame.WINDOWFOCUSLOST, window=None)
         scene.on_window_focus_lost_event(focus_lost)
+        pause.assert_called_once_with()
         assert isinstance(scene.next_scene, PauseScene)
         scene.next_scene = None
         scene.phase = Phase.GAME_OVER

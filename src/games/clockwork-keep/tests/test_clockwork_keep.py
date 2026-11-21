@@ -1229,8 +1229,10 @@ class TestDeathAndHighScores:
 class TestFloorInput:
     """Pause, quit, focus loss and gamepad input on a floor."""
 
-    def test_losing_window_focus_pauses(self, clockwork_scene):
+    def test_losing_window_focus_pauses_through_scene_pause(self, clockwork_scene, mocker):
+        pause = mocker.spy(clockwork_scene, 'pause')
         clockwork_scene.on_window_focus_lost_event(HashableEvent(pygame.WINDOWFOCUSLOST))
+        pause.assert_called_once_with()
         assert isinstance(clockwork_scene.next_scene, PauseScene)
 
     def test_losing_window_focus_after_game_over_does_not_pause(self, clockwork_scene):
@@ -1238,8 +1240,10 @@ class TestFloorInput:
         clockwork_scene.on_window_focus_lost_event(HashableEvent(pygame.WINDOWFOCUSLOST))
         assert clockwork_scene.next_scene is None
 
-    def test_the_pause_key_pauses(self, clockwork_scene):
+    def test_the_pause_key_pauses_through_scene_pause(self, clockwork_scene, mocker):
+        pause = mocker.spy(clockwork_scene, 'pause')
         _press_key(clockwork_scene, pygame.K_ESCAPE)
+        pause.assert_called_once_with()
         assert isinstance(clockwork_scene.next_scene, PauseScene)
 
     def test_the_quit_key_ends_the_run(self):
