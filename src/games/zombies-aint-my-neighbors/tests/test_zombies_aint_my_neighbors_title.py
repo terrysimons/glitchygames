@@ -864,3 +864,39 @@ def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker, caplo
         manager.terminate()
     assert the_demo_played_to_its_end_matching()
     assert not [record for record in caplog.records if record.name == attract.LOG.name]
+
+
+# Characterization (game code plan, sub-plan 1): the engine's text helpers draw exactly what
+# text.py's copies drew. Removed with the copies, once the game calls the engine's.
+CHARACTERIZATION_TEXTS = (text.GAME_NAME, 'Press Start', 'STAGE 1', 'W')
+
+
+@pytest.mark.parametrize('size', range(8, 65))
+def test_the_engines_bundled_font_draws_what_title_font_drew(size):
+    """Same size, metrics and pixels as text.title_font and render_text, sizes 8 to 64."""
+    from glitchygames.fonts import font_manager
+
+    old = text.title_font(size=size)
+    new = font_manager.bundled_font(bold=True, size=size)
+
+    assert new.point_size == old.point_size
+    for line in CHARACTERIZATION_TEXTS:
+        assert new.size(line) == old.size(line)
+        assert pygame.image.tobytes(
+            font_manager.render_line(font=new, text=line, color=(200, 255, 120)), 'RGBA'
+        ) == pygame.image.tobytes(
+            text.render_text(font=old, text=line, colour=(200, 255, 120)), 'RGBA'
+        )
+
+
+@pytest.mark.parametrize('width', [1, 20, 45, 46, 60, 90, 150, 240, 400, 640, 2000])
+@pytest.mark.parametrize('largest', [8, 9, 12, 32, 48, 64])
+@pytest.mark.parametrize('texts', [(), ('W',), CHARACTERIZATION_TEXTS, ('GAME OVER, PRESS SPACE',)])
+def test_the_engines_fitted_font_chooses_what_fitted_title_font_chose(width, largest, texts):
+    """Same chosen size as text.fitted_title_font, over widths, sizes and texts."""
+    from glitchygames.fonts import font_manager
+
+    old = text.fitted_title_font(texts=texts, width=width, largest=largest)
+    new = font_manager.fitted_font(texts=texts, width=width, largest=largest)
+
+    assert new.point_size == old.point_size
