@@ -15,6 +15,7 @@
   - another thread changes nothing.
 
   `tests/test_suite_collection.py`: the ten-minute `faulthandler_timeout` is set.
+- **Follow-up** (2026-11-20, fixed on #249): the ten-minute test in `tests/test_suite_collection.py` read pytest's effective `faulthandler_timeout`, not the value pyproject declares. compare-drivers' native run passes `-o faulthandler_timeout=110` on purpose (#249), so there the test failed with `assert 110.0 == 600`. The gap: the test was never run under the override a real session uses, and the dummy-only check missed the native run. The fix reads `PYTEST_SETTINGS['faulthandler_timeout']` from pyproject. It failed before the fix under `-o faulthandler_timeout=110`, and passes after, with and without the override. The defect class: a test of a setting that a run may override reads the running value. Sweep, 2026-11-20: other tests in `tests/test_suite_collection.py` read effective settings (`testpaths`, `importmode`, `consider_namespace_packages`, `pythonpath`), but no run overrides those today (covered for now, uncovered if one ever does); no other test reads `faulthandler_timeout` or `timeout`.
 - **Siblings** (processes that import pygame and open a device without the engine or the harness, 2026-11-20): uncovered, all by-hand tools, none run by the suite or CI.
   - `scripts/audio_glitch_probe.py` and `scripts/measure_sound_memory.py` open the real audio device;
   - `scripts/animation_demo.py`, `scripts/animation_scene_demo.py`, `scripts/audit_hitboxes.py` and `scripts/experiments/quickstart*.py` open a display;
