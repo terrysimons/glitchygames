@@ -323,9 +323,9 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
   Docs: docs/quality/driver_comparison.md.
 - A test that leaves a process running fails (`tests/child_process_guard.py`, the harness's
   autouse `no_child_process_left_running`, BUGS.md #275). Stop a child you start with its whole
-  group (`process.stop_command`), and a child pytest run with
-  `stop_command(first_signal=signal.SIGINT)`, as Ctrl-C does, so each test's cleanup runs
-  (SIGTERM kills a worker with no cleanup). `uv run python -m
+  group (`process.stop_command`, never a hand-written `os.killpg`: macOS can miss a process forked
+  during it), and a child pytest run with `stop_command(first_signal=signal.SIGINT)`, as Ctrl-C
+  does, so each test's cleanup runs (SIGTERM kills a worker with no cleanup). `uv run python -m
   scripts.reproduce_orphaned_test_processes MODE WHEN` reproduces the stops.
 - The display rule (`tests/display_canvas.py`): each test starts on the canvas pattern, and a test
   whose last frame is entirely black fails as a rendering bug (opt-out

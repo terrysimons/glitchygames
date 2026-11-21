@@ -26,6 +26,7 @@ from glitchygames.testing.frame_fingerprints import (
     OWNER_VARIABLE,
     SEED_VARIABLE,
 )
+from tests.child_process_guard import kill_if_running
 from tests.driver_comparison import (
     CI_VARIABLE,
     COMPARE_WITH_VARIABLE,
@@ -483,8 +484,8 @@ class TestStoppingTheNativeRun:
             assert comparison.native_process.returncode is not None
         finally:
             comparison.stop_native_run()
-            if child_pid is not None and process_exists(pid=child_pid):
-                os.kill(child_pid, signal.SIGKILL)
+            if child_pid is not None:
+                kill_if_running(pid=child_pid)
 
     def test_what_a_native_run_left_running_is_killed_named_and_its_directory_removed(
         self, request, tmp_path

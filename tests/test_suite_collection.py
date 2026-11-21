@@ -1339,6 +1339,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/record_scripted_session.py',
     ),
     'tests/test_replay_schedule.py': ('scripts/replay_schedule.py',),
+    'tests/test_reproduce_killpg_fork_race.py': ('scripts/reproduce_killpg_fork_race.py',),
     'tests/test_reproduce_orphaned_test_processes.py': (
         'scripts/reproduce_orphaned_test_processes.py',
     ),
