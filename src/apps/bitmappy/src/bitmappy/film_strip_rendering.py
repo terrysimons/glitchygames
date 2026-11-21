@@ -14,6 +14,7 @@ import pygame
 
 from bitmappy.film_strip_layout import render_label_text
 from glitchygames import clock
+from glitchygames.checks import required
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import DEFAULT_FONT_NAME
 
@@ -546,14 +547,16 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
 
     def _render_frame_thumbnails(self, surface: pygame.Surface) -> None:
         """Render all frame thumbnails onto the surface."""
-        assert self.widget.animated_sprite is not None
+        animated_sprite = required(
+            self.widget.animated_sprite, what="the film strip's animated sprite"
+        )
         for (anim_name, frame_idx), frame_rect in self.widget.frame_layouts.items():
-            if anim_name not in self.widget.animated_sprite.animations:
+            if anim_name not in animated_sprite.animations:
                 continue
-            if frame_idx >= len(self.widget.animated_sprite.animations[anim_name]):
+            if frame_idx >= len(animated_sprite.animations[anim_name]):
                 continue
 
-            frame = self.widget.animated_sprite.animations[anim_name][frame_idx]
+            frame = animated_sprite.animations[anim_name][frame_idx]
 
             # Determine if this frame is selected or hovered
             is_selected = (
@@ -906,8 +909,10 @@ class FilmStripRendering:  # ruff: ignore[too-many-public-methods]
 
             # Get the current frame index and progress within that frame
             current_frame_idx = self.widget.animation.get_current_preview_frame(anim_name)
-            assert self.widget.animated_sprite is not None
-            frames = self.widget.animated_sprite.animations.get(anim_name, [])
+            animated_sprite = required(
+                self.widget.animated_sprite, what="the film strip's animated sprite"
+            )
+            frames = animated_sprite.animations.get(anim_name, [])
 
             # Check if there's only one frame - if so, center the triangle and disable animation
             if frames and len(frames) == 1:
