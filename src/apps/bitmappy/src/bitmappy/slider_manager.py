@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import pygame
 
 from bitmappy.controllers.modes import SLIDER_MODE_VALUES
+from glitchygames.checks import required
 from glitchygames.color import RGBA_COMPONENT_COUNT
 from glitchygames.sprites import (
     BitmappySprite,
@@ -836,8 +837,7 @@ class SliderManager:
         # logged and samples nothing. Errors setting the sliders are editor bugs and propagate
         try:
             # Sample directly from the screen
-            assert self.editor.screen is not None
-            color = self.editor.screen.get_at(screen_pos)
+            color = required(self.editor.screen, what='the editor screen').get_at(screen_pos)
         except Exception:
             self.log.exception('Error sampling color from screen')
             return
