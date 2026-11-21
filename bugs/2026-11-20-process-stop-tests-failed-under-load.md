@@ -1,0 +1,19 @@
+# Three Process-Stop Tests Failed Under Heavy Load
+
+- **Description**: One full local `pytest` run (macOS, the owner's machine, 2026-11-20 20:23, `fix/assert-replacement-engine`) failed three tests that start real child processes and check how they stop; all three pass on their own (4 cases in 8.5 s), and four other full runs that day passed them. The failing run took 12 min 19 s against the usual 8½–9 min, with the load average at 25 over 15 minutes (other sessions were running suites on the same machine).
+  - `tests/test_driver_comparison.py::TestStoppingTheNativeRun::test_a_stopped_native_run_leaves_no_process_its_tests_started`: `AssertionError: the stand-in test left its child running` (`process_exists` true for the stand-in's child after the stop).
+  - `tests/test_reproduce_orphaned_test_processes.py::TestTrials::test_sigint_to_the_runs_group_leaves_nothing`: `result.left_running` held the stand-in's `python -c "import time; time.sleep(120)"` child (under a `glitchygames-orphans-…` temporary folder) after SIGINT to the run's group.
+  - `tests/replay/tools/test_command_crash_boundary.py::test_a_signal_stops_and_reaps_the_commands_child_and_exits_with_its_code[2]`: `subprocess.TimeoutExpired` from `running.wait(timeout=COMMAND_DEADLINE_SECONDS)` (60 s): the `record-trace` command did not exit within the deadline after SIGINT. The SIGTERM case (`[15]`) passed in the same run.
+  A rerun of the whole suite right after (load rising to 46) passed all three, so the failure is intermittent, not load alone. No orphan was found running afterwards (the stand-in children sleep 120 s and had exited).
+- **Status**: Open (triage not started)
+- **Priority**: Medium (the first two guard BUGS.md #275, orphaned test processes: if a child really escapes the stop under load, the guard's bug is back where load is highest, CircleCI's split Linux jobs and the Pis)
+- **Root Cause**: Not established. Two explanations, needing opposite fixes:
+  - late, not leaked: the child dies moments after the check, which looks once, too soon under load; the fix is a bounded wait for the child's exit, which is what the stop promises;
+  - leaked: under load a child escapes `process.stop_command` (a suspect: a child forked after the group signal was sent); the fix is in the stop, with a regression test that drives that race.
+  For the third, the log does not say whether the 60 s went on the game starting (its pid file) or on the command stopping.
+- **Test gap**: each test checks a process outcome once against an instant or a fixed deadline, so a slow machine and a real leak fail the same way and can't be told apart from the failure.
+- **Triage plan**: reproduce under deliberate load (the three tests in a loop, ~50 runs, beside a CPU load on every core) to measure the rate; on a "left running" failure, keep polling the child for a few seconds and log when it dies and its parent; split the third test's 60 s into start-up and stop. Then fix by what that shows, and give every test that checks a process or signal outcome against a fixed instant one shared bounded wait. The plan goes to the coordinating session for its cross-check before coding.
+- **Evidence**: the failing run's full log and the load figures, in the main checkout's gitignored `build/load-flakes-2026-11-20/`.
+- **Reporter**: Claude
+- **Date Reported**: 2026-11-20
+- **Files**: `tests/test_driver_comparison.py`, `tests/test_reproduce_orphaned_test_processes.py`, `tests/replay/tools/test_command_crash_boundary.py`, `src/glitchygames/process.py` (`stop_command`)
