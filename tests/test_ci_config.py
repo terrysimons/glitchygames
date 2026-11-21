@@ -3394,6 +3394,8 @@ def test_every_step_that_builds_the_browser_wheel_lets_uv_replace_a_stale_venv()
     assert [name for name, _ in builds] == ['deploy-docs']
     for name, run in builds:
         assert run.get('environment', {}).get('UV_VENV_CLEAR') == '1', name
+
+
 # The command that refuses a checkout not on main (docs-deploy and site-publish share it)
 ON_MAIN_CHECK = ('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main')
 
