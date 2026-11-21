@@ -394,6 +394,15 @@ A helper set named for what each piece does, in the owner's homes: `physics_fiel
 in `src/glitchygames/input/` beside `ActionMap` (`input/action_map.py:152`). Brave and Clockwork
 are the first users, and a top-down game uses the router as is.
 
+- **5a, first step: the access-cost benchmark** (the owner, 2026-11-20), before any game changes.
+  The twelve accessors are read many times per sprite per frame, and Brave's profile already
+  spends much of its frame on per-sprite lookups. A built-in `property` runs in C; a hand-written
+  descriptor's `__get__` runs in Python and can cost several times more per access. A benchmark in
+  `tests/benchmarks/` (collected by `noxfile.py`'s `_BENCHMARK_PATHS`) measures reads and writes of
+  today's property forwarders against `physics_field`, at Brave's sprite count. If
+  `physics_field` is measurably slower, it generates real `property` objects (the same
+  declaration, C-speed access) instead of being a descriptor class; the choice and the numbers go
+  in the PR.
 - **5a, the property delegation** (low). `physics_field` declarations replace the twelve
   accessors in both players. Tracer reads `world_x` by name; keep names. Proof 1 (every field
   read and written through the new declaration equals the physics body's, incl. `world_x` set
@@ -453,6 +462,11 @@ the recordings Sub-plan 3 re-recorded; it changes none of them.
 
 ## Review focus (for the detailed plans)
 
+0. **Performance, per PR** (the owner, 2026-11-20): no separate benchmark branch; the replay
+   ledger's rows (every golden and demo, per commit, on the Mac and the Pis) are the before and
+   after. Each PR states the per-frame processing p50 and p99 change against main for the games it
+   touches; a slowdown beyond the run-to-run noise blocks the merge. Expected: Sub-plans 1, 2 and
+   4 neutral, Sub-plan 3 faster (measured), Sub-plan 5 the one risk (its benchmark first, above).
 1. Only Sub-plan 3's re-record commit changes a recording: the diff of `*.jsonl.gz` against
    origin/main is empty at every other PR and commit, and that commit changes exactly the nine
    recordings, each with the check's report.
