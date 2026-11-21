@@ -22,19 +22,26 @@ Usage (from the repository root, POSIX):
     uv run python -m scripts.reproduce_process_stop_under_load [--rounds N] [--minutes M]
         [--workers W] [--output DIRECTORY]
 
+Each round also checks that the probe loaded in a test's nested pytest run (a start event naming
+a file under the round's ``--basetemp``); without that its log would prove nothing. Logging
+before each ``os.kill`` changes timing slightly, so a failure rate with the probe is not
+necessarily the rate without it.
+
 Exit status: SUCCESS (0) when every round passed, REPLAY_DIVERGED (1, the "found something"
-code) when one failed.
+code) when one failed, INTERNAL_ERROR (70) when the probe did not load in a nested run.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import signal
 import sys
 import time
 from pathlib import Path
+from typing import cast
 
 from tests.child_process_guard import sweep_processes_naming
 
@@ -105,6 +112,36 @@ def round_environment(*, round_directory: Path) -> dict[str, str]:
     }
 
 
+def probe_reached_a_nested_run(*, round_directory: Path) -> bool:
+    """Tell whether the probe logged the start of a nested pytest run of the round.
+
+    An empty log is evidence only once the probe is known to have loaded where it matters: a
+    test's nested pytest run (its command names the test's ``pytest.ini``, under the round's
+    ``--basetemp``). A ``sitecustomize`` earlier on the path, or a child that resets PYTHONPATH,
+    would leave it out silently.
+
+    Args:
+        round_directory: The round's folder.
+
+    Returns:
+        True when some start event's command names a file under the round's basetemp.
+
+    """
+    events = round_directory / 'events.jsonl'
+    if not events.exists():
+        return False
+    basetemp = str(round_directory / 'basetemp')
+    for line in events.read_text(encoding='utf-8').splitlines():
+        event = json.loads(line)
+        command = event.get('command') if event.get('kind') == 'start' else None
+        if not isinstance(command, list):
+            continue
+        words = cast('list[object]', command)
+        if any(basetemp in str(word) for word in words):
+            return True
+    return False
+
+
 def run_round(*, round_directory: Path, workers: str, deadline: float) -> int | None:
     """Run one round, stopping it as Ctrl-C does at the deadline.
 
@@ -158,12 +195,19 @@ def main(argv: list[str] | None = None) -> int:
             round_directory=round_directory, workers=arguments.workers, deadline=deadline
         )
         survivors = sweep_processes_naming(directory=round_directory)
+        probed = probe_reached_a_nested_run(round_directory=round_directory)
         outcome = 'stopped at the deadline' if status is None else f'exit {status}'
-        sys.stdout.write(f'round {round_number}: {outcome}, {len(survivors)} left running\n')
+        sys.stdout.write(
+            f'round {round_number}: {outcome}, {len(survivors)} left running, '
+            f'probe {"in" if probed else "MISSING from"} the nested runs\n'
+        )
         for survivor in survivors:
             sys.stdout.write(f'  left running: {survivor}\n')
         if status is None:
             break
+        if not probed:
+            sys.stdout.write('the probe did not load in a nested run: its log proves nothing\n')
+            return ExitCode.INTERNAL_ERROR
         if status == 0 and not survivors:
             shutil.rmtree(round_directory / 'basetemp', ignore_errors=True)
         else:

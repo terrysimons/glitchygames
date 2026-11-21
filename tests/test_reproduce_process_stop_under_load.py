@@ -125,3 +125,22 @@ def test_a_rounds_processes_load_the_probe_and_log_into_the_round(tmp_path: Path
 
     assert environment['PYTHONPATH'].split(os.pathsep)[0] == str(reproducer.PROBE_DIRECTORY)
     assert environment[reproducer.PROBE_LOG_VARIABLE] == str(tmp_path / 'events.jsonl')
+
+
+def test_a_round_counts_as_probed_only_once_a_nested_run_logged_its_start(tmp_path: Path):
+    """An empty or outer-only log is not evidence; a nested run under the basetemp is."""
+    events = tmp_path / 'events.jsonl'
+
+    nothing_logged = reproducer.probe_reached_a_nested_run(round_directory=tmp_path)
+    events.write_text(
+        json.dumps({'kind': 'start', 'pid': 1, 'command': ['python', '-m', 'pytest']}) + '\n',
+        encoding='utf-8',
+    )
+    outer_only = reproducer.probe_reached_a_nested_run(round_directory=tmp_path)
+    nested = ['python', '-m', 'pytest', '-c', str(tmp_path / 'basetemp' / 'test0' / 'pytest.ini')]
+    with events.open('a', encoding='utf-8') as log:
+        log.write(json.dumps({'kind': 'start', 'pid': 2, 'command': nested}) + '\n')
+
+    assert nothing_logged is False
+    assert outer_only is False
+    assert reproducer.probe_reached_a_nested_run(round_directory=tmp_path) is True
