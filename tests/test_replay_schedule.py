@@ -2,7 +2,7 @@
 
 Synthetic recordings (written with the project's trace writer) whose frame times are chosen:
 steady frames present every frame, and so do short catch-up frames after a slow one (up to 1x a
-tick runs one frame unless the replay is genuinely behind: glitchygames/replay/viewer.py, rule
+tick runs one frame unless the replay is genuinely behind: glitchygames/replay/pacer.py, rule
 2); a recording made faster than the viewer's 60 Hz runs several frames a tick, so all but the
 last of each tick are never presented, skipped by design (shorter than a tick). Only a frame
 lasting at least a tick at the speed counts as hidden, a failure.

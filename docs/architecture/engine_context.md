@@ -135,6 +135,23 @@ the contract; `plans/2026-11-12-arcade-3-inner-game.md`):
    channel (its plain plays find every channel reserved, its voice table makes no mixer call,
    its live chunks play at volume 0 on its own pool); switching a heard tile silent fades its
    voices, stops its plain plays and mutes its live chunks, never another context's sound.
+10. **A tile's demo is a `DemoPlayer`** (Arcade sub-plan 5,
+    `plans/2026-11-20-arcade-5-playback-core.md`; `src/glitchygames/demo_player.py`, whose
+    docstring is the contract): an engine module that holds one `InnerGame` replaying a recording
+    and needs no game or Arcade. `tick(elapsed_seconds=..., budget=..., most_frames=None)` pays a
+    `RecordedFramePacer` the host's frame time and runs the frames it owes within a
+    `TickBudget` (`src/glitchygames/replay/pacer.py`, the watched replay's pacing, shared), which
+    a host hands to its players in turn; frames are never skipped (a player that cannot keep up
+    plays in slow motion, `is_behind`, `effective_speed`). At its end the demo loops: the game is
+    finished (giving its channels back) and a new one built from frame 0 in a new context,
+    `on_new_game` running before its first frame, the build charged to the budget. A divergence
+    restarts it once, then freezes it on the diverged frame (`DemoOutcome`, `DemoState`).
+    `fast_forward(to_frame=..., budget=...)` runs silent, sliced and resumable toward a poster
+    frame (`poster_frame`, drawn from the host's named stream). The budget is real time
+    (`clock.measured_seconds`), so how far a tile gets in a host frame depends on the machine: a
+    recorded Arcade session replays its inputs exactly, but not its tiles' progress frame for
+    frame (tiles may be a frame or two apart, as a watched replay's viewer already is), and
+    nothing compares an Arcade session's tile pixels frame for frame.
 
 An inner game never changes SDL's blocked event types: every engine call that blocks or allows
 goes through `events.set_event_types_allowed`, which changes nothing in an inner context (its
@@ -149,10 +166,16 @@ can't undo it, so only the host's own engine does.) The proof is
 replayed as an inner game beside another, unevenly interleaved, inside an outer window of
 another size, matches its solo headless replay's digests frame for frame and draws the pixels it
 draws alone, with every tile silent and with the first switched heard for the middle third of
-its recording and back (Bitmappy's demo is a strict xfail: it measures the outer window,
-`plans/future-work.md`). Ten stand-in inner games stepped once per outer frame cost about 0.29 ms
-on the machine it was measured on (`test_ten_inner_games_per_outer_frame`, an Apple M4 Max,
-2026-11-12).
+its recording and back (Bitmappy's demo, which measured the outer window, reads its own screen
+since 2026-11-20: `bugs/2026-11-20-bitmappy-tile-read-the-hosts-window.md`). The same file
+proves it through `DemoPlayer`: each pair as two players ticked with uneven time and budgets,
+the first fast-forwarded to a seeded poster frame, looped, and heard for the middle third of its
+second run, and again in slow motion with one frame each of a shared budget a tick; every game
+they build ends with its solo replay's digests and every tick draws the recording's pixels alone
+at its frame (the budgets run on a fake clock there, so the runs are the same on every machine).
+Ten stand-in inner games stepped once per outer frame cost about 0.29 ms on the machine it was
+measured on (`test_ten_inner_games_per_outer_frame`, an Apple M4 Max, 2026-11-12); what demo
+players of the real bundled demos cost is under Performance.
 
 ## Read-only views
 
@@ -221,6 +244,7 @@ What each kind of read costs (Apple M4 Max, Python 3.14):
 | `read-only view` | 210 ns | `GameEngine.OPTIONS` with an engine running; Task 17, 2026-11-10, median (2.32 slot reads) |
 | `current_engine()` | 113 ns | Task 17, 2026-11-10, median (1.25 slot reads) |
 | `context switch` | 430 ns | `with context.active():` entered and left; `timeit`; the owner, 2026-10-28 |
+| `ten demo players` | 6.9 ms | one Arcade frame of ten `DemoPlayer`s of the real bundled demos sharing an 11 ms budget; Arcade sub-plan 5's Task 6, 2026-11-20, median (Demo players, below) |
 
 The four Task 17 rows are the medians of gate (c)'s per-read benchmarks
 (`tests/benchmarks/test_engine_context_benchmarks.py`, `-k reading`, pytest-benchmark, one run on
@@ -262,3 +286,36 @@ The rules that follow:
   (`READ_RATIO_LIMITS` in `tests/benchmarks/test_engine_context_benchmarks.py`: a view at most 4
   slot reads, `current_engine()` at most 2; `tests/test_read_only_views.py` checks this table
   against them).
+
+### Demo players
+
+Measured by `tests/benchmarks/test_demo_player_benchmarks.py` (pytest-benchmark under
+`--benchmark-only`, dummy drivers, one run on 2026-11-20, the machine's one-minute load 3.2 to
+3.7): ten `DemoPlayer`s of the real bundled demos (all but the text-input demo), each paid one
+60 Hz Arcade frame a round and sharing one `INNER_FRAME_BUDGET_SECONDS` (11 ms) budget:
+
+- **Per Arcade frame:** median 6.9 ms (minimum 3.2 ms, mean 7.1 ms) for about ten frames a round
+  (mean 9.97, at most 17 after a hitch); every player kept speed 1.00 over 1,200 rounds (Mr.
+  Muncher 1.02). The budget was spent in 19 of the 1,200 rounds, in which the players looped
+  twelve times. The worst round, 376 ms, matches a Bitmappy build (below; Bitmappy looped once),
+  not traced round by round: one build held the Arcade for about 22 frames.
+- **A restart's build** (`InnerGame.replay`, the call decision 7 charges to the budget), five
+  per demo, the first with the harness's emptied sound and sprite caches: dt, joystick and
+  text-input demos 5 to 10 ms; PaddleSlap 7 to 11 ms; Clockwork Keep 7 ms (26 ms cold); Drawing
+  Fire 13 to 19 ms; Mr. Muncher 24 ms (207 ms cold); Brave Adventurer 33 to 71 ms; Zombies Ain't
+  My Neighbors 100 to 176 ms (860 ms cold), of which about 160 ms is reading and decoding its
+  1,538-frame recording again (a profile of one warm build); Bitmappy 355 to 450 ms. A profile
+  of one Bitmappy build splits it into about 275 ms waiting for the AI worker process it has just
+  started to exit (its `main()` shuts its workers down in a `finally` after `engine.start()`,
+  which in an inner game returns as soon as the game is built, so each build starts a worker
+  and joins it) and about 147 ms in `load_ai_training_data` (it renders 71 sprite files as text
+  for a log line even at `--log-level error`). That join waits up to
+  `AI_WORKER_JOIN_TIMEOUT_SECONDS` (2 s) and then 1 s more after terminating, so a slow worker
+  start costs about 3 s: the likely reading of the 3.1 s build the plan's first measurement saw
+  (its 73 to 180 ms readings were on a less loaded run; neither is reproduced here).
+- **The ten posters' fast-forward** (seed 5, the 11 ms budget shared each Arcade frame): about
+  2.6 s in total (three rounds, 2.60 to 2.68 s), 180 Arcade frames (3 s at 60 Hz) before every
+  tile stands at its poster.
+
+Not measured: a Raspberry Pi (the budget will bind there, which is what slow motion is for), and
+a build in the browser (Pyodide).

@@ -63,7 +63,8 @@ of `src/glitchygames/replay/driver.py`; the watched replay's tick is
 1. [How a frame runs](how-a-frame-runs.md): the steps of one frame in `SceneManager`'s order,
    where each door is read, and where a replay's sources take over from the live ones.
 2. [Speeds and timing](speeds-and-timing.md): live pacing, headless and watched replays, the
-   catch-up rule, `--replay-fps real`, live play against OLD and step back. A frame's logic is
+   catch-up rule, a demo in another game's tile, `--replay-fps real`, live play against OLD and
+   step back. A frame's logic is
    the same at every speed; only the waiting differs.
 3. [The recording file](recording-file.md): the `.jsonl.gz` layout, every field and why it is
    kept, what is deliberately not kept, and what is stored versus derived.

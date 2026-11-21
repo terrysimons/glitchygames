@@ -1,8 +1,8 @@
 """The recorded-frame pacer and the tick budget (glitchygames/replay/pacer.py).
 
-Written to the rules of the watched replay's contract (glitchygames/replay/viewer.py's module
-docstring, rules 1 and 2), which the pacer now carries for the viewer and for any other player
-of a recording (an Arcade tile): the owing, the owed limit, rule 2's one frame a tick unless
+Written to the owing rules the watched replay's viewer once carried in its own docstring and the
+pacer's module docstring now holds (the accumulator and rule 2), for the viewer and for any other
+player of a recording (an Arcade tile): the owing, the owed limit, rule 2's one frame a tick unless
 behind, the behind window and the effective speed. The budget's clock is a fake; the pacer reads
 no clock of its own.
 """

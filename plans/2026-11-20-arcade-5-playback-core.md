@@ -1,6 +1,8 @@
 # Arcade Sub-plan 5: One Playback Core, Then `DemoPlayer` — Implementation Plan
 
-Status: APPROVED by the owner (2026-11-20), with decisions 1 to 6 below; not built yet. PLAN (written 2026-11-20 against main at 4e6c7144; audited the
+Status: BUILT (Tasks 1-6, 2026-11-20, branch `feature/arcade-5-playback-core`; the measurements
+Task 6 took are in docs/architecture/engine_context.md, Performance). APPROVED by the owner
+(2026-11-20), with decisions 1 to 6 below. PLAN (written 2026-11-20 against main at 4e6c7144; audited the
 same day against main at b7c2abd3, after #235, #237, #238 and #239: every file:line below was
 re-checked and still holds; nothing built).
 Decided by the owner on 2026-11-20: the viewer's own-context move is a later sub-plan (question 1),

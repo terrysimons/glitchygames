@@ -833,6 +833,12 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   (`log.exception`), though that is a normal case. In the one-process Arcade, Bitmappy's tile
   would start a worker on every loop. Start no worker, and log no error (INFO at most), when the
   service is absent, in a replay or in a demo (`src/apps/bitmappy/src/bitmappy/ai_worker.py`).
+  Measured by Arcade sub-plan 5's benchmark (2026-11-20): each Bitmappy tile build starts the
+  worker and then joins it at once, because `main()`'s `finally` (`shut_down_running_ai_workers`,
+  `src/apps/bitmappy/src/bitmappy/editor.py`) runs as soon as an inner game's `engine.start()`
+  returns from its build: about 275 ms of a 355-450 ms build is that join, and the join can wait
+  up to `AI_WORKER_JOIN_TIMEOUT_SECONDS` (2 s) plus 1 s after terminating (a likely reading of
+  the 3.1 s build first seen). The worker also prints the traceback to the host's terminal.
 - ~~**Convert the joystick demo (and the dt demo) to sprites**~~ (the owner, 2026-11-11). **Done**
   in sub-plan 2's Task 4 (`40576db5`, `8c5dcf61`), which removed the entry from Games: both draw
   with sprites (the joystick demo's gauges, a column rebuilt when a pad's mapping changes), so
@@ -1006,6 +1012,36 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
     the grandchild's plays as both games' (`plain_plays_followed`). Nothing does this today.
   - A review minor about real-time margins in the tests (M5) was parked without detail beyond
     its name; the archived ledger holds the review.
+
+## Arcade (sub-plan 5 follow-ups, 2026-11-20; plans/2026-11-20-arcade-5-playback-core.md)
+
+- **The replay viewer's inner game in its own context** (engine context sub-plan 8): moved by the
+  owner to a later Arcade sub-plan, not done. Its design questions (where the outer viewer game
+  lives, the dropped real key presses above, where the viewer's controls and frame sink live,
+  and what an in-process step back replaces) are in that plan, "The viewer's own context".
+- **A loop's build is too long for one Arcade frame for three tiles** (measured 2026-11-20,
+  docs/architecture/engine_context.md, Performance): Bitmappy 355 to 450 ms (its AI worker,
+  above, and about 147 ms of `load_ai_training_data` rendering 71 sprite files as text for a log
+  line at any log level), Zombies Ain't My Neighbors 100 to 176 ms warm (about 160 ms of it
+  reading and decoding its 1,538-frame recording again) and 860 ms cold, Mr. Muncher 207 ms cold.
+  The build is one indivisible call charged to the budget (decision 7), so a looping Bitmappy
+  tile holds the whole Arcade for about 22 frames (the benchmark's worst round, 376 ms). Options
+  for sub-plan 6: keep the decoded recording across a player's loops (an engine change: the
+  recording is read whole by every `InnerGame.replay`), build the next game ahead of time
+  (a second context for a moment, which the channel declaration must allow), and Bitmappy's own
+  fixes (no worker in a replay; no ASCII rendering unless its log level is on).
+- **Not measured:** a Raspberry Pi (the budget will bind; slow motion is the answer, but nine or
+  ten tiles at 60 Hz there are not promised) and a restart's build in the browser (Pyodide).
+- **The proof's demo-player runs use a fake budget clock** (`FrameCostClock`), so their frames
+  per tick are the same on every machine; what a real clock does to the frames' timing (not
+  their content) is the benchmark's and `tests/test_demo_player.py`'s. A recorded Arcade session
+  replays its inputs, not its tiles' progress (the owner's decision 5): if sub-plan 6 ever wants
+  its golden replay to compare tile pixels, option B of that plan's audit (the frames each tile
+  ran per tick recorded as an internal event) is what it needs.
+- **The ten-tile set leaves one bundled demo out.** There are eleven bundled demos (Brave
+  Adventurer has two, and Zombies Ain't My Neighbors' `neighborhood_four_kids` is one), while
+  the gameplay replay page still says "ten in all"; the benchmark leaves out the text-input demo
+  (its key repeat). Sub-plan 6 decides the real ten and fixes the page.
 
 ## Games
 

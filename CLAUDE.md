@@ -183,7 +183,7 @@ so replays serve the same values.
   bindings must be listed in `tests/replay/golden_replay_controls.py`.
 - Exit codes, refusals and the rules of each mode (`--replay-trace`, `--rebaseline`, `--audit`,
   `--compare-trace`, instant replay, demos, ghosts) are in `replay/driver.py`'s docstring and the
-  docs above.
+  docs above; pacing a recording is only `replay/pacer.py` (an Arcade replays inputs, not tiles).
 
 **Engine Context** (`src/glitchygames/engine_context.py`; docs/architecture/engine_context.md):
 the state one running game owns, so several games can run in one process (the Arcade). New
@@ -194,7 +194,7 @@ check in `tests/test_engine_context.py`. New module- or class-level mutable stat
 has its own audio engine, scene manager and performance manager. The old class-level names
 (`GameEngine.OPTIONS`, ...) are read-only views engine code never reads. Inner games
 (`src/glitchygames/inner_game.py`) draw on a render target and use a private event queue; engine
-code uses `display_surface()`, never `pygame.display.get_surface()`.
+code uses `display_surface()`, never `pygame.display.get_surface()`; tiles: `demo_player.py`.
 
 **Source revision** (`src/glitchygames/build_info.py`): the engine's and the game's commit, from
 git, a git archive, or a build stamp; held by every recorded run.

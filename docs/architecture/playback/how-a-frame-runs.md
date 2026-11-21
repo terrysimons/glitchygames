@@ -86,6 +86,12 @@ Points that matter for replay:
   changes is drawn this frame (`src/glitchygames/supervision.py`).
 - Presenting asks the doors (`presents_frames`): a watched replay's inner frames are not
   presented; the viewer's outer tick presents the latest one.
+- An inner game (an Arcade tile, `src/glitchygames/inner_game.py`) runs this same frame step,
+  unpaced, inside its own context, one `InnerGame.step()` a frame; its host decides when. A
+  tile's `DemoPlayer` (`src/glitchygames/demo_player.py`) steps it as the recorded-frame pacer
+  owes frames from the host's frame time, within the host's real-time budget
+  ([A demo in a tile](speeds-and-timing.md#a-demo-in-a-tile)), and the host draws the tile's
+  render target: the tile never presents.
 
 ## The end of the frame: `_finish_frame`
 

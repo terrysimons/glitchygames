@@ -1,7 +1,8 @@
 """Simulate a watched replay's schedule: which recorded frames each viewer tick runs and shows.
 
-A watched replay (glitchygames/replay/viewer.py, whose module docstring is the contract) runs
-recorded frames from an accumulator: each 60 Hz outer tick owes the inner game one tick of real
+A watched replay (glitchygames/replay/viewer.py, whose module docstring is the contract, and the
+owing in glitchygames/replay/pacer.py, whose docstring is that part's contract) runs recorded
+frames from an accumulator: each 60 Hz outer tick owes the inner game one tick of real
 time (times the speed), and the tick runs recorded frames while the accumulator holds their
 recorded durations, presenting only the last one it ran. So a tick that runs two frames never
 presents the first. A tick runs a second frame only when the replay is genuinely behind (rule
@@ -10,7 +11,8 @@ short frames (pacing catching up after a slow one) no longer hide a frame; a rec
 faster than 60 FPS, or frames shorter than a tick above 1x, still run several a tick.
 
 This drives the viewer's REAL accumulator (``ReplayViewer.accrue`` and
-``ReplayViewer.should_run_inner_frame``, with their constants), never a copy of it, on an ideal
+``ReplayViewer.should_run_inner_frame``, which delegate to its ``RecordedFramePacer``, with their
+constants), never a copy of it, on an ideal
 clock: every tick exactly ``CONTROL_TICK_SECONDS`` after the last, inner frames costing no time
 (so the tick's real-time budget is never spent). It checks the viewer's schedule rule, not real
 wake-up jitter: a real viewer's ticks wake a little early or late, and it counts a tick within

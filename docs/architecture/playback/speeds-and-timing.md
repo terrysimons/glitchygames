@@ -116,9 +116,9 @@ tick's budget a `TickBudget` (`src/glitchygames/replay/pacer.py`, where the cons
 shared by every player of a recording: the viewer tells the pacer the speed and its 60 Hz tick
 period, and keeps the keys, the cadence and the start screen.
 
-So at 1x a 60 FPS recording runs one inner frame per tick, at 8x eight, and at 1/4x one every fourth
-tick (the viewer's docstring). The speed keys double or halve the speed (`SPEED_STEP_FACTOR` = 2.0),
-within `MIN_SPEED` = 0.25 and `MAX_SPEED` = 8.0 (`ReplayControls`,
+So at 1x a 60 FPS recording runs one inner frame per tick, at 8x eight, and at 1/4x one every
+fourth tick (the pacer's docstring, `src/glitchygames/replay/pacer.py`). The speed keys double or
+halve the speed (`SPEED_STEP_FACTOR` = 2.0), within `MIN_SPEED` = 0.25 and `MAX_SPEED` = 8.0 (`ReplayControls`,
 `src/glitchygames/replay/controls.py`). The owed limit (32.5 frames, never less than its floor) is
 what lets the viewer catch up after a stall, in one bounded burst.
 
@@ -140,6 +140,28 @@ gantt
 
 The accumulator only decides **when** inner frames run, never what they do, so a watched replay
 is as exact as a headless one (`viewer.py`).
+
+## A demo in a tile
+
+An Arcade tile's demo is a `DemoPlayer` (`src/glitchygames/demo_player.py`): a recording
+replayed as an `InnerGame` in a context of its own, inside the host's frame loop. It is paced by
+the same `RecordedFramePacer` as the watched replay, told speed 1.0 and the host's own frame
+period (so a browser's 120 Hz frame is not taken for a 60 Hz one). Each host frame, the host
+starts one `TickBudget` of `INNER_FRAME_BUDGET_SECONDS` and hands it to its players in turn:
+`tick(elapsed_seconds=..., budget=...)` pays the pacer the host's frame time, never a clock the
+player reads, and runs the frames owed while the budget lasts, so what one player leaves the next
+gets. A player that cannot keep up plays every frame in slow motion; a host whose budget is too
+small for all its players gives each at most one frame a turn (`most_frames=1`), starting each
+frame after the last one that ran. A loop's build (a new `InnerGame` from frame 0) is one call,
+made on the player's turn and charged to the shared budget. A fast-forward to a poster frame runs
+silent, one budget slice per host frame, until it gets there.
+
+The frames a tile runs are its recording's, exactly: only when they run differs. But the budget
+is real time (`clock.measured_seconds`), so how many frames a tile runs in a host frame depends on
+the machine. A recorded Arcade session therefore replays its inputs exactly, but not its tiles'
+progress frame for frame: a tile may be a frame or two apart between runs, as a watched replay's
+viewer already is, and nothing compares an Arcade session's tile pixels frame for frame (the
+owner's decision 5 in `plans/2026-11-20-arcade-5-playback-core.md`).
 
 ## `--replay-fps real`
 
@@ -226,5 +248,6 @@ With an onion skin, the restarted process's child skips straight to the paired g
 | Headless replay | never | never | recorded | recorded (`--replay-fps real`: measured) |
 | Watched replay | never | until the viewer's tick pays for the frame | recorded | as headless |
 | Rebuild | never | only to show progress | recorded | as headless |
+| Demo in a tile | never (the host paces) | until the host's frame pays for the frame and its budget allows | recorded | as headless |
 | Live vs OLD | to the deadline | never | measured | measured |
 | OLD's child | never | never (blocks on a full socket) | recorded | recorded |
