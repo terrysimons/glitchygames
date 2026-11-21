@@ -180,6 +180,18 @@ class TestAITrainingState:
         """Test that format field exists in initial state."""
         assert 'format' in ai_training_state
 
+    def test_every_test_starts_with_the_startup_training_state(self):
+        """No examples and no format, for every test (the conftest's ``fresh_ai_training_state``).
+
+        Then it leaves state behind on purpose: any later test on this worker that saw it would
+        fail this same check.
+        """
+        assert ai_training_state == {'data': [], 'format': None}
+        training_data = ai_training_state['data']
+        assert isinstance(training_data, list)
+        training_data.append({'name': 'left_behind'})
+        ai_training_state['format'] = 'toml'
+
 
 class TestLoadAITrainingData:
     """Test load_ai_training_data function."""

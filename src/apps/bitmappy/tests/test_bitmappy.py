@@ -454,26 +454,21 @@ class TestProcessConfigFile:
 
     def test_unsupported_format_skipped(self, mocker):
         """Non-TOML format is skipped with a warning."""
-        original_format = ai_training_state['format']
-        ai_training_state['format'] = 'yaml'
+        mocker.patch.dict(ai_training_state, {'format': 'yaml'})
         training_data = []
         _process_config_file(Path('/dummy/file.toml'), training_data)
         assert len(training_data) == 0
-        ai_training_state['format'] = original_format
 
-    def test_file_not_found_handled(self):
+    def test_file_not_found_handled(self, mocker):
         """Missing file is handled gracefully."""
-        original_format = ai_training_state['format']
-        ai_training_state['format'] = 'toml'
+        mocker.patch.dict(ai_training_state, {'format': 'toml'})
         training_data = []
         _process_config_file(Path('/nonexistent/sprite.toml'), training_data)
         assert len(training_data) == 0
-        ai_training_state['format'] = original_format
 
     def test_valid_toml_file_appended(self, mocker):
         """Valid TOML file gets added to training_data."""
-        original_format = ai_training_state['format']
-        ai_training_state['format'] = 'toml'
+        mocker.patch.dict(ai_training_state, {'format': 'toml'})
         toml_content = b"""
 [sprite]
 name = "training_test"
@@ -500,7 +495,6 @@ blue = 0
 
         assert len(training_data) == 1
         assert training_data[0]['name'] == 'training_test'
-        ai_training_state['format'] = original_format
         Path(temp_file.name).unlink()
 
     def test_file_vanishing_before_the_colorized_output_keeps_the_training_data(
@@ -553,18 +547,15 @@ blue = 0
 class TestLoadAiTrainingData:
     """Tests for load_ai_training_data function."""
 
-    def test_non_list_data_raises_type_error(self):
+    def test_non_list_data_raises_type_error(self, mocker):
         """Raises TypeError when data is not a list."""
-        original_data = ai_training_state['data']
-        ai_training_state['data'] = 'not_a_list'
+        mocker.patch.dict(ai_training_state, {'data': 'not_a_list'})
         with pytest.raises(TypeError, match='must be a list'):
             load_ai_training_data()
-        ai_training_state['data'] = original_data
 
     def test_missing_directory_handled(self, mocker):
         """Missing sprite config directory is handled gracefully."""
-        original_data = ai_training_state['data']
-        ai_training_state['data'] = []
+        mocker.patch.dict(ai_training_state, {'data': []})
         mocker.patch(
             'bitmappy.sprite_inspection.SPRITE_CONFIG_DIR',
             Path('/nonexistent/directory'),
@@ -572,20 +563,17 @@ class TestLoadAiTrainingData:
         load_ai_training_data()
         # Should not crash, data remains empty
         assert isinstance(ai_training_state['data'], list)
-        ai_training_state['data'] = original_data
 
     def test_empty_directory_no_files(self, mocker):
         """Empty directory produces no training data."""
-        original_data = ai_training_state['data']
-        ai_training_state['data'] = []
+        mocker.patch.dict(ai_training_state, {'data': []})
         with tempfile.TemporaryDirectory() as temp_dir:
             mocker.patch(
                 'bitmappy.sprite_inspection.SPRITE_CONFIG_DIR',
                 Path(temp_dir),
             )
             load_ai_training_data()
-        assert len(ai_training_state['data']) == 0
-        ai_training_state['data'] = original_data
+        assert ai_training_state['data'] == []
 
     def test_toml_files_in_the_directory_become_training_data(self, mocker, tmp_path, caplog):
         """Each TOML sprite in the directory is loaded, logged and added as an example."""

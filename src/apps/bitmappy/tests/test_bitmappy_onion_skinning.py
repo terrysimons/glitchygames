@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Tests for onion skinning functionality."""
 
+import ast
 import math
+from pathlib import Path
+from typing import TypeIs
 
 import pytest
 
@@ -94,6 +97,20 @@ class TestOnionSkinningManager:
         manager.toggle_global_onion_skinning()
         assert manager.global_onion_skinning_enabled
         assert manager.is_frame_onion_skinned('animation1', 0)
+
+    def test_global_onion_skinning_is_reported_on_at_startup_and_follows_its_toggle(self):
+        """is_global_onion_skinning_enabled reports the startup True, then each toggle's state.
+
+        Covered on purpose: the suite once reached it only from other files' tests, so this file
+        alone left it uncovered (coverage that followed the test order).
+        """
+        manager = OnionSkinningManager()
+
+        assert manager.is_global_onion_skinning_enabled() is True
+        manager.toggle_global_onion_skinning()
+        assert manager.is_global_onion_skinning_enabled() is False
+        manager.toggle_global_onion_skinning()
+        assert manager.is_global_onion_skinning_enabled() is True
 
     def test_set_transparency(self):
         """Test setting onion skinning transparency."""
@@ -228,6 +245,92 @@ class TestOnionSkinningIntegration:
 
         manager.set_transparency(-1.0)
         assert math.isclose(manager.onion_transparency, 0.0, abs_tol=1e-9)
+
+
+class TestEveryTestGetsAFreshSharedManager:
+    """The conftest's autouse ``fresh_onion_skinning_manager`` resets the shared manager."""
+
+    def test_the_shared_manager_starts_in_its_startup_state(self):
+        """No frame is on, global onion skinning is on and transparency is 0.5, for every test.
+
+        Then it leaves state behind on purpose: any later test on this worker that saw it would
+        fail this same check, as the film strip tests once drew the indicator from leftovers.
+        """
+        manager = get_onion_skinning_manager()
+
+        assert manager.onion_skinning_enabled == {}
+        assert manager.global_onion_skinning_enabled is True
+        assert math.isclose(manager.onion_transparency, 0.5)
+        manager.toggle_frame_onion_skinning('left_behind', 0)
+        manager.toggle_global_onion_skinning()
+
+
+SHARED_MANAGER_NAME = 'onion_skinning_manager'
+BITMAPPY_ROOT = Path(__file__).resolve().parent.parent
+# The manager's own module defines it and its getter returns it (the conftest's patch names it as a
+# string, which the scan does not see)
+NAME_HOLDERS_ALLOWED = {'src/bitmappy/onion_skinning.py'}
+
+
+def names_holding_the_shared_manager(*, source: str) -> list[int]:
+    """Return the lines that import, read or rebind ``onion_skinning_manager`` by name.
+
+    Code must reach the shared manager only through ``get_onion_skinning_manager()`` at use time:
+    a name imported or copied at import time would keep the old instance, which the conftest's
+    reset (a patch of the module attribute) cannot reach.
+
+    Returns:
+        Each offending line, in order.
+
+    """
+    return sorted(node.lineno for node in ast.walk(ast.parse(source)) if holds_the_name(node))
+
+
+def holds_the_name(node: ast.AST) -> TypeIs[ast.ImportFrom | ast.Name | ast.Attribute]:
+    """Tell whether a node imports, reads or binds ``onion_skinning_manager`` by name.
+
+    Returns:
+        True when it does.
+
+    """
+    match node:
+        case ast.ImportFrom(names=names):
+            return any(alias.name == SHARED_MANAGER_NAME for alias in names)
+        case ast.Name(id=name) | ast.Attribute(attr=name):
+            return name == SHARED_MANAGER_NAME
+        case _:
+            return False
+
+
+class TestNothingHoldsTheSharedManagerByName:
+    """Bitmappy's source and tests reach the shared manager only through its getter."""
+
+    def test_no_bitmappy_file_holds_the_shared_manager_by_name(self):
+        """Every Bitmappy source and test file, except the manager's own module, is clean."""
+        files = sorted(BITMAPPY_ROOT.glob('src/bitmappy/**/*.py')) + sorted(
+            BITMAPPY_ROOT.glob('tests/**/*.py')
+        )
+        findings = [
+            f'{path.relative_to(BITMAPPY_ROOT).as_posix()}:{line}'
+            for path in files
+            if path.relative_to(BITMAPPY_ROOT).as_posix() not in NAME_HOLDERS_ALLOWED
+            for line in names_holding_the_shared_manager(source=path.read_text(encoding='utf-8'))
+        ]
+
+        assert len(files) > 50  # not a vacuous pass: the scan reads the member's files
+        assert findings == []
+
+    def test_every_way_of_holding_it_is_found(self):
+        """A by-name import (absolute or relative), an attribute read and a rebinding are found."""
+        source = (
+            'from bitmappy.onion_skinning import onion_skinning_manager\n'  # line 1
+            'from .onion_skinning import onion_skinning_manager as manager\n'  # line 2
+            'MANAGER = onion_skinning.onion_skinning_manager\n'  # line 3
+            'onion_skinning_manager = None\n'  # line 4
+            'manager = get_onion_skinning_manager()\n'  # the getter: not reported
+        )
+
+        assert names_holding_the_shared_manager(source=source) == [1, 2, 3, 4]
 
 
 if __name__ == '__main__':

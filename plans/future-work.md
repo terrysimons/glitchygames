@@ -262,7 +262,12 @@ arc was lost. What follows is left.
   of process state that guard lists, `onion_skinning_manager`
   (`src/apps/bitmappy/src/bitmappy/onion_skinning.py:162`) and `ai_training_state`
   (`src/apps/bitmappy/src/bitmappy/constants.py:100`), are not the roster's and have no owning
-  plan yet: each needs one before a Bitmappy runs in more than one engine context.
+  plan yet: each needs one before a Bitmappy runs in more than one engine context. Until then
+  Bitmappy's tests give each test a fresh onion skinning manager and empty training state (the
+  autouse `fresh_onion_skinning_manager` and `fresh_ai_training_state` in
+  `src/apps/bitmappy/tests/conftest.py`; the manager's patch works because code reaches it only
+  through `get_onion_skinning_manager()`, which `test_bitmappy_onion_skinning.py` guards). A
+  `ContextSlot` for each would replace those patches with each context's own.
 - **The performance gate could compare the FPS slice summaries too** (the controller,
   2026-10-29). Sub-plan 2's Task 17 gate (a) compares each recording's p50 and p99 processing
   times, base against branch; it could later also compare the mean and the "5% low"/"5% high"

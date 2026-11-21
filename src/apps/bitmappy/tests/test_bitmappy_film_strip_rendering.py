@@ -237,6 +237,98 @@ class TestDecorationFailuresAreLogged:
         assert 'Font rendering failed' in caplog.text
 
 
+ONION_INDICATOR_SIZE = 12
+ONION_INDICATOR_MARGIN = 2
+
+
+def render_idle_thumbnail(film_strip: FilmStripWidget, *, frame_index: int) -> pygame.Surface:
+    """Render one 'idle' frame's film strip thumbnail.
+
+    Returns:
+        The thumbnail surface.
+
+    """
+    animated_sprite = film_strip.animated_sprite
+    assert animated_sprite is not None
+    frame = animated_sprite.animations['idle'][frame_index]
+    return film_strip.renderer.render_frame_thumbnail(
+        frame, frame_index=frame_index, animation_name='idle'
+    )
+
+
+def changed_pixels(*, before: pygame.Surface, after: pygame.Surface) -> set[tuple[int, int]]:
+    """Return the positions whose color differs between two same-sized surfaces.
+
+    Returns:
+        The differing (x, y) positions.
+
+    """
+    return {
+        (x, y)
+        for x in range(before.get_width())
+        for y in range(before.get_height())
+        if before.get_at((x, y)) != after.get_at((x, y))
+    }
+
+
+class TestOnionSkinningIndicator:
+    """A thumbnail shows the onion skinning indicator exactly when its frame is onion-skinned.
+
+    Each test starts from the shared manager's startup state (the conftest's autouse
+    ``fresh_onion_skinning_manager``), so the indicator is drawn here on purpose, not because an
+    earlier test left a frame switched on
+    (bugs/2026-11-20-onion-skin-indicator-covered-only-by-leaked-state.md).
+    """
+
+    def test_a_switched_on_frame_shows_yellow_in_its_top_right_corner(
+        self, film_strip_with_two_frames
+    ):
+        """Only the 12x12 square 2 pixels in from the top-right corner changes, toward yellow."""
+        film_strip = film_strip_with_two_frames
+        plain = render_idle_thumbnail(film_strip, frame_index=0)
+        onion_skinning.get_onion_skinning_manager().toggle_frame_onion_skinning('idle', 0)
+
+        marked = render_idle_thumbnail(film_strip, frame_index=0)
+
+        left = film_strip.frame_width - ONION_INDICATOR_SIZE - ONION_INDICATOR_MARGIN
+        square = {
+            (x, y)
+            for x in range(left, left + ONION_INDICATOR_SIZE)
+            for y in range(ONION_INDICATOR_MARGIN, ONION_INDICATOR_MARGIN + ONION_INDICATOR_SIZE)
+        }
+        assert changed_pixels(before=plain, after=marked) == square
+        for position in square:
+            before, after = plain.get_at(position), marked.get_at(position)
+            # Yellow over anything: red and green never fall, blue never rises, green rises
+            assert after.r >= before.r
+            assert after.g > before.g
+            assert after.b <= before.b
+
+    def test_a_frame_left_off_shows_no_indicator(self, film_strip_with_two_frames):
+        """Switching frame 0 on leaves frame 1's thumbnail exactly as it was."""
+        film_strip = film_strip_with_two_frames
+        plain = render_idle_thumbnail(film_strip, frame_index=1)
+        onion_skinning.get_onion_skinning_manager().toggle_frame_onion_skinning('idle', 0)
+
+        assert not changed_pixels(
+            before=plain, after=render_idle_thumbnail(film_strip, frame_index=1)
+        )
+
+    def test_global_onion_skinning_off_hides_a_switched_on_frames_indicator(
+        self, film_strip_with_two_frames
+    ):
+        """With global onion skinning off, a switched-on frame draws as if it were off."""
+        film_strip = film_strip_with_two_frames
+        plain = render_idle_thumbnail(film_strip, frame_index=0)
+        manager = onion_skinning.get_onion_skinning_manager()
+        manager.toggle_frame_onion_skinning('idle', 0)
+        manager.toggle_global_onion_skinning()
+
+        assert not changed_pixels(
+            before=plain, after=render_idle_thumbnail(film_strip, frame_index=0)
+        )
+
+
 class TestCounterFont:
     """The frame counters use one cached bundled font (BUGS.md #178 item 6)."""
 
