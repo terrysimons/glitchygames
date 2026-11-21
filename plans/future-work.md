@@ -895,6 +895,19 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   leaves the outer repeat at `(0, 0)` and its strict xfail is removed; a game in the default
   context still gets its repeat; the event is recorded and replayed; and the workspace guard
   widens to `pygame.key.set_repeat`.
+- **A game's own window-setting defaults, and its last active settings, for when it is wrapped
+  (the owner, 2026-11-20).** First step, in plans/2026-11-20-window-owner-events.md: a launched
+  game starts from SDL's values from before any game wrote them, so a game behaves the same
+  launched from the Arcade as alone (example: the Arcade hides the cursor for its own; Paddle
+  Slap, launched from it and never naming the cursor, starts with the normal cursor). Next:
+  1. A game declares a set of default window settings (cursor shown or hidden, cursor shape, key
+     repeat, text input), applied when it starts or becomes the window's owner, instead of SDL's
+     defaults.
+  2. The engine records each game's latest active settings (what it last applied), so when the
+     game is wrapped again (launched from the Arcade, or its tile becoming live) the host swaps
+     to that game's own settings, its defaults overlaid by what it last had, rather than SDL's.
+  Decide with it where the latest settings live (the game's saves, or the host's state) and how
+  a replay serves them (recorded at start, like the save snapshot), so a replay matches.
 
 - **The hosted start skips `_begin_start` (and `_begin_run`).** An inner game's `start()`
   builds the game and returns (`render_target.hosted_start_requested()`), so the startup options
