@@ -46,6 +46,7 @@ from glitchygames.audio.library import compile_sound
 from glitchygames.audio.render import gate_end_frame
 from glitchygames.audio.synth import to_pcm16
 from glitchygames.audio.voices import constant_power_gains
+from glitchygames.checks import required
 from glitchygames.output_files import write_aside_then_replace
 
 if TYPE_CHECKING:
@@ -301,10 +302,10 @@ def _samples_at(sound: Sound, *, rate: int) -> FloatArray:
         return sound.samples_float
     copy = sound.fresh_copy(sample_rate=rate)
     compile_sound(copy)
-    assert copy.samples_float is not None
+    samples_float = required(copy.samples_float, what="the compiled copy's float samples")
     if copy.sample_rate == rate:
-        return copy.samples_float
-    return _resampled(copy.samples_float, from_rate=copy.sample_rate, to_rate=rate)
+        return samples_float
+    return _resampled(samples_float, from_rate=copy.sample_rate, to_rate=rate)
 
 
 def _resampled(samples: FloatArray, *, from_rate: int, to_rate: int) -> FloatArray:
