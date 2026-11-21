@@ -723,19 +723,24 @@ def circleci_workflow_job(*, name: str) -> str:
     return match['body']
 
 
-def test_the_docs_deploy_after_main_passes_on_macos():
-    """Docs deploy from main only, as soon as the macOS job passes, under the deploys' one lock.
+DOCS_DEPLOY_LOCK = 'serial-group: << pipeline.project.slug >>/deploy-docs'
+SITE_DEPLOY_LOCK = 'serial-group: << pipeline.project.slug >>/deploy-site'
 
-    macOS is the fastest test job, so the deploy overlaps the Linux and Windows jobs instead of
-    adding its time after them; the same tree passed all three in its pull request. It holds the
-    same serial group as deploy-site (the owner, 2026-11-20: "migrate deploy-docs to the same
-    lock that does deploy-site"): one deploy of either kind at a time, across pipelines.
+
+def test_the_docs_deploy_starts_as_soon_as_main_changes_under_its_own_lock():
+    """Docs deploy from main only, at once, waiting for no job, one docs deploy at a time.
+
+    The owner, 2026-11-20: "Docs only run after merging to main, so let's actually run it in
+    parallel to the other jobs". Weighed against a merge that turns main red publishing a broken
+    browser game (as #227's did to the tests): "For now I want faster". Its lock is its own, so
+    two quick merges cannot race gh-pages, and a deploy that waited its turn finds main's docs
+    already published and stops.
     """
     entry = circleci_workflow_job(name='deploy-docs')
 
-    assert 'requires:\n            - test-python-3-15-macos\n' in entry
+    assert 'requires:' not in entry
     assert 'branches:\n              only: main\n' in entry
-    assert 'serial-group: << pipeline.project.slug >>/deploy-site' in entry
+    assert DOCS_DEPLOY_LOCK in entry
 
 
 def test_the_docs_deploy_runs_on_linux_and_leaves_the_macs_to_the_tests():
@@ -3310,18 +3315,30 @@ def test_the_infra_sessions_node_tests_name_their_files_never_a_folder():
     assert named == test_files
 
 
-def test_the_site_deploys_from_main_after_the_docs_publish():
-    """play.glitchy.games is published from main only, after the docs publish and infra tests.
+def test_the_site_deploys_from_main_once_the_infra_tests_pass():
+    """play.glitchy.games is published from main only, once test-infra passes, beside the docs.
 
-    The owner (2026-10-28): "it should run on main after docs publish". deploy-docs itself
-    waits for the macOS job, so the site never publishes ahead of a passing build.
+    The owner, 2026-11-20: "essentially would like docs and site publish to happen in parallel"
+    (it was "after docs publish", 2026-10-28). The site publishes ``src/website``, not the docs'
+    output, so it needs nothing from deploy-docs; test-infra still tests the code that publishes.
     """
     entry = circleci_workflow_job(name='deploy-site')
 
-    assert 'requires:\n            - deploy-docs\n            - test-infra\n' in entry
+    assert 'requires:\n            - test-infra\n          filters:' in entry
     assert 'branches:\n              only: main\n' in entry
-    assert 'serial-group: << pipeline.project.slug >>/deploy-site' in entry
+    assert SITE_DEPLOY_LOCK in entry
     assert 'nox -s site-publish' in circleci_job_definition(name='deploy-site')
+
+
+def test_the_docs_and_site_deploys_run_side_by_side():
+    """Neither deploy waits for the other: different locks, and neither requires the other."""
+    docs_entry = circleci_workflow_job(name='deploy-docs')
+    site_entry = circleci_workflow_job(name='deploy-site')
+
+    assert SITE_DEPLOY_LOCK not in docs_entry
+    assert DOCS_DEPLOY_LOCK not in site_entry
+    assert '- deploy-docs\n' not in site_entry
+    assert '- deploy-site\n' not in docs_entry
 
 
 def test_the_site_deploy_uses_oidc_not_stored_keys():
@@ -3377,3 +3394,89 @@ def test_every_step_that_builds_the_browser_wheel_lets_uv_replace_a_stale_venv()
     assert [name for name, _ in builds] == ['deploy-docs']
     for name, run in builds:
         assert run.get('environment', {}).get('UV_VENV_CLEAR') == '1', name
+# The command that refuses a checkout not on main (docs-deploy and site-publish share it)
+ON_MAIN_CHECK = ('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main')
+
+
+def site_publish_session(*, posargs: list[str], git_status: str = '') -> RecordingSession:
+    """Run ``nox -s site-publish`` with these arguments against a recording session.
+
+    Args:
+        posargs: The session's arguments.
+        git_status: What ``git status --porcelain`` prints for the source (empty: clean).
+
+    Returns:
+        The session, holding the commands it ran.
+
+    """
+    import noxfile
+
+    session = RecordingSession(posargs=posargs, outputs={'git': git_status})
+    noxfile.site_publish(session)
+    return session
+
+
+def publish_command(session: RecordingSession) -> tuple[str, ...]:
+    """Return the session's ``glitchy_site.publish`` command.
+
+    Returns:
+        The command.
+
+    """
+    (command,) = [command for command in session.commands if 'glitchy_site.publish' in command]
+    return command
+
+
+def test_the_site_publishes_only_a_clean_checkout_on_main():
+    """A publish checks HEAD is on origin/main and the source is committed, before uploading.
+
+    The site's deploy has its own lock now, beside the docs' (the owner, 2026-11-20), so a
+    branch or an edited checkout must not reach play.glitchy.games, as docs-deploy refuses one.
+    """
+    session = site_publish_session(posargs=[])
+
+    publish_at = session.commands.index(publish_command(session))
+    assert ON_MAIN_CHECK in session.commands[:publish_at]
+    assert ('git', 'status', '--porcelain', '--', 'src/website') in session.commands[:publish_at]
+
+
+def test_the_site_refuses_to_publish_uncommitted_changes():
+    """An edited file in the source stops the publish before anything is uploaded."""
+    import noxfile
+
+    session = RecordingSession(posargs=[], outputs={'git': ' M src/website/index.html\n'})
+
+    with pytest.raises(RuntimeError, match='uncommitted'):
+        noxfile.site_publish(session)
+
+    assert not [command for command in session.commands if 'glitchy_site.publish' in command]
+
+
+@pytest.mark.parametrize('flag', ['--dry-run', '--allow-unmerged'])
+def test_a_dry_run_or_a_preview_publishes_without_the_main_check(flag):
+    """--dry-run changes nothing, and --allow-unmerged is the deliberate local preview."""
+    session = site_publish_session(posargs=[flag], git_status=' M src/website/index.html\n')
+
+    assert ON_MAIN_CHECK not in session.commands
+    assert '--allow-unmerged' not in publish_command(session)
+    assert ('--dry-run' in publish_command(session)) is (flag == '--dry-run')
+
+
+def test_the_docs_deploy_shares_the_on_main_check():
+    """docs-deploy refuses a checkout off main with the same command as site-publish."""
+    assert ON_MAIN_CHECK in docs_deploy_commands(posargs=['--no-measure'])
+    assert ON_MAIN_CHECK not in docs_deploy_commands(posargs=['--build-only', '--no-measure'])
+
+
+def test_the_site_deploy_publishes_mains_latest_commit():
+    """The deploy moves to main's tip before publishing, so an older pipeline cannot win.
+
+    With its own lock and only test-infra to wait for (the owner, 2026-11-20), a site deploy
+    from an older pipeline could otherwise finish after a newer one and put the older site back.
+    """
+    definition = circleci_job_definition(name='deploy-site')
+
+    move = definition.index('git checkout --quiet --detach origin/main')
+    assert 'git fetch --quiet origin main' in definition[:move]
+    publish = definition.index('            nox -s site-publish\n')
+    assert definition.index('- checkout') < move < publish

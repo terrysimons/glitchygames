@@ -946,6 +946,17 @@ jobs:
 
     steps:
       - checkout
+      # Publish what main is now, not only the commit this deploy was started for: with its own
+      # lock and only test-infra to wait for, an older pipeline's deploy could otherwise finish
+      # after a newer one and put the older site back (nox -s site-publish also refuses a
+      # checkout off main)
+      - run:
+          name: "Move to main's latest commit"
+          command: |
+            set -euo pipefail
+            git fetch --quiet origin main
+            git checkout --quiet --detach origin/main
+            echo "publishing main at $(git rev-parse HEAD)"
       - restore-uv-cache-posix
       - install-deps-posix:
           pythons: << pipeline.parameters.PYTHON_VERSION >>
@@ -997,26 +1008,26 @@ workflows:
       # - build-and-test-raspberry-pi-5-16gb-ubuntu
       # - build-and-test-raspberry-pi-5-8gb-ubuntu
       # - build-and-test-raspberry-pi-5-16gb-raspberry-pi-os
-      # After a merge to main: as soon as the macOS job passes (the same tree passed all three in
-      # its pull request), one deploy at a time so two quick merges cannot race gh-pages
+      # After a merge to main, at once, beside the test jobs (the owner, 2026-11-20: "Docs only
+      # run after merging to main, so let's actually run it in parallel to the other jobs"; on a
+      # red main publishing a broken browser game: "For now I want faster")
       - deploy-docs:
-          requires:
-            - test-python-3-15-macos
           filters:
             branches:
               only: main
-          # The deploys' one lock, deploy-site's too (the owner, 2026-11-20): one deploy of
-          # either kind at a time, across pipelines
-          serial-group: << pipeline.project.slug >>/deploy-site
+          # Its own lock: one docs deploy at a time across pipelines, so two quick merges cannot
+          # race gh-pages (a deploy that waited finds main published and stops); the site's
+          # deploy holds another, so the two run side by side
+          serial-group: << pipeline.project.slug >>/deploy-docs
       - test-infra
-      # After a merge to main, once the docs have published (deploy-docs, which waits for macOS)
-      # and the infra tests pass (the owner, 2026-10-28: "it should run on main after docs
-      # publish"); one deploy at a time. The deploy role itself trusts only main's jobs (the
+      # After a merge to main, once the infra tests pass, beside the docs deploy (the owner,
+      # 2026-11-20: "essentially would like docs and site publish to happen in parallel"; it
+      # waited for the docs from 2026-10-28). It publishes src/website, nothing the docs build
+      # makes; one site deploy at a time. The deploy role itself trusts only main's jobs (the
       # OIDC token's vcs-ref; infra/src/glitchy_site/deploy_role_stack.py): this filter just
       # skips running it elsewhere
       - deploy-site:
           requires:
-            - deploy-docs
             - test-infra
           filters:
             branches:
