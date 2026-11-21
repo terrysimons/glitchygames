@@ -22,12 +22,12 @@ if TYPE_CHECKING:
 log = logging.getLogger('game.paddle')
 
 
-class BasePaddle(Sprite):
+class BasePaddle[MoveT: (Horizontal, Vertical)](Sprite):
     """Base Paddle class."""
 
     def __init__(
         self: Self,
-        axis: type[Horizontal | Vertical],
+        axis: type[MoveT],
         speed: int,
         name: str,
         color: tuple[int, int, int],
@@ -42,7 +42,7 @@ class BasePaddle(Sprite):
         """Initialize the paddle.
 
         Args:
-            axis (type[Horizontal] | type[Vertical]): The axis to move on.
+            axis (type[MoveT]): The axis to move on.
             speed (int): The speed to move at.
             name (str): The name of the paddle.
             color (tuple[int, int, int]): The color of the paddle.
@@ -70,7 +70,7 @@ class BasePaddle(Sprite):
             self.snd = collision_sound
         # Create Speed object based on axis type
         speed_obj = Speed(speed, 0) if axis is Horizontal else Speed(0, speed)
-        self._move: Horizontal | Vertical = axis(speed_obj)
+        self._move: MoveT = axis(speed_obj)
 
         # Sub-pixel position accumulator to prevent rounding loss at high frame rates.
         # Without this, round(speed * tiny_dt) loses fractional pixels each frame,
@@ -115,8 +115,6 @@ class BasePaddle(Sprite):
             bool: True if the paddle is at the left of the screen, False otherwise.
 
         """
-        assert self.screen is not None
-
         screen_rect = self.screen.get_rect()
         return self.rect.left + self._move.current_speed < screen_rect.left
 
@@ -127,13 +125,11 @@ class BasePaddle(Sprite):
             bool: True if the paddle is at the right of the screen, False otherwise.
 
         """
-        assert self.screen is not None
-
         screen_rect = self.screen.get_rect()
         return self.rect.right + self._move.current_speed > screen_rect.right
 
 
-class HorizontalPaddle(BasePaddle):
+class HorizontalPaddle(BasePaddle[Horizontal]):
     """Horizontal Paddle."""
 
     def __init__(
@@ -177,7 +173,6 @@ class HorizontalPaddle(BasePaddle):
 
     def _clamp_to_screen(self: Self) -> None:
         """Keep the paddle on screen, stopping it at an edge (so it does not bounce)."""
-        assert self.screen is not None
         screen_rect = self.screen.get_rect()
         if self.rect.x < 0:
             self.rect.x = 0
@@ -190,13 +185,11 @@ class HorizontalPaddle(BasePaddle):
 
     def left(self: Self) -> None:
         """Move left."""
-        assert isinstance(self._move, Horizontal)
         self._move.left()
         self.dirty = 1
 
     def right(self: Self) -> None:
         """Move right."""
-        assert isinstance(self._move, Horizontal)
         self._move.right()
         self.dirty = 1
 
@@ -228,7 +221,7 @@ class HorizontalPaddle(BasePaddle):
         self.dirty = 1
 
 
-class VerticalPaddle(BasePaddle):
+class VerticalPaddle(BasePaddle[Vertical]):
     """Vertical Paddle."""
 
     def __init__(
@@ -284,13 +277,11 @@ class VerticalPaddle(BasePaddle):
 
     def up(self: Self) -> None:
         """Move up."""
-        assert isinstance(self._move, Vertical)
         self._move.up()
         self.dirty = 1
 
     def down(self: Self) -> None:
         """Move down."""
-        assert isinstance(self._move, Vertical)
         self._move.down()
         self.dirty = 1
 

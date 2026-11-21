@@ -30,6 +30,7 @@ from glitchygames.audio.exceptions import SoundRenderError
 from glitchygames.audio.instrument import UNPITCHED_REFERENCE_HZ
 from glitchygames.audio.spec import NoteEvent, check_lfsr_taps
 from glitchygames.audio.waves import LOWEST_BAND_HERTZ, WAVE_TABLE_LENGTH
+from glitchygames.checks import required
 
 if TYPE_CHECKING:
     from glitchygames.audio.spec import (
@@ -441,20 +442,23 @@ def _render_source(  # ruff: ignore[too-many-arguments] - one call site, each ar
     frame_count: int,
     generator: np.random.Generator | None,
 ) -> FloatArray:
+    """One source's layer of a note: its wave or noise, filtered, shaped and scaled by its level.
+
+    Returns:
+        The layer's samples, ``frame_count`` of them.
+    """
     rate = spec.sample_rate
     frequencies = _source_frequencies(source, event, frame_count=frame_count, sample_rate=rate)
     if source.noise is not None:
-        assert generator is not None
         layer = _noise_samples(
             source.noise,
             frequencies,
-            generator=generator,
+            generator=required(generator, what="the noise source's random generator"),
             clock_scale=spec.unpitched_scale * _tuning_ratio(source),
             sample_rate=rate,
         )
     else:
-        wave = source.wave
-        assert wave is not None  # a SourceSpec holds a wave or noise
+        wave = required(source.wave, what="the source's wave")
         _check_frequencies(frequencies, rate)
         if wave.is_built_in_polyblep:
             layer = _polyblep_samples(wave, frequencies, duty=source.duty, sample_rate=rate)
