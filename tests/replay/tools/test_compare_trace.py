@@ -16,6 +16,7 @@ import argparse
 import asyncio
 import contextlib
 import dataclasses
+import functools
 import importlib
 import itertools
 import logging
@@ -410,6 +411,51 @@ class WatchedRun:
         return onion_skin
 
 
+class CallbackFailures:
+    """Failures of the test's callbacks that run inside a game's run (patched flips and sleeps).
+
+    The engine turns any exception raised during its run into ``ExitCode.INTERNAL_ERROR``, so a
+    callback's own failed check would read as the engine's failure: once, under load, the test
+    saw only "70" (bugs/2026-11-20-compare-trace-step-back-exited-internal-error-under-load.md).
+    Each callback is wrapped with ``kept``: a failure is kept and raised on (the run must still
+    end), and ``fail_the_test_if_any`` fails the test with it once the run is over.
+    """
+
+    def __init__(self) -> None:
+        """Start with no failures."""
+        self.failures: list[Exception] = []
+
+    def kept[**Parameters, Result](
+        self, function: Callable[Parameters, Result]
+    ) -> Callable[Parameters, Result]:
+        """Wrap a callback so its failure is kept before it propagates.
+
+        Returns:
+            The wrapped callback.
+
+        """
+
+        @functools.wraps(function)
+        def call(*args: Parameters.args, **kwargs: Parameters.kwargs) -> Result:
+            try:
+                return function(*args, **kwargs)
+            except Exception as error:
+                self.failures.append(error)
+                raise
+
+        return call
+
+    def fail_the_test_if_any(self) -> None:
+        """Fail the test with the first callback failure, if there was one."""
+        if self.failures:
+            first = self.failures[0]
+            pytest.fail(
+                f'a test callback failed inside the run (the engine reported it as its own exit '
+                f'status): {type(first).__name__}: {first}',
+                pytrace=False,
+            )
+
+
 def rgb_at(*, surface: pygame.Surface) -> tuple[int, int, int]:
     """Return a surface's red, green and blue at ``SAMPLE_POINT``.
 
@@ -477,7 +523,9 @@ def watched_replay(
     remaining_keys = list(keys)
     presented: list[Presented] = []
     clock = {'now': 1000.0}
+    viewer_waits = {'count': 0}
     engines: list[GameEngine] = []
+    callbacks = CallbackFailures()
 
     def read_clock() -> float:
         return clock['now']
@@ -488,7 +536,11 @@ def watched_replay(
         assert isinstance(sources, ReplaySources)
         if not (sources.controls.awaiting_start or sources.controls.paused):
             return
-        assert remaining_keys, 'the replay waited for the viewer after every key was pressed'
+        viewer_waits['count'] += 1
+        assert remaining_keys, (
+            f'the replay waited for the viewer {viewer_waits["count"]} times, but only '
+            f'{len(keys)} keys were given ({keys})'
+        )
         key = remaining_keys.pop(0)
         for event_type in (pygame.KEYDOWN, pygame.KEYUP):
             pygame.event.post(
@@ -512,9 +564,9 @@ def watched_replay(
         )
 
     mocker.patch('glitchygames.clock.measured_seconds', side_effect=read_clock)
-    mocker.patch.object(viewer_module, 'sleep_for', side_effect=wait)
-    mocker.patch.object(viewer_module, 'sleep_coarsely', side_effect=wait)
-    mocker.patch.object(pygame.display, 'flip', side_effect=flip)
+    mocker.patch.object(viewer_module, 'sleep_for', side_effect=callbacks.kept(wait))
+    mocker.patch.object(viewer_module, 'sleep_coarsely', side_effect=callbacks.kept(wait))
+    mocker.patch.object(pygame.display, 'flip', side_effect=callbacks.kept(flip))
     with engine_environment(mocker):
         GoldenTraceSceneManager.install()
         try:
@@ -531,6 +583,7 @@ def watched_replay(
                 engine.start()
         finally:
             GoldenTraceSceneManager.uninstall()
+    callbacks.fail_the_test_if_any()
     return WatchedRun(exit_status=exit_info.value.code, engine=engine, presented=presented)
 
 
@@ -1999,6 +2052,7 @@ def live_play(
     """
     presented: list[LivePresented] = []
     engines: list[GameEngine] = []
+    callbacks = CallbackFailures()
 
     def flip() -> None:
         surface = pygame.display.get_surface()
@@ -2015,7 +2069,7 @@ def live_play(
             )
         )
 
-    mocker.patch.object(pygame.display, 'flip', side_effect=flip)
+    mocker.patch.object(pygame.display, 'flip', side_effect=callbacks.kept(flip))
     exit_status: object = None
     with engine_environment(mocker):
         GoldenTraceSceneManager.install()
@@ -2035,6 +2089,7 @@ def live_play(
                 exit_status = exit_request.code
         finally:
             GoldenTraceSceneManager.uninstall()
+    callbacks.fail_the_test_if_any()
     return LiveRun(exit_status=exit_status, engine=engine, presented=presented)
 
 

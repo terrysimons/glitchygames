@@ -17,7 +17,23 @@
   not known.
 - **Test gap**: the failure kept no log of the watched replay's exit, so its cause cannot be read
   after the fact.
-- **Next step**: on the next occurrence, keep the run's log (the comparison's `cocoa/junit.xml` and
+- **Ruled out (2026-11-20)**: CPU load alone. The test alone (`-n 0`), looped for 18 minutes with
+  32 busy-loop processes (two per core, load average 114-134), passed 110 of 110 on `cocoa` and
+  109 of 109 on `dummy` (unloaded control: 25 of 25 on each). The failure happened only in a
+  full-suite run under `-n auto` (many workers and child processes at once), as did the other
+  session's process-stop flake (80 of 80 under CPU load alone).
+- **A candidate the code shows**: the test's `watched_replay` answers each viewer wait (start
+  screen, paused) with the next of its `keys`; the restarted run is given one. A wait after the
+  last key failed the helper's own `assert` inside `engine.start()`, which the engine reports as
+  `INTERNAL_ERROR`: exactly the 70 seen, after frames 4 and 5. So one more viewer wait than the test
+  expects would explain it; not shown.
+- **Done (the diagnosis)**: the test callbacks that run inside a game's run (`watched_replay`'s
+  flip and sleeps, `live_play`'s flip) are wrapped by `CallbackFailures`: a callback's failure is
+  kept, and the test fails with it once the run ends ("a test callback failed inside the run
+  ...: AssertionError: the replay waited for the viewer N times, but only K keys were given"),
+  never as the engine's 70. Checked with a planted run given no keys.
+- **Next step**: on the next occurrence, the test names its own failure if it was a callback's;
+  otherwise keep the run's log (the comparison's `cocoa/junit.xml` and
   `gw*.jsonl` under `test-results/driver-comparison/nox/`), and find where the watched replay's
   70 came from; reproduce under load (for example several `-n auto` runs at once) before any fix.
 - **Reporter**: Claude (session 21f7657c), from its own push
