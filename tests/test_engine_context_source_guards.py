@@ -1,7 +1,9 @@
 """The engine context's rules over the engine's and every member's source.
 
 No module reads a context as it is imported (rule 2), and every slot the engine and the members
-declare has an isolation check (``ISOLATION_CHECKS`` in tests/test_engine_context.py). Both scan
+declare has an isolation check: the engine's in ``ISOLATION_CHECKS`` (tests/test_engine_context.py),
+each member's in a ``MEMBER_ISOLATION_CHECKS`` dict in its own tests, found by AST so the engine's
+tests never import a member. Both scan
 every workspace member's source (tests/workspace_sources.py reads the members from the
 workspace), so they are tests of this repository; moved here unchanged from
 tests/test_engine_context.py (Part 3, Stage D, Task D9 fix round 1), which tests the engine alone.
@@ -13,9 +15,11 @@ import ast
 from typing import TYPE_CHECKING
 
 import pytest
+from scripts.workspace_packages import workspace_members
 
 from glitchygames.engine_context import declared_context_slots
 from tests.ast_scanning import PROJECT_ROOT, qualified_name
+from tests.engine_source import ENGINE_DIRECTORY
 from tests.test_engine_context import (
     ENGINE_SLOT_PREFIX,
     ISOLATION_CHECKS,
@@ -29,11 +33,14 @@ from tests.test_read_only_views import (
     module_name_of_file,
     scanned_file,
 )
-from tests.workspace_sources import scanned_source_files
+from tests.workspace_sources import scanned_source_files, write_project_with_member_module
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
+
+# The dict a member's tests name their slots' isolation checks in (CLAUDE.md, Engine Context)
+MEMBER_ISOLATION_CHECKS_NAME = 'MEMBER_ISOLATION_CHECKS'
 
 # A module that reads a module view as it is imported: a module-level import (line 4), module-level
 # attribute reads (lines 6 and 7) and a class-body read (line 14). The reads in a function body
@@ -211,22 +218,129 @@ def declared_slot_names_in_source(*, source_path: Path) -> list[str]:
 
 
 def engine_slot_names() -> set[str]:
-    """Return the name of every slot the engine and the workspace members declare.
+    """Return the name of every slot the engine declares.
 
     Returns:
         The names.
 
     """
+    engine_directory = PROJECT_ROOT / ENGINE_DIRECTORY
     return {
         name
-        for _allowlist_key, path in scanned_source_files(project_root=PROJECT_ROOT)
+        for path in sorted(engine_directory.rglob('*.py'))
         for name in declared_slot_names_in_source(source_path=path)
     }
+
+
+def member_isolation_check_names(*, tests_directory: Path) -> set[str]:
+    """Return the slot names a member's tests list in a ``MEMBER_ISOLATION_CHECKS`` dict literal.
+
+    Read by AST, so no member is imported (the engine's tests never import one).
+
+    Args:
+        tests_directory: The member's tests.
+
+    Returns:
+        The names.
+
+    """
+    names: set[str] = set()
+    for path in sorted(tests_directory.rglob('*.py')):
+        for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+            match node:
+                case (
+                    ast.Assign(targets=[ast.Name(id=target_name)], value=value)
+                    | ast.AnnAssign(target=ast.Name(id=target_name), value=value)
+                ) if target_name == MEMBER_ISOLATION_CHECKS_NAME:
+                    assert isinstance(value, ast.Dict), (
+                        f'{path}:{node.lineno}: {MEMBER_ISOLATION_CHECKS_NAME} must be a dict'
+                    )
+                    for key in value.keys:
+                        assert isinstance(key, ast.Constant) and isinstance(key.value, str), (
+                            f'{path}:{node.lineno}: {MEMBER_ISOLATION_CHECKS_NAME} keys must be '
+                            'strings'
+                        )
+                        names.add(key.value)
+                case _:
+                    pass
+    return names
+
+
+def member_slots_without_matching_checks(*, project_root: Path) -> list[str]:
+    """Return each member slot without an isolation check in its tests, and each orphan check.
+
+    A member's slots are checked in the member's own tests (``MEMBER_ISOLATION_CHECKS``), since the
+    engine's ``ISOLATION_CHECKS`` may not import a member.
+
+    Args:
+        project_root: The repository.
+
+    Returns:
+        One line per mismatch, empty when every member slot has exactly its check.
+
+    """
+    findings: list[str] = []
+    for member in workspace_members(project_root=project_root):
+        slots = {
+            name
+            for package_directory in member.package_directories
+            for path in sorted(package_directory.rglob('*.py'))
+            for name in declared_slot_names_in_source(source_path=path)
+        }
+        checks = member_isolation_check_names(tests_directory=member.directory / 'tests')
+        findings.extend(
+            f'{member.distribution}: slot {name!r} has no isolation check'
+            for name in sorted(slots - checks)
+        )
+        findings.extend(
+            f'{member.distribution}: isolation check {name!r} names no slot'
+            for name in sorted(checks - slots)
+        )
+    return findings
 
 
 def test_every_engine_slot_has_an_isolation_check():
     """A slot added without a check here fails (every piece of state moved is proven)."""
     assert engine_slot_names() == set(ISOLATION_CHECKS)
+
+
+def test_every_member_slot_has_an_isolation_check_in_its_own_tests():
+    """Each member's slots and its ``MEMBER_ISOLATION_CHECKS`` name the same slots."""
+    assert member_slots_without_matching_checks(project_root=PROJECT_ROOT) == []
+
+
+def test_the_member_slot_scan_reads_bitmappy():
+    """Not a vacuous pass: Bitmappy's onion skinning slot is found, with its check."""
+    bitmappy = next(
+        member
+        for member in workspace_members(project_root=PROJECT_ROOT)
+        if member.distribution == 'bitmappy'
+    )
+
+    assert 'bitmappy.onion_skinning.manager' in member_isolation_check_names(
+        tests_directory=bitmappy.directory / 'tests'
+    )
+
+
+def test_a_member_slot_without_a_check_and_a_check_without_a_slot_are_both_found(tmp_path):
+    """A planted member slot with no check, and a planted check naming no slot, are reported."""
+    write_project_with_member_module(
+        project_root=tmp_path,
+        source=(
+            'from glitchygames.engine_context import ContextSlot\n'
+            "PLANTED = ContextSlot(name='space_game.planted', factory=list)\n"
+        ),
+    )
+    tests_directory = tmp_path / 'src' / 'games' / 'space-game' / 'tests'
+    tests_directory.mkdir()
+    (tests_directory / 'test_space_game.py').write_text(
+        "MEMBER_ISOLATION_CHECKS = {'space_game.orphan': None}\n", encoding='utf-8'
+    )
+
+    assert member_slots_without_matching_checks(project_root=tmp_path) == [
+        "space-game: slot 'space_game.planted' has no isolation check",
+        "space-game: isolation check 'space_game.orphan' names no slot",
+    ]
 
 
 def test_the_slot_scan_agrees_with_the_slots_declared_at_run_time():

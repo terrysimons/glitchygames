@@ -194,7 +194,11 @@ Read on an instance, a class view answers that object's own state (`engine.OPTIO
 ## Guards
 
 - `tests/test_engine_context.py`: every slot's isolation check, the import-time read scan, and
-  that every test ends in the default context.
+  that every test ends in the default context. A workspace member's slot is checked in the
+  member's own tests, listed in a `MEMBER_ISOLATION_CHECKS` dict (Bitmappy's onion skinning
+  manager: `src/apps/bitmappy/tests/test_bitmappy_onion_skinning.py`), since engine tests never
+  import a member; `tests/test_engine_context_source_guards.py` finds that dict by AST and fails
+  on a member slot without its check, or a check naming no slot.
 - `tests/test_read_only_views.py`: every view has a check (two contexts each see their own value,
   a fresh context reads `None` or the empty default, and writing it raises naming where to
   write); the engine never reads a view; this page lists every view and where to write, and the

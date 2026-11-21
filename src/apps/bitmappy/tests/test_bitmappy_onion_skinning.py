@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """Tests for onion skinning functionality."""
 
-import ast
 import math
-from pathlib import Path
-from typing import TypeIs
 
 import pytest
 
 from bitmappy.onion_skinning import OnionSkinningManager, get_onion_skinning_manager
+from glitchygames.engine_context import EngineContext
 
 
 class TestOnionSkinningManager:
@@ -212,7 +210,7 @@ class TestOnionSkinningIntegration:
     """Integration tests for onion skinning functionality."""
 
     def test_global_manager_singleton(self):
-        """Test that get_onion_skinning_manager returns a singleton."""
+        """get_onion_skinning_manager returns the same manager each time within one context."""
         manager1 = get_onion_skinning_manager()
         manager2 = get_onion_skinning_manager()
 
@@ -248,7 +246,7 @@ class TestOnionSkinningIntegration:
 
 
 class TestEveryTestGetsAFreshSharedManager:
-    """The conftest's autouse ``fresh_onion_skinning_manager`` resets the shared manager."""
+    """The conftest's autouse ``fresh_onion_skinning_manager`` resets the default context's."""
 
     def test_the_shared_manager_starts_in_its_startup_state(self):
         """No frame is on, global onion skinning is on and transparency is 0.5, for every test.
@@ -265,72 +263,47 @@ class TestEveryTestGetsAFreshSharedManager:
         manager.toggle_global_onion_skinning()
 
 
-SHARED_MANAGER_NAME = 'onion_skinning_manager'
-BITMAPPY_ROOT = Path(__file__).resolve().parent.parent
-# The manager's own module defines it and its getter returns it (the conftest's patch names it as a
-# string, which the scan does not see)
-NAME_HOLDERS_ALLOWED = {'src/bitmappy/onion_skinning.py'}
+def check_onion_skinning_manager(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own onion skinning, and the default context sees neither's.
 
-
-def names_holding_the_shared_manager(*, source: str) -> list[int]:
-    """Return the lines that import, read or rebind ``onion_skinning_manager`` by name.
-
-    Code must reach the shared manager only through ``get_onion_skinning_manager()`` at use time:
-    a name imported or copied at import time would keep the old instance, which the conftest's
-    reset (a patch of the module attribute) cannot reach.
-
-    Returns:
-        Each offending line, in order.
+    Args:
+        first: One context.
+        second: Another.
 
     """
-    return sorted(node.lineno for node in ast.walk(ast.parse(source)) if holds_the_name(node))
+    with first.active():
+        get_onion_skinning_manager().toggle_frame_onion_skinning('walk', 0)
+    with second.active():
+        get_onion_skinning_manager().toggle_frame_onion_skinning('walk', 1)
+        get_onion_skinning_manager().toggle_global_onion_skinning()
+
+    with first.active():
+        first_manager = get_onion_skinning_manager()
+        assert first_manager.is_frame_onion_skinned('walk', 0)
+        assert not first_manager.onion_skinning_enabled['walk'].get(1, False)
+        assert first_manager.is_global_onion_skinning_enabled()
+    with second.active():
+        second_manager = get_onion_skinning_manager()
+        assert second_manager.onion_skinning_enabled['walk'] == {1: True}
+        assert not second_manager.is_global_onion_skinning_enabled()
+    assert first_manager is not second_manager
+    assert get_onion_skinning_manager().onion_skinning_enabled == {}
 
 
-def holds_the_name(node: ast.AST) -> TypeIs[ast.ImportFrom | ast.Name | ast.Attribute]:
-    """Tell whether a node imports, reads or binds ``onion_skinning_manager`` by name.
-
-    Returns:
-        True when it does.
-
-    """
-    match node:
-        case ast.ImportFrom(names=names):
-            return any(alias.name == SHARED_MANAGER_NAME for alias in names)
-        case ast.Name(id=name) | ast.Attribute(attr=name):
-            return name == SHARED_MANAGER_NAME
-        case _:
-            return False
+# Every Bitmappy slot, with the check that proves its values never leak between contexts: the
+# member's own isolation checks, which tests/test_engine_context_source_guards.py finds in this
+# file by name (the engine's tests never import a member)
+MEMBER_ISOLATION_CHECKS = {
+    'bitmappy.onion_skinning.manager': check_onion_skinning_manager,
+}
 
 
-class TestNothingHoldsTheSharedManagerByName:
-    """Bitmappy's source and tests reach the shared manager only through its getter."""
-
-    def test_no_bitmappy_file_holds_the_shared_manager_by_name(self):
-        """Every Bitmappy source and test file, except the manager's own module, is clean."""
-        files = sorted(BITMAPPY_ROOT.glob('src/bitmappy/**/*.py')) + sorted(
-            BITMAPPY_ROOT.glob('tests/**/*.py')
-        )
-        findings = [
-            f'{path.relative_to(BITMAPPY_ROOT).as_posix()}:{line}'
-            for path in files
-            if path.relative_to(BITMAPPY_ROOT).as_posix() not in NAME_HOLDERS_ALLOWED
-            for line in names_holding_the_shared_manager(source=path.read_text(encoding='utf-8'))
-        ]
-
-        assert len(files) > 50  # not a vacuous pass: the scan reads the member's files
-        assert findings == []
-
-    def test_every_way_of_holding_it_is_found(self):
-        """A by-name import (absolute or relative), an attribute read and a rebinding are found."""
-        source = (
-            'from bitmappy.onion_skinning import onion_skinning_manager\n'  # line 1
-            'from .onion_skinning import onion_skinning_manager as manager\n'  # line 2
-            'MANAGER = onion_skinning.onion_skinning_manager\n'  # line 3
-            'onion_skinning_manager = None\n'  # line 4
-            'manager = get_onion_skinning_manager()\n'  # the getter: not reported
-        )
-
-        assert names_holding_the_shared_manager(source=source) == [1, 2, 3, 4]
+@pytest.mark.parametrize('slot_name', sorted(MEMBER_ISOLATION_CHECKS))
+def test_no_bitmappy_slot_value_leaks_between_two_contexts(slot_name):
+    """Two contexts beside the default one: each keeps its own value of the slot."""
+    MEMBER_ISOLATION_CHECKS[slot_name](
+        first=EngineContext(name='first'), second=EngineContext(name='second')
+    )
 
 
 if __name__ == '__main__':

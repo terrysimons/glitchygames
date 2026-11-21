@@ -1109,7 +1109,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'as S9 and S10 are).'
         ),
     },
-    'src/apps/bitmappy/src/bitmappy/onion_skinning.py': {'onion_skinning_manager': BITMAPPY_STATE},
     'src/apps/bitmappy/src/bitmappy/pixel_sprite.py': {
         'BitmapPixelSprite.PIXEL_CACHE': "R10: Bitmappy's pixel surfaces by colour and size.",
     },

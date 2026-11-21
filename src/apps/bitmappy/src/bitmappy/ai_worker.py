@@ -31,9 +31,9 @@ from .constants import (
     AI_TIMEOUT,
     RETRYABLE_CLIENT_ERROR_STATUS_CODES,
     SPRITE_ASPECT_RATIO_TOLERANCE,
-    ai_training_state,
 )
 from .models import AIRequest, AIResponse
+from .training_library import ai_training_library
 
 if TYPE_CHECKING:
     import multiprocessing
@@ -531,9 +531,7 @@ def select_relevant_training_examples(
         list: The result.
 
     """
-    training_data = ai_training_state['data']
-    if not isinstance(training_data, list):
-        return []
+    training_data = ai_training_library().examples_as_dicts()
 
     if len(training_data) <= max_examples:
         return training_data
