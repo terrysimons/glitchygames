@@ -1389,6 +1389,7 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/replay/test_recording_logical_names.py': (
         'checks the logical names of every committed recording of our members'
     ),
+    'tests/test_base_exception_handler_source_guard.py': SOURCE_GUARD_REASON,
     'tests/test_ci_config.py': "checks the CI configuration against the workspace's members",
     'tests/test_engine_context_source_guards.py': SOURCE_GUARD_REASON,
     'tests/test_engine_doors.py': SOURCE_GUARD_REASON,
