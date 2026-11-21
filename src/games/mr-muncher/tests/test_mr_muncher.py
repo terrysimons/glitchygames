@@ -924,17 +924,36 @@ class TestDrawingOnlyWhatChanged:
     only when they are shown, hidden or swapped. The actors move, so they are drawn every frame.
     """
 
-    def test_in_play_only_the_actors_are_drawn_again(self, mocker):
-        """Each frame in play, the sprites the group is asked to redraw are only the actors."""
-        redrawn_classes: set[str] = set()
+    def test_in_play_a_still_sprite_is_drawn_again_only_when_it_changed(self, mocker):
+        """Each frame in play, a sprite other than an actor is redrawn only if it changed.
+
+        Changed means its picture, place or visibility differs from the frame before: a snack
+        blinking, a sprocket eaten, a panel's score redrawn. A sprite marked dirty without a
+        change (always dirty, or left dirty while hidden) fails, and so does a frame that
+        redraws every sprite. The actors move, so they are redrawn every frame.
+        """
+        actors = {'Player', 'Muncher'}
+        unchanged_but_redrawn: list[str] = []
+        redrawn_still_sprites = 0
+        last_state: dict[int, tuple[int, tuple[int, int, int, int], bool]] = {}
         original_draw = pygame.sprite.LayeredDirty.draw
 
         def draw_and_note(group, surface, bgd=None, special_flags=None):
+            nonlocal redrawn_still_sprites
             scene = manager.active_scene
-            if isinstance(scene, MrMuncherScene) and scene.phase is Phase.PLAYING:
-                redrawn_classes.update(
-                    type(sprite).__name__ for sprite in group.sprites() if sprite.dirty > 0
-                )
+            in_play = isinstance(scene, MrMuncherScene) and scene.phase is Phase.PLAYING
+            for sprite in group.sprites():
+                state = (id(sprite.image), tuple(sprite.rect), bool(sprite.visible))
+                before = last_state.get(id(sprite))
+                last_state[id(sprite)] = state
+                if not in_play or before is None or type(sprite).__name__ in actors:
+                    continue
+                if sprite.dirty > 0:
+                    redrawn_still_sprites += 1
+                    if state == before:
+                        unchanged_but_redrawn.append(
+                            f'{type(sprite).__name__}(dirty={sprite.dirty})'
+                        )
             return original_draw(group, surface, bgd, special_flags)
 
         with golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager:
@@ -944,9 +963,11 @@ class TestDrawingOnlyWhatChanged:
             TestWholeGames()._run(manager, frames=round((scene.ready_seconds + 0.5) * 60))
             assert scene.phase is Phase.PLAYING
             mocker.patch.object(pygame.sprite.LayeredDirty, 'draw', draw_and_note)
-            TestWholeGames()._run(manager, frames=30)
+            TestWholeGames()._run(manager, frames=120)
+            assert scene.phase is Phase.PLAYING
 
-        assert redrawn_classes == {'Player', 'Muncher'}
+        assert unchanged_but_redrawn == []
+        assert redrawn_still_sprites > 0  # Snacks blinked: the check saw changes to allow
 
     def test_every_golden_frame_equals_a_full_repaint(self, mocker):
         """Each frame of the golden, drawn as the game draws it, equals a full repaint.
