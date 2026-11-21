@@ -163,6 +163,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | `test_requests_while_a_flush_runs_get_one_more_pass_and_never_overlap` depends on the wall clock: the stand-in `syncfs` takes a real 10 ms (`SYNC_SECONDS`) and the test assumes five requests 1 ms apart all land during the first pass. Under the full parallel suite the sleeps stretch, a request lands in the second pass, and a third runs (`assert 3 == 2`; seed 4023912552 failed the website branch's pre-push gate, 2026-11-20; passes alone, with its file, and under that seed alone) | `tests/test_browser_storage.py` (from #238) | Fix: the test completes the stand-in's write-back itself (an event it sets), so "during the running pass" holds by construction. Then sweep the suite for other tests that sleep against a real-time stand-in (the wall-clock rule in CLAUDE.md's Testing Guidelines). |
 | Frames loaded from TOML keep magenta (255, 0, 255) opaque (no colorkey, alpha 255), so the visible-pixel hitbox fallback of a magenta-keyed sprite is its whole frame (ghosty: `Rect(0, 0, 32, 32)`) | `src/glitchygames/sprites/animated.py` (loader), `src/glitchygames/collision/bounds.py` | Found while testing the viewport-save hitbox rule; confirm whether games rely on explicit hitboxes or set a colorkey themselves. |
 | A real AI request has not been run in the packaged binary (needs an API key or network) | `dist/bitmappy` | Do once by hand to fully close BUGS.md #47. |
+| The browser wheel's build runs `uv venv` on its cached toolchain folder whenever the cached venv's `bin/python` doesn't run (likely a link into uv's managed-Python folder, which the cache doesn't hold: unverified), and uv asks on the terminal whether to replace it: deploy-docs hung to its 60-minute no-output limit (jobs 4431, 4443, 2026-11-20). #257 set `UV_VENV_CLEAR=1` on the step (closing stdin doesn't stop uv's prompt, tried 2026-11-21) | `third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh` lines 39-41 (submodule); `.circleci/config.yml` deploy-docs | Fix in the submodule: `uv venv --clear`, and check the venv's python actually runs before reusing it. Then shorten the step's `no_output_timeout` to just above the build's longest silent stretch, so a stuck step fails in minutes. |
 | `scripts/raw_sprite_loader.py` cannot start: `BitmappyLegacySprite` calls `Sprite.__init__` without x and y, and `inflate` draws zero-size rects (nothing) | `scripts/raw_sprite_loader.py:~41, ~84` | Found while deleting `legacy_sprite_loader.py` (BUGS.md #46). Tests use only its `deflate`; fix or fold into Galimore import (sub-plan E). |
 | ~~`FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels~~ | `src/glitchygames/bitmappy/history/commands.py` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). **Done** (#93, `606fa59b`): `FrameAddCommand._insert_frame` (the method's name now) uses `set_pixel_data` on an SRCALPHA frame and restores an explicit hitbox. |
 | Undoing an animation delete restores the sprite data but only refreshes existing film strip widgets, so the restored animation appears to get no film strip until strips are rebuilt (`on_sprite_loaded`) | `src/glitchygames/bitmappy/history/commands.py` (`AnimationAddCommand._add_animation`) | Found while fixing BUGS.md #51; not checked in the running app. |
@@ -705,6 +706,24 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
     the `glitchy.games` hosts' 301s carry `strict-transport-security`, the `.ai` ones don't), so
     a browser's first `http://glitchygames.ai` request isn't upgraded by the browser itself.
     Give `GlitchyGamesAiRedirect`'s behavior the same security headers policy as the site's.
+- **One CircleCI job publishes the docs and the site** (the owner, 2026-11-20). Today
+  `deploy-docs` and `deploy-site` are two jobs that run side by side, each under its own
+  serial-group lock (`ci/deploys-in-parallel`). The owner wants them as one job, with the two
+  publishes still running in parallel inside it: for example two background steps, or the docs
+  build and the S3 upload started together. Keep what the two jobs guarantee today:
+  - the docs deploy waits for no test job;
+  - the site publish waits for `test-infra`;
+  - two back-to-back merges cannot race gh-pages;
+  - a deploy whose main is already published stops.
+- **The site deploy stops when main is already live** (2026-11-20, the follow-up to
+  `ci/deploys-in-parallel`). `deploy-site` now moves to main's tip before publishing, but it
+  publishes again even when that commit is already live, unlike the docs deploy, which reads
+  gh-pages and stops. Proposed:
+  - `glitchy_site.publish` writes the commit into a small marker object in the bucket, for
+    example `site_build.json`, like the docs' `play/site_build.json`;
+  - the job's first step reads it back, over plain HTTP from play.glitchy.games so no IAM
+    change is needed, and halts when it matches;
+  - if IAM must change after all, that stack deploy is the owner's.
 - **Email at the domains** (the owner, 2026-10-28: "a later task"; needs a plan). The Route 53
   move drops Namecheap's email forwarding (unused today); a provider (e.g. Amazon SES) would
   add MX, SPF, DKIM and DMARC records to the zones.

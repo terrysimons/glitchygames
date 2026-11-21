@@ -129,6 +129,22 @@ class TestOnionSkinningManager:
         assert not manager.is_frame_onion_skinned('animation1', 1)
         assert manager.is_frame_onion_skinned('animation2', 0)  # animation2 should be unaffected
 
+    def test_clearing_an_animation_with_no_onion_state_changes_nothing(self):
+        """Clearing an animation that was never onion-skinned is a no-op for every animation.
+
+        Its own branch, covered on purpose: the suite once reached it only through state that
+        earlier tests left in the shared manager, so its coverage followed the test order
+        (CircleCI's coverage-combine-linux at 99.99% under a rolled order, #257).
+        """
+        manager = OnionSkinningManager()
+        manager.toggle_frame_onion_skinning('animation1', 0)
+        before = {name: dict(frames) for name, frames in manager.onion_skinning_enabled.items()}
+
+        manager.clear_animation_onion_skinning('never-skinned')
+
+        assert manager.onion_skinning_enabled == before
+        assert 'never-skinned' not in manager.onion_skinning_enabled
+
     def test_get_animation_onion_state(self):
         """Test getting onion skinning state for an animation."""
         manager = OnionSkinningManager()
