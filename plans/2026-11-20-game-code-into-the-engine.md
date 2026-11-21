@@ -307,8 +307,12 @@ These answers win over the question text below wherever they differ.
    no `player_slot` field now.
 7. **Sequencing, in risk order:** Sub-plans 1 and 2 at any time; the HUD re-record lands between
    Arcade sub-plans 5 and 6, together with the `drawing` and `typing` demo re-records of
-   `plans/2026-11-20-window-owner-events.md` (its question 5); `IdleDemo` and the platformer kit
-   after, at any gap.
+   `plans/2026-11-20-window-owner-events.md` (its question 5) and Zombies' `golden.jsonl.gz`
+   (the owner, 2026-11-20: it replays exactly, "no frames differ", but its content hash differs
+   at the two scene starts whose constructor arguments grew after it was recorded on 2026-11-15:
+   frame 291 `FeatureCardScene` gained `run` in #215 and frame 311 `TitleScene` gained
+   `opening: false` in #227; the same check allows only those two scene-argument differences);
+   `IdleDemo` and the platformer kit after, at any gap.
 
 ### The questions as asked
 
