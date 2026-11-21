@@ -171,8 +171,8 @@ test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
 ## A CI job split across machines
 
 **Intent:** one CircleCI job ran past CircleCI's one-hour job limit running the whole suite on
-one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs on two
-(`parallelism: 2`), each running a share (`tests/circleci_test_split.py`;
+one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs on three
+(`parallelism: 3`; two until 2026-11-20), each running a share (`tests/circleci_test_split.py`;
 `tests/test_circleci_test_split.py`).
 
 - It is on only when `GLITCHYGAMES_TEST_SPLIT` is `circleci`; the split jobs set it, and any
@@ -189,6 +189,34 @@ one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs
 - No share reaches the 100% coverage rule alone, so the test session turns it off for a share;
   each machine keeps its `.coverage` in `coverage-data/<job>/`, and a `coverage-combine-*` job
   combines them on the job's Python and applies the rule (`nox -s coverage-combine-3.15`).
+
+## The suite's order in CI
+
+**Intent:** catch a test that passes only after, or only before, another on every CI platform and
+driver, not only in the pre-push hook's shuffled run (`nox -s test-random`: 3.15, the dummy
+drivers, the owner's Mac). Every ordinary run keeps the files' order (`-p no:randomly` in
+`pyproject.toml`'s `addopts`).
+
+- The test session reads `GLITCHYGAMES_TEST_ORDER`: unset or `fixed` keeps the files' order;
+  `roll` flips a coin for fixed or shuffled and, for shuffled, draws a seed; a number shuffles
+  with that seed. Anything else stops the run (`noxfile.choose_suite_order`).
+- CircleCI's test jobs (macOS, Linux, Windows, the Raspberry Pi) set `roll`, so each machine of
+  each job rolls for itself. On CircleCI nothing is drawn: SHA-256 of the workflow's workspace
+  ID (`CIRCLE_WORKFLOW_WORKSPACE_ID`), the job and the machine index gives the coin and the seed.
+  Each pipeline has a new workspace, so each push rolls anew, and "Rerun workflow from failed"
+  keeps it, so a rerun repeats its first run's roll and a shuffle-only failure comes back rather
+  than vanishing. That a rerun keeps the workspace ID (and gets a new `CIRCLE_WORKFLOW_ID`) is a
+  community report, not CircleCI documentation: compare a rerun's order with its first run's
+  before relying on it. Without a workspace (a local run) a roll is a random draw.
+- The job's log names the order before the tests start ("Test order: shuffled, seed N" or
+  "Test order: fixed"), with the workspace, the machine and whether the workflow is a first run
+  or a rerun (its workflow ID differs from its workspace ID), and again after a failure, with the
+  command that replays it. The same goes to `test-results/test-order.txt` (in the job's
+  artifacts, uploaded even when the tests fail). A split machine shuffled only its share: name
+  the files in its `test-results/test-split.txt` to replay its order; a rerun may give a machine
+  slightly different files if CircleCI's timings changed in between.
+- A shuffle only reorders (`--randomly-dont-reset-seed`, as `nox -s test-random`), so coverage,
+  the driver comparison and each test's own randomness are unchanged.
 
 ## Memory by test file
 
