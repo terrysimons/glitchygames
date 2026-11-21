@@ -67,6 +67,7 @@ from typing import Self
 import pygame
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.checks import required
 from glitchygames.exit_codes import ExitCode
 from glitchygames.recording import DT_FIELD
 from glitchygames.replay.controls import CONTROL_TICK_SECONDS, ReplayControls
@@ -366,7 +367,7 @@ def simulate_schedule(*, frame_seconds: tuple[float, ...], speed: float) -> Reco
         # Ticked externally, the viewer never waits, so how it would wait does not matter
         now = viewer.begin_tick(is_inner_running=False)
         # Every tick before closed (should_run_inner_frame returned False), so one opens
-        assert now is not None
+        now = required(now, what="the opened tick's time")
         if controls.awaiting_start and frame_index > 0:
             # Frame 0 ran behind the start screen: Space starts the replay
             viewer.queue_key_event(event_type=pygame.KEYDOWN, key=pygame.K_SPACE)

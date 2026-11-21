@@ -87,14 +87,13 @@ def main() -> int:
     animated_sprite.play()
 
     # Calculate scaled size based on original sprite size
-    assert animated_sprite.image is not None
     original_size = animated_sprite.image.get_size()
     scaled_size = (original_size[0] * scale_factor, original_size[1] * scale_factor)
 
     # Set up the sprite rect for the scaled size and center it on screen
-    animated_sprite.rect = pygame.Rect(0, 0, scaled_size[0], scaled_size[1])
-    assert animated_sprite.rect is not None
-    animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
+    scaled_rect = pygame.Rect(0, 0, scaled_size[0], scaled_size[1])
+    scaled_rect.center = (400, 300)  # Center of 800x600 screen
+    animated_sprite.rect = scaled_rect
 
     logger.info('Loaded: %s (%s frames)', animated_sprite.name, animated_sprite.frame_count)
     logger.info('Scaled from %s to %s (5x upscale)', original_size, scaled_size)
@@ -113,8 +112,6 @@ def main() -> int:
 
         # Scale the current frame for display
         current_frame = animated_sprite.image
-        assert current_frame is not None
-        assert scaled_size is not None
         scaled_frame = pygame.transform.scale(current_frame, scaled_size)
 
         # Calculate position to center the scaled frame on screen
