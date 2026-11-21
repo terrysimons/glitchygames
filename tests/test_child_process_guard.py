@@ -24,6 +24,7 @@ from tests.child_process_guard import (
     KillPlan,
     ListedProcess,
     controller_sweep_lines,
+    kill_if_running,
     kill_plan,
     leftover_processes,
     parse_process_listing,
@@ -46,14 +47,36 @@ SESSION_CHILD_WITH_GRANDCHILD = (
 )
 
 
-def listed(*, pid: int, ppid: int, pgid: int, command: str = 'python') -> ListedProcess:
-    """One row of a process listing.
+def listed(
+    *, pid: int, ppid: int, pgid: int, command: str = 'python', state: str = 'S'
+) -> ListedProcess:
+    """One row of a process listing (sleeping, unless a state is given).
 
     Returns:
         The row.
 
     """
-    return ListedProcess(pid=pid, ppid=ppid, pgid=pgid, command=command)
+    return ListedProcess(pid=pid, ppid=ppid, pgid=pgid, state=state, command=command)
+
+
+class TestKillIfRunning:
+    """A test's cleanup kills a process by pid; one already gone is no error (POSIX)."""
+
+    @pytest.mark.skipif(sys.platform == 'win32', reason='SIGKILL is POSIX')
+    def test_a_process_that_ended_before_the_kill_is_no_error(self):
+        """Checking first, then killing, raced its end (CI job 4416): no check, no error."""
+        ended = subprocess.Popen([sys.executable, '-c', 'pass'])
+        ended.wait()
+
+        kill_if_running(pid=ended.pid)
+
+    @pytest.mark.skipif(sys.platform == 'win32', reason='SIGKILL is POSIX')
+    def test_a_running_process_is_killed(self):
+        running = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+
+        kill_if_running(pid=running.pid)
+
+        assert running.wait() == -signal.SIGKILL
 
 
 class TestLeftoverProcesses:
@@ -80,6 +103,24 @@ class TestLeftoverProcesses:
             'grandchild',
             'great-grandchild',
         ]
+
+    def test_a_zombie_is_never_left_over(self):
+        """A child's killed, unreaped child runs nothing; a killed group's zombies neither."""
+        processes = [
+            listed(pid=2000, ppid=OWN_PID, pgid=OWN_GROUP, command='child'),
+            listed(pid=2001, ppid=2000, pgid=OWN_GROUP, state='Z', command='(python3.15)'),
+            listed(pid=2101, ppid=1, pgid=2100, state='Z+', command='(python3.15)'),
+        ]
+
+        leftovers = leftover_processes(
+            processes=processes,
+            running=[2000],
+            group_leaders=[2100],
+            own_pid=OWN_PID,
+            own_group=OWN_GROUP,
+        )
+
+        assert [process.command for process in leftovers] == ['child']
 
     def test_a_group_outlives_the_child_that_led_it(self):
         """The leader ended (reaped); its game, reparented to init, is found by its group."""
@@ -119,8 +160,8 @@ class TestLeftoverProcesses:
 
     def test_a_listing_is_read_with_command_lines_that_hold_spaces(self):
         listing = (
-            '  2000  1000   900 /usr/bin/python -c import time; time.sleep(60)\n'
-            '  2001  2000   900 sleep 60\n'
+            '  2000  1000   900 S    /usr/bin/python -c import time; time.sleep(60)\n'
+            '  2001  2000   900 Z+   (python3.15)\n'
             '\n'
         )
 
@@ -131,7 +172,7 @@ class TestLeftoverProcesses:
                 pgid=900,
                 command='/usr/bin/python -c import time; time.sleep(60)',
             ),
-            listed(pid=2001, ppid=2000, pgid=900, command='sleep 60'),
+            listed(pid=2001, ppid=2000, pgid=900, state='Z+', command='(python3.15)'),
         ]
 
 
@@ -175,6 +216,49 @@ def process_exists(*, pid: int) -> bool:
 class TestChildProcessGuard:
     """The guard on real processes."""
 
+    def test_a_zombie_is_not_a_leftover_but_the_live_child_keeping_it_is(self, tmp_path):
+        """A killed process its parent has not reaped yet runs nothing: it is no leftover.
+
+        The child runs on (a leftover, killed and named); its grandchild was killed and never
+        waited for, so ps lists it as a zombie until the child dies (bugs/2026-11-21-orphan-
+        trial-test-saw-a-dying-worker.md: a killed worker awaiting its reaper was named).
+        """
+        guard = ChildProcessGuard()
+        output_path = tmp_path / 'output.txt'
+        with output_path.open('w', encoding='utf-8') as output:
+            guard.start_recording()
+            # The child kills its own child and never reaps it: it waits for the grandchild's
+            # exit without reaping it (WNOWAIT), prints its pid, then runs on, so the
+            # grandchild stays a zombie (killed, not reaped) while the child runs
+            child = subprocess.Popen(
+                [
+                    sys.executable,
+                    '-c',
+                    (
+                        'import os, signal, subprocess, sys, time\n'
+                        'grandchild = subprocess.Popen(\n'
+                        "    [sys.executable, '-c', 'import time; time.sleep(60)']\n"
+                        ')\n'
+                        'os.kill(grandchild.pid, signal.SIGKILL)\n'
+                        'os.waitid(os.P_PID, grandchild.pid, os.WEXITED | os.WNOWAIT)\n'
+                        'print(grandchild.pid, flush=True)\n'
+                        'time.sleep(60)\n'
+                    ),
+                ],
+                stdout=output,
+                start_new_session=True,
+            )
+            # Printed once the grandchild has exited unreaped: a zombie from here on
+            zombie_pid = int(first_line(path=output_path))
+            try:
+                leftovers = guard.stop_leftovers()
+            finally:
+                kill_if_running(pid=child.pid)
+                child.wait()
+
+        assert [process.pid for process in leftovers] == [child.pid]
+        assert zombie_pid not in [process.pid for process in leftovers]
+
     def test_a_session_child_and_its_grandchild_left_running_are_stopped_and_named(self, tmp_path):
         guard = ChildProcessGuard()
         output_path = tmp_path / 'output.txt'
@@ -190,8 +274,7 @@ class TestChildProcessGuard:
                 leftovers = guard.stop_leftovers()
             finally:
                 for pid in (child.pid, grandchild_pid):
-                    if process_exists(pid=pid):
-                        os.kill(pid, signal.SIGKILL)
+                    kill_if_running(pid=pid)
                 child.wait()
 
         assert sorted(process.pid for process in leftovers) == sorted([child.pid, grandchild_pid])

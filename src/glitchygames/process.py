@@ -41,6 +41,8 @@ RunningProcess = subprocess.Popen
 STOP_GRACE_SECONDS = 10.0
 # How often stop_command looks again whether a stopped child's process group is gone
 GROUP_LOOK_SECONDS = 0.01
+# ps, by its full path (macOS and Linux keep it in /bin), to name a group's members in an error
+PROCESS_LISTER = '/bin/ps'
 
 
 class ProcessGroupSurvivedError(RuntimeError):
@@ -275,8 +277,10 @@ def stop_command(*, process: subprocess.Popen[str], first_signal: int = signal.S
     On POSIX the group gets ``first_signal``, then, each after STOP_GRACE_SECONDS while the child
     still runs, SIGTERM (when the first signal was another) and SIGKILL. On Windows the child is
     terminated, then killed after the grace (no group signal there; ``first_signal`` is unused).
-    A child that has already ended is only reaped, also when it ends between the check and a
-    signal (``_signal_the_group``).
+    A child that has already ended (on Windows) is left alone; on POSIX what it left in its group
+    gets ``first_signal`` and is then emptied as below (the orphaned-process reproducer's
+    sigterm-leader mode leaves a pytest run's workers so). A child ending between the check and
+    a signal is reaped (``_signal_the_group``).
 
     On POSIX, once the child it signalled is reaped, nothing is left in its group when this
     returns (``_empty_the_group``): macOS can let a member forked during a group signal run on,
@@ -296,15 +300,26 @@ def stop_command(*, process: subprocess.Popen[str], first_signal: int = signal.S
         first_signal: The first signal for the group (POSIX).
 
     """
-    if process.poll() is not None:
-        return
     if sys.platform == 'win32':
+        if process.poll() is not None:
+            return
         process.terminate()
         try:
             process.wait(timeout=STOP_GRACE_SECONDS)
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
+        return
+    if process.poll() is not None:
+        # Ended already (its group signal missed nothing yet: none was sent): what it left in
+        # its group gets first_signal, as a running child's group would
+        try:
+            os.killpg(process.pid, first_signal)
+        except ProcessLookupError:
+            return
+        except PermissionError:
+            pass
+        _empty_the_group(process=process, killed=first_signal == signal.SIGKILL)
         return
     last_signal = _stop_the_leader(process=process, first_signal=first_signal)
     _empty_the_group(process=process, killed=last_signal == signal.SIGKILL)
@@ -382,10 +397,33 @@ def _empty_the_group(
             pass
         sleep(GROUP_LOOK_SECONDS)
     message = (
-        f'Process group {process.pid} still has processes a grace after SIGKILL '
-        f"(list them: ps -A -o pid,pgid,command | awk '$2 == {process.pid}')"
+        f'Process group {process.pid} still has processes a grace after SIGKILL: '
+        f'{_group_members(group=process.pid)}'
     )
     raise ProcessGroupSurvivedError(message)
+
+
+def _group_members(*, group: int) -> str:
+    """Name the processes in a process group, for an error message.
+
+    Returns:
+        Each member's pid and command line ("pid command", joined by "; "), or why none were
+        listed.
+
+    """
+    listing = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - /bin/ps with fixed arguments, as an argument list (no shell)
+        [PROCESS_LISTER, '-A', '-ww', '-o', 'pid=,pgid=,command='],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    members: list[str] = []
+    for line in listing.stdout.splitlines():
+        pid, _, rest = line.strip().partition(' ')
+        member_group, _, command = rest.strip().partition(' ')
+        if member_group == str(group):
+            members.append(f'{pid} {command.strip()}')
+    return '; '.join(members) or f'none listed (ps: {listing.stderr.strip() or "no output"})'
 
 
 def _signal_the_group(*, process: subprocess.Popen[str], signal_number: int) -> bool:

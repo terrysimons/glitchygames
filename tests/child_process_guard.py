@@ -12,6 +12,9 @@ teardown, after its own fixtures stopped what they started, it finds:
    with its game still running in its group: BUGS.md #275);
 3. every descendant of either.
 
+A zombie (killed, not yet reaped by its parent, or by init or launchd once that parent is gone)
+is never counted: it runs nothing (``ps``'s state Z).
+
 Each is killed (a group of its own as a whole, SIGKILL), our children are reaped, and the test
 errors naming each command line. ``ps`` is called once, and only when a recorded child is still
 running or led a group: most tests start no child, and a child that ran in this process's group
@@ -41,12 +44,14 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from pathlib import Path
 
-# What ps prints for every process: pid, parent, process group and the whole command line
-PROCESS_LISTING_COMMAND = ('ps', '-A', '-ww', '-o', 'pid=,ppid=,pgid=,command=')
+# What ps prints for every process: pid, parent, process group, state and the whole command line
+PROCESS_LISTING_COMMAND = ('ps', '-A', '-ww', '-o', 'pid=,ppid=,pgid=,stat=,command=')
 # How long a killed child of ours may take to be reaped
 REAP_TIMEOUT_SECONDS = 10.0
 # The fields before a listing row's command line
-LISTING_FIELDS_BEFORE_COMMAND = 3
+LISTING_FIELDS_BEFORE_COMMAND = 4
+# ps's state letter for a zombie: a process that has exited but its parent has not reaped yet
+ZOMBIE_STATE = 'Z'
 
 
 class ListedProcess(BaseModel):
@@ -57,7 +62,14 @@ class ListedProcess(BaseModel):
     pid: int
     ppid: int
     pgid: int
+    # ps's state (its first letter: R running, S sleeping, Z zombie, ...)
+    state: str
     command: str
+
+    @property
+    def is_zombie(self) -> bool:
+        """Whether it has exited and only waits for its parent to reap it (it runs nothing)."""
+        return self.state.startswith(ZOMBIE_STATE)
 
 
 def parse_process_listing(*, listing: str) -> list[ListedProcess]:
@@ -72,9 +84,11 @@ def parse_process_listing(*, listing: str) -> list[ListedProcess]:
         fields = line.split(None, LISTING_FIELDS_BEFORE_COMMAND)
         if len(fields) <= LISTING_FIELDS_BEFORE_COMMAND:
             continue
-        pid, ppid, pgid, command = fields
+        pid, ppid, pgid, state, command = fields
         processes.append(
-            ListedProcess(pid=int(pid), ppid=int(ppid), pgid=int(pgid), command=command)
+            ListedProcess(
+                pid=int(pid), ppid=int(ppid), pgid=int(pgid), state=state, command=command
+            )
         )
     return processes
 
@@ -88,6 +102,10 @@ def leftover_processes(
     own_group: int,
 ) -> list[ListedProcess]:
     """Return the processes a test left: running children, their groups and descendants.
+
+    A zombie is never a leftover: it has exited, and only waits for its parent (or, once that
+    parent is gone, init or launchd) to reap it (bugs/2026-11-21-orphan-trial-test-saw-a-dying-
+    worker.md: a killed xdist worker awaiting its reaper was named as left running).
 
     Args:
         processes: Every process (``parse_process_listing``).
@@ -114,7 +132,7 @@ def leftover_processes(
             break
         found |= descendants
     found.discard(own_pid)
-    return [process for process in processes if process.pid in found]
+    return [process for process in processes if process.pid in found and not process.is_zombie]
 
 
 def list_processes() -> list[ListedProcess]:
@@ -259,6 +277,22 @@ def kill_processes(
     for pid in plan.pids:
         with contextlib.suppress(ProcessLookupError, PermissionError):
             os.kill(pid, signal.SIGKILL)
+
+
+def kill_if_running(*, pid: int) -> None:
+    """SIGKILL a process a test's cleanup stops by pid; one already gone is no error.
+
+    Never check first, then kill: a process killed moments before (by the guard, or the test)
+    can be reaped between the check and the kill, which then raises ``ProcessLookupError``
+    (CI job 4416: a zombie the check saw, reaped by init before the kill;
+    bugs/2026-11-20-killpg-misses-a-process-forked-during-it-on-macos.md).
+
+    Args:
+        pid: The process.
+
+    """
+    with contextlib.suppress(ProcessLookupError):
+        os.kill(pid, signal.SIGKILL)
 
 
 def processes_to_sweep(

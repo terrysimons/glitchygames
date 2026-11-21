@@ -6,6 +6,7 @@ ends the whole group (a pytest run's xdist workers with it).
 
 from __future__ import annotations
 
+import contextlib
 import os
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - a stand-in child raises its TimeoutExpired; Popen names the type
@@ -253,15 +254,26 @@ class TestStopCommandOnEveryPlatform:
         )
         return request.param
 
-    def test_an_ended_child_is_left_alone(self, mocker, platform):
+    def test_an_ended_child_is_not_signalled_and_its_empty_group_once(self, mocker, platform):
+        """Ended already: never waited for again; on POSIX its group is asked once, and is gone.
+
+        What an ended child left in its group would get the stop's first signal (the
+        real-process test covers that); a group already gone answers ESRCH, and that is all.
+        """
         child = mocker.Mock(pid=4242)
         child.poll.return_value = 0
-        group_signal = mocker.patch.object(process.os, 'killpg', create=True)
+        group_signal = mocker.patch.object(
+            process.os, 'killpg', create=True, side_effect=ProcessLookupError
+        )
 
         stop_command(process=child)
 
         child.wait.assert_not_called()
-        group_signal.assert_not_called()
+        child.terminate.assert_not_called()
+        if platform == 'win32':
+            group_signal.assert_not_called()
+        else:
+            assert [call.args for call in group_signal.call_args_list] == [(4242, signal.SIGTERM)]
 
     def test_a_child_that_ends_at_the_first_request_is_only_reaped(self, mocker, platform):
         """Asked once and ended within the grace: waited for once, never asked again or killed.
@@ -463,8 +475,10 @@ class TestStopCommandEmptiesTheGroup:
         killpg, calls = self._group_answering([None] * (1 + 2 * self.LOOKS_IN_A_GRACE))
         mocker.patch.object(process.os, 'killpg', create=True, side_effect=killpg)
 
+        # No real process is in a stand-in group, so ps lists none of it
         with pytest.raises(
-            process.ProcessGroupSurvivedError, match=r'Process group 4242 .*\$2 == 4242'
+            process.ProcessGroupSurvivedError,
+            match=r'Process group 4242 still has processes a grace after SIGKILL: none listed',
         ):
             stop_command(process=child)
 
@@ -600,6 +614,66 @@ class TestStopCommand:
         with pytest.raises(ProcessLookupError):
             real_killpg(child.pid, 0)
         assert not is_running(pid=member_pid)
+
+    def test_a_child_that_ended_first_has_its_group_emptied(self, tmp_path, mocker):
+        """The leader alone was stopped (SIGTERM to it, not its group); its member is not left.
+
+        As the orphaned-process reproducer's sigterm-leader mode leaves a pytest run: the
+        controller gone, its workers still in its group. stop_command, called after, finds the
+        child ended and empties its group (it no longer returns at the reap alone).
+        """
+        # The member left gets the grace before the kill: keep it short
+        mocker.patch.object(process, 'STOP_GRACE_SECONDS', 0.2)
+        output_path = tmp_path / 'output.txt'
+        with output_path.open('w', encoding='utf-8') as output:
+            child = start_command(
+                command=['/bin/sh', '-c', 'sleep 60 & echo "$!"; wait'],
+                environment=os.environ,
+                output=output,
+            )
+            member_pid = int(first_line(path=output_path))
+            os.kill(child.pid, signal.SIGTERM)
+            child.wait()
+
+            stop_command(process=child)
+
+        with pytest.raises(ProcessLookupError):
+            os.killpg(child.pid, 0)
+        assert not is_running(pid=member_pid)
+
+    def test_a_group_that_outlives_the_kill_is_named_with_its_members(self, tmp_path, mocker):
+        """The error lists each process left in the group: its pid and command line.
+
+        A process in uninterruptible sleep (state D) dies only when it wakes, whatever it is
+        sent: the stand-in killpg answers as for a delivered signal and delivers nothing, so
+        the group's sleep outlives the grace after the kill as such a process would.
+        """
+        mocker.patch.object(process, 'STOP_GRACE_SECONDS', 0.05)
+        real_killpg = os.killpg
+
+        def killpg_reaching_the_leader_only(group: int, signal_number: int) -> None:
+            if signal_number != 0:
+                with contextlib.suppress(ProcessLookupError):
+                    os.kill(group, signal_number)
+
+        output_path = tmp_path / 'output.txt'
+        with output_path.open('w', encoding='utf-8') as output:
+            child = start_command(
+                command=['/bin/sh', '-c', 'sleep 60 & echo "$!"; wait'],
+                environment=os.environ,
+                output=output,
+            )
+            member_pid = int(first_line(path=output_path))
+            mocker.patch.object(process.os, 'killpg', side_effect=killpg_reaching_the_leader_only)
+            try:
+                with pytest.raises(process.ProcessGroupSurvivedError) as raised:
+                    stop_command(process=child, first_signal=signal.SIGKILL)
+            finally:
+                with contextlib.suppress(ProcessLookupError):
+                    real_killpg(child.pid, signal.SIGKILL)
+
+        assert f'Process group {child.pid} still has processes' in str(raised.value)
+        assert f'{member_pid} sleep 60' in str(raised.value)
 
     def test_a_finished_child_is_only_reaped(self, tmp_path):
         """Nothing is signalled once the child has ended."""
