@@ -6,6 +6,7 @@ import threading
 
 import pytest
 
+from glitchygames.checks import MissingValueError
 from glitchygames.events.voice import VoiceEventManager
 
 
@@ -310,6 +311,14 @@ class TestListenLoop:
 
         # Should exit immediately without error
         manager._listen_loop()
+
+    def test_listening_for_a_phrase_without_speech_recognition_raises_a_named_error(self, mocker):
+        """_listen_and_process_once needs the package; _listen_loop checks it before calling."""
+        mocker.patch('glitchygames.events.voice.sr', new=None)
+        manager = VoiceEventManager()
+
+        with pytest.raises(MissingValueError, match=r'^the speech_recognition package is missing$'):
+            manager._listen_and_process_once(source=object())
 
     def test_listen_loop_no_microphone(self, mocker):
         """Test _listen_loop exits when microphone is None."""

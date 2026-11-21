@@ -9,6 +9,7 @@ import pygame
 import pytest
 from pydantic import ValidationError
 
+from glitchygames.checks import MissingValueError
 from glitchygames.replay.ghosts import (
     GhostRecorder,
     GhostSample,
@@ -377,6 +378,15 @@ class TestGhostSprite:
         assert ghost.image is image_before
         assert ghost.rect == rect_before
         assert ghost.dirty == dirty_before
+
+    def test_a_ghost_that_lost_its_rect_names_the_missing_value(self):
+        track = GhostTrack(samples=(sample(seconds=0.0, x=0.0),))
+        ghost = GhostSprite(track=track, image_for=plain_image)
+        ghost.scene = GameTimedStandIn(game_time=0.0)
+        ghost.rect = None
+
+        with pytest.raises(MissingValueError, match=r"^the ghost's rect is missing$"):
+            ghost.update()
 
 
 class TestAppearance:

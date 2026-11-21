@@ -25,6 +25,7 @@ from typing import cast
 import pygame
 import pytest
 
+from glitchygames.checks import MissingValueError
 from glitchygames.engine_context import EngineContext, default_context
 from glitchygames.events.input_event_interfaces import MouseEventStubs
 from glitchygames.sprites import (
@@ -119,6 +120,13 @@ class TestSpriteInitialization:
         assert sprite.rect.width == SPRITE_WIDTH
         assert sprite.rect.height == SPRITE_HEIGHT
         assert sprite.name == 'test_sprite'
+
+    def test_a_sprite_made_with_no_display_surface_raises_missing_value(self, mocker):
+        """A sprite needs a display surface; without one it says so (and survives python -O)."""
+        mocker.patch('glitchygames.sprites.sprite.display_surface', return_value=None)
+
+        with pytest.raises(MissingValueError, match=r'^the display surface is missing$'):
+            Sprite(x=SPRITE_X, y=SPRITE_Y, width=SPRITE_WIDTH, height=SPRITE_HEIGHT)
 
     def test_sprite_initialization_without_name(self):
         """Test Sprite initialization without name."""
@@ -813,6 +821,20 @@ class TestBitmappySpriteBasics:
         sprite = BitmappySprite(x=0, y=0, width=10, height=10)
         with pytest.raises(ValueError, match='Too many colors'):
             sprite._raise_too_many_colors_error(9999)
+
+    def test_load_without_a_filename_raises_when_the_factory_fails(self, mocker):
+        """With no filename there is nothing for the static-only fallback to load."""
+        sprite = BitmappySprite()
+        mock_load = mocker.patch('glitchygames.sprites.BitmappySprite._load_static_only')
+        mocker.patch(
+            'glitchygames.sprites.SpriteFactory.load_sprite',
+            side_effect=ValueError('Factory failed'),
+        )
+
+        with pytest.raises(ValueError, match='filename must be provided'):
+            sprite.load()
+
+        mock_load.assert_not_called()
 
 
 class TestBitmappySpriteDeflate:
