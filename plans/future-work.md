@@ -705,6 +705,24 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
     the `glitchy.games` hosts' 301s carry `strict-transport-security`, the `.ai` ones don't), so
     a browser's first `http://glitchygames.ai` request isn't upgraded by the browser itself.
     Give `GlitchyGamesAiRedirect`'s behavior the same security headers policy as the site's.
+- **One CircleCI job publishes the docs and the site** (the owner, 2026-11-20). Today
+  `deploy-docs` and `deploy-site` are two jobs that run side by side, each under its own
+  serial-group lock (`ci/deploys-in-parallel`). The owner wants them as one job, with the two
+  publishes still running in parallel inside it: for example two background steps, or the docs
+  build and the S3 upload started together. Keep what the two jobs guarantee today:
+  - the docs deploy waits for no test job;
+  - the site publish waits for `test-infra`;
+  - two back-to-back merges cannot race gh-pages;
+  - a deploy whose main is already published stops.
+- **The site deploy stops when main is already live** (2026-11-20, the follow-up to
+  `ci/deploys-in-parallel`). `deploy-site` now moves to main's tip before publishing, but it
+  publishes again even when that commit is already live, unlike the docs deploy, which reads
+  gh-pages and stops. Proposed:
+  - `glitchy_site.publish` writes the commit into a small marker object in the bucket, for
+    example `site_build.json`, like the docs' `play/site_build.json`;
+  - the job's first step reads it back, over plain HTTP from play.glitchy.games so no IAM
+    change is needed, and halts when it matches;
+  - if IAM must change after all, that stack deploy is the owner's.
 - **Email at the domains** (the owner, 2026-10-28: "a later task"; needs a plan). The Route 53
   move drops Namecheap's email forwarding (unused today); a provider (e.g. Amazon SES) would
   add MX, SPF, DKIM and DMARC records to the zones.
