@@ -42,7 +42,10 @@
     # a build that would fail anyway
     - name: Say when the free disk space can't be read
       ansible.builtin.debug:
-        msg: "Free disk space unknown ({{ llama_cpp_disk.stderr | default('no answer') }}); building anyway"
+        msg: >-
+          Free disk space unknown: {{ ai_free_space_command | first }} printed
+          {{ llama_cpp_disk.stdout | default('') | to_json }} and said
+          {{ llama_cpp_disk.stderr | default('') | to_json }}; building anyway
       when: llama_cpp_disk.stdout_lines | last | default('') | trim is not match('^[0-9]+$')
 
     - name: Refuse to build without the disk space

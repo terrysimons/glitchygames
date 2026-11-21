@@ -3528,8 +3528,12 @@ def test_setup_downloads_anyway_when_the_free_space_cannot_be_read(tmp_path: Pat
 
     result = setup.run(extra={'DF_FAILS': '1'})
 
+    # The line says what the command printed and said, so a disk that really fills shows why
+    notice = next(line for line in result.stdout.splitlines() if 'free space unknown' in line)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert f'setup: free space unknown; downloading {model_file["file"]} anyway' in result.stdout
+    assert notice.startswith("setup: free space unknown (read ''; error 'df: "), notice
+    assert 'Input/output error' in notice
+    assert notice.endswith(f'downloading {model_file["file"]} anyway')
     assert (setup.user_root / 'models' / model_file['file']).exists()
 
 
@@ -3693,6 +3697,11 @@ def test_ansible_refuses_only_work_that_wont_fit(
     # Exactly one of the two runs: the notice for a reading that isn't a number, else the check
     assert notice_runs is not refusal_runs
     assert actual == outcome
+    # The notice quotes what the command printed, so a disk that really fills shows why
+    notice = render_value(
+        value=tasks['unknown']['ansible.builtin.debug']['msg'], variables=variables
+    )
+    assert json.dumps(measured) in notice
 
 
 @needs_a_posix_shell

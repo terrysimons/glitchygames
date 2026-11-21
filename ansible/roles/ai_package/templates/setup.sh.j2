@@ -148,7 +148,9 @@ fetch() {
     available_kb=$(free_kib_of "$models" 2>/dev/null)
     case "$available_kb" in
         ''|*[!0-9]*)
-            say "free space unknown; downloading $file anyway"
+            # What the command printed and said, so a disk that really fills shows why
+            free_space_error=$(free_kib_of "$models" 2>&1 >/dev/null | tr '\n' ' ')
+            say "free space unknown (read '$available_kb'; error '$free_space_error'); downloading $file anyway"
             ;;
         *)
             if [ $(( available_kb * 1024 )) -lt "$(( bytes + {{ ai_models_free_margin_bytes }} ))" ]; then

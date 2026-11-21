@@ -56,7 +56,10 @@
     # saves one that would fail anyway
     - name: Say when the free disk space can't be read
       ansible.builtin.debug:
-        msg: "Free disk space unknown ({{ ai_models_disk.stderr | default('no answer') }}); downloading anyway"
+        msg: >-
+          Free disk space unknown: {{ ai_free_space_command | first }} printed
+          {{ ai_models_disk.stdout | default('') | to_json }} and said
+          {{ ai_models_disk.stderr | default('') | to_json }}; downloading anyway
       when: ai_models_disk.stdout_lines | last | default('') | trim is not match('^[0-9]+$')
 
     - name: Refuse to start a download that won't fit
