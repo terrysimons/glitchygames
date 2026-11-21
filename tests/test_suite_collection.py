@@ -1332,6 +1332,9 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_reproduce_orphaned_test_processes.py': (
         'scripts/reproduce_orphaned_test_processes.py',
     ),
+    'tests/test_reproduce_process_stop_under_load.py': (
+        'scripts/reproduce_process_stop_under_load.py',
+    ),
     'tests/test_workspace_packages.py': (
         'scripts/workspace_packages.py',
         'scripts/git_checkout.py',
