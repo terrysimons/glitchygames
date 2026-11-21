@@ -1247,6 +1247,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#when-the-machines-audio-is-broken" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When the machine's audio is broken
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#x11-on-macos-sdl-built-with-x11" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2917,6 +2928,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#when-the-machines-audio-is-broken" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When the machine's audio is broken
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#x11-on-macos-sdl-built-with-x11" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3151,6 +3173,22 @@ fails or is interrupted never replaces the last complete one: while a comparison
 complete one waits in <code>test-results/driver-comparison/nox-previous/</code>, and it goes back to
 <code>test-results/driver-comparison/nox/</code> when the comparison fails; the failed comparison's runs
 are kept in <code>test-results/driver-comparison/nox-failed/</code>.</p>
+<h3 id="when-the-machines-audio-is-broken">When the machine's audio is broken<a class="headerlink" href="#when-the-machines-audio-is-broken" title="Permanent link">#</a></h3>
+<p>macOS CoreAudio has broken under the native run (2026-11-20): once <code>pygame.mixer.init</code> hung (<abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s audio thread crashed and pygame-ce's parachute handler spun forever on it; #252, <code>bugs/2026-11-20-a-crash-on-the-audio-thread-hung-the-process.md</code>), once
+every mixer start failed with <code>CoreAudio error (AudioQueueStart): -66681</code> (a 7202 s run instead of
+341 s, and 235 tests blamed for "different frames" that really had no audio). Two guards in
+<code>scripts/native_audio_health.py</code> keep that from looking like a change's fault:</p>
+<ul>
+<li>Before any run, the session opens and closes one mixer (44100 Hz, signed 16-bit, stereo,
+  512 buffer) in a child process with a 30 s limit, for each configuration whose audio driver is
+  the machine's own (not <code>dummy</code>: Wayland, X11 and x11-macos need no probe; not the Linux
+  container). An error or a hang stops the session at once and says it is this machine's audio:
+  run it again, or <code>sudo killall coreaudiod</code>.</li>
+<li>Tests found differing whose native-run failure says <code>CoreAudio error</code> or <code>mixer not
+  initialized</code> are reported as "audio failed in N test(s)", never as frame differences. A test
+  that fails for no-audio in another way (an assertion about a missing sound, with no message)
+  is not recognised.</li>
+</ul>
 <h3 id="x11-on-macos-sdl-built-with-x11">x11 on macOS: <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> built with x11<a class="headerlink" href="#x11-on-macos-sdl-built-with-x11" title="Permanent link">#</a></h3>
 <p>pygame-ce's macOS wheel bundles an <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> without x11. <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s dynamic <abbr title="Application programming interface">API</abbr> loads another <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> at run
 time instead: with <code>SDL_DYNAMIC_API=/path/libSDL2-2.0.0.dylib</code> the wheel's <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> fills its jump
@@ -3264,7 +3302,7 @@ Apple silicon. Made on macOS; on a Linux host the results are made writable for 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 03:52:12 UTC">November 20, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 12:28:18 UTC">November 21, 2026</span>
   </span>
 
     
