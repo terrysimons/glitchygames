@@ -582,6 +582,8 @@ class TestSampleColorFromScreen:
 
         assert editor.color_well.active_color == (255, 255, 255, 255)
         assert 'Error sampling color from screen' in caplog.text
+        # The logged error is the explicit check's, which names what was missing
+        assert 'MissingValueError: the editor screen is missing' in caplog.text
 
     def test_sampling_off_the_screen_leaves_sliders_unchanged(self, editor, screen, caplog):
         """A position outside the screen is logged and samples nothing."""
