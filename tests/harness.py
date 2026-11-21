@@ -42,7 +42,10 @@ from glitchygames.audio.voices import release_channels
 from glitchygames.backgrounds import set_active_default_background_pattern
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
-from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
+from glitchygames.engine.game_engine import (
+    CURRENT_ENGINE_SLOT,
+    report_fatal_signals_with_faulthandler,
+)
 from glitchygames.engine_context import current_context, default_context
 from glitchygames.events.base import SHARED_INSTANCES_SLOT, UNHANDLED_EVENT_TYPES_SLOT
 from glitchygames.fonts import FontManager
@@ -77,6 +80,12 @@ from tests.sdl_driver_isolation import (
     restore_run_sdl_drivers,
 )
 from tests.signal_handlers import preserved_signal_handlers
+
+# A crash on a thread without the GIL (SDL's audio thread on the native driver) fails its test
+# with a traceback instead of hanging the worker forever in pygame's parachute (installed by the
+# import above): pytest enables its faulthandler after this module loads, and that then changes
+# only where the traceback is written (tests/engine/test_engine_fatal_signals.py)
+report_fatal_signals_with_faulthandler()
 
 # The repository and its own engine source (src/glitchygames): what a test means by "the
 # checkout", whichever copy of the engine is imported

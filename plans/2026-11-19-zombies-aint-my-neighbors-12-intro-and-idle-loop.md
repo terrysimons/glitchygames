@@ -214,6 +214,27 @@ frame timings fix each animation's own length); tuning them is editing the table
 - The intro's code layout beyond `intro.py`, and how the title passes "launch" or "loop" to
   the intro.
 
+## Deferred minors (the final review, 2026-11-19)
+
+The branch's final review found no Critical and one Important finding (fixed); these Minor ones
+were set aside, as its ledger recorded them (there was no M8). Recorded here on 2026-11-20 because
+the ledger is gitignored. M2 and M3 were rechecked then and are still open; the rest are as the
+review found them.
+
+- **M1** A press on the exact frame the loop hands over is lost, and P on the opening title's
+  first frame cancels that launch's intro.
+- **M2** Skipping the intro leaves its burst sound or groan playing onto the title
+  (`IntroScene._to_the_title` stops nothing).
+- **M3** One frame of the title shows between the CRT power-on and the launch intro (the
+  opening title hands over on its first frame).
+- **M4** No test that the title's idle count freezes while paused (a real-engine pause test is
+  possible through `running_title`).
+- **M5** The rumble doubles are bare `mocker.Mock`, not the stand-in devices or an autospec.
+- **M6** No hitch test crossing the burst and END in one frame.
+- **M7** The idle-loop recording test checks only recordings that start on the title, and sums
+  the whole recording.
+- **M9** The TV's static has no sound (allowed: the design says "where one fits").
+
 ---
 
 # Implementation plan
