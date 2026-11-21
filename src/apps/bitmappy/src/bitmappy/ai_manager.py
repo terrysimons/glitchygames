@@ -30,6 +30,7 @@ from glitchygames.ai import (
     clean_ai_response as ai_clean_response,
 )
 from glitchygames.ai.sprite_generator import pixel_row_problems
+from glitchygames.checks import required
 from glitchygames.color import (
     RGB_COMPONENT_COUNT,
 )
@@ -392,9 +393,9 @@ class AIManager:
         request = AIRequest(prompt=str(messages), request_id=request_id, messages=messages)
         self.log.info('Submitting AI request: %s', request)
 
-        assert self.ai_request_queue is not None
+        ai_request_queue = required(self.ai_request_queue, what='the AI request queue')
         try:
-            self.ai_request_queue.put(request)
+            ai_request_queue.put(request)
         except AttributeError, OSError, ValueError:
             self.log.exception('Error submitting AI request')
             if hasattr(self.editor, 'debug_text'):
@@ -601,8 +602,8 @@ class AIManager:
         )
 
         # Submit retry
-        assert self.ai_request_queue is not None
-        self.ai_request_queue.put(retry_request)
+        ai_request_queue = required(self.ai_request_queue, what='the AI request queue')
+        ai_request_queue.put(retry_request)
 
         # Update UI
         if hasattr(self.editor, 'debug_text'):

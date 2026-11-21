@@ -572,6 +572,10 @@ jobs:
       # no PYINSTALLER_TARGET_ARCH. A universal2 build needs every compiled extension fat,
       # and numpy, scipy, pandas, Pillow and pydantic-core ship arm64-only wheels for macOS
       # (PyInstaller then fails: "... is not a fat binary!"; it does not fall back)
+      # Each machine rolls the suite's order, fixed or shuffled, and a shuffle's seed, from the
+      # workflow's workspace, job and machine, so a rerun repeats its first run's roll
+      # (noxfile.choose_suite_order; the owner, 2026-11-20); the log and test-order.txt name it
+      GLITCHYGAMES_TEST_ORDER: "roll"
 
     steps:
       - checkout
@@ -586,8 +590,8 @@ jobs:
       - nox-timer-report
       # 3.15, every session (noxfile.PINNED_PYTHONS; the owner, 2026-11-18: "Only 3.15 for macos
       # too", "Just change that job's name to test-python-3-15-macos"). Linux and Windows run it
-      # in jobs of their own (test-python-3-15-linux, -windows), split across two machines: the
-      # suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
+      # in jobs of their own (test-python-3-15-linux, -windows), split across three machines:
+      # the suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
       - nox-test:
           session: test-3.15
       - install-supply-chain-tools-macos
@@ -607,7 +611,7 @@ jobs:
     # small (1 vCPU, 2 GB): one process runs the machine's share of the suite. It grew past 2 GB
     # until the recording mocks in two timing and hardware tests were replaced (BUGS.md #85)
     resource_class: small
-    parallelism: 2
+    parallelism: 3
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
@@ -623,11 +627,15 @@ jobs:
       # 3945); the slab alone swings about 120 MiB from run to run. Was 1750 (2026-11-17), 1600
       # before that (2026-10-28)
       GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"
-      # Two machines, each running its share of the suite, as CircleCI's splitter assigns them by
-      # past timings (tests/circleci_test_split.py): one ran past CircleCI's one-hour job limit
-      # (jobs 3705, 3707; the owner, 2026-11-18). The coverage rule is applied to the shares
-      # combined, by coverage-combine-<os> after this job
+      # Three machines, each running its share of the suite, as CircleCI's splitter assigns them
+      # by past timings (tests/circleci_test_split.py): one ran past CircleCI's one-hour job limit
+      # (jobs 3705, 3707; the owner, 2026-11-18: two; 2026-11-20: three). The coverage rule is
+      # applied to the shares combined, by coverage-combine-<os> after this job
       GLITCHYGAMES_TEST_SPLIT: "circleci"
+      # Each machine rolls the suite's order, fixed or shuffled, and a shuffle's seed, from the
+      # workflow's workspace, job and machine, so a rerun repeats its first run's roll
+      # (noxfile.choose_suite_order; the owner, 2026-11-20); the log and test-order.txt name it
+      GLITCHYGAMES_TEST_ORDER: "roll"
 
     steps:
       - checkout
@@ -648,12 +656,16 @@ jobs:
     executor:
       name: win/default
       size: medium
-    # Split as on Linux (the owner, 2026-11-18: "Do it for windows too")
-    parallelism: 2
+    # Split as on Linux (the owner, 2026-11-18: "Do it for windows too"; 2026-11-20: three)
+    parallelism: 3
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
       GLITCHYGAMES_TEST_SPLIT: "circleci"
+      # Each machine rolls the suite's order, fixed or shuffled, and a shuffle's seed, from the
+      # workflow's workspace, job and machine, so a rerun repeats its first run's roll
+      # (noxfile.choose_suite_order; the owner, 2026-11-20); the log and test-order.txt name it
+      GLITCHYGAMES_TEST_ORDER: "roll"
       # uv's cache at a short path, so a source build's paths stay under Windows' 259
       # characters: the cache's path appears twice in them (see install-deps-windows)
       UV_CACHE_DIR: 'C:\uv-cache'
@@ -750,6 +762,8 @@ jobs:
       # kill with no test named. The owner, 2026-11-04: limits stay on the real hardware; and
       # 2026-11-19: one limit for all Linux systems, including the Pi job, 1400 for the Pi too
       GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"
+      # As on the other test jobs: roll the suite's order (noxfile.choose_suite_order)
+      GLITCHYGAMES_TEST_ORDER: "roll"
 
     steps:
       - checkout
@@ -862,6 +876,14 @@ jobs:
       - run:
           name: "Deploy the docs (nox -s docs-deploy -- --no-measure)"
           no_output_timeout: 60m
+          environment:
+            # The browser wheel's build runs `uv venv` on its cached toolchain folder when the
+            # cached venv's python doesn't run; uv then asks on this step's terminal whether to
+            # replace it, which no one answers (jobs 4431, 4443 hung to the 60-minute limit).
+            # This makes uv replace it without asking (closing stdin doesn't: uv reads the
+            # terminal). The script's own fix, uv venv --clear, is a submodule change
+            # (plans/future-work.md)
+            UV_VENV_CLEAR: "1"
           command: |
             set -euo pipefail
             export PATH="$HOME/.local/bin:$PATH"
@@ -924,6 +946,17 @@ jobs:
 
     steps:
       - checkout
+      # Publish what main is now, not only the commit this deploy was started for: with its own
+      # lock and only test-infra to wait for, an older pipeline's deploy could otherwise finish
+      # after a newer one and put the older site back (nox -s site-publish also refuses a
+      # checkout off main)
+      - run:
+          name: "Move to main's latest commit"
+          command: |
+            set -euo pipefail
+            git fetch --quiet origin main
+            git checkout --quiet --detach origin/main
+            echo "publishing main at $(git rev-parse HEAD)"
       - restore-uv-cache-posix
       - install-deps-posix:
           pythons: << pipeline.parameters.PYTHON_VERSION >>
@@ -975,26 +1008,26 @@ workflows:
       # - build-and-test-raspberry-pi-5-16gb-ubuntu
       # - build-and-test-raspberry-pi-5-8gb-ubuntu
       # - build-and-test-raspberry-pi-5-16gb-raspberry-pi-os
-      # After a merge to main: as soon as the macOS job passes (the same tree passed all three in
-      # its pull request), one deploy at a time so two quick merges cannot race gh-pages
+      # After a merge to main, at once, beside the test jobs (the owner, 2026-11-20: "Docs only
+      # run after merging to main, so let's actually run it in parallel to the other jobs"; on a
+      # red main publishing a broken browser game: "For now I want faster")
       - deploy-docs:
-          requires:
-            - test-python-3-15-macos
           filters:
             branches:
               only: main
-          # The deploys' one lock, deploy-site's too (the owner, 2026-11-20): one deploy of
-          # either kind at a time, across pipelines
-          serial-group: << pipeline.project.slug >>/deploy-site
+          # Its own lock: one docs deploy at a time across pipelines, so two quick merges cannot
+          # race gh-pages (a deploy that waited finds main published and stops); the site's
+          # deploy holds another, so the two run side by side
+          serial-group: << pipeline.project.slug >>/deploy-docs
       - test-infra
-      # After a merge to main, once the docs have published (deploy-docs, which waits for macOS)
-      # and the infra tests pass (the owner, 2026-10-28: "it should run on main after docs
-      # publish"); one deploy at a time. The deploy role itself trusts only main's jobs (the
+      # After a merge to main, once the infra tests pass, beside the docs deploy (the owner,
+      # 2026-11-20: "essentially would like docs and site publish to happen in parallel"; it
+      # waited for the docs from 2026-10-28). It publishes src/website, nothing the docs build
+      # makes; one site deploy at a time. The deploy role itself trusts only main's jobs (the
       # OIDC token's vcs-ref; infra/src/glitchy_site/deploy_role_stack.py): this filter just
       # skips running it elsewhere
       - deploy-site:
           requires:
-            - deploy-docs
             - test-infra
           filters:
             branches:

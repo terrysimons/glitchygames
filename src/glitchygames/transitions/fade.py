@@ -10,6 +10,7 @@ from typing import override
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.transitions.base import Transition
 
 
@@ -64,7 +65,7 @@ class FadeTransition(Transition):
 
         """
         # start() made the overlay; render() draws only after start()
-        assert self._overlay is not None
+        overlay = required(self._overlay, what="the fade's overlay")
 
         progress = self.eased_progress
         halfway = 0.5
@@ -73,14 +74,14 @@ class FadeTransition(Transition):
             # First half: old scene → solid color
             fade_alpha = int(255 * (progress / halfway))
             screen.blit(old_surface, (0, 0))
-            self._overlay.set_alpha(fade_alpha)
-            screen.blit(self._overlay, (0, 0))
+            overlay.set_alpha(fade_alpha)
+            screen.blit(overlay, (0, 0))
         else:
             # Second half: solid color → new scene
             fade_alpha = int(255 * ((1.0 - progress) / halfway))
             screen.blit(new_surface, (0, 0))
-            self._overlay.set_alpha(fade_alpha)
-            screen.blit(self._overlay, (0, 0))
+            overlay.set_alpha(fade_alpha)
+            screen.blit(overlay, (0, 0))
 
 
 class CrossfadeTransition(Transition):
