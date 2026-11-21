@@ -19,6 +19,8 @@ suite needs are declared here; the shared test harness (tests/harness.py) is one
 # fails one that never used it
 # tests.circleci_test_split keeps one CircleCI machine's share of the suite when
 # GLITCHYGAMES_TEST_SPLIT is set (the split CI jobs); unset, it does nothing
+# tests.import_failure_threads adds every live thread, and the test that started it, to a test that
+# fails inside the import machinery (bugs/2026-11-20-httpcore2-import-keyerror-on-windows.md)
 pytest_plugins = [
     'tests.harness',
     'pytester',
@@ -28,4 +30,5 @@ pytest_plugins = [
     'tests.collection_logger_levels',
     'tests.disk_sound_cache',
     'tests.circleci_test_split',
+    'tests.import_failure_threads',
 ]
