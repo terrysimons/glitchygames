@@ -159,6 +159,10 @@ all:
                 levels: []
               # It boots from an NVMe SSD in a case that is itself a heat sink (read 2026-11-16)
               raspberry_pi_cooling: Active cooling; the NVMe case is a large heat sink
+              # The performance governor, as on the Ubuntu 16 GB Pi 5 (the owner, 2026-11-20).
+              # The kernel here offers conservative ondemand userspace powersave performance
+              # schedutil (read 2026-11-20); power-profiles-daemon is not running on it
+              raspberry_pi_cpu_governor: performance
               # Raspberry Pi OS's firmware boots it with cgroup_disable=memory, so its runner's
               # MemoryMax is not enforced; its boot arguments are left alone for now (a to-do:
               # plans/future-work.md, "The Raspberry Pi OS Pi's memory cgroup")

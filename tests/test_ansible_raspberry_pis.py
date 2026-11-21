@@ -2047,15 +2047,19 @@ def available_governors_content(text: str = PI5_AVAILABLE_GOVERNORS) -> str:
     return base64.b64encode(f'{text}\n'.encode()).decode()
 
 
-def test_only_the_16gb_ubuntu_pi_sets_a_governor():
-    """Unset elsewhere means untouched: only this Pi names one (the owner, 2026-11-20)."""
+def test_only_the_16gb_pi5s_set_a_governor():
+    """Unset elsewhere means untouched: only the 16 GB Pi 5s name one (the owner, 2026-11-20)."""
     governors = {
         host: variables.get('raspberry_pi_cpu_governor')
         for host, variables in raspberry_pi_hosts().items()
     }
 
     assert governors[PI5_16GB] == 'performance'
-    assert {host for host, governor in governors.items() if governor is not None} == {PI5_16GB}
+    assert governors[PI5_16GB_RASPBERRY_PI_OS] == 'performance'
+    assert {host for host, governor in governors.items() if governor is not None} == {
+        PI5_16GB,
+        PI5_16GB_RASPBERRY_PI_OS,
+    }
 
 
 def test_every_governor_task_waits_for_a_governor_and_becomes_root():
