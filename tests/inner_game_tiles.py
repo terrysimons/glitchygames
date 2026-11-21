@@ -10,7 +10,12 @@ games. It names no member and reads nothing of the workspace, so an engine test 
   render target after each frame it runs, optionally heard for a range of frames.
 - ``play_alone``: a recording replayed to its end as the only inner game.
 - ``reference_digests``: the recording replayed alone, headless, in a child: one digest a frame.
-- ``assert_no_tile_is_heard``: while no tile is audible, nothing a tile played sounds.
+- ``assert_no_tile_is_heard`` (``assert_no_inner_game_is_heard`` for any inner games, a demo
+  player's among them): while none is audible, nothing one played sounds.
+- ``heard_channels`` and ``switch_away_checked``: what an inner game has sounding, and switching
+  it silent with what it had sounding checked off the mixer at once.
+- ``FrameCostClock``: a fake real-time clock for demo players' budgets, on which each frame a
+  player runs costs ``FRAME_COST_SECONDS``.
 - ``INTERLEAVED_STEPS``: how unevenly two tiles are stepped beside each other.
 """
 
@@ -32,12 +37,15 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.inner_game import InnerGame, InnerGameState
 from glitchygames.replay.audit import read_digest_file
 from glitchygames.replay.driver import recorded_screen_size
+from glitchygames.replay.pacer import TickBudget
 from glitchygames.replay.tools.children import replay_recording_headless
 from glitchygames.tracing import TraceReader
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable, Mapping
     from pathlib import Path
+
+    from glitchygames.demo_player import DemoPlayer
 
 # The inner games' arguments after the replay's own: the tools' quiet log level, as the
 # reference child gets (children.headless_replay_arguments)
@@ -47,6 +55,9 @@ DIGEST_OPTION = '--replay-digest'
 # the two never run in step, and each sometimes runs several frames while the other waits (the
 # inner-game proof's, and the demo player's beside another: tests/test_demo_player.py)
 INTERLEAVED_STEPS = ((1, 2), (3, 1), (2, 3), (1, 1), (4, 2))
+# Each frame a demo player runs costs this on ``FrameCostClock``: a power of two, so a k-frame
+# budget is spent by exactly k frames (tests/engine/test_inner_game.py's frame-cost clock)
+FRAME_COST_SECONDS = 1 / 256
 
 
 def recording_id(*, console_script: str, recording: Path) -> str:
@@ -163,16 +174,7 @@ class Tile:
             Each chunk (none once the tile finished and gave its pool back).
 
         """
-        partition = self.inner_game.context.value(slot=INNER_CHANNELS_SLOT).partition
-        if partition is None:
-            return []
-        chunks: list[pygame.mixer.Sound] = []
-        for channel_index in partition.live:
-            channel = pygame.mixer.Channel(channel_index)
-            chunks.extend(
-                chunk for chunk in (channel.get_sound(), channel.get_queue()) if chunk is not None
-            )
-        return chunks
+        return live_pool_chunks(inner_game=self.inner_game)
 
     def heard_channels(self) -> tuple[int, ...]:
         """Return the channels sounding one of the tile's sounds: plain plays, and its heard set.
@@ -181,18 +183,7 @@ class Tile:
             Their indices.
 
         """
-        with self.inner_game.context.active():
-            start = heard_set_start()
-        heard_set = (
-            ()
-            if start is None
-            else tuple(
-                index
-                for index in range(start, start + DEFAULT_HEARD_SET_CHANNELS)
-                if pygame.mixer.Channel(index).get_busy()
-            )
-        )
-        return (*self.plain_play_channels(), *heard_set)
+        return heard_channels(inner_game=self.inner_game)
 
     def plain_play_channels(self) -> tuple[int, ...]:
         """Return the unreserved channels playing a plain play the tile started (followed).
@@ -201,22 +192,17 @@ class Tile:
             Their indices.
 
         """
-        with self.inner_game.context.active():
-            return plain_play_channel_indices()
+        return plain_play_channels(inner_game=self.inner_game)
 
     def switch_away(self) -> None:
         """Make the tile silent: what it had sounding is off the mixer at once (decision 6)."""
-        plain_play_channels = self.plain_play_channels()
-        audible_chunks = [chunk for chunk in self.live_pool_chunks() if chunk.get_volume() > 0]
-
-        self.inner_game.set_audible(audible=False)
-
-        for channel_index in plain_play_channels:
-            channel = pygame.mixer.Channel(channel_index)
-            assert not channel.get_busy(), f'{self.label}: channel {channel_index} plays on'
-        assert all(chunk.get_volume() == 0 for chunk in audible_chunks), self.label
-        self.plain_plays_stopped_at_the_switch = len(plain_play_channels)
-        self.live_chunks_muted_at_the_switch = len(audible_chunks)
+        self.plain_plays_stopped_at_the_switch, self.live_chunks_muted_at_the_switch = (
+            switch_away_checked(
+                label=self.label,
+                inner_game=self.inner_game,
+                make_silent=lambda: self.inner_game.set_audible(audible=False),
+            )
+        )
         self.switched_away = True
 
     def _switch_before_the_frame(self) -> None:
@@ -286,26 +272,172 @@ def play_alone(*, console_script: str, recording: Path, work_directory: Path) ->
     return tile
 
 
+def live_pool_chunks(*, inner_game: InnerGame) -> list[pygame.mixer.Sound]:
+    """Return the chunks playing or queued on an inner game's live pool.
+
+    Args:
+        inner_game: The inner game.
+
+    Returns:
+        Each chunk (none once the game finished and gave its pool back).
+
+    """
+    partition = inner_game.context.value(slot=INNER_CHANNELS_SLOT).partition
+    if partition is None:
+        return []
+    chunks: list[pygame.mixer.Sound] = []
+    for channel_index in partition.live:
+        channel = pygame.mixer.Channel(channel_index)
+        chunks.extend(
+            chunk for chunk in (channel.get_sound(), channel.get_queue()) if chunk is not None
+        )
+    return chunks
+
+
+def plain_play_channels(*, inner_game: InnerGame) -> tuple[int, ...]:
+    """Return the unreserved channels playing a plain play an inner game started (followed).
+
+    Args:
+        inner_game: The inner game.
+
+    Returns:
+        Their indices.
+
+    """
+    with inner_game.context.active():
+        return plain_play_channel_indices()
+
+
+def heard_channels(*, inner_game: InnerGame) -> tuple[int, ...]:
+    """Return the channels sounding one of an inner game's sounds: plain plays, and its heard set.
+
+    Args:
+        inner_game: The inner game.
+
+    Returns:
+        Their indices.
+
+    """
+    with inner_game.context.active():
+        start = heard_set_start()
+    heard_set = (
+        ()
+        if start is None
+        else tuple(
+            index
+            for index in range(start, start + DEFAULT_HEARD_SET_CHANNELS)
+            if pygame.mixer.Channel(index).get_busy()
+        )
+    )
+    return (*plain_play_channels(inner_game=inner_game), *heard_set)
+
+
+def switch_away_checked(
+    *, label: str, inner_game: InnerGame, make_silent: Callable[[], None]
+) -> tuple[int, int]:
+    """Make an inner game silent and check what it had sounding is off the mixer at once.
+
+    Decision 6 of plans/2026-11-13-arcade-4-sound.md: its plain plays stop and its live chunks
+    go to volume 0.
+
+    Args:
+        label: The recording, for the messages.
+        inner_game: The inner game, audible.
+        make_silent: What switches it silent (its own ``set_audible``, or its demo player's).
+
+    Returns:
+        How many plain plays were stopped and how many live chunks muted.
+
+    """
+    plain_plays = plain_play_channels(inner_game=inner_game)
+    audible_chunks = [
+        chunk for chunk in live_pool_chunks(inner_game=inner_game) if chunk.get_volume() > 0
+    ]
+
+    make_silent()
+
+    assert not inner_game.audible, f'{label}: still audible'
+    for channel_index in plain_plays:
+        channel = pygame.mixer.Channel(channel_index)
+        assert not channel.get_busy(), f'{label}: channel {channel_index} plays on'
+    assert all(chunk.get_volume() == 0 for chunk in audible_chunks), label
+    return len(plain_plays), len(audible_chunks)
+
+
 def assert_no_tile_is_heard(*, tiles: Iterable[Tile]) -> None:
     """While no tile is audible, check nothing a tile played can be heard.
-
-    The outer game plays nothing, so no unreserved channel may play (a silent tile's plain plays
-    reach none, a switched-away tile's were stopped), and every chunk on a tile's live pool is
-    at volume 0 (its live voices play silent chunks).
 
     Args:
         tiles: The tiles running.
 
     """
-    tiles = tuple(tiles)
-    if any(tile.inner_game.audible for tile in tiles):
+    assert_no_inner_game_is_heard(inner_games={tile.label: tile.inner_game for tile in tiles})
+
+
+def assert_no_inner_game_is_heard(*, inner_games: Mapping[str, InnerGame]) -> None:
+    """While no inner game is audible, check nothing one played can be heard.
+
+    The outer game plays nothing, so no unreserved channel may play (a silent game's plain plays
+    reach none, a switched-away game's were stopped), and every chunk on a game's live pool is
+    at volume 0 (its live voices play silent chunks).
+
+    Args:
+        inner_games: The inner games running, by their labels for the messages.
+
+    """
+    if any(inner_game.audible for inner_game in inner_games.values()):
         return
     sounding = [
         channel_index
         for channel_index in unreserved_channel_indices()
         if pygame.mixer.Channel(channel_index).get_busy()
     ]
-    assert sounding == [], f'unreserved channels {sounding} play while no tile is heard'
-    for tile in tiles:
-        volumes = [chunk.get_volume() for chunk in tile.live_pool_chunks()]
-        assert all(volume == 0 for volume in volumes), f'{tile.label} live chunks at {volumes}'
+    assert sounding == [], f'unreserved channels {sounding} play while no inner game is heard'
+    for label, inner_game in inner_games.items():
+        volumes = [chunk.get_volume() for chunk in live_pool_chunks(inner_game=inner_game)]
+        assert all(volume == 0 for volume in volumes), f'{label} live chunks at {volumes}'
+
+
+class FrameCostClock:
+    """A fake real-time clock for demo players' budgets: each frame one runs costs a fixed time.
+
+    Its reading is every watched player's frames played (``DemoPlayer.frames_played``) times
+    ``FRAME_COST_SECONDS``, plus what the test charges (``charged_seconds``: a build's cost), so
+    a test says how many frames a budget allows.
+    """
+
+    def __init__(self) -> None:
+        """Watch no player yet, with nothing charged."""
+        self.players: list[DemoPlayer] = []
+        self.charged_seconds = 0.0
+
+    def __call__(self) -> float:
+        """Read the clock.
+
+        Returns:
+            Seconds (only differences mean anything).
+
+        """
+        frames = sum(player.frames_played for player in self.players)
+        return frames * FRAME_COST_SECONDS + self.charged_seconds
+
+    def budget(self, *, frame_count: float) -> TickBudget:
+        """Start a budget allowing ``frame_count`` frames, now.
+
+        Args:
+            frame_count: How many frames it allows.
+
+        Returns:
+            The budget.
+
+        """
+        return TickBudget(length_seconds=frame_count * FRAME_COST_SECONDS, measured_seconds=self)
+
+    def charge_frames(self, *, frame_count: int) -> None:
+        """Let real time pass as if ``frame_count`` frames ran (a build's cost).
+
+        Args:
+            frame_count: How many frames' worth.
+
+        """
+        self.charged_seconds += frame_count * FRAME_COST_SECONDS

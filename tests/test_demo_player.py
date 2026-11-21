@@ -7,10 +7,11 @@ host may share among players, rebuilds it from frame 0 at its end, and says how 
 (``DemoOutcome``). The games are stand-ins installed as commands (tests/stand_in_games.py), so the
 engine's tests run no member.
 
-The budgets run on a fake real-time clock (``FrameCostClock``) on which each frame any player
-runs costs ``FRAME_COST_SECONDS`` and a build what the test charges, so a test says how many
-frames a budget allows. Every recording's frames are rewritten to last ``FRAME_SECONDS`` (both
-powers of two, so every sum the pacer and the budget make is exact in a float).
+The budgets run on a fake real-time clock (``FrameCostClock``, tests/inner_game_tiles.py) on
+which each frame any player runs costs ``FRAME_COST_SECONDS`` and a build what the test charges,
+so a test says how many frames a budget allows. Every recording's frames are rewritten to last
+``FRAME_SECONDS`` (both powers of two, so every sum the pacer and the budget make is exact in a
+float).
 """
 
 from __future__ import annotations
@@ -45,10 +46,15 @@ from glitchygames.demo_player import (
 from glitchygames.engine_context import current_context, default_context
 from glitchygames.inner_game import InnerGame, InnerGameAudibleError
 from glitchygames.replay.audit import read_digest_file
-from glitchygames.replay.pacer import MAX_OWED_INNER_FRAMES, TickBudget
+from glitchygames.replay.pacer import MAX_OWED_INNER_FRAMES
 from glitchygames.scenes import Scene, SceneManager
 from tests.audio.voice_support import LEGACY_CHANNELS, LIBRARY_CHANNELS, LIVE_POOL
-from tests.inner_game_tiles import INTERLEAVED_STEPS, play_alone, reference_digests
+from tests.inner_game_tiles import (
+    INTERLEAVED_STEPS,
+    FrameCostClock,
+    play_alone,
+    reference_digests,
+)
 from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
 from tests.stand_in_games import (
     STAND_IN_GAME_FRAMES,
@@ -77,9 +83,6 @@ OTHER_SEED = '7'
 # Every recorded frame lasts this long (rewritten), and the players tick at this period
 FRAME_SECONDS = 1 / 64
 NOMINAL_TICK_SECONDS = 1 / 64
-# Each frame any player runs costs this on the fake real-time clock: a power of two, so a k-frame
-# budget is spent by exactly k frames (tests/engine/test_inner_game.py's frame-cost clock)
-FRAME_COST_SECONDS = 1 / 256
 # Ten tiles, as the Arcade's grid; the host declares their channels once (rule 6 of inner_game.py)
 DECLARED_PLAYERS = 10
 # A shared budget allows this many frames a tick among the ten players
@@ -126,42 +129,6 @@ ALLOWED_IMPORTS = frozenset({
 TIME_MODULES = frozenset({'time', 'datetime', 'glitchygames.clock'})
 POSTER_SEEDS = range(50)
 POSTER_FRAME_COUNTS = (1, 2, 3, 9, 10, 11, 20, 99, 100, 101, 1234)
-
-
-class FrameCostClock:
-    """A fake real-time clock: each frame a player runs costs ``FRAME_COST_SECONDS``.
-
-    Its reading is every watched player's frames played (``DemoPlayer.frames_played``) times the
-    cost, plus what the test charges (``charged_seconds``: a build's cost, by ``on_new_game``).
-    """
-
-    def __init__(self) -> None:
-        """Watch no player yet, with nothing charged."""
-        self.players: list[DemoPlayer] = []
-        self.charged_seconds = 0.0
-
-    def __call__(self) -> float:
-        """Read the clock.
-
-        Returns:
-            Seconds (only differences mean anything).
-
-        """
-        frames = sum(player.frames_played for player in self.players)
-        return frames * FRAME_COST_SECONDS + self.charged_seconds
-
-    def budget(self, *, frame_count: float) -> TickBudget:
-        """Start a budget allowing ``frame_count`` frames, now.
-
-        Returns:
-            The budget.
-
-        """
-        return TickBudget(length_seconds=frame_count * FRAME_COST_SECONDS, measured_seconds=self)
-
-    def charge_frames(self, *, frame_count: int) -> None:
-        """Let real time pass as if ``frame_count`` frames ran (a build's cost)."""
-        self.charged_seconds += frame_count * FRAME_COST_SECONDS
 
 
 def rewrite_frame_durations(*, recording: Path) -> None:

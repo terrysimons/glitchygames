@@ -53,6 +53,36 @@ recording replayed alone, the outer window's size and caption and SDL's blocked 
 game sets blocked types of its own (``OUTER_BLOCKED_TYPES``, ``OUTER_ALLOWED_TYPES``) that no
 engine sets, so a tile allowing every type, or a manager allowing its own, would show.
 
+The same proof through ``DemoPlayer`` (Arcade sub-plan 5,
+plans/2026-11-20-arcade-5-playback-core.md, Task 6; glitchygames/demo_player.py): each pair is
+replayed as two demo players, as an Arcade's tiles hold them, paced by the elapsed time the test
+serves and limited by budgets on a fake real-time clock (``FrameCostClock``: each frame a player
+runs costs a fixed time, so a budget allows a known number of frames and the runs are the same on
+every machine). Two runs:
+
+- **uneven, looped, fast-forwarded and heard**
+  (``test_a_recording_replays_as_a_demo_player_beside_another_as_it_does_alone``): the case's
+  player first fast-forwards, in slices, to a poster frame drawn from a seeded stream
+  (``poster_frame``, the Arcade's ``random_stream('arcade-posters')`` stood in for by
+  ``POSTER_SEED``), then both players are ticked with uneven elapsed time (``UNEVEN_TICKS``)
+  and uneven budgets (``INTERLEAVED_STEPS``) until the case's recording has looped and played
+  once more from frame 0, heard for the middle third of that second run and switched silent
+  again (``WatchedPlayer``);
+- **slow motion, one frame a tick**
+  (``test_a_recording_replays_as_a_demo_player_in_slow_motion_one_frame_a_tick``): each tick
+  pays twice a frame's time, and the two players share one budget of a frame each, passed from
+  one to the other (``most_frames=1``, as a host shares a budget too small for its tiles), so
+  every player falls behind and plays every frame in slow motion.
+
+In both, every game a player builds ends matched with the digests of its recording's solo child
+replay, frame for frame (each finished game's digest file is read when the player builds the
+next: ``WatchedPlayer``), the frame after the fast-forward is the poster frame, and the player's
+surface after each tick is the pixels of the same recording replayed alone, at the frame it
+stands at (every frame, in the slow-motion run). The progress itself is the test's: the budgets
+here run on a fake clock, and on the real one (``clock.measured_seconds``) how far a tile gets in
+an Arcade frame depends on the machine, so a recorded Arcade session replays its inputs, never
+its tiles' progress frame for frame (the owner's decision 5 in that plan).
+
 A repository test (tests/test_suite_collection.py ``REPOSITORY_TEST_FILES``): it replays our
 members' recordings through their console scripts. The tiles, the reference digests and the
 silence check (``Tile``, ``play_alone``, ``reference_digests``, ``assert_no_tile_is_heard``) are
@@ -62,7 +92,9 @@ of the workspace.
 
 from __future__ import annotations
 
+import hashlib
 import itertools
+import random
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -76,21 +108,32 @@ from glitchygames.audio.engine import DEFAULT_LIBRARY_CHANNELS, DEFAULT_LIVE_POO
 from glitchygames.audio.voices import (
     reserve_channels,
 )
+from glitchygames.demo_player import DemoPlayer, DemoState, poster_frame
 from glitchygames.engine_context import current_context, default_context
+from glitchygames.replay.audit import read_digest_file
 from tests.display_canvas import show_canvas_on_new_display
 from tests.inner_game_tiles import (
+    DIGEST_OPTION,
     INTERLEAVED_STEPS,
+    QUIET,
+    FrameCostClock,
     Tile,
+    assert_no_inner_game_is_heard,
     assert_no_tile_is_heard,
+    heard_channels,
     play_alone,
     recorded_size,
     recording_id,
     reference_digests,
+    switch_away_checked,
 )
 from tests.workspace_goldens import every_golden_and_bundled_demo
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable
+
+    from glitchygames.inner_game import InnerGame
+    from glitchygames.replay.pacer import TickBudget
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Every golden, then every bundled demo: (console script, recording)
@@ -139,6 +182,22 @@ PLAYS_SOUNDS = frozenset({
     ('zombies-aint-my-neighbors', 'golden-neighborhood.jsonl.gz'),
     ('zombies-aint-my-neighbors', 'neighborhood_four_kids.jsonl.gz'),
 })
+# The demo players' tick: an Arcade's frame period at 60 Hz
+ARCADE_TICK_SECONDS = 1 / 60
+# The elapsed time each tick of the uneven run pays, in Arcade ticks, cycled: none served, one, a
+# few at once (a hitch)
+UNEVEN_TICKS = (1, 3, 0, 2, 5)
+# The slow-motion run's ticks each pay this many Arcade ticks, and run one frame per player
+SLOW_MOTION_TICKS = 2
+# The seed of the poster stream: an Arcade draws its posters from random_stream('arcade-posters')
+POSTER_SEED = 5
+# The frames each slice of the poster's fast-forward may run (its budget on the fake clock)
+FAST_FORWARD_SLICE_FRAMES = 64
+# The games the case's player plays in the uneven run: the fast-forwarded one, and its loop
+UNEVEN_RUN_GAMES = 2
+# More ticks than any run needs (the longest recording holds 2,313 frames, and every tick runs at
+# least one of a player's frames once it is owed): a run that never ends fails instead of hanging
+MOST_PLAYER_TICKS = 10_000
 
 
 @pytest.fixture(autouse=True)
@@ -417,6 +476,322 @@ def play_pair(
     return tiles
 
 
+class WatchedPlayer:
+    """A ``DemoPlayer`` of a recording with ``--replay-digest``, its games and pixels checked.
+
+    Each game it builds writes the digest file when it ends; the player's ``on_new_game`` reads
+    it as the next game is built, so every finished game's digests are kept
+    (``finished_digests``). After each tick its surface is checked against the recording replayed
+    alone at the frame it stands at (``check_frames``), and the game a tick finished is checked
+    at its last frame too.
+    """
+
+    def __init__(
+        self,
+        *,
+        console_script: str,
+        recording: Path,
+        digest_path: Path,
+        alone_pixel_hashes: list[str],
+        clock: FrameCostClock,
+    ) -> None:
+        """Make the player (it builds its first game) and watch it with the fake clock.
+
+        Args:
+            console_script: The console script that replays the recording.
+            recording: The recording.
+            digest_path: Where each of its games writes its digests.
+            alone_pixel_hashes: The recording's pixels replayed alone, one hash a frame.
+            clock: The fake real-time clock its budgets run on.
+
+        """
+        self.label = recording_id(console_script=console_script, recording=recording)
+        self.digest_path = digest_path
+        self.alone_pixel_hashes = alone_pixel_hashes
+        # Each finished game's digests and divergence, in the order the games ended
+        self.finished_digests: list[tuple[list[str], str | None]] = []
+        # By generation, the frames whose pixels were checked, in order
+        self.checked_frames: dict[int, list[int]] = {}
+        self.games_built = 0
+        self.ticks_behind = 0
+        self.most_frames_in_a_tick = 0
+        self.ticks_with_a_heard_sound = 0
+        self.switched_away = False
+        self.player = DemoPlayer(
+            command=console_script,
+            recording=recording,
+            nominal_tick_seconds=ARCADE_TICK_SECONDS,
+            arguments=(*QUIET, DIGEST_OPTION, str(self.digest_path)),
+            on_new_game=self._read_the_last_games_digests,
+        )
+        clock.players.append(self.player)
+        assert self.player.outcome.state is DemoState.PLAYING, (
+            f'{self.label}: {self.player.outcome}'
+        )
+
+    def _read_the_last_games_digests(self, _inner_game: InnerGame) -> None:
+        """Keep the digests the game before this new one wrote at its end (none for the first)."""
+        if self.games_built:
+            self.finished_digests.append(read_digest_file(path=self.digest_path))
+        self.games_built += 1
+
+    def tick(self, *, elapsed_seconds: float, budget: TickBudget, most_frames: int | None = None):
+        """Tick the player, then check the pixels of each game the tick ran frames of.
+
+        Args:
+            elapsed_seconds: The time the tick pays.
+            budget: The tick's budget (possibly shared).
+            most_frames: The player's share of a shared budget, or None.
+
+        """
+        game_before = self.player.inner_game
+        generation_before = self.player.generation
+        frame_before = self.player.frame_index
+
+        frames_run = self.player.tick(
+            elapsed_seconds=elapsed_seconds, budget=budget, most_frames=most_frames
+        )
+
+        self.most_frames_in_a_tick = max(self.most_frames_in_a_tick, frames_run)
+        self.ticks_behind += self.player.is_behind
+        game = self.player.inner_game
+        assert game is not None, self.label
+        if game is game_before:
+            if game.frame_index > frame_before:
+                self.check_frame(game=game, generation=generation_before)
+            return
+        # The tick ended the game it began with (checked at its last frame) and built another
+        if game_before is not None and game_before.frame_index > frame_before:
+            self.check_frame(game=game_before, generation=generation_before)
+        if game.frame_index > 0:
+            self.check_frame(game=game, generation=self.player.generation)
+
+    def check_frame(self, *, game: InnerGame, generation: int) -> None:
+        """Check a game's render target is the recording's pixels alone at its last frame run.
+
+        Args:
+            game: One of the player's games.
+            generation: Which of its games it is (1 for the first).
+
+        """
+        frame = game.frame_index - 1
+        # The current game's is what a host reads: the player's surface (rule 7)
+        surface = self.player.surface if game is self.player.inner_game else game.surface
+        assert surface is not None, self.label
+        pixels = pygame.image.tobytes(surface, 'RGB')
+        assert hashlib.sha256(pixels).hexdigest() == self.alone_pixel_hashes[frame], (
+            f'{self.label}, game {generation}: frame {frame} differs from the recording alone'
+        )
+        self.checked_frames.setdefault(generation, []).append(frame)
+
+    def switch_for_the_heard_frames(self, *, heard: range, generation: int) -> None:
+        """Make the player heard from ``heard.start`` and silent from ``heard.stop``, once.
+
+        Only in game ``generation``; the switch silent is checked (``switch_away_checked``).
+
+        Args:
+            heard: The frames to be heard in, by the game's next frame.
+            generation: The game to be heard in.
+
+        """
+        player = self.player
+        if player.generation != generation or self.switched_away:
+            return
+        if not player.audible and player.frame_index >= heard.start:
+            player.set_audible(audible=True)
+        elif player.audible and player.frame_index >= heard.stop:
+            game = player.inner_game
+            assert game is not None, self.label
+            switch_away_checked(
+                label=self.label,
+                inner_game=game,
+                make_silent=lambda: player.set_audible(audible=False),
+            )
+            self.switched_away = True
+
+    def count_a_heard_sound(self) -> None:
+        """Count the tick when the player is heard and one of its sounds is playing."""
+        game = self.player.inner_game
+        if self.player.audible and game is not None and heard_channels(inner_game=game):
+            self.ticks_with_a_heard_sound += 1
+
+    def assert_each_finished_game_matched(self, *, reference: list[str], games: int) -> None:
+        """Check at least ``games`` games ended, each with the reference's digests and matched.
+
+        Args:
+            reference: The recording's solo child replay's digests.
+            games: How many games must have ended.
+
+        """
+        assert len(self.finished_digests) >= games, f'{self.label}: {self.player.outcome}'
+        for generation, (digests, divergence) in enumerate(self.finished_digests, start=1):
+            assert divergence is None, f'{self.label}, game {generation}: {divergence}'
+            assert digests == reference, f'{self.label}, game {generation}: digests differ'
+
+    def assert_each_finished_game_was_checked_in_order(self, *, games: int, frame_count: int):
+        """Check each of the first ``games`` games' pixels were checked forwards, to its last frame.
+
+        Args:
+            games: How many games ended.
+            frame_count: The recording's frames.
+
+        """
+        for generation in range(1, games + 1):
+            checked = self.checked_frames[generation]
+            assert checked == sorted(set(checked)), f'{self.label}, game {generation}: {checked}'
+            assert checked[-1] == frame_count - 1, f'{self.label}, game {generation}'
+
+
+def assert_none_is_heard(*, players: Iterable[WatchedPlayer]) -> None:
+    """While no player is audible, check nothing one's current game played sounds.
+
+    Args:
+        players: The players.
+
+    """
+    assert_no_inner_game_is_heard(
+        inner_games={
+            watched.label: watched.player.inner_game
+            for watched in players
+            if watched.player.inner_game is not None
+        }
+    )
+
+
+def references_and_alone(
+    *,
+    cases: tuple[tuple[str, str, Path], ...],
+    work_directory: Path,
+    outer_process_state: OuterProcessState,
+) -> tuple[dict[str, list[str]], dict[str, Tile]]:
+    """Replay each recording alone: headless in a child (digests) and as an inner game (pixels).
+
+    After each inner game alone, the outer window and blocked event types are unchanged.
+
+    Args:
+        cases: (``tile`` or ``partner``, console script, recording) for each.
+        work_directory: Where the digest files go.
+        outer_process_state: What the outer game set.
+
+    Returns:
+        The reference digests and the finished alone tiles, each by ``tile`` and ``partner``.
+
+    """
+    references: dict[str, list[str]] = {}
+    alone: dict[str, Tile] = {}
+    for name, script, recording in cases:
+        references[name] = reference_digests(
+            console_script=script, recording=recording, work_directory=work_directory
+        )
+        alone[name] = play_alone(
+            console_script=script, recording=recording, work_directory=work_directory
+        )
+        assert_the_outer_process_state_is_unchanged(
+            expected=outer_process_state, label=alone[name].label
+        )
+        assert alone[name].matched_digests() == references[name], alone[name].label
+    return references, alone
+
+
+def watched_players(
+    *,
+    cases: tuple[tuple[str, str, Path], ...],
+    run: str,
+    work_directory: Path,
+    alone: dict[str, Tile],
+    clock: FrameCostClock,
+) -> dict[str, WatchedPlayer]:
+    """Make the case's two demo players, watched by the fake clock.
+
+    Args:
+        cases: (``tile`` or ``partner``, console script, recording) for each.
+        run: The run's name, for the digest files.
+        work_directory: Where the digest files go.
+        alone: The recordings replayed alone, for their pixels.
+        clock: The fake real-time clock.
+
+    Returns:
+        The players, by ``tile`` and ``partner``.
+
+    """
+    return {
+        name: WatchedPlayer(
+            console_script=script,
+            recording=recording,
+            digest_path=work_directory / f'{run}-player-{name}.digest',
+            alone_pixel_hashes=alone[name].pixel_hashes,
+            clock=clock,
+        )
+        for name, script, recording in cases
+    }
+
+
+def fast_forward_to_a_poster(*, watched: WatchedPlayer, clock: FrameCostClock) -> int:
+    """Fast-forward a player, in slices, to a poster frame drawn from the seeded stream.
+
+    Args:
+        watched: The player, silent.
+        clock: The fake real-time clock its slices' budgets run on.
+
+    Returns:
+        The poster frame: the player's next frame.
+
+    """
+    poster = poster_frame(frame_count=watched.player.frame_count, stream=random.Random(POSTER_SEED))
+    slices = 1
+    while not watched.player.fast_forward(
+        to_frame=poster, budget=clock.budget(frame_count=FAST_FORWARD_SLICE_FRAMES)
+    ):
+        slices += 1
+    assert watched.player.frame_index == poster, watched.label
+    # Each slice ran its budget's frames: the fast-forward took as many slices as it needed
+    assert slices == max(1, -(-poster // FAST_FORWARD_SLICE_FRAMES)), watched.label
+    return poster
+
+
+def play_unevenly(
+    *,
+    case_player: WatchedPlayer,
+    partner_player: WatchedPlayer,
+    clock: FrameCostClock,
+    heard: range,
+) -> None:
+    """Tick two players with uneven time and budgets until the case's has played two games.
+
+    And the partner one. The case's player is heard in ``heard`` of its second game. After each
+    player's tick nothing either played sounds while none is heard.
+
+    Args:
+        case_player: The case's player.
+        partner_player: Its partner.
+        clock: The fake real-time clock the budgets run on.
+        heard: The frames of the case's second game to hear it in.
+
+    """
+    players = (case_player, partner_player)
+    elapsed_ticks = itertools.cycle(UNEVEN_TICKS)
+    budgets = itertools.cycle(INTERLEAVED_STEPS)
+    for _tick in range(MOST_PLAYER_TICKS):
+        if (
+            len(case_player.finished_digests) >= UNEVEN_RUN_GAMES
+            and partner_player.finished_digests
+        ):
+            return
+        elapsed_seconds = next(elapsed_ticks) * ARCADE_TICK_SECONDS
+        case_frames, partner_frames = next(budgets)
+        case_player.switch_for_the_heard_frames(heard=heard, generation=UNEVEN_RUN_GAMES)
+        case_player.tick(
+            elapsed_seconds=elapsed_seconds, budget=clock.budget(frame_count=case_frames)
+        )
+        case_player.count_a_heard_sound()
+        assert_none_is_heard(players=players)
+        partner_player.tick(
+            elapsed_seconds=elapsed_seconds, budget=clock.budget(frame_count=partner_frames)
+        )
+        assert_none_is_heard(players=players)
+    pytest.fail(f'the players did not finish in {MOST_PLAYER_TICKS} ticks')
+
+
 @pytest.mark.parametrize(('tile', 'partner'), pair_parameters())
 def test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone(
     tile: tuple[str, Path],
@@ -468,6 +843,116 @@ def test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone(
     assert (heard_tile.frames_with_a_heard_sound > 0) == plays_sounds, (
         f'{heard_tile.label}: {heard_tile.frames_with_a_heard_sound} heard frames sounding'
     )
+
+
+@pytest.mark.parametrize(('tile', 'partner'), pair_parameters())
+def test_a_recording_replays_as_a_demo_player_beside_another_as_it_does_alone(
+    tile: tuple[str, Path],
+    partner: tuple[str, Path],
+    tmp_path: Path,
+    outer_process_state: OuterProcessState,
+    outer_key_repeat: tuple[int, int],
+):
+    """Fast-forwarded to a poster, ticked unevenly, looped and heard: every frame as alone.
+
+    The case's player fast-forwards in slices to a seeded poster frame, and the tick after draws
+    it; both players are then ticked with uneven time and budgets until the case's recording has
+    looped and played once more, heard for the middle third of that second game. Every game that
+    ended matched its solo child replay's digests, every tick's surface is the recording's alone
+    at its frame, and nothing either played sounds while none is heard.
+    """
+    assert outer_key_repeat == pygame.key.get_repeat()
+    cases = (('tile', *tile), ('partner', *partner))
+    references, alone = references_and_alone(
+        cases=cases, work_directory=tmp_path, outer_process_state=outer_process_state
+    )
+    clock = FrameCostClock()
+    players = watched_players(
+        cases=cases, run='uneven', work_directory=tmp_path, alone=alone, clock=clock
+    )
+    case_player, partner_player = players['tile'], players['partner']
+    try:
+        poster = fast_forward_to_a_poster(watched=case_player, clock=clock)
+        play_unevenly(
+            case_player=case_player,
+            partner_player=partner_player,
+            clock=clock,
+            heard=heard_frames(frame_count=len(references['tile'])),
+        )
+    finally:
+        for watched in players.values():
+            watched.player.finish()
+
+    assert current_context() is default_context()
+    assert_the_outer_process_state_is_unchanged(expected=outer_process_state, label='the players')
+    case_player.assert_each_finished_game_matched(
+        reference=references['tile'], games=UNEVEN_RUN_GAMES
+    )
+    partner_player.assert_each_finished_game_matched(reference=references['partner'], games=1)
+    # The first tick after the fast-forward (a one-frame budget) draws the poster frame
+    assert case_player.checked_frames[1][0] == poster, case_player.label
+    case_player.assert_each_finished_game_was_checked_in_order(
+        games=UNEVEN_RUN_GAMES, frame_count=len(references['tile'])
+    )
+    partner_player.assert_each_finished_game_was_checked_in_order(
+        games=1, frame_count=len(references['partner'])
+    )
+    assert case_player.switched_away, f'{case_player.label} was never switched away from'
+    tile_script, tile_recording = tile
+    plays_sounds = (tile_script, tile_recording.name) in PLAYS_SOUNDS
+    assert (case_player.ticks_with_a_heard_sound > 0) == plays_sounds, (
+        f'{case_player.label}: {case_player.ticks_with_a_heard_sound} heard ticks sounding'
+    )
+
+
+@pytest.mark.parametrize(('tile', 'partner'), pair_parameters())
+def test_a_recording_replays_as_a_demo_player_in_slow_motion_one_frame_a_tick(
+    tile: tuple[str, Path],
+    partner: tuple[str, Path],
+    tmp_path: Path,
+    outer_process_state: OuterProcessState,
+    outer_key_repeat: tuple[int, int],
+):
+    """Twice a frame's time a tick, one frame each of a shared budget: slow, and every frame shown.
+
+    Both players share one budget of two frames a tick, each taking at most one
+    (``most_frames=1``), so they fall behind and play in slow motion; every frame of the first
+    game is drawn as the recording alone draws it, in order, and the game ends matched.
+    """
+    assert outer_key_repeat == pygame.key.get_repeat()
+    cases = (('tile', *tile), ('partner', *partner))
+    references, alone = references_and_alone(
+        cases=cases, work_directory=tmp_path, outer_process_state=outer_process_state
+    )
+    clock = FrameCostClock()
+    players = watched_players(
+        cases=cases, run='slow', work_directory=tmp_path, alone=alone, clock=clock
+    )
+    try:
+        for _tick in range(MOST_PLAYER_TICKS):
+            if all(watched.finished_digests for watched in players.values()):
+                break
+            budget = clock.budget(frame_count=len(players))
+            for watched in players.values():
+                watched.tick(
+                    elapsed_seconds=SLOW_MOTION_TICKS * ARCADE_TICK_SECONDS,
+                    budget=budget,
+                    most_frames=1,
+                )
+                assert_none_is_heard(players=players.values())
+        else:
+            pytest.fail(f'the players did not finish in {MOST_PLAYER_TICKS} ticks')
+    finally:
+        for watched in players.values():
+            watched.player.finish()
+
+    assert current_context() is default_context()
+    assert_the_outer_process_state_is_unchanged(expected=outer_process_state, label='the players')
+    for name, watched in players.items():
+        watched.assert_each_finished_game_matched(reference=references[name], games=1)
+        assert watched.checked_frames[1] == list(range(len(references[name]))), watched.label
+        assert watched.most_frames_in_a_tick == 1, watched.label
+        assert watched.ticks_behind > 0, f'{watched.label} never fell behind'
 
 
 def key_repeat_parameters() -> list[object]:
