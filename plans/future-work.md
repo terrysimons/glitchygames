@@ -1551,7 +1551,8 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
     own step after every package: remove S101 from ruff's ignore list (the per-file ignores keep
     asserts allowed in tests only), so any assert in a non-test file fails, and tighten bandit
     past B101's filter. No list of files still to do is kept in the code (a saved ratchet guard
-    is in the main checkout's gitignored `build/assert-sweep-final-step/`).
+    is in the gitignored `build/assert-sweep-final-step/` of the
+    `glitchygames-assert-replacement-engine` worktree; keep it when that worktree is removed).
   - Progress (2026-11-20): `InnerGame`'s three (#246) and 78 in 27 engine
     files (`fix/assert-replacement-engine`) are done; one, in `audio/assets.py`'s pitch check,
     could fire in normal use (a `Note` or `Midi` pitch in a Python-built table) and is now a

@@ -19,7 +19,7 @@
   The triage starts after the current set of work clears (the owner's freeze on new work, 2026-11-20).
 - **Test gap**: each test checks a process outcome once against an instant or a fixed deadline, so a slow machine and a real leak fail the same way and can't be told apart from the failure.
 - **Triage plan**: reproduce under deliberate load (the three tests in a loop, ~50 runs, beside a CPU load on every core) to measure the rate; on a "left running" failure, keep polling the child for a few seconds and log when it dies and its parent; split the third test's 60 s into start-up and stop. Then fix by what that shows, and give every test that checks a process or signal outcome against a fixed instant one shared bounded wait. The plan goes to the coordinating session for its cross-check before coding.
-- **Evidence**: the failing run's full log and the load figures, in the main checkout's gitignored `build/load-flakes-2026-11-20/`.
+- **Evidence**: the failing run's full log and the load figures, in the gitignored `build/load-flakes-2026-11-20/` of the `glitchygames-assert-replacement-engine` worktree (keep it when that worktree is removed).
 - **Reporter**: Claude
 - **Date Reported**: 2026-11-20
 - **Files**: `tests/test_driver_comparison.py`, `tests/test_reproduce_orphaned_test_processes.py`, `tests/replay/tools/test_command_crash_boundary.py`, `src/glitchygames/process.py` (`stop_command`)
