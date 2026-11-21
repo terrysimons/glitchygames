@@ -37,6 +37,7 @@ import pygame
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.exceptions import AudioUnavailableError
+from glitchygames.checks import required
 from glitchygames.color import BLACK
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
@@ -896,10 +897,11 @@ class MrMuncherScene(Scene):
 
     def _resume_after_eating(self: Self) -> None:
         """The points have shown: the eaten muncher's eyes appear, and play goes on."""
-        assert self.eaten_muncher is not None  # Set by _eat_muncher, which began this phase
+        # Set by _eat_muncher, which began this phase
+        eaten_muncher = required(self.eaten_muncher, what='the eaten muncher')
         self.muncher_points.visible = 0
         self.player.hidden = False
-        self.eaten_muncher.hidden = False
+        eaten_muncher.hidden = False
         self.eaten_muncher = None
         self._change_phase(Phase.PLAYING)
 
