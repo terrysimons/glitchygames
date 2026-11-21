@@ -3242,6 +3242,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # The scene to switch to at the end of this frame; None: stay (never self, which would
         # make every scene a reference cycle that only the cycle collector frees)
         self.next_scene: Scene | None = None
+        # What this frame's present sends to the window (SceneManager._update_display): None
+        # sends the whole screen (a scene drawing outside its sprites sets it every frame: Brave
+        # Adventurer's parallax and pits, Drawing Fire's world); a list sends those rects, and an
+        # empty list means nothing changed. Every window the engine opens is SCALED and the
+        # browser's canvas presents the whole surface on any update, so this decides only which
+        # call is made, never the window's cost (bugs/2026-11-21-a-resumed-scene-presents-only-
+        # its-dirty-rects.md). It never excuses the drawing: a sprite changed without a dirty
+        # mark is stale on the surface either way (glitchygames.testing.full_repaint)
         self.rects = None
         self.screen = display_surface()
         assert self.screen is not None
