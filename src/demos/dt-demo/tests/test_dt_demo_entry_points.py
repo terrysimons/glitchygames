@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import importlib.metadata
-import runpy
 from typing import TYPE_CHECKING
 
 import dt_demo
+from glitchygames.testing.entry_points import run_package_as_main
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -28,6 +28,6 @@ def test_python_dash_m_dt_demo_runs_the_demos_main(mocker: MockerFixture):
     """
     main = mocker.patch.object(dt_demo, 'main')
 
-    runpy.run_module('dt_demo', run_name='__main__')
+    run_package_as_main(package='dt_demo')
 
     main.assert_called_once_with()
