@@ -16,6 +16,7 @@ from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes import scene as scene_module
 from glitchygames.testing.full_repaint import (
     KEPT_MISMATCHES,
+    NAMED_SPRITES,
     RENDER_METHOD,
     FullRepaintMismatchError,
     compare_each_frame_with_a_full_repaint,
@@ -127,7 +128,7 @@ class TestComparison:
         message = str(mismatch.value)
         assert message.startswith('SpriteScene frame 1 differs from a full repaint in ')
         assert str(tuple(SPRITE_RECT)) in message
-        assert 'SolidSprite(dirty=0, visible=1)' in message
+        assert f'1 sprites over it: SolidSprite(dirty=0, visible=1, rect={SPRITE_RECT})' in message
 
     def test_the_same_change_marked_dirty_matches(self, manager):
         scene = SpriteScene()
@@ -274,3 +275,29 @@ def test_differing_area_bounds_every_differing_pixel():
 
     assert differing_area(drawn=drawn, repainted=repainted) == pygame.Rect(3, 2, 7, 6)
     assert differing_area(drawn=repainted, repainted=repainted.copy()) is None
+
+
+def test_many_sprites_over_a_difference_are_grouped_by_class(manager):
+    """Past ``NAMED_SPRITES``, the sprites over the area are counted by class, not listed."""
+    scene = SpriteScene()
+    extras = []
+    for _ in range(NAMED_SPRITES):
+        extra = SolidSprite()
+        extra.image = pygame.Surface(SPRITE_RECT[2:])
+        extra.image.fill(SPRITE_COLOR)
+        extra.rect = pygame.Rect(SPRITE_RECT)
+        # Visible, under the changed sprite: a hidden sprite would stay dirty in LayeredDirty
+        # (its flag is cleared only when drawn) and redraw the area every frame
+        scene.all_sprites.add(extra, layer=-1)
+        extras.append(extra)
+    with compare_each_frame_with_a_full_repaint(raise_on_mismatch=False) as comparison:
+        show(manager, scene)
+        # The group's first draw repaints everything and leaves every flag as it was
+        for extra in extras:
+            extra.dirty = 0
+        change_without_marking(scene)
+        render_next(manager)
+
+    description = comparison.mismatches[0]
+    assert f'{NAMED_SPRITES + 1} sprites over it: SolidSprite x{NAMED_SPRITES + 1} ' in description
+    assert f'(dirty: 0, visible: {NAMED_SPRITES + 1})' in description

@@ -42,6 +42,8 @@ if TYPE_CHECKING:
 
 # The most mismatches a collecting comparison keeps (the first ones: later frames usually repeat)
 KEPT_MISMATCHES = 20
+# The most sprites over a differing area a mismatch names one by one; more are grouped by class
+NAMED_SPRITES = 8
 # What an excluded area is filled with on both sides before comparing
 EXCLUDED_FILL = (0, 0, 0)
 # The wrapped SceneManager method: the frame's update and render (scenes/scene.py)
@@ -139,15 +141,50 @@ def describe_mismatch(*, scene: Scene, frame_number: int, area: pygame.Rect) -> 
 
     """
     over = [
-        f'{type(sprite).__name__}(dirty={sprite.dirty}, visible={sprite.visible})'
+        sprite
         for sprite in scene.all_sprites.sprites()
         if sprite.rect is not None and sprite.rect.colliderect(area)
     ]
-    sprites = ', '.join(over) if over else 'no sprite (the background)'
+    if not over:
+        return (
+            f'{type(scene).__name__} frame {frame_number} differs from a full repaint in '
+            f'{tuple(area)}; sprites over it: no sprite (the background)'
+        )
+    # Each sprite over the area by name when few are; otherwise grouped by class with counts, so
+    # a maze of hundreds of sprites still reads (Mr. Muncher's 260)
+    if len(over) <= NAMED_SPRITES:
+        sprites = ', '.join(
+            f'{type(sprite).__name__}(dirty={sprite.dirty}, visible={sprite.visible}, '
+            f'rect={tuple(sprite.rect)})'
+            for sprite in over
+        )
+    else:
+        sprites = ', '.join(sprite_census(sprites=over))
     return (
         f'{type(scene).__name__} frame {frame_number} differs from a full repaint in '
-        f'{tuple(area)}; sprites over it: {sprites}'
+        f'{tuple(area)}; {len(over)} sprites over it: {sprites}'
     )
+
+
+def sprite_census(*, sprites: Sequence[Any]) -> list[str]:
+    """Describe sprites grouped by class: how many, and how many are dirty and visible.
+
+    Args:
+        sprites: The sprites.
+
+    Returns:
+        One entry a class, the most numerous first: ``Sprocket x245 (dirty: 0, visible: 182)``.
+
+    """
+    by_class: dict[str, list[Any]] = {}
+    for sprite in sprites:
+        by_class.setdefault(type(sprite).__name__, []).append(sprite)
+    ordered = sorted(by_class.items(), key=lambda item: (-len(item[1]), item[0]))
+    return [
+        f'{name} x{len(members)} (dirty: {sum(1 for sprite in members if sprite.dirty)}, '
+        f'visible: {sum(1 for sprite in members if sprite.visible)})'
+        for name, members in ordered
+    ]
 
 
 class FullRepaintComparison:
