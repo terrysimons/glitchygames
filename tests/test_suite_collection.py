@@ -410,14 +410,19 @@ def test_the_shared_harness_is_a_plugin_loaded_before_any_other(pytestconfig):
     assert not (TESTS_ROOT / 'conftest.py').exists(), 'the harness lives in tests/harness.py'
 
 
-def test_a_test_still_running_after_ten_minutes_prints_where_every_thread_waits(pytestconfig):
+def test_a_test_still_running_after_ten_minutes_prints_where_every_thread_waits():
     """A hung test names itself (pytest's faulthandler_timeout), as a crashed one does.
 
     A crash is reported at once (tests/harness.py); a hang that is not a crash (a thread waiting
     on one that died quietly) would otherwise run silently until someone noticed
     (bugs/2026-11-20-a-crash-on-the-audio-thread-hung-the-process.md).
+
+    This reads what the project declares, not the running session's value: compare-drivers'
+    native runs override it on purpose (`-o faulthandler_timeout=110` with pytest-timeout's
+    120 s limit, noxfile.py's _NATIVE_RUN_TIMEOUT_ARGUMENTS, tested in
+    tests/test_driver_frame_matrix.py), and the declared ten minutes holds everywhere else.
     """
-    assert float(pytestconfig.getini('faulthandler_timeout')) == 600
+    assert float(PYTEST_SETTINGS['faulthandler_timeout']) == 600
 
 
 def test_the_engine_is_imported_from_its_installed_package_never_the_source_tree():
