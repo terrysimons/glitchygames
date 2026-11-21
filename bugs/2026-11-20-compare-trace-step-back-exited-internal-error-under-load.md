@@ -34,6 +34,18 @@
   the run (wait): AssertionError: the replay waited for the viewer N times, but only K keys were
   given"), never as the engine's 70. Checked with planted runs given too few keys, in both helpers
   below.
+- **What the wrapper relies on, checked**: nothing on the run path swallows a `BaseException`.
+  The engine's and members' five `except BaseException` handlers (`engine/game_engine.py`
+  initialization, `scenes/scene.py`'s playback scope, `tracing.py`'s reader, `process.py`'s
+  `run_command`, `replay/tools/compare.py`'s child start) each clean up and raise again; there is
+  no bare `except:` and no `suppress(BaseException)`. `tests/test_base_exception_handler_source_guard.py`
+  holds that (a planted handler without its `raise` in `compare.py` fails it). The engine's
+  teardown runs in `_crash_boundary`'s `finally`, so a `Failed` leaving mid-run still closes the
+  run: a planted failure with OLD's child streaming, then 52 more tests in the same process,
+  passed, with no child left running (the harness's guard) and no warning.
+- **Passive capture**: the other session's proposal to load its process probe in every process of
+  the pre-push and CI runs (opt-in, its log kept only on failure) would name the cause of the next
+  natural occurrence; see its process-stop triage record.
 - **The class, swept** (test callbacks run inside a game's run whose failure the engine would
   report as its own exit status; `side_effect` callbacks with a check, in test files that run an
   engine, then each helper's indirect callbacks):
