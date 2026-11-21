@@ -110,7 +110,7 @@ settings.
 8. **Budget email.** Confirm the subscription email AWS Budgets sends.
 9. **CircleCI.** Project Settings → Environment Variables: `SITE_DEPLOY_ROLE_ARN` = the deploy
    role stack's `DeployRoleArn` output. It names the AWS account, so it never goes in
-   `.circleci/config.yml`.
+   `.circleci/`'s configuration.
 10. **Check it from outside** (below).
 
 ## Publishing
