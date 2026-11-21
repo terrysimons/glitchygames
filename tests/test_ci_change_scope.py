@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -112,15 +113,29 @@ def test_the_definition_is_the_pre_commit_hooks_own():
         assert hooks_skip == ci_change_scope.changes_only_markdown(paths=[path]), path
 
 
-def _run_the_setup_step(*, repository: Path, tmp_path: Path) -> tuple[str, dict[str, str]]:
-    """Run .circleci/config.yml's choosing step in a repository, as CircleCI runs it.
+def _bash_path(path: Path) -> str:
+    """A path as bash reads it in a script: forward slashes, quoted.
+
+    Git Bash on Windows takes ``C:/...``, but an unquoted Windows path loses its backslashes
+    to bash (CircleCI job 4618), and a space would split it in two.
+
+    Returns:
+        The path, ready to paste into the setup step's text.
+
+    """
+    return shlex.quote(path.as_posix())
+
+
+def _setup_step_command(*, files_directory: Path) -> tuple[str, Path]:
+    """.circleci/config.yml's choosing step, as this checkout runs it.
 
     Everything but the fetch (the repository's main stands in for origin/main), with this
     checkout's script and the test's Python in place of ``python3 scripts/...``, and its two
-    files (the changed paths, the parameters) in tmp_path.
+    files (the changed paths, the parameters) in files_directory. Every path pasted in goes
+    through ``_bash_path``.
 
     Returns:
-        What the step printed, and the parameters it wrote.
+        The step's script, for ``bash -c``, and where it writes the parameters.
 
     """
     setup = yaml.safe_load((PROJECT_ROOT / '.circleci' / 'config.yml').read_text(encoding='utf-8'))
@@ -130,12 +145,24 @@ def _run_the_setup_step(*, repository: Path, tmp_path: Path) -> tuple[str, dict[
     )
     command = command.replace(
         'python3 scripts/ci_change_scope.py',
-        f'{sys.executable} {PROJECT_ROOT / "scripts" / "ci_change_scope.py"}',
+        f'{_bash_path(Path(sys.executable))} '
+        f'{_bash_path(PROJECT_ROOT / "scripts" / "ci_change_scope.py")}',
     )
     files = re.search(r'--paths (?P<paths>\S+) \\\n\s+--output (?P<output>\S+)', command)
     assert files is not None, command
     for name in ('paths', 'output'):
-        command = command.replace(files[name], str(tmp_path / Path(files[name]).name))
+        command = command.replace(files[name], _bash_path(files_directory / Path(files[name]).name))
+    return command, files_directory / Path(files['output']).name
+
+
+def _run_the_setup_step(*, repository: Path, files_directory: Path) -> tuple[str, dict[str, str]]:
+    """Run the choosing step in a repository, as CircleCI runs it.
+
+    Returns:
+        What the step printed, and the parameters it wrote.
+
+    """
+    command, output = _setup_step_command(files_directory=files_directory)
     git(repository=repository, arguments=['update-ref', 'refs/remotes/origin/main', 'main'])
     environment = {
         name: value for name, value in os.environ.items() if not name.startswith('GIT_')
@@ -148,7 +175,6 @@ def _run_the_setup_step(*, repository: Path, tmp_path: Path) -> tuple[str, dict[
         working_directory=repository,
     )
     assert completed.returncode == 0, completed.stdout
-    output = tmp_path / Path(files['output']).name
     parameters = json.loads(output.read_text(encoding='utf-8'))
     return completed.stdout or '', parameters
 
@@ -158,7 +184,7 @@ def test_the_setup_step_reads_the_branchs_change_since_it_left_main(repository, 
     (repository / 'notes.md').write_text('# Notes, revised\n', encoding='utf-8')
     git(repository=repository, arguments=['commit', '--quiet', '-am', 'notes'])
 
-    printed, parameters = _run_the_setup_step(repository=repository, tmp_path=tmp_path)
+    printed, parameters = _run_the_setup_step(repository=repository, files_directory=tmp_path)
 
     assert parameters == {'test-scope': 'markdown'}
     assert 'Test scope: markdown' in printed
@@ -171,7 +197,7 @@ def test_the_setup_step_runs_everything_for_a_code_change(repository, tmp_path):
     (repository / 'engine.py').write_text('VALUE = 2\n', encoding='utf-8')
     git(repository=repository, arguments=['commit', '--quiet', '-am', 'both'])
 
-    _, parameters = _run_the_setup_step(repository=repository, tmp_path=tmp_path)
+    _, parameters = _run_the_setup_step(repository=repository, files_directory=tmp_path)
 
     assert parameters == {'test-scope': 'all'}
 
@@ -181,10 +207,27 @@ def test_a_code_file_renamed_to_markdown_runs_everything(repository, tmp_path):
     git(repository=repository, arguments=['mv', 'engine.py', 'engine.md'])
     git(repository=repository, arguments=['commit', '--quiet', '-m', 'rename'])
 
-    printed, parameters = _run_the_setup_step(repository=repository, tmp_path=tmp_path)
+    printed, parameters = _run_the_setup_step(repository=repository, files_directory=tmp_path)
 
     assert parameters == {'test-scope': 'all'}
     assert 'engine.md, engine.py' in printed
+
+
+def test_the_setup_step_takes_paths_bash_would_otherwise_split_or_unescape(repository, tmp_path):
+    """Its files in a folder whose name has a space and a backslash: the step still writes them.
+
+    Windows' paths reached bash unquoted and lost their backslashes (CircleCI job 4618); this
+    checks the same substitution on any platform.
+    """
+    (repository / 'notes.md').write_text('# Notes, revised\n', encoding='utf-8')
+    git(repository=repository, arguments=['commit', '--quiet', '-am', 'notes'])
+    files_directory = tmp_path / 'step files\\here'
+    files_directory.mkdir()
+
+    _, parameters = _run_the_setup_step(repository=repository, files_directory=files_directory)
+
+    assert parameters == {'test-scope': 'markdown'}
+    assert (files_directory / 'changed-paths.txt').read_text(encoding='utf-8') == 'notes.md\n'
 
 
 def test_no_list_of_changed_paths_runs_everything(tmp_path, monkeypatch, capsys):
