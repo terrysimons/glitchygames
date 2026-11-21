@@ -36,6 +36,11 @@ Read from the code, not assumed:
   group **adds an entry to every frame of every golden**, so it fails them all. It cannot land
   in an existing game without re-recording, which the rules forbid ("never re-record the
   baselines to make a change pass"). That is why it is last and optional below.
+  **Superseded (the owner, 2026-11-20, decision 1, option (c)):** Brave's and Clockwork's HUD
+  labels become sprites, and their six recordings are re-recorded as one deliberate, reviewed
+  step (the rule above forbids re-recording *to make a change pass*; this is the reviewed kind),
+  gated by a side-by-side check that fails unless every difference is one of the new HUD label
+  sprites. See "Decided by the owner" at the end.
 
 **How each step proves exactness** (the same four proofs, named once; each sub-plan says which
 of them can fail on its change):
@@ -92,7 +97,9 @@ Two findings that shape the design, from reading the sites:
    configured event before any scene override, so a scene cannot defeat it by forgetting
    `super()`; it counts `Scene.game_time`, so replays serve the same value (CLAUDE.md, Clocks).
 5. **Order by golden risk, safest first, each landing green alone** (below). The two optional
-   high-risk items (HUD sprites; timers) are listed last or out of scope.
+   high-risk items (HUD sprites; timers) are listed last or out of scope. (2026-11-20: HUD
+   sprites are no longer optional: the owner chose them, with the checked re-record, decision 1
+   at the end.)
 6. **New data classes are pydantic** (`frozen=True`, `extra='forbid'`): table settings, router
    bindings, idle settings. A list a table mutates, a sprite and an object holding a Surface or a
    `SaveManager` stay plain classes (the arcade-3 plan's rule).
@@ -300,11 +307,17 @@ These answers win over the question text below wherever they differ.
 3. **Stop at `ActionRouter`;** no `Scene.bind_actions`.
 4. **`IdleDemo`: PaddleSlap first,** then Brave, Clockwork, Drawing Fire and Mr. Muncher as
    separate small pull requests the owner approves.
-5. **High-score entries are strict pydantic models:** a frozen base (`name`, `score`,
-   `extra='forbid'`) that each game subclasses for its own fields, with `model_dump` and
-   `model_validate` at the disk and `GameOverScene` boundaries.
+5. **High-score entries are strict pydantic models:** a frozen base holding only `score`
+   (`extra='forbid'`) that each game subclasses for its own fields, with `model_dump` and
+   `model_validate` at the disk and `GameOverScene` boundaries. Corrected 2026-11-20: the base
+   first named `name` and `score`, from an invented example; no game saves a name. Today's
+   entries, which every existing save file and the goldens' recorded save snapshots hold and
+   must keep loading in the same field order: Paddle Slap `{"score"}` (the rally count), Brave
+   Adventurer `{"score"}`, Clockwork Keep `{"score", "floor"}`, Mr. Muncher `{"score", "level"}`.
+   So Paddle Slap and Brave use the base, Clockwork adds `floor`, Mr. Muncher adds `level`.
 6. **Per-player tables wait for the player roster** (`plans/2026-10-28-player-roster-design.md`);
-   no `player_slot` field now.
+   no `player_slot` field now. Player names on high scores (an initials entry, or a name from the
+   roster) are a to-do with the roster (plans/future-work.md, Games), not part of Sub-plan 2.
 7. **Sequencing, in risk order:** Sub-plans 1 and 2 at any time; the HUD re-record lands between
    Arcade sub-plans 5 and 6, together with the `drawing` and `typing` demo re-records of
    `plans/2026-11-20-window-owner-events.md` (its question 5) and Zombies' `golden.jsonl.gz`

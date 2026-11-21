@@ -987,7 +987,14 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 - **Game code that belongs in the engine (the owner's overnight audit, 2026-11-20).** A platformer kit
   shared by Brave Adventurer and Clockwork Keep, the high-score table (four copies), shadowed HUD
   text, an idle-to-demo loop, and the font helpers in Mr. Muncher and Zombies. Planned, ordered by
-  golden risk, with no recording re-recorded: plans/2026-11-20-game-code-into-the-engine.md.
+  golden risk: plans/2026-11-20-game-code-into-the-engine.md (approved 2026-11-20; HUD labels
+  become sprites with one checked re-record between Arcade sub-plans 5 and 6).
+- **Player names on high scores** (the owner, 2026-11-20). No game records who set a score today:
+  each entry is the score and, for Clockwork and Mr. Muncher, the floor or level. Arcade games
+  ask for three initials; ours could take the name from the player roster
+  (plans/2026-10-28-player-roster-design.md) when the player is known, and offer an initials
+  entry when not. Decide with the roster and per-player tables. An optional `name` on the
+  high-score entry models keeps today's save files loading.
 
 - **Convert Drawing Fire to sprites** (the owner, 2026-11-07). It draws its soldiers, sandbags and bullets straight
   onto the screen, so it has no sprites: the AI's sprite tools see nothing, the stable ids name nothing, and replays
