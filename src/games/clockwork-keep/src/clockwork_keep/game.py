@@ -66,7 +66,12 @@ from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
 from glitchygames.sprites import Sprite
-from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
+from glitchygames.state import SaveManager, open_saves
+from glitchygames.state.high_scores import (
+    HighScoreEntry,
+    HighScoreTable,
+    HighScoreTableSettings,
+)
 from glitchygames.transitions import ElevatorTransition, FadeTransition
 from glitchygames.world import CoordinateSpace
 
@@ -181,6 +186,12 @@ class CogCollectible(Sprite):
         # Redraw with spinning teeth
         self.image.fill((0, 0, 0, 0))
         draw_cog_collectible(self.image, self.color, rotation=self._timer * 0.5)
+
+
+class ClockworkHighScore(HighScoreEntry):
+    """A high score and the floor it reached (the saved table's entries)."""
+
+    floor: int
 
 
 class ClockworkKeepScene(Scene):
@@ -1004,35 +1015,41 @@ class ClockworkKeepScene(Scene):
 
     # --- Save / Load ---
 
+    def _high_score_table(self: Self) -> HighScoreTable[ClockworkHighScore]:
+        """Return the game's high-score table (the engine's, with the floor reached).
+
+        Returns:
+            The table.
+
+        """
+        return HighScoreTable(
+            saves=self.saves,
+            entry_type=ClockworkHighScore,
+            settings=HighScoreTableSettings.from_options(options=self.options),
+        )
+
+    def _this_climb(self: Self) -> ClockworkHighScore:
+        """Return this climb's high-score entry.
+
+        Returns:
+            The score and the floor reached.
+
+        """
+        return ClockworkHighScore(score=self.player.score, floor=self.floor_index)
+
     def _save_high_score(self: Self) -> None:
-        """Save score and highest floor to persistent storage."""
-        max_entries = 10
-        try:
-            existing = self.saves.load('high_scores')
-            scores: list[dict[str, int]] = existing.get('scores', [])
-        except SaveNotFoundError:
-            scores = []
+        """Save score and highest floor (left as it is when refused: --invalid-high-scores)."""
+        self._high_score_table().record_or_keep(self._this_climb())
 
-        scores.append({
-            'score': self.player.score,
-            'floor': self.floor_index,
-        })
-        scores.sort(key=lambda entry: entry.get('score', 0), reverse=True)
-        scores = scores[:max_entries]
-        self.saves.save('high_scores', {'scores': scores})
-
-    def _load_high_scores(self: Self) -> list[dict[str, int]]:
+    def _load_high_scores(self: Self) -> list[dict[str, Any]]:
         """Load high scores from persistent storage.
 
         Returns:
-            List of high score dicts.
+            List of high score dicts (this climb alone when the saved table is refused).
 
         """
-        try:
-            data = self.saves.load('high_scores')
-            return data.get('scores', [])
-        except SaveNotFoundError:
-            return []
+        entries = self._high_score_table().entries_or([self._this_climb()])
+        return [entry.model_dump() for entry in entries]
 
     # --- Input handlers ---
 

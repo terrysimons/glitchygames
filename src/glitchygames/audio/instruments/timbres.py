@@ -654,7 +654,6 @@ def with_drones(
     sources = dict(kept)
     for number, (hertz, level) in enumerate(drones, start=1):
         sources[f'drone_{number}'] = Source(drone_wave, pitch=Hz(hertz), level=level)
-    assert chanter.envelope is not None
     return Instrument(
         sources=sources,
         envelope=chanter.envelope,
