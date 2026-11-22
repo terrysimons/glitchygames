@@ -3244,8 +3244,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # make every scene a reference cycle that only the cycle collector frees)
         self.next_scene: Scene | None = None
         self.rects = None
-        screen = required(display_surface(), what=SCENE_SCREEN)
-        self.screen = screen
+        # Assigned from display_surface() itself, then checked: the type checkers infer the
+        # attribute's type from this assignment, and it stays Surface | None as before the assert
+        # sweep. Bitmappy's EditorContext and the scripts' Scene subclasses match that type;
+        # assigning the checked Surface narrowed it and broke both.
+        self.screen = display_surface()
+        screen = required(self.screen, what=SCENE_SCREEN)
         self.screen_width = screen.get_width()
         self.screen_height = screen.get_height()
         # Identity camera for scenes that do not scroll (apply(x, y) returns (x, y)); scrolling
