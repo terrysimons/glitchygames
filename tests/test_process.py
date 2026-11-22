@@ -12,10 +12,11 @@ import os
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - a stand-in child raises its TimeoutExpired; Popen names the type
 import sys
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -887,3 +888,341 @@ class TestRunCommandStoppedAtTimeout:
 
         child_pid = int(first_line(path=pid_file))
         assert not is_running(pid=child_pid)
+
+
+# A child that writes its process id to the file it is given, then, asked to stop (SIGTERM),
+# writes 'terminated' there and ends: the gentle stop a game's engine turns into its teardown
+CHILD_THAT_SAYS_IT_WAS_TERMINATED = (
+    'import os, pathlib, signal, sys, time\n'
+    'path = pathlib.Path(sys.argv[1])\n'
+    'def terminated(signal_number, frame):\n'
+    "    with path.open('a', encoding='utf-8') as file:\n"
+    "        file.write('terminated\\n')\n"
+    '    sys.exit(0)\n'
+    'signal.signal(signal.SIGTERM, terminated)\n'
+    "path.write_text(f'{os.getpid()}\\n', encoding='utf-8')\n"
+    'time.sleep(60)\n'
+)
+# A child that writes whether it was started with SIGHUP ignored, then ends
+CHILD_REPORTING_SIGHUP = (
+    'import pathlib, signal, sys\n'
+    'ignored = signal.getsignal(signal.SIGHUP) == signal.SIG_IGN\n'
+    "pathlib.Path(sys.argv[1]).write_text(f'{ignored}\\n', encoding='utf-8')\n"
+)
+# Long enough that only the interrupt ends a launch
+LAUNCH_TIMEOUT_SECONDS = 60.0
+# The signals the launchers defer while a child is created, as this platform has them
+LAUNCH_DEFERRED_SIGNALS = [
+    getattr(signal, name) for name in ('SIGINT', 'SIGTERM', 'SIGHUP') if hasattr(signal, name)
+]
+
+
+def raise_system_exit(signal_number: int, _frame: object) -> None:
+    """Stand in for the engine's ``exit_on_signal``: a terminating signal raises SystemExit.
+
+    Raises:
+        SystemExit: Always, with 128 + the signal.
+
+    """
+    signal.signal(signal_number, signal.SIG_IGN)
+    raise SystemExit(128 + signal_number)
+
+
+def launch_with_run_command(*, command: list[str]) -> None:
+    """Launch with ``run_command``, its output not captured (record-trace's launch)."""
+    process.run_command(
+        command=command,
+        environment=os.environ,
+        timeout_seconds=None,
+        capture_output=OutputCapture.NONE,
+    )
+
+
+def launch_with_run_command_capturing(*, command: list[str]) -> None:
+    """Launch with ``run_command``, its output captured (through pipes) and a timeout."""
+    process.run_command(
+        command=command,
+        environment=os.environ,
+        timeout_seconds=LAUNCH_TIMEOUT_SECONDS,
+        capture_output=OutputCapture.APART,
+    )
+
+
+def launch_stopped_at_timeout(*, command: list[str]) -> None:
+    """Launch with ``run_command_stopped_at_timeout`` (verify's and measure's launch)."""
+    process.run_command_stopped_at_timeout(
+        command=command, environment=os.environ, timeout_seconds=LAUNCH_TIMEOUT_SECONDS
+    )
+
+
+LAUNCHERS = pytest.mark.parametrize(
+    'launch',
+    [launch_with_run_command, launch_with_run_command_capturing, launch_stopped_at_timeout],
+    ids=['run_command', 'run_command capturing', 'run_command_stopped_at_timeout'],
+)
+
+
+def line_once_written(*, path: Path) -> str:
+    """Wait for a file a child creates to hold a whole first line; return it.
+
+    Returns:
+        The line, without its newline.
+
+    Raises:
+        AssertionError: If no whole line arrives within WAIT_SECONDS.
+
+    """
+    deadline = time.monotonic() + WAIT_SECONDS
+    while time.monotonic() < deadline:
+        if path.is_file() and '\n' in (text := path.read_text(encoding='utf-8')):
+            return text.split('\n', 1)[0]
+        time.sleep(POLL_SECONDS)
+    message = f'{path}: no line within {WAIT_SECONDS} s'
+    raise AssertionError(message)
+
+
+def was_reaped(*, pid: int) -> bool:
+    """Tell whether this process's child ``pid`` has been reaped (nothing left to wait for).
+
+    A child killed but not waited for is a zombie this process can still reap: ``waitpid``
+    then succeeds (and reaps it) instead of raising ``ChildProcessError``.
+
+    Returns:
+        True when the child was already reaped.
+
+    """
+    try:
+        os.waitpid(pid, os.WNOHANG)
+    except ChildProcessError:
+        return True
+    return False
+
+
+def kill_if_running(*, pid: int) -> None:
+    """Kill a child a failing launcher left running, so the test leaves nothing behind."""
+    if pid and is_running(pid=pid):
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(pid, SIGKILL_NUMBER)
+        with contextlib.suppress(ChildProcessError):
+            os.waitpid(pid, 0)
+
+
+@pytest.fixture
+def handlers_put_back():
+    """Put back this process's handlers of the deferred signals after the test, as they were.
+
+    Yields:
+        The handlers as they were before the test, by signal.
+
+    """
+    before = {
+        signal_number: signal.getsignal(signal_number) for signal_number in LAUNCH_DEFERRED_SIGNALS
+    }
+    yield before
+    for signal_number, handler in before.items():
+        signal.signal(signal_number, handler)
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='signals to a thread and waitpid are POSIX')
+class TestAnInterruptedLaunchStopsAndReapsItsChild:
+    """However a launch ends, its child is stopped and reaped before the launcher returns.
+
+    bugs/2026-11-20-process-stop-tests-failed-under-load.md: ``subprocess.run`` answers Ctrl-C
+    with SIGKILL and no wait (CPython's bpo-25942), so ``glitchygames record-trace`` exited with
+    its game a zombie. The stop is the gentle one (SIGTERM, then the kill after the grace), so a
+    game's engine can close its recording; and a signal that arrives while the child is being
+    created is handled once the launcher holds the child, never before.
+    """
+
+    @LAUNCHERS
+    @pytest.mark.parametrize(
+        'interrupt',
+        [
+            (signal.SIGINT, signal.default_int_handler, KeyboardInterrupt),
+            (signal.SIGTERM, raise_system_exit, SystemExit),
+        ],
+        ids=['ctrl-c', 'sigterm'],
+    )
+    def test_an_interrupt_while_waiting_stops_the_child_gently_and_reaps_it(
+        self, tmp_path, handlers_put_back, launch, interrupt
+    ):
+        """The interrupt is raised after the child said it was terminated and was reaped."""
+        del handlers_put_back
+        signal_number, handler, raised = interrupt
+        signal.signal(signal_number, handler)
+        pid_file = tmp_path / 'child.pid'
+        main_thread = threading.main_thread().ident
+        child_pid = 0
+
+        def interrupt_once_the_child_runs() -> None:
+            line_once_written(path=pid_file)
+            signal.pthread_kill(cast('int', main_thread), signal_number)
+
+        interrupter = threading.Thread(target=interrupt_once_the_child_runs, daemon=True)
+        interrupter.start()
+        try:
+            with pytest.raises(raised):
+                launch(
+                    command=[sys.executable, '-c', CHILD_THAT_SAYS_IT_WAS_TERMINATED, str(pid_file)]
+                )
+            interrupter.join(timeout=WAIT_SECONDS)
+            child_pid = int(line_once_written(path=pid_file))
+            reaped = was_reaped(pid=child_pid)
+        finally:
+            kill_if_running(pid=child_pid)
+
+        assert reaped
+        assert pid_file.read_text(encoding='utf-8').splitlines()[1:] == ['terminated']
+
+    @LAUNCHERS
+    def test_a_signal_while_the_child_is_created_is_handled_once_it_is_held(
+        self, tmp_path, mocker, handlers_put_back, launch
+    ):
+        """Ctrl-C that lands inside ``Popen`` (after the fork): the child is stopped and reaped.
+
+        Raised there, before the launcher held the child, it left the child running: the
+        failure seen as the crash-boundary test's SIGTERM case (a candidate there, not proven).
+        """
+        del handlers_put_back
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+        pid_file = tmp_path / 'child.pid'
+        started: list[int] = []
+        real_popen = subprocess.Popen
+
+        def popen_interrupted_as_it_returns(
+            *arguments: Any, **keywords: Any
+        ) -> subprocess.Popen[str]:
+            """``Popen`` with Ctrl-C landing after the child started, before it returns.
+
+            Returns:
+                The started child.
+
+            """
+            child = real_popen(*arguments, **keywords)
+            started.append(child.pid)
+            line_once_written(path=pid_file)
+            signal.raise_signal(signal.SIGINT)
+            return child
+
+        mocker.patch.object(subprocess, 'Popen', popen_interrupted_as_it_returns)
+        try:
+            with pytest.raises(KeyboardInterrupt):
+                launch(
+                    command=[sys.executable, '-c', CHILD_THAT_SAYS_IT_WAS_TERMINATED, str(pid_file)]
+                )
+            reaped = was_reaped(pid=started[0])
+        finally:
+            for pid in started:
+                kill_if_running(pid=pid)
+
+        assert reaped
+        assert pid_file.read_text(encoding='utf-8').splitlines()[1:] == ['terminated']
+
+    def test_run_commands_timeout_kills_the_child_at_once_and_reaps_it(self, tmp_path):
+        """At its timeout ``run_command`` kills (no gentle stop: that is the other launcher's)."""
+        pid_file = tmp_path / 'child.pid'
+        child_pid = 0
+        try:
+            with pytest.raises(process.TimeoutExpired):
+                process.run_command(
+                    command=[
+                        sys.executable,
+                        '-c',
+                        CHILD_THAT_SAYS_IT_WAS_TERMINATED,
+                        str(pid_file),
+                    ],
+                    environment=os.environ,
+                    # Time for the child to write its pid first, as the stop test above gives it
+                    timeout_seconds=SHORT_TIMEOUT_SECONDS * 3,
+                    capture_output=OutputCapture.TOGETHER,
+                )
+            child_pid = int(line_once_written(path=pid_file))
+            reaped = was_reaped(pid=child_pid)
+        finally:
+            kill_if_running(pid=child_pid)
+
+        assert reaped
+        assert pid_file.read_text(encoding='utf-8').splitlines()[1:] == []
+
+    @LAUNCHERS
+    def test_the_handlers_are_put_back_after_a_launch_that_ends_and_one_interrupted(
+        self, tmp_path, mocker, handlers_put_back, launch
+    ):
+        """The deferral's handlers are gone once the launcher returns, however it returns."""
+        before = handlers_put_back
+
+        launch(command=[sys.executable, '-c', 'pass'])
+        after_an_ended_launch = {number: signal.getsignal(number) for number in before}
+        mocker.patch.object(subprocess, 'Popen', side_effect=FileNotFoundError('no such game'))
+        with pytest.raises(FileNotFoundError):
+            launch(command=[sys.executable, '-c', 'pass'])
+        after_a_failed_launch = {number: signal.getsignal(number) for number in before}
+
+        assert after_an_ended_launch == before
+        assert after_a_failed_launch == before
+
+    @LAUNCHERS
+    def test_a_signal_this_process_ignores_stays_ignored_in_the_child(
+        self, tmp_path, handlers_put_back, launch
+    ):
+        """An ignored signal is not deferred: ``nohup``'s ignored SIGHUP reaches the child."""
+        del handlers_put_back
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+        report = tmp_path / 'sighup.txt'
+
+        launch(command=[sys.executable, '-c', CHILD_REPORTING_SIGHUP, str(report)])
+
+        assert line_once_written(path=report) == 'True'
+
+    def test_a_launch_from_another_thread_defers_nothing_and_runs(self, tmp_path):
+        """Handlers can be set from the main thread only: elsewhere the launch runs as it is."""
+        statuses: list[int] = []
+
+        def launch_here() -> None:
+            statuses.append(
+                process.run_command(
+                    command=[sys.executable, '-c', 'import sys; sys.exit(3)'],
+                    environment=os.environ,
+                    timeout_seconds=WAIT_SECONDS,
+                ).returncode
+            )
+
+        launcher = threading.Thread(target=launch_here)
+        launcher.start()
+        launcher.join(timeout=WAIT_SECONDS)
+
+        assert statuses == [3]
+
+
+class ChildInterruptedDuringItsGracePeriod(ChildThatOutlivesTheGracePeriod):
+    """Stands in for a child whose grace wait a second Ctrl-C interrupts."""
+
+    def wait(self, timeout: float | None = None) -> int:
+        """Raise KeyboardInterrupt while given a timeout (the grace); else end, killed.
+
+        Returns:
+            The killed child's status.
+
+        Raises:
+            KeyboardInterrupt: While given a timeout.
+
+        """
+        self.calls.append(('wait', timeout))
+        if timeout is not None:
+            raise KeyboardInterrupt
+        return KILLED_STATUS
+
+
+def test_a_second_interrupt_during_the_grace_kills_and_reaps_before_it_is_raised():
+    """Ctrl-C again while the child is given its grace: killed and reaped, then raised."""
+    child = ChildInterruptedDuringItsGracePeriod()
+
+    with pytest.raises(KeyboardInterrupt):
+        process.stop_and_reap(process=cast('subprocess.Popen[str]', child))
+
+    assert child.calls == [
+        ('terminate', None),
+        ('wait', process.STOP_GRACE_SECONDS),
+        ('kill', None),
+        ('wait', None),
+    ]

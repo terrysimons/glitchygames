@@ -327,6 +327,9 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
   during it), and a child pytest run with `stop_command(first_signal=signal.SIGINT)`, as Ctrl-C
   does, so each test's cleanup runs (SIGTERM kills a worker with no cleanup). `uv run python -m
   scripts.reproduce_orphaned_test_processes MODE WHEN` reproduces the stops.
+- Outside the tests, start every child process through `glitchygames.process` (`run_command`,
+  `run_command_stopped_at_timeout`, `start_command`): they stop and reap it however the wait
+  ends, Ctrl-C included (`tests/test_child_launches_go_through_process.py` lists the exceptions).
 - The display rule (`tests/display_canvas.py`): each test starts on the canvas pattern, and a test
   whose last frame is entirely black fails as a rendering bug (opt-out
   `@pytest.mark.black_frame_expected(reason=...)`). Assert untouched pixels with

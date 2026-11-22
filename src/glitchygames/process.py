@@ -24,12 +24,17 @@ import os
 import signal
 import subprocess  # ruff: ignore[suspicious-subprocess-import] — runs the engine's own game commands (argument list, no shell)
 import sys
+import threading
 from enum import StrEnum
 from typing import TYPE_CHECKING, NamedTuple, TextIO
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from pathlib import Path
+    from types import FrameType
+
+    # A signal's handling, as signal.getsignal reports it (None: set outside Python)
+    type SignalHandler = Callable[[int, FrameType | None], object] | int | signal.Handlers | None
 
 # What run_command raises for a child that outlives its timeout (subprocess's own exception,
 # named here so callers need not import subprocess)
@@ -38,6 +43,10 @@ TimeoutExpired = subprocess.TimeoutExpired
 CompletedProcess = subprocess.CompletedProcess
 # What start_command returns (subprocess's own class, named here for callers' annotations)
 RunningProcess = subprocess.Popen
+# The signals the launchers defer while a child is created (_defer_signals): Ctrl-C and the
+# terminating signals the engine turns into SystemExit (game_engine.TERMINATING_SIGNAL_NAMES),
+# as this platform has them
+DEFERRED_SIGNAL_NAMES = ('SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK')
 # How long stop_command lets a child end on its own before killing it
 STOP_GRACE_SECONDS = 10.0
 # How often stop_command looks again whether a stopped child's process group is gone
@@ -195,17 +204,33 @@ def run_command(
         The finished process (``returncode``; ``stdout`` when captured, else None; ``stderr``
         when captured apart, else None).
 
+    The child is this process's until it is reaped (``_run_owned_child``): however the wait
+    ends early (a signal's SystemExit, Ctrl-C), the child is stopped gently and reaped before
+    the exception goes on. ``subprocess.run`` killed it on Ctrl-C and never reaped it
+    (bugs/2026-11-20-process-stop-tests-failed-under-load.md).
+
     """
-    standard_output, standard_error = OUTPUT_STREAMS[capture_output]
-    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with a game's command line plus fixed flags, as an argument list (no shell)
-        list(command),
-        env=dict(environment),
-        stdout=standard_output,
-        stderr=standard_error,
-        text=True,
-        check=False,
-        timeout=timeout_seconds,
-        cwd=working_directory,
+
+    def wait_for_its_output(child: subprocess.Popen[str]) -> subprocess.CompletedProcess[str]:
+        try:
+            output, error = child.communicate(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            # At its timeout the child is killed at once, as subprocess.run kills it
+            # (run_command_stopped_at_timeout stops it gently); communicate reaps it and
+            # collects what it wrote
+            child.kill()
+            child.communicate()
+            raise
+        return subprocess.CompletedProcess(
+            args=list(command), returncode=child.returncode, stdout=output, stderr=error
+        )
+
+    return _run_owned_child(
+        command=command,
+        environment=environment,
+        working_directory=working_directory,
+        output_streams=OUTPUT_STREAMS[capture_output],
+        wait=wait_for_its_output,
     )
 
 
@@ -224,7 +249,7 @@ def run_command_stopped_at_timeout(
     children as it ends (``exit_on_signal``), and is killed only if it is still running after
     STOP_GRACE_SECONDS. ``run_command`` kills a child at once, which would leave such a
     grandchild running. The child is stopped the same way, and reaped, however this process
-    stops waiting (a signal's SystemExit, Ctrl-C).
+    stops waiting (a signal's SystemExit, Ctrl-C), as ``run_command``'s is (``_run_owned_child``).
 
     Args:
         command: The program and its arguments.
@@ -238,27 +263,148 @@ def run_command_stopped_at_timeout(
         once it is stopped and reaped.
 
     """
-    child = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with a game's command line plus fixed flags, as an argument list (no shell)
-        list(command),
-        env=dict(environment),
-        text=True,
-        cwd=working_directory,
-    )
-    try:
+
+    def wait_for_it(child: subprocess.Popen[str]) -> subprocess.CompletedProcess[str]:
+        # The timeout's TimeoutExpired stops it gently, as any other early end does
         returncode = child.wait(timeout=timeout_seconds)
+        return subprocess.CompletedProcess(args=list(command), returncode=returncode)
+
+    return _run_owned_child(
+        command=command,
+        environment=environment,
+        working_directory=working_directory,
+        output_streams=OUTPUT_STREAMS[OutputCapture.NONE],
+        wait=wait_for_it,
+    )
+
+
+def _run_owned_child[Finished](
+    *,
+    command: Sequence[str],
+    environment: Mapping[str, str],
+    working_directory: Path | None,
+    output_streams: tuple[int | None, int | None],
+    wait: Callable[[subprocess.Popen[str]], Finished],
+) -> Finished:
+    """Start a child and wait for it, holding it until it is reaped: the launchers' one path.
+
+    ``run_command`` and ``run_command_stopped_at_timeout`` differ only in how they wait
+    (``wait``). However ``wait`` ends early (its timeout, a signal's SystemExit, Ctrl-C), the
+    child is stopped and reaped (``stop_and_reap``) before the exception goes on, so this
+    process never returns or exits with its child running or unreaped.
+
+    A signal that arrives while the child is being created (inside ``subprocess.Popen``, after
+    the fork) would raise before anything holds the child, leaving it running. So, on the main
+    thread (the only one that can set handlers), SIGINT and the terminating signals that have a
+    handler are deferred while ``Popen`` runs (``_defer_signals``), and handled, by the handlers
+    they had, once the child is held (``_handle_deferred_signals``): their handlers are put back
+    on every path. An ignored signal is left ignored, so the child still starts with it ignored
+    (``nohup``); exec resets the deferral's own handler to the default in the child.
+
+    Limitation: the child alone is stopped, not its process group (it shares this process's, so
+    a terminal's Ctrl-C reaches it too). A grandchild the child started is stopped by the
+    child's own teardown (a game's engine reaps its children on SIGTERM: ``exit_on_signal``),
+    and is left running only when the child had to be killed after the grace, or when
+    ``run_command`` kills it at its timeout. In the test suite the child-process guard
+    (tests/child_process_guard.py) fails a test that leaves one.
+
+    Args:
+        command: The program and its arguments.
+        environment: The child's whole environment.
+        working_directory: The child's working directory (None: this process's).
+        output_streams: Where its standard output and error go (``OUTPUT_STREAMS``' entry for
+            the launcher's ``OutputCapture``).
+        wait: Waits for the held child and returns what the launcher returns.
+
+    Returns:
+        What ``wait`` returned.
+
+    """
+    standard_output, standard_error = output_streams
+    received: list[int] = []
+    deferred = _defer_signals(received=received)
+    try:
+        child = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with a game's command line plus fixed flags, as an argument list (no shell)
+            list(command),
+            env=dict(environment),
+            stdout=standard_output,
+            stderr=standard_error,
+            text=True,
+            cwd=working_directory,
+        )
     except BaseException:
-        # The timeout, or this process being stopped (a signal's SystemExit, Ctrl-C) while waiting
-        stop_and_reap(process=child)
+        # Not started: nothing to stop; a signal received meanwhile is still handled
+        _handle_deferred_signals(deferred=deferred, received=received)
         raise
-    return subprocess.CompletedProcess(args=list(command), returncode=returncode)
+    # Closes the child's pipes on every path (the child is reaped by then)
+    with child:
+        try:
+            _handle_deferred_signals(deferred=deferred, received=received)
+            return wait(child)
+        except BaseException:
+            stop_and_reap(process=child)
+            raise
+
+
+def _defer_signals(*, received: list[int]) -> dict[int, SignalHandler]:
+    """Make SIGINT and the terminating signals record themselves instead of being handled.
+
+    Only on the main thread (elsewhere handlers can't be set: nothing is deferred), and only
+    the signals that are handled (an ignored one stays ignored, and one with a handler set
+    outside Python, which ``getsignal`` reports as None, is left alone).
+
+    Args:
+        received: Where each deferred signal is recorded as it arrives.
+
+    Returns:
+        The handlers replaced, by signal, for ``_handle_deferred_signals`` to put back.
+
+    """
+    if threading.current_thread() is not threading.main_thread():
+        return {}
+
+    def record(signal_number: int, _frame: FrameType | None) -> None:
+        received.append(signal_number)
+
+    deferred: dict[int, SignalHandler] = {}
+    for name in DEFERRED_SIGNAL_NAMES:
+        signal_number = getattr(signal, name, None)
+        if signal_number is None:
+            continue
+        handler = signal.getsignal(signal_number)
+        if handler is None or handler == signal.SIG_IGN:
+            continue
+        signal.signal(signal_number, record)
+        deferred[signal_number] = handler
+    return deferred
+
+
+def _handle_deferred_signals(*, deferred: dict[int, SignalHandler], received: list[int]) -> None:
+    """Put back the handlers ``_defer_signals`` replaced, then raise each signal it recorded.
+
+    Each signal is raised again once (``signal.raise_signal``), in the order it first arrived,
+    so its own handler handles it now as it would have then: KeyboardInterrupt for Ctrl-C,
+    the engine's SystemExit for SIGTERM, the default action where that was the handling.
+
+    Args:
+        deferred: The handlers replaced, by signal.
+        received: The signals that arrived while deferred.
+
+    """
+    for signal_number, handler in deferred.items():
+        signal.signal(signal_number, handler)
+    for signal_number in dict.fromkeys(received):
+        signal.raise_signal(signal_number)
 
 
 def stop_and_reap(*, process: subprocess.Popen[str]) -> None:
     """Ask a child to stop, kill it if it is still running after STOP_GRACE_SECONDS, reap it.
 
     The child alone (``stop_command`` stops a child started in a session of its own with its
-    whole group). SIGTERM lets a game end through its engine's teardown, which stops and reaps
-    the children it is waiting for.
+    whole group, and a Windows child with this). SIGTERM lets a game end through its engine's
+    teardown, which stops and reaps the children it is waiting for. Interrupted during the
+    grace (a second Ctrl-C), the child is killed and reaped before the interruption goes on.
+    A child that has already ended is only reaped.
 
     Args:
         process: The child.
@@ -270,6 +416,10 @@ def stop_and_reap(*, process: subprocess.Popen[str]) -> None:
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
+    except BaseException:
+        process.kill()
+        process.wait()
+        raise
 
 
 def start_command(
@@ -333,12 +483,7 @@ def stop_command(*, process: subprocess.Popen[str], first_signal: int = signal.S
     if sys.platform == 'win32':
         if process.poll() is not None:
             return
-        process.terminate()
-        try:
-            process.wait(timeout=STOP_GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
+        stop_and_reap(process=process)
         return
     if process.poll() is not None:
         # Ended already (its group signal missed nothing yet: none was sent): what it left in
