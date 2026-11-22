@@ -17,6 +17,7 @@ from bitmappy.file_io import FileIOManager
 from bitmappy.onion_skinning import get_onion_skinning_manager
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.sprites.frame import SpriteFrame
+from tests.interrupted_writes import cut_writes_short
 
 # A minimal valid converted sprite, as the PNG conversion writes it
 CONVERTED_TOML = (
@@ -730,3 +731,26 @@ class TestInitializeOnionSkinningErrors:
             FileIOManager(SimpleNamespace())._initialize_onion_skinning_for_sprite(loaded_sprite)  # type: ignore[arg-type]
 
         assert any('Failed to initialize onion skinning' in m for m in caplog.messages)
+
+
+class TestPngConversionSaveIsWholeOrNothing:
+    """An interrupted conversion leaves an earlier TOML as it was.
+
+    bugs/2026-11-21-sprite-saves-are-not-atomic.md
+    """
+
+    def test_a_save_stopped_part_way_leaves_the_earlier_file_whole(self, tmp_path, mocker):
+        png_path = _write_png(path=tmp_path / 'two.png', size=(2, 1), fill=(1, 2, 3))
+        toml_path = tmp_path / 'two.toml'
+        toml_path.write_text('the earlier file, whole\n', encoding='utf-8')
+
+        with (
+            cut_writes_short(mocker=mocker, characters=10),
+            pytest.raises(KeyboardInterrupt),
+        ):
+            FileIOManager(SimpleNamespace())._save_and_validate_toml(
+                str(png_path), '[sprite]\nname = "two"\n'
+            )
+
+        assert toml_path.read_text(encoding='utf-8') == 'the earlier file, whole\n'
+        assert sorted(path.name for path in tmp_path.iterdir()) == ['two.png', 'two.toml']

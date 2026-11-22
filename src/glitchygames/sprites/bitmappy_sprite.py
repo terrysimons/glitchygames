@@ -30,6 +30,7 @@ import tomli_w
 
 from glitchygames.color import MAGENTA_TRANSPARENCY_KEY
 from glitchygames.engine_context import ContextSlot, current_context
+from glitchygames.output_files import write_text_whole
 
 from .constants import DEFAULT_FILE_FORMAT, SPRITE_GLYPHS
 from .pixel_utils import PADDING_GLYPH, normalize_pixel_rows
@@ -461,8 +462,9 @@ class BitmappySprite(Sprite):
 
         # deflate() refused any other format, so this is TOML
         self.log.debug('About to write TOML')
-        with Path(filename).open('wb') as toml_file:
-            tomli_w.dump(config, toml_file)
+        # Whole or nothing: a stopped save leaves the earlier file
+        # (bugs/2026-11-21-sprite-saves-are-not-atomic.md)
+        write_text_whole(destination=Path(filename), text=tomli_w.dumps(config))
         self.log.debug('TOML write complete')
 
         self.log.debug('Successfully saved to %s', filename)

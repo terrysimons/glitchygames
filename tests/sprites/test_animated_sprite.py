@@ -52,6 +52,7 @@ from glitchygames.sprites.pixel_utils import (
     normalize_pixel_for_color_map,
 )
 from glitchygames.sprites.root_sprite import RootSprite
+from tests.interrupted_writes import cut_writes_short
 
 # The engine's own sprite test data (Bitmappy keeps its sprite library)
 SPRITE_FIXTURES_DIRECTORY = Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites'
@@ -5309,3 +5310,28 @@ class TestDebugLoggingDoesNotGrowWithTheSprite:
         large = self._logged_characters(caplog, size=64)
 
         assert large - small < 64
+
+
+class TestAnimatedSpriteSaveIsWholeOrNothing:
+    """An interrupted save leaves the earlier file as it was.
+
+    bugs/2026-11-21-sprite-saves-are-not-atomic.md
+    """
+
+    def test_a_save_stopped_part_way_leaves_the_earlier_file_whole(self, tmp_path, mocker):
+        sprite = AnimatedSprite()
+        frame = SpriteFrame(pygame.Surface((2, 2)), duration=FRAME_DURATION)
+        frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        save_path = tmp_path / 'animated.toml'
+        save_path.write_text('the earlier file, whole\n', encoding='utf-8')
+
+        with (
+            cut_writes_short(mocker=mocker, characters=10),
+            pytest.raises(KeyboardInterrupt),
+        ):
+            sprite.save(str(save_path), 'toml')
+
+        assert save_path.read_text(encoding='utf-8') == 'the earlier file, whole\n'
+        assert sorted(path.name for path in tmp_path.iterdir()) == ['animated.toml']

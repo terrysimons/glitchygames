@@ -29,6 +29,7 @@ from glitchygames.color import (
     MAX_PER_PIXEL_ALPHA,
     RGBA_COMPONENT_COUNT,
 )
+from glitchygames.output_files import write_text_whole
 
 from . import sprite_toml
 from .animated_interface import AnimatedSpriteInterface
@@ -2022,7 +2023,9 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
             raise ValueError(ERR_UNSUPPORTED_FORMAT.format(file_format))
         if self._is_single_frame_sprite():
             self.log.info('Detected single-frame sprite, saving in static sprite format')
-        Path(filename).write_text(self.to_text(), encoding='utf-8')
+        # Whole or nothing: a stopped save leaves the earlier file
+        # (bugs/2026-11-21-sprite-saves-are-not-atomic.md)
+        write_text_whole(destination=Path(filename), text=self.to_text())
 
     def get_total_frame_count(self: Self) -> int:
         """Get the total number of frames across all animations.

@@ -17,6 +17,7 @@ from glitchygames.color import (
     RGBA_COMPONENT_COUNT,
 )
 from glitchygames.input.state import current_input
+from glitchygames.output_files import write_text_whole
 
 from .models import MockEvent
 from .toml_processing import (
@@ -385,7 +386,9 @@ class FileIOManager:
 
         """
         output_path = Path(file_path).with_suffix('.toml')
-        Path(output_path).write_text(toml_content, encoding='utf-8')
+        # Whole or nothing: a stopped save leaves the earlier file
+        # (bugs/2026-11-21-sprite-saves-are-not-atomic.md)
+        write_text_whole(destination=output_path, text=toml_content)
 
         self.log.info('Validating generated TOML file...')
         self._validate_toml_content(output_path)

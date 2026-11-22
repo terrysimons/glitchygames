@@ -11,6 +11,7 @@ from glitchygames.sprites import (
     Singleton,
     SingletonBitmappySprite,
 )
+from tests.interrupted_writes import cut_writes_short
 from tests.logged_messages import logged_message, logged_messages
 
 
@@ -504,3 +505,31 @@ class TestDebugLoggingDoesNotGrowWithTheSprite:
         large = self._logged_characters(caplog, tmp_path, size=64)
 
         assert large - small < 64
+
+
+class TestStaticSaveIsWholeOrNothing:
+    """An interrupted save leaves the earlier file as it was.
+
+    bugs/2026-11-21-sprite-saves-are-not-atomic.md
+    """
+
+    def test_a_save_stopped_part_way_leaves_the_earlier_file_whole(self, tmp_path, mocker):
+        sprite_path = tmp_path / 'two_colors.toml'
+        sprite_path.write_text(
+            '[sprite]\nname = "two_colors"\npixels = """\nRG\nGR\n"""\n'
+            '[colors.R]\nred = 255\ngreen = 0\nblue = 0\n'
+            '[colors.G]\nred = 0\ngreen = 255\nblue = 0\n',
+            encoding='utf-8',
+        )
+        sprite = BitmappySprite(x=0, y=0, filename=str(sprite_path))
+        save_path = tmp_path / 'saved.toml'
+        save_path.write_text('the earlier file, whole\n', encoding='utf-8')
+
+        with (
+            cut_writes_short(mocker=mocker, characters=10),
+            pytest.raises(KeyboardInterrupt),
+        ):
+            sprite._save_static_only(str(save_path), 'toml')
+
+        assert save_path.read_text(encoding='utf-8') == 'the earlier file, whole\n'
+        assert sorted(path.name for path in tmp_path.iterdir()) == ['saved.toml', 'two_colors.toml']

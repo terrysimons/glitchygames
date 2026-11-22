@@ -18,6 +18,7 @@ from glitchygames.sprites.catalog import (
     score_sprite,
     search_sprites,
 )
+from tests.interrupted_writes import cut_writes_short
 
 
 def _write(directory: Path, name: str, sprite_table: str) -> Path:
@@ -167,3 +168,23 @@ class TestCommandLine:
 
         assert main(['export', str(output), str(library)]) == ExitCode.CANNOT_WRITE_OUTPUT
         assert 'Cannot write' in capsys.readouterr().err
+
+
+class TestExportIsWholeOrNothing:
+    """An interrupted export leaves the earlier export as it was."""
+
+    def test_an_export_stopped_part_way_leaves_the_earlier_file_whole(
+        self, library, tmp_path, mocker
+    ):
+        output = tmp_path / 'sprites.jsonl'
+        output.write_text('the earlier file, whole\n', encoding='utf-8')
+        sprites = read_sprite_texts([library / 'sword.toml'])
+
+        with (
+            cut_writes_short(mocker=mocker, characters=10),
+            pytest.raises(KeyboardInterrupt),
+        ):
+            export_sprite_texts(sprites, output)
+
+        assert output.read_text(encoding='utf-8') == 'the earlier file, whole\n'
+        assert not output.with_name('sprites.jsonl.partial').exists()
