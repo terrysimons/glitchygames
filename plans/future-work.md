@@ -2020,13 +2020,6 @@ discussing it found and decided:
   raw elapsed time with no snap, the same class. Fix it there (the whole-tick cadence of
   `host.whole_ticks_per_frame`) once that lands. Measure first: the frame probe
   (`scripts/frame_phase_probe.py`) wraps `TickPacer`, not the replay pacer.
-- **Static text sprites redraw every frame, and a frame with no dirty rects updates the whole
-  screen** (found with the same bug). Zombies Ain't My Neighbors' title and slot pictures
-  (`text.TextPicture`) are `dirty=2`: every frame alpha-blends about 66,600 pixels and updates
-  five rects though only the blink changes (0.35-0.4 ms a frame in Chrome). Before making them
-  `dirty=1` (dirty only when shown, hidden or swapped), change `SceneManager._update_display`,
-  which calls `pygame.display.update()` for the whole screen when a frame has no dirty rects: a
-  still frame would then cost a full update.
 - **Test-suite memory on the Linux CI job: the structural options** (the owner's call;
   bugs/2026-11-17-linux-test-memory-guard-stops.md). #218 brought the peak to 1341-1350 MiB of
   1600; what is left grows from 503 to 859 MiB over 274 files, spread thin. In order of
