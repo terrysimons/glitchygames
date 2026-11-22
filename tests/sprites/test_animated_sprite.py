@@ -5335,3 +5335,43 @@ class TestAnimatedSpriteSaveIsWholeOrNothing:
 
         assert save_path.read_text(encoding='utf-8') == 'the earlier file, whole\n'
         assert sorted(path.name for path in tmp_path.iterdir()) == ['animated.toml']
+
+
+class TestAnimatedSpriteFilesLoadWithEitherLineEnd:
+    """A file saved on Windows (CRLF) or a Mac (LF) loads the same, and saves as LF."""
+
+    def _two_frame_sprite_text(self, tmp_path):
+        sprite = AnimatedSprite()
+        first = SpriteFrame(pygame.Surface((2, 1)), duration=FRAME_DURATION)
+        first.pixels = [(255, 0, 0), (0, 255, 0)]
+        second = SpriteFrame(pygame.Surface((2, 1)), duration=FRAME_DURATION)
+        second.pixels = [(0, 0, 255), (255, 255, 0)]
+        sprite.add_animation('idle', [first, second])
+        sprite.set_animation('idle')
+        lf_path = tmp_path / 'lf.toml'
+        sprite.save(str(lf_path), 'toml')
+        return lf_path.read_bytes().decode('utf-8')
+
+    def test_a_crlf_file_loads_the_same_frames_as_an_lf_file(self, tmp_path):
+        text = self._two_frame_sprite_text(tmp_path)
+        crlf_path = tmp_path / 'crlf.toml'
+        crlf_path.write_bytes(text.replace('\n', '\r\n').encode('utf-8'))
+
+        from_lf = AnimatedSprite(filename=str(tmp_path / 'lf.toml'))
+        from_crlf = AnimatedSprite(filename=str(crlf_path))
+
+        def frames(sprite):
+            return [frame.read_only_pixels for frame in sprite.frames['idle']]
+
+        assert frames(from_crlf) == frames(from_lf)
+        assert len(frames(from_lf)) == 2
+
+    def test_a_crlf_file_saves_again_as_lf(self, tmp_path):
+        text = self._two_frame_sprite_text(tmp_path)
+        crlf_path = tmp_path / 'crlf.toml'
+        crlf_path.write_bytes(text.replace('\n', '\r\n').encode('utf-8'))
+        saved_path = tmp_path / 'saved.toml'
+
+        AnimatedSprite(filename=str(crlf_path)).save(str(saved_path), 'toml')
+
+        assert saved_path.read_bytes() == text.encode('utf-8')

@@ -188,3 +188,20 @@ class TestExportIsWholeOrNothing:
 
         assert output.read_text(encoding='utf-8') == 'the earlier file, whole\n'
         assert not output.with_name('sprites.jsonl.partial').exists()
+
+
+def test_a_crlf_sprite_file_is_read_the_same_as_an_lf_one(library, tmp_path):
+    """A sprite saved on Windows (CRLF) reads, and exports, as one saved on a Mac (LF)."""
+    crlf_path = tmp_path / 'sword.toml'
+    lf_bytes = (library / 'sword.toml').read_bytes()
+    crlf_path.write_bytes(lf_bytes.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))
+
+    (from_lf,) = read_sprite_texts([library / 'sword.toml'])
+    (from_crlf,) = read_sprite_texts([crlf_path])
+
+    assert (from_crlf.name, from_crlf.description, from_crlf.tags) == (
+        from_lf.name,
+        from_lf.description,
+        from_lf.tags,
+    )
+    assert from_crlf.text() == from_lf.text()
