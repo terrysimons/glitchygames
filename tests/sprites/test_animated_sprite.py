@@ -3,6 +3,7 @@
 import gc
 import logging
 import math
+import os
 import shutil
 import tempfile
 import tomllib
@@ -5338,7 +5339,7 @@ class TestAnimatedSpriteSaveIsWholeOrNothing:
 
 
 class TestAnimatedSpriteFilesLoadWithEitherLineEnd:
-    """A file saved on Windows (CRLF) or a Mac (LF) loads the same, and saves as LF."""
+    """A file with CRLF (Windows) or LF line ends loads the same, and saves with the OS's."""
 
     def _two_frame_sprite_text(self, tmp_path):
         sprite = AnimatedSprite()
@@ -5350,7 +5351,9 @@ class TestAnimatedSpriteFilesLoadWithEitherLineEnd:
         sprite.set_animation('idle')
         lf_path = tmp_path / 'lf.toml'
         sprite.save(str(lf_path), 'toml')
-        return lf_path.read_bytes().decode('utf-8')
+        text = lf_path.read_bytes().decode('utf-8').replace('\r\n', '\n')
+        lf_path.write_bytes(text.encode('utf-8'))
+        return text
 
     def test_a_crlf_file_loads_the_same_frames_as_an_lf_file(self, tmp_path):
         text = self._two_frame_sprite_text(tmp_path)
@@ -5366,7 +5369,7 @@ class TestAnimatedSpriteFilesLoadWithEitherLineEnd:
         assert frames(from_crlf) == frames(from_lf)
         assert len(frames(from_lf)) == 2
 
-    def test_a_crlf_file_saves_again_as_lf(self, tmp_path):
+    def test_a_crlf_file_saves_again_with_the_os_line_ends(self, tmp_path):
         text = self._two_frame_sprite_text(tmp_path)
         crlf_path = tmp_path / 'crlf.toml'
         crlf_path.write_bytes(text.replace('\n', '\r\n').encode('utf-8'))
@@ -5374,4 +5377,18 @@ class TestAnimatedSpriteFilesLoadWithEitherLineEnd:
 
         AnimatedSprite(filename=str(crlf_path)).save(str(saved_path), 'toml')
 
-        assert saved_path.read_bytes() == text.encode('utf-8')
+        assert saved_path.read_bytes() == text.replace('\n', os.linesep).encode('utf-8')
+
+    def test_a_crlf_file_saved_and_loaded_again_has_the_same_text(self, tmp_path):
+        """The text in memory never carries a file's line ends, through any round trip."""
+        text = self._two_frame_sprite_text(tmp_path)
+        crlf_path = tmp_path / 'crlf.toml'
+        crlf_path.write_bytes(text.replace('\n', '\r\n').encode('utf-8'))
+        saved_path = tmp_path / 'saved.toml'
+
+        from_crlf = AnimatedSprite(filename=str(crlf_path))
+        from_crlf.save(str(saved_path), 'toml')
+        reloaded = AnimatedSprite(filename=str(saved_path))
+
+        assert from_crlf.to_text() == text
+        assert reloaded.to_text() == text

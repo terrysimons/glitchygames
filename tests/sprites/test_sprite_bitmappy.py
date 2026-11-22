@@ -1,6 +1,7 @@
 """Bitmappy sprite functionality tests."""
 
 import logging
+import os
 
 import pygame
 import pytest
@@ -536,7 +537,7 @@ class TestStaticSaveIsWholeOrNothing:
 
 
 class TestStaticFilesLoadWithEitherLineEnd:
-    """A file saved on Windows (CRLF) or a Mac (LF) loads the same, and saves as LF."""
+    """A file with CRLF (Windows) or LF line ends loads the same, and saves with the OS's."""
 
     TEXT = (
         '[sprite]\nname = "two_colors"\npixels = """\nRG\nGR\n"""\n'
@@ -555,12 +556,25 @@ class TestStaticFilesLoadWithEitherLineEnd:
         assert from_crlf.pixels == from_lf.pixels
         assert from_crlf.image.get_size() == from_lf.image.get_size() == (2, 2)
 
-    def test_a_crlf_file_saves_again_as_lf(self, tmp_path):
+    def test_a_crlf_file_saves_again_with_the_os_line_ends(self, tmp_path):
         lf_saved = tmp_path / 'from_lf.toml'
         crlf_saved = tmp_path / 'from_crlf.toml'
 
         self._load(tmp_path / 'lf.toml', '\n')._save_static_only(str(lf_saved), 'toml')
         self._load(tmp_path / 'crlf.toml', '\r\n')._save_static_only(str(crlf_saved), 'toml')
 
+        text = crlf_saved.read_bytes().decode('utf-8').replace('\r\n', '\n')
         assert crlf_saved.read_bytes() == lf_saved.read_bytes()
-        assert b'\r' not in crlf_saved.read_bytes()
+        assert crlf_saved.read_bytes() == text.replace('\n', os.linesep).encode('utf-8')
+
+    def test_a_crlf_file_saved_and_loaded_again_has_the_same_sprite(self, tmp_path):
+        """What is in memory never carries a file's line ends, through any round trip."""
+        saved_path = tmp_path / 'saved.toml'
+        from_lf = self._load(tmp_path / 'lf.toml', '\n')
+        from_crlf = self._load(tmp_path / 'crlf.toml', '\r\n')
+
+        from_crlf._save_static_only(str(saved_path), 'toml')
+        reloaded = BitmappySprite(x=0, y=0, filename=str(saved_path))
+
+        assert from_crlf.deflate(file_format='toml') == from_lf.deflate(file_format='toml')
+        assert reloaded.deflate(file_format='toml') == from_lf.deflate(file_format='toml')

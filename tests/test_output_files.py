@@ -56,17 +56,13 @@ class TestWriteTextWhole:
 
         assert destination.read_text(encoding='utf-8') == self.TEXT
 
-    @pytest.mark.parametrize('line_end', ['\n', '\r\n'], ids=['lf', 'crlf'])
-    def test_the_text_is_written_byte_for_byte_on_every_os(
-        self, tmp_path: Path, line_end: str
-    ) -> None:
-        """Line ends are never translated: a file saved on Windows has a Mac's bytes."""
+    def test_the_file_has_the_os_line_ends(self, tmp_path: Path) -> None:
+        """CRLF on Windows, LF elsewhere: a person edits the file in their usual text editor."""
         destination = tmp_path / 'record.txt'
-        text = self.TEXT.replace('\n', line_end)
 
-        write_text_whole(destination=destination, text=text)
+        write_text_whole(destination=destination, text=self.TEXT)
 
-        assert destination.read_bytes() == text.encode('utf-8')
+        assert destination.read_bytes() == self.TEXT.replace('\n', os.linesep).encode('utf-8')
 
     def test_a_write_stopped_anywhere_leaves_the_old_text_or_the_new(
         self, mocker, tmp_path: Path

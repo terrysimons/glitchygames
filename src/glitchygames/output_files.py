@@ -79,14 +79,13 @@ def write_text_whole(*, destination: Path, text: str) -> None:
 
     Args:
         destination: The record's file.
-        text: Its whole text, written as UTF-8 with its line ends as given (never translated to
-            the OS's, so a file saved on Windows has the same bytes as on a Mac).
+        text: Its whole text, with LF line ends, written as UTF-8 with the OS's line ends
+            (CRLF on Windows), so a person can edit the file in their usual text editor.
 
     """
 
     def write_and_sync(aside: Path) -> None:
-        # newline='\n': never translated, so the file has the same bytes on every OS
-        with aside.open('w', encoding='utf-8', newline='\n') as stream:
+        with aside.open('w', encoding='utf-8') as stream:
             stream.write(text)
             stream.flush()
             os.fsync(stream.fileno())
