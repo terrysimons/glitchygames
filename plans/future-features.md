@@ -101,7 +101,9 @@ This document tracks planned future features for the GlitchyGames project. Featu
   sub-plan 1) is done (PR #171, verified and through its performance gate); the Arcade's
   sub-plan 2 (demos for every tile: `plans/2026-11-11-arcade-2-demos.md`, branch
   `arcade-2-demos`) is done: all ten tiles have a bundled demo, recorded by
-  `scripts/record_bundled_demos.py`; sub-plan 3 (a game inside the Arcade) is next
+  `scripts/record_bundled_demos.py`; sub-plan 3 (a game inside the Arcade) merged (#185,
+  `cc6d3bfb`), and sub-plan 4 (sound only from the watched game) merged (#207, `c3beb0a8`);
+  sub-plan 5 (one playback core, then DemoPlayer) is planned (#240)
 - **Priority**: High (requested 2026-10-23)
 
 ### 46. Recording Metrics: History, Headroom and Gameplay Analytics — TODO
@@ -240,8 +242,8 @@ This document tracks planned future features for the GlitchyGames project. Featu
 - **Status**: Part 1 (foundation and the Mr. Muncher pilot) merged (#105); Part 2 (every game
   its own package: mr-muncher, clockwork-keep, brave-adventurer as one project with a launcher,
   paddleslap, drawing-fire) merged (#109); Part 4 (Bitmappy as an app, `src/apps/bitmappy/`)
-  DONE on `feature/workspace-packages-4-bitmappy`, not yet merged; Parts 3 (the demos) and 5 (the
-  browser IDE) TODO
+  merged (#110, `73ed261f`); Part 3 (the demos, and the engine owns every replay tool) merged
+  (#111, `3f1999a9`); Part 5 (the browser IDE) TODO
 - **Part 2 leftovers** (deferred review findings, 2026-10-25; none blocks the merge):
   - Brave Adventurer (`src/games/brave-adventurer/`): no golden replay exercises the title
     screen's controls; `tests/engine/test_engine_lifecycle.py`'s power-on test has no direct
