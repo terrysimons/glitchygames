@@ -1,0 +1,13 @@
+# A Cue Added to a Running Transition Can Fire Twice, or Never
+
+- **Description**: `Transition.add_cue` (`src/glitchygames/transitions/base.py`) inserts the cue into a list sorted by progress, and `update()` walks that list with a cursor, `_next_cue_index`. If a cue is added while the transition runs, at a progress the cursor has already passed, it lands before the cursor and shifts every later cue up by one. The cue just behind the cursor then fires again, and the added cue never fires. Reproduced on main (`25e1f2d5`, 2026-11-21): with a cue at 0.5, `start()`, then `update(0.6)`, the 0.5 cue fires. Adding cues at 0.3 and 0.8, then `update(0.3)`, fires `0.5` a second time and `0.8`; the 0.3 cue never fires. A cue added ahead of the cursor (0.8 alone) fires correctly.
+- **Status**: Open (found and documented 2026-11-21 on `docs/scattered-doc-todos`; the code is unchanged there by the coordinator's ruling: that branch is docs-only)
+- **Priority**: Low. The only caller, Clockwork Keep's elevator ride (`src/games/clockwork-keep/src/clockwork_keep/game.py`, `add_cue(1.0, ...)`), adds its cue before `transition_to` starts the transition, so nothing misfires today. A game adding a cue from a running transition's `on_update`, or from another cue, would get a doubled callback and a lost one.
+- **Root Cause**: the cursor counts cues, not progress, so an insertion below it changes what it points at. Recorded as a deferred finding of the screen-shake plan (`plans/2026-10-17-screen-shake-and-synth.md`, Task 8: "add_cue during a running transition can misfire (insert before _next_cue_index); document 'add before start()' or guard").
+- **Test gap**: every cue test in `tests/` adds its cues before `start()`; none adds one while the transition runs.
+- **Fix options**: refuse `add_cue` unless the transition is idle (a `RuntimeError` naming the rule), or keep a running transition consistent: a cue inserted at or below the cursor advances the cursor by one, and a cue whose progress has already passed fires on the next update (or never, by a stated rule). The first is smaller and matches the only use; the second suits a cue scheduled from `on_update`. The owner's call.
+- **Siblings**: swept 2026-11-21 for other sorted lists walked by a cursor (`bisect.insort`, `_next_*_index` in `src/`): only `replay/controls.py`'s bookmarks, which no cursor walks. Covered.
+- **Documented**: `add_cue`'s docstring now says to add cues before `start()` and names this record.
+- **Reporter**: the screen-shake plan's Task 8 review (deferred); reproduced 2026-11-21 by session 7f401ee6 for the scattered doc to-dos
+- **Date Reported**: 2026-11-21
+- **Files**: `src/glitchygames/transitions/base.py`
