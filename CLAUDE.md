@@ -39,7 +39,7 @@ it: nothing tests on 3.14, so keep to what 3.14 has. Move those to 3.15 when a P
 ships. The Linux job is split across six machines and Windows across three (`parallelism`), as the
 suite alone ran past CircleCI's one-hour job limit on Linux. A split job's machines each run a
 share (`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a `coverage-combine-*` job
-holds their coverage, combined, to 100%. Each CI test machine rolls fixed or shuffled order.
+holds their coverage, combined, to 100%. Machines roll test order; Markdown-only PRs skip tests.
 
 The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
 from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).

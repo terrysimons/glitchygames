@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import inspect
 import json
 import re
@@ -24,7 +25,10 @@ from tests.ansible_inventory import raspberry_pi_hosts
 from tests.ledger_repositories import environment_without_git_variables, git
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CIRCLECI_CONFIG_PATH = PROJECT_ROOT / '.circleci' / 'config.yml'
+# The pipeline's configuration: the workflows, continued from the setup configuration, which only
+# chooses what runs (tests/test_ci_change_scope.py; docs-only changes skip the test jobs)
+CIRCLECI_CONFIG_PATH = PROJECT_ROOT / '.circleci' / 'continue_config.yml'
+CIRCLECI_SETUP_PATH = PROJECT_ROOT / '.circleci' / 'config.yml'
 # How a job's text names its platform: the Linux image, the Windows executor
 LINUX_IMAGE_MARKER = '      - image: cimg/python:'
 WINDOWS_EXECUTOR_MARKER = 'name: win/default'
@@ -2538,6 +2542,7 @@ def test_the_pre_push_comparison_runs_on_every_core():
         ('docs/quality/driver_comparison.md', True),
         ('quality/replay-ledger/abc-row.json', True),
         ('.circleci/config.yml', True),
+        ('.circleci/continue_config.yml', True),
         ('.github/workflows/lint.yml', True),
         ('BUGS.md', True),
         ('bugs/2026-11-14-type-gate-never-reads-the-tests.md', True),
@@ -2844,7 +2849,7 @@ def raspberry_pi_job() -> str:
 )
 def test_no_workflow_runs_a_raspberry_pis_job(host):
     """The Pis measure replays when the owner pushes, and take no CI jobs."""
-    configuration = (PROJECT_ROOT / '.circleci' / 'config.yml').read_text(encoding='utf-8')
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     workflow = configuration[configuration.index('\nworkflows:\n') :]
 
     assert f'\n      # - build-and-test-{host}\n' in workflow
@@ -3020,7 +3025,7 @@ class LinuxCiSession(LoggingRecordingSession):
 def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monkeypatch):
     """``nox -s test-linux-ci``: the job's amd64 image, 2 GB without swap, 1 CPU, its environment.
 
-    Read from .circleci/config.yml, so a change to the job changes the session too.
+    Read from .circleci/continue_config.yml, so a change to the job changes the session too.
     """
     import noxfile
 
@@ -3176,7 +3181,7 @@ def test_the_checks_run_on_a_large_linux_container_beside_the_tests():
     """Format, lint (the docs build with it), the type checkers and the security scan: Linux.
 
     large (4 CPUs, 8 GB): the strict docs build was killed for memory at 4 GB (deploy-docs).
-    Beside the tests: the workflow lists it bare, waiting for no job.
+    Beside the tests: it waits for no job, and runs only where the tests do (test-scope all).
     """
     job = circleci_job_definition(name=CHECKS_JOB)
 
@@ -3191,9 +3196,10 @@ def test_the_checks_run_on_a_large_linux_container_beside_the_tests():
     assert job.index('      - install-supply-chain-tools-linux\n') < job.index(
         '      - nox-security-scan\n'
     )
-    assert CHECKS_JOB in workflow_jobs()
-    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    assert re.search(rf'^      - {CHECKS_JOB}$', configuration, flags=re.MULTILINE)
+    assert workflow_entries()[CHECKS_JOB] == {
+        'job': CHECKS_JOB,
+        'filters': TEST_SCOPE_FILTER.format(scope='all'),
+    }
 
 
 def test_the_lint_step_allows_30_minutes_of_silence():
@@ -3541,6 +3547,205 @@ def test_the_site_deploy_role_arn_stays_out_of_the_repository():
     assert 'arn:aws:' not in configuration
     assert '"${SITE_DEPLOY_ROLE_ARN:-}"' in definition
     assert 'Project Settings > Environment Variables' in definition
+
+
+# The jobs a docs-only change leaves out: every job that runs the suite, and the jobs combining
+# their coverage (the owner, 2026-11-20, via the coordinator)
+TEST_SCOPE_ALL_JOBS = {
+    'test-python-3-15-macos',
+    'test-python-3-15-linux',
+    'test-python-3-15-windows',
+    'coverage-combine-linux-test-3-15',
+    'coverage-combine-windows-test-3-15',
+    # Of its checks only the strict docs build reads Markdown, and markdown-checks runs that build
+    CHECKS_JOB,
+}
+TEST_SCOPE_FILTER = 'pipeline.parameters.test-scope == "{scope}"'
+
+
+def workflow_entries() -> dict[str, dict[str, Any]]:
+    """Return the build-and-test workflow's jobs by their names, each with its settings.
+
+    Returns:
+        Each entry's settings (empty for a bare job name), by the name it runs under.
+
+    """
+    configuration = yaml.safe_load(CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8'))
+    entries: dict[str, dict[str, Any]] = {}
+    for entry in configuration['workflows']['build-and-test']['jobs']:
+        if isinstance(entry, str):
+            entries[entry] = {}
+            continue
+        ((job, settings),) = entry.items()
+        entries[settings.get('name', job)] = {'job': job, **settings}
+    return entries
+
+
+def test_the_setup_configuration_only_chooses_what_runs():
+    """config.yml is a setup configuration: one small job reads the change and continues.
+
+    It checks out, fetches main, runs scripts/ci_change_scope.py (Python's standard library only,
+    so nothing is installed) and continues with continue_config.yml and the parameters it wrote.
+    Its image is the pipeline's Python's, cimg/python carrying the curl and jq the continuation
+    needs.
+    """
+    from scripts import ci_change_scope
+
+    setup = yaml.safe_load(CIRCLECI_SETUP_PATH.read_text(encoding='utf-8'))
+    text = CIRCLECI_SETUP_PATH.read_text(encoding='utf-8')
+
+    assert setup['setup'] is True
+    assert setup['orbs'] == {'continuation': 'circleci/continuation@2.0.1'}
+    assert list(setup['workflows']) == ['choose-what-runs']
+    assert setup['workflows']['choose-what-runs']['jobs'] == ['choose-what-runs']
+    (job,) = setup['jobs'].values()
+    image = f'cimg/python:{pipeline_parameter_default(name="PYTHON_VERSION")}'
+    assert job['docker'] == [{'image': image}]
+    assert job['resource_class'] == 'small'
+    steps = job['steps']
+    assert steps[0] == 'checkout'
+    choose = steps[1]['run']['command']
+    assert 'git fetch --quiet origin main' in choose
+    # git writes the change where the script reads it, and the script writes the parameters
+    # where the continuation reads them
+    listed = re.search(r'git diff --name-only --no-renames "\$base" HEAD > (?P<file>\S+)', choose)
+    run = re.search(
+        r'python3 scripts/ci_change_scope\.py --paths (?P<paths>\S+) \\\n'
+        r'\s+--output (?P<output>\S+)',
+        choose,
+    )
+    assert listed is not None
+    assert run is not None
+    assert run['paths'] == listed['file']
+    parameters_file = run['output']
+    assert steps[2] == {
+        'continuation/continue': {
+            'configuration_path': '.circleci/continue_config.yml',
+            'parameters': parameters_file,
+        }
+    }
+    assert len(steps) == 3
+    # Nothing installed before the choice: no uv, no nox, no pip
+    assert not re.findall(r'\b(uv|nox|pip)\b', text.split('jobs:', 1)[1])
+    assert ci_change_scope.TEST_SCOPES == ('all', 'markdown')
+
+
+def test_the_test_scope_parameter_defaults_to_running_everything():
+    """continue_config.yml's test-scope: the script's two scopes, ``all`` unless it says else."""
+    from scripts import ci_change_scope
+
+    configuration = yaml.safe_load(CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8'))
+
+    assert configuration['parameters']['test-scope'] == {
+        'type': 'enum',
+        'enum': list(ci_change_scope.TEST_SCOPES),
+        'default': 'all',
+    }
+
+
+def test_a_docs_only_pipeline_leaves_out_the_test_jobs_and_checks_and_nothing_else():
+    """The test, coverage and checks jobs run on ``all`` only, the Markdown checks on ``markdown``.
+
+    Every other job (the infrastructure tests, the deploys on main) has no test-scope filter, and
+    every job that runs a test session is among those left out, so a test job added later can't
+    run on a docs-only change unseen. The workflow keeps its name: build-and-test is the check
+    main's ruleset requires, so a docs-only pull request can still merge.
+    """
+    entries = workflow_entries()
+    jobs = circleci_job_texts()
+    scoped = {
+        name: settings['filters']
+        for name, settings in entries.items()
+        if 'test-scope' in str(settings.get('filters', ''))
+    }
+
+    assert scoped == {
+        **dict.fromkeys(TEST_SCOPE_ALL_JOBS, TEST_SCOPE_FILTER.format(scope='all')),
+        'markdown-checks': TEST_SCOPE_FILTER.format(scope='markdown'),
+    }
+    for name, settings in entries.items():
+        job = jobs[settings.get('job', name)]
+        if any(command in job for command in TEST_SESSION_COMMANDS):
+            assert name in TEST_SCOPE_ALL_JOBS, name
+
+
+def test_the_markdown_checks_build_the_docs_and_run_the_tests_that_read_markdown():
+    """One Linux machine: the strict docs build and the Markdown-reading tests (test-markdown)."""
+    job = circleci_job_texts()['markdown-checks']
+
+    assert LINUX_IMAGE_MARKER in job
+    assert 'nox -s lint-docs' in job
+    assert 'nox -s test-markdown' in job
+    assert 'parallelism' not in job
+
+
+def _reads_markdown(*, path: Path) -> bool:
+    """Tell whether a test file names a Markdown file in its code (not its docstrings).
+
+    A string in the code ending ``.md``, or a ``*.md`` pattern: how a test reads a Markdown file
+    or a folder of them. Comments and docstrings don't count.
+
+    Returns:
+        True if the file names one.
+
+    """
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    docstrings = {
+        id(node.body[0].value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+        and node.body
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+    }
+    return any(
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and id(node) not in docstrings
+        and re.search(r'(\.md$|\*\.md)', node.value) is not None
+        for node in ast.walk(tree)
+    )
+
+
+def test_the_markdown_test_list_is_every_test_file_that_reads_markdown():
+    """noxfile.MARKDOWN_TEST_FILES is exactly the test files that name a Markdown file.
+
+    The owner, 2026-11-20: docs-only pull requests still run the tests that read Markdown, from
+    an explicit list kept honest. A test reading Markdown some other way (a folder listed with
+    no ``.md`` in its code) is not detected: name it here by hand if one appears.
+    """
+    import noxfile
+
+    test_files = sorted(
+        path.relative_to(PROJECT_ROOT).as_posix()
+        for path in [
+            *(PROJECT_ROOT / 'tests').rglob('test_*.py'),
+            *(PROJECT_ROOT / 'src').glob('*/*/tests/**/test_*.py'),
+        ]
+    )
+    readers = [path for path in test_files if _reads_markdown(path=PROJECT_ROOT / path)]
+
+    assert readers, 'no test file names a Markdown file: the detection is stale'
+    assert list(noxfile.MARKDOWN_TEST_FILES) == readers
+
+
+def test_the_markdown_test_session_runs_the_list_without_the_coverage_rule():
+    """Nox -s test-markdown: the listed files only, in their order, on the dummy drivers.
+
+    A part of the suite can't reach the 100% coverage rule, so coverage is off; the order stays
+    the files' own (no rolled order: the change touched no code).
+    """
+    import noxfile
+
+    installed = '.nox/test-markdown/lib/python3.15/site-packages/glitchygames'
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
+    noxfile.test_markdown(session)
+    (pytest_run,) = [command for command in session.commands if command[0] == 'pytest']
+
+    assert pytest_run[1 : 1 + len(noxfile.MARKDOWN_TEST_FILES)] == noxfile.MARKDOWN_TEST_FILES
+    assert '--no-cov' in pytest_run
+    assert '--dummy-only' in pytest_run
+    assert not [argument for argument in pytest_run if 'randomly' in argument]
 
 
 def test_every_step_that_builds_the_browser_wheel_lets_uv_replace_a_stale_venv():

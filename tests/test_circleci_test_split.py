@@ -29,6 +29,7 @@ from tests.circleci_test_split import (
     choose_share,
     deal_heavy_tests,
     junit_test_name,
+    repeated_junit_names,
     run_circleci_splitter,
     split_names,
 )
@@ -186,6 +187,39 @@ def test_a_name_the_splitter_was_not_given_stops_the_run():
     """A name it made up (or a name spelled another way) would match no test: refused, named."""
     with pytest.raises(pytest.UsageError, match=r'not given: elsewhere'):
         split_names(names=['a'], run_splitter=lambda _list: 'a\nelsewhere\n')
+
+
+def test_no_repeated_name_among_distinct_tests():
+    """Every test's name is its own: nothing found."""
+    assert (
+        repeated_junit_names(
+            node_ids=['tests/a.py::test_x[1]', 'tests/a.py::test_x[2]', 'tests/b.py::test_x']
+        )
+        == []
+    )
+
+
+def test_the_same_name_from_two_files_is_found():
+    """A class in one file and a module of the class's name in a folder name one test alike."""
+    assert repeated_junit_names(
+        node_ids=[
+            'tests/test_a.py::TestThing::test_y',
+            'tests/test_a/TestThing.py::test_y',
+            'tests/test_b.py::test_y',
+        ]
+    ) == ['tests.test_a.TestThing.test_y']
+
+
+def test_names_that_drop_the_parameters_are_found_repeated():
+    """A naming that loses the parameters (planted) makes every case of a test one name."""
+
+    def without_parameters(*, node_id: str) -> str:
+        return junit_test_name(node_id=node_id.partition('[')[0])
+
+    assert repeated_junit_names(
+        node_ids=['tests/a.py::test_x[1]', 'tests/a.py::test_x[2]', 'tests/a.py::test_z'],
+        name_of=without_parameters,
+    ) == ['tests.a.test_x']
 
 
 def test_two_tests_with_one_name_stop_the_run():

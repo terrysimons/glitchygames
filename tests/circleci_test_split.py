@@ -61,6 +61,7 @@ tests/test_circleci_test_split.py.
 
 from __future__ import annotations
 
+import collections
 import os
 import re
 import shutil
@@ -115,6 +116,23 @@ def junit_test_name(*, node_id: str) -> str:
     names[0] = re.sub(r'\.py$', '', names[0].replace('/', '.'))
     names[-1] += open_bracket + parameters
     return '.'.join(names)
+
+
+def repeated_junit_names(
+    *, node_ids: Sequence[str], name_of: Callable[..., str] = junit_test_name
+) -> list[str]:
+    """Return each JUnit name two or more of the tests share, sorted.
+
+    Args:
+        node_ids: The tests' node ids.
+        name_of: Names a test from its node id (``junit_test_name``).
+
+    Returns:
+        The repeated names; empty when every test's is its own.
+
+    """
+    counts = collections.Counter(name_of(node_id=node_id) for node_id in node_ids)
+    return sorted(name for name, count in counts.items() if count > 1)
 
 
 def deal_heavy_tests(*, node_ids: Sequence[str], index: int, total: int) -> frozenset[str]:
