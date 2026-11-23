@@ -3124,9 +3124,9 @@ way a player's run exercises it.</p>
         doors["Doors guard&lt;br/&gt;tests/test_engine_doors.py"]
         memory["Memory guard&lt;br/&gt;(CI Linux only)"]
     end
-    subgraph tools ["On demand, and in the commit hook"]
+    subgraph tools ["On demand"]
         verify["glitchygames verify"]
-        measure["glitchygames measure&lt;br/&gt;(pre-commit replay-metrics)"]
+        measure["glitchygames measure&lt;br/&gt;(by hand: nox -s measure-staged)"]
         rebaseline["--rebaseline&lt;br/&gt;(after an intended change)"]
         audit["--audit&lt;br/&gt;(determinism)"]
     end
@@ -3201,15 +3201,14 @@ refusal, every exit code.</p>
   golden follows an intended change. NEW replaces OLD only as a deliberate, reviewed step.</li>
 <li><strong><code>glitchygames measure</code></strong> rebaselines each recording headless into a temporary file, in a
   child, and turns the result into ledger rows (<code>src/glitchygames/replay/tools/measure.py</code>).</li>
-<li>The <code>replay-metrics</code> pre-commit hook (<code>scripts/measure_staged_replays.py</code>) runs it whenever
-    this machine has not measured the staged code tree, so every commit carries its measurements.</li>
+<li><code>nox -s measure-staged</code> (<code>scripts/measure_staged_replays.py</code>) runs it by hand whenever this
+    machine has not measured the staged code tree. It was the <code>replay-metrics</code> pre-commit hook
+    until the owner stopped committing replay-ledger rows (2026-11-22; they move to S3).</li>
 </ul>
 <pre class="mermaid"><code>flowchart LR
     change["intended change&lt;br/&gt;to a game"] --&gt; rb["--rebaseline OLD NEW&lt;br/&gt;(review the summary)"]
     rb --&gt; replace["replace OLD with NEW&lt;br/&gt;(deliberate step)"]
     replace --&gt; commit["git commit"]
-    commit --&gt; hook["replay-metrics hook:&lt;br/&gt;measure = rebaseline each recording&lt;br/&gt;into a temp file"]
-    hook --&gt; rows["ledger rows&lt;br/&gt;staged into the commit"]
     commit --&gt; suite["test run: golden replays&lt;br/&gt;must match"]</code></pre>
 <p>Flags and exits: <a href="../../gameplay_replay/#rebaselining-rebaseline-new">Rebaselining</a> and
 <a href="../../gameplay_replay/#tools-for-any-game">Tools for any game</a>.</p>
@@ -3358,7 +3357,7 @@ drivers, the owner's Mac). Every ordinary run keeps the files' order (<code>-p n
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 10:58:31 UTC">November 21, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 08:45:58 UTC">November 23, 2026</span>
   </span>
 
     

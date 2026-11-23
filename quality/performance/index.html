@@ -3952,24 +3952,19 @@ be linked: the link opens on that game's first recording.</p>
 changes". They stay in the pending file after a deploy, so they remain visible locally only.</p>
 <h2 id="where-the-numbers-come-from">Where the numbers come from<a class="headerlink" href="#where-the-numbers-come-from" title="Permanent link">#</a></h2>
 <ol>
-<li><strong>Every commit carries the measurements of its code.</strong> A pre-commit hook
-   (<code>scripts/measure_staged_replays.py</code>, installed by <code>.envrc</code>) works out the <em>code tree</em> of what
-   is being committed (<code>src/glitchygames/code_tree.py</code>: only what can change how the replays run,
-   the engine, games, demos, apps, recordings, <code>uv.lock</code> and <code>pyproject.toml</code>). When this machine
-   has not measured that code yet, it measures every golden replay and bundled demo on it and
-   adds one small file per recording to the commit, under <code>quality/replay-ledger/</code>. A docs commit
-   after a measured one is instant; code that arrived by a merge from <code>main</code> or a rebase is
-   measured by the next commit (or by hand: <code>nox -s measure-staged</code>, then commit, which also
-   adds a machine without the hook). <code>SKIP=replay-metrics git commit ...</code> skips it.
-   A pre-push hook (<code>scripts/measure_on_raspberry_pi.py</code>) measures the same way on the Raspberry
-   Pis (a Pi 4 and two Pi 5s, 16 GB and 8 GB, <code>ansible/inventory.yml</code>'s <code>raspberry_pis</code>), all at
-   once, and copies
-   their row files of the pushed commit's code tree here, staged. Each Pi measures one push at a
-   time (a lock beside its clone; a second push waits, and gives up after 30 minutes), and a row
-   of any other code tree is refused rather than staged. A push that brings rows stops so they
-   can be committed, and the next one goes through; a Pi that cannot be reached stops the push
-   before any Pi measures (by hand: <code>nox -s measure-on-raspberry-pi</code>;
-   <code>SKIP=raspberry-pi-replay-metrics git push ...</code> skips it).</li>
+<li><strong>New rows are no longer committed</strong> (the owner, 2026-11-22: about 19 more files per commit,
+   7,368 of them by then, were too many for git; they move to S3, a to-do in
+   <code>plans/future-work.md</code>). The rows already in <code>quality/replay-ledger/</code> stay, and the site
+   still shows them. Until then a commit carried the measurements of its code: a pre-commit hook
+   (<code>scripts/measure_staged_replays.py</code>) worked out the <em>code tree</em> of what was being committed
+   (<code>src/glitchygames/code_tree.py</code>: only what can change how the replays run, the engine, games,
+   demos, apps, recordings, <code>uv.lock</code> and <code>pyproject.toml</code>) and, when this machine had not
+   measured that code yet, measured every golden replay and bundled demo on it, adding one small
+   file per recording to the commit. A pre-push hook (<code>scripts/measure_on_raspberry_pi.py</code>) did
+   the same on the Raspberry Pis (a Pi 4 and three Pi 5s, <code>ansible/inventory.yml</code>'s
+   <code>raspberry_pis</code>), all at once, one push at a time per Pi, and copied their rows here, staged.
+   Both still run by hand (<code>nox -s measure-staged</code>, <code>nox -s measure-on-raspberry-pi</code>) and stage
+   their rows; leave those unstaged until the rows have their new home.</li>
 <li><strong>The site shows what landed on <code>main</code>.</strong> Every docs build reads the repository's row files
    and keeps each row whose code tree is the code tree of the commit that added its file: on
    <code>main</code>, the squash merge, so each is shown under the commit its code landed in (code that
@@ -4057,7 +4052,7 @@ and <code>tests/test_logger_levels_at_import.py</code> fail on in the ordinary t
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 09:56:14 UTC">November 19, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 08:45:58 UTC">November 23, 2026</span>
   </span>
 
     
