@@ -214,15 +214,17 @@ def test_a_code_file_renamed_to_markdown_runs_everything(repository, tmp_path):
 
 
 def test_the_setup_step_takes_paths_bash_would_otherwise_split_or_unescape(repository, tmp_path):
-    """Its files in a folder whose name has a space and a backslash: the step still writes them.
+    """Its files under a path with a space and a backslash: the step still writes them.
 
     Windows' paths reached bash unquoted and lost their backslashes (CircleCI job 4618); this
-    checks the same substitution on any platform.
+    checks the same substitution on any platform. On Windows the backslash separates two
+    folders, as in the paths that broke; elsewhere it is part of one folder's name.
     """
     (repository / 'notes.md').write_text('# Notes, revised\n', encoding='utf-8')
     git(repository=repository, arguments=['commit', '--quiet', '-am', 'notes'])
     files_directory = tmp_path / 'step files\\here'
-    files_directory.mkdir()
+    # Two folders on Windows (CircleCI job 4698: WinError 3 without parents=True)
+    files_directory.mkdir(parents=True)
 
     _, parameters = _run_the_setup_step(repository=repository, files_directory=files_directory)
 
