@@ -1988,6 +1988,12 @@ discussing it found and decided:
 
 ## Code quality
 
+- **Four scripts still start their children themselves** (2026-11-22, the launcher fix,
+  bugs/2026-11-20-process-stop-tests-failed-under-load.md). `scripts/audio_glitch_probe.py`,
+  `scripts/build_browser_bundle.py` (two) and `scripts/generate_sbom.py` call `subprocess.run`, so
+  Ctrl-C leaves their child killed and unreaped. Move each to `process.run_command` and drop its
+  allowance in `tests/test_child_launches_go_through_process.py`, which fails until the allowance
+  goes.
 - **The replay silencer stops every channel once, so a live voice's queued chunk can play under
   it** (found 2026-11-19 with the harness's mixer leak, tests/harness.py `silence_every_channel`).
   pygame starts a channel's queued sound the moment the channel is halted, so one stop leaves a
