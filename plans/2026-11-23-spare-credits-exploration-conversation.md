@@ -206,3 +206,18 @@ invented for the game or a real one.
 Recorded it in the plan without elaborating: the time loop is a pragmatic, functional part of the
 world; it is the first feature to use AI as an integral part; AI is integral to the gameplay
 intricacies and the storytelling.
+
+## 22. User (2026-11-23)
+
+> Think... dynamic skill tree that doesn't have fixed nodes (for language discovery in an organic
+> manner, just like one would experience in a real, truly immersive scenario.  AI would help steer
+> things, design the skill tree mechanics and emergent properties, ask clarifying questions, test
+> possibilities, etc...
+
+## 23. Claude
+
+Recorded the dynamic skill tree. Asked whether the AI's role (steering, designing the tree's
+mechanics and emergent properties, asking clarifying questions, testing possibilities) happens
+while the game is being made, while it is being played, or both. Flagged that the engine today
+turns the AI service off in replays and the browser, and that replays need exact repeats, so AI
+during play would have its answers recorded like any other input.

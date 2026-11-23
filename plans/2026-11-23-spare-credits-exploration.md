@@ -43,6 +43,10 @@ The game, as the user has described it so far:
 - **(user)** The time loop is the first feature to use AI as an integral part. AI will be integral
   to the gameplay intricacies and the storytelling of this game. (Recorded as stated; details are
   the user's to give.)
+- **(user)** The skill tree is dynamic and has no fixed nodes, so language discovery happens
+  organically, as it would in a real, truly immersive situation.
+- **(user)** AI helps steer things, design the skill tree's mechanics and emergent properties,
+  ask clarifying questions, test possibilities, and so on.
 - **(user)** The user is explaining the mechanics first, then what they are going for. Claude
   listens and holds guesses until both are told.
 - **(user)** Research notes stay outside the repository; this plan refers only to the ideas.
