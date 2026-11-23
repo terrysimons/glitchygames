@@ -145,6 +145,35 @@ class TestMarking:
         assert 'pytest.param(1, marks=pytest.mark.draws_frames)' in text
         assert "pytest.param(2, id='two', marks=pytest.mark.draws_frames)" in text
 
+    def test_a_case_of_several_arguments_keeps_them_apart(self, pytester, monkeypatch):
+        """A two-name case's tuple becomes pytest.param's two values, not one tuple value."""
+        pytester.makeini('[pytest]\nmarkers =\n    draws_frames: draws\n')
+        pytester.makepyfile(
+            test_pairs=textwrap.dedent(
+                """
+                import pytest
+
+
+                @pytest.mark.parametrize(('name', 'code'), [('ends', 0), ('fails', 1)])
+                def test_pairs(name, code):
+                    assert isinstance(name, str)
+                    assert isinstance(code, int)
+                """
+            )
+        )
+        monkeypatch.chdir(pytester.path)
+        write_report(directory=pytester.path, lines={'test_pairs.py::test_pairs[ends-0]': DRAWS})
+
+        assert run(arguments=[]) == ExitCode.SUCCESS
+
+        assert marked_node_ids(pytester=pytester) == {'test_pairs.py::test_pairs[ends-0]'}
+        assert (
+            "pytest.param('ends', 0, marks=pytest.mark.draws_frames)"
+            in (pytester.path / 'test_pairs.py').read_text()
+        )
+        result = pytester.runpytest_inprocess('-q', '-n', '0', '-p', 'no:cacheprovider')
+        result.assert_outcomes(passed=2)
+
     def test_a_function_whose_every_case_is_listed_is_marked_whole(self, test_directory):
         """All of a parametrized function's cases listed: the decorator goes on the function."""
         write_report(

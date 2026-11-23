@@ -56,6 +56,9 @@ PARAMETRIZE_MARKER = 'parametrize'
 # parametrize(argnames, argvalues, ...): the values are its second argument
 ARGVALUES_POSITION = 1
 ARGVALUES_KEYWORD = 'argvalues'
+# parametrize's first argument names the arguments: a comma-separated string, or a list
+ARGNAMES_POSITION = 0
+ARGNAMES_KEYWORD = 'argnames'
 
 
 class CollectedCase(BaseModel):
@@ -216,14 +219,43 @@ def find_function(*, module: ast.Module, qualname: str) -> ast.FunctionDef | ast
     raise LookupError(message)
 
 
-def parametrize_values(*, function: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.expr]:
+def argument_name_count(*, decorator: ast.Call) -> int:
+    """Return how many arguments a ``@pytest.mark.parametrize`` names.
+
+    Args:
+        decorator: The decorator's call.
+
+    Returns:
+        The count: ``'a, b'`` and ``('a', 'b')`` both name two.
+
+    Raises:
+        LookupError: If the names are neither a literal string nor a literal list or tuple.
+
+    """
+    names: ast.expr | None = None
+    if len(decorator.args) > ARGNAMES_POSITION:
+        names = decorator.args[ARGNAMES_POSITION]
+    for keyword in decorator.keywords:
+        if keyword.arg == ARGNAMES_KEYWORD:
+            names = keyword.value
+    if isinstance(names, ast.Constant) and isinstance(names.value, str):
+        return len([name for name in names.value.split(',') if name.strip()])
+    if isinstance(names, (ast.List, ast.Tuple)):
+        return len(names.elts)
+    message = 'its parametrize argument names are not a literal'
+    raise LookupError(message)
+
+
+def parametrize_values(
+    *, function: ast.FunctionDef | ast.AsyncFunctionDef
+) -> tuple[list[ast.expr], int]:
     """Return the values listed in a function's one ``@pytest.mark.parametrize``.
 
     Args:
         function: The function's definition.
 
     Returns:
-        The list's elements, in order.
+        The list's elements, in order, and how many arguments each value gives.
 
     Raises:
         LookupError: If the function has no such decorator, or its values are not a literal list
@@ -244,7 +276,7 @@ def parametrize_values(*, function: ast.FunctionDef | ast.AsyncFunctionDef) -> l
             if keyword.arg == ARGVALUES_KEYWORD:
                 values = keyword.value
         if isinstance(values, (ast.List, ast.Tuple)):
-            return list(values.elts)
+            return list(values.elts), argument_name_count(decorator=decorator)
         message = 'its parametrize values are not a literal list'
         raise LookupError(message)
     message = 'no @pytest.mark.parametrize on the function'
@@ -268,24 +300,42 @@ def is_pytest_param(node: ast.expr) -> bool:
     )
 
 
-def case_mark_edit(*, source: bytes, offsets: list[int], value: ast.expr) -> Edit:
+def node_text(*, source: bytes, offsets: list[int], node: ast.expr) -> tuple[int, int, str]:
+    """Return a node's span in a file's bytes and its source text.
+
+    Args:
+        source: The file's bytes.
+        offsets: Each line's start offset in the bytes.
+        node: The expression.
+
+    Returns:
+        Its start and end offsets, and its text.
+
+    """
+    start = offsets[node.lineno - 1] + node.col_offset
+    end = offsets[require_int(node.end_lineno) - 1] + require_int(node.end_col_offset)
+    return start, end, source[start:end].decode('utf-8')
+
+
+def case_mark_edit(*, source: bytes, offsets: list[int], value: ast.expr, name_count: int) -> Edit:
     """Return the edit that marks one parametrize value.
 
     Args:
         source: The file's bytes.
         offsets: Each line's start offset in the bytes.
         value: The value's expression.
+        name_count: How many arguments the value gives: a value for several is a tuple, whose
+            items ``pytest.param`` takes one by one.
 
     Returns:
-        The edit: the value wrapped in ``pytest.param``, or ``marks=`` added to one.
+        The edit: the value wrapped in ``pytest.param`` (a tuple's items unpacked), or ``marks=``
+        added to one.
 
     Raises:
         LookupError: If the value is a ``pytest.param`` that already has ``marks=``.
 
     """
-    start = offsets[value.lineno - 1] + value.col_offset
-    end = offsets[require_int(value.end_lineno) - 1] + require_int(value.end_col_offset)
-    segment = source[start:end].decode('utf-8')
+    start, end, segment = node_text(source=source, offsets=offsets, node=value)
     if is_pytest_param(value):
         if isinstance(value, ast.Call) and any(
             keyword.arg == 'marks' for keyword in value.keywords
@@ -295,6 +345,13 @@ def case_mark_edit(*, source: bytes, offsets: list[int], value: ast.expr) -> Edi
         inside = segment[:-1].rstrip()
         separator = ' ' if inside.endswith(('(', ',')) else ', '
         marked = f'{inside}{separator}marks={MARK_EXPRESSION})'
+    elif name_count > 1 and isinstance(value, ast.Tuple):
+        items = ', '.join(
+            node_text(source=source, offsets=offsets, node=item)[2] for item in value.elts
+        )
+        marked = f'pytest.param({items}, marks={MARK_EXPRESSION})'
+    elif name_count > 1:
+        marked = f'pytest.param(*{segment}, marks={MARK_EXPRESSION})'
     else:
         marked = f'pytest.param({segment}, marks={MARK_EXPRESSION})'
     return Edit(start=start, end=end, text=marked.encode('utf-8'))
@@ -437,10 +494,11 @@ def function_edits(
     ):
         message = 'its cases are not one @pytest.mark.parametrize on the function'
         raise LookupError(message)
-    values = parametrize_values(function=function)
+    values, name_count = parametrize_values(function=function)
     indices = sorted({case.indices[0] for case in listed})
     return [
-        case_mark_edit(source=source, offsets=offsets, value=values[index]) for index in indices
+        case_mark_edit(source=source, offsets=offsets, value=values[index], name_count=name_count)
+        for index in indices
     ]
 
 
