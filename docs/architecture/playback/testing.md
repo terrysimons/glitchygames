@@ -207,8 +207,9 @@ kept the workers and set these tests apart.
   `tests/test_suite_collection.py` holds the swept files to it: a test there that reads the real
   clock is marked, or listed with why it bounds no duration.
 - `nox -s test` runs the suite twice: every other test on its workers (`-m "not wall_clock"`,
-  coverage rule off), then the marked tests alone, in one process (`-n 0 -m wall_clock`),
-  appending to the first run's coverage, so the 100% rule is applied to both, and writing
+  coverage rule off), then the marked tests alone, in one process (`-n 0 -m wall_clock`), given only the files that
+  hold them (`noxfile.WALL_CLOCK_TEST_FILES`, held to the files using the marker by
+  `tests/test_ci_config.py`) so the suite is not collected twice, appending to the first run's coverage, so the 100% rule is applied to both, and writing
   `test-results/junit-wall-clock.xml`. On a split CI machine each run is split on its own, and a
   machine dealt no marked test collects nothing (exit 5, which passes). `nox -s test-random`,
   the pre-push hook, splits its shuffled run the same way.

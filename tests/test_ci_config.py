@@ -2127,6 +2127,9 @@ def test_the_test_session_runs_the_wall_clock_tests_alone_after_the_rest(monkeyp
     assert '--junitxml=test-results/junit-wall-clock.xml' in serial
     assert ('--cov-fail-under=0' in serial) == split
     assert session.options[serial]['success_codes'] == [0, 5]
+    # Only the files that hold wall_clock tests are collected by the serial run, none by the other
+    assert serial[-len(noxfile.WALL_CLOCK_TEST_FILES) :] == noxfile.WALL_CLOCK_TEST_FILES
+    assert not [argument for argument in parallel if argument.endswith('.py')]
     # Both runs take the same order and log level
     for argument in ('--log-cli-level=WARNING',):
         assert (argument in parallel) == (argument in serial)
@@ -2145,7 +2148,36 @@ def test_the_shuffled_pre_push_run_times_the_wall_clock_tests_alone_too():
     assert option_value(serial, '-m') == WALL_CLOCK_MARKER
     assert option_value(serial, '-n') == '0'
     assert '--randomly-seed=12345' in serial
+    assert serial[-len(noxfile.WALL_CLOCK_TEST_FILES) :] == noxfile.WALL_CLOCK_TEST_FILES
+    assert not [argument for argument in parallel if argument.endswith('.py')]
     assert session.options[serial]['success_codes'] == [0, 5]
+
+
+def test_the_wall_clock_file_list_is_every_test_file_that_uses_the_marker():
+    """noxfile.WALL_CLOCK_TEST_FILES is exactly the test files that use the wall_clock marker.
+
+    The serial run collects only these files, so a test marked in a file missing from the list
+    would silently never run, in either run. A marker applied some way the text does not show
+    (a conftest adding it to items) is not detected: name it here by hand if one appears.
+    """
+    import noxfile
+
+    marker_use = re.compile(rf'pytest\.mark\.{WALL_CLOCK_MARKER}\b')
+    test_files = sorted(
+        path.relative_to(PROJECT_ROOT).as_posix()
+        for path in [
+            *(PROJECT_ROOT / 'tests').rglob('test_*.py'),
+            *(PROJECT_ROOT / 'src').glob('*/*/tests/**/test_*.py'),
+        ]
+    )
+    users = [
+        path
+        for path in test_files
+        if marker_use.search((PROJECT_ROOT / path).read_text(encoding='utf-8'))
+    ]
+
+    assert users, 'no test file uses the wall_clock marker: the detection is stale'
+    assert list(noxfile.WALL_CLOCK_TEST_FILES) == users
 
 
 def test_the_test_session_prints_its_order_and_passes_it_to_pytest(monkeypatch):
