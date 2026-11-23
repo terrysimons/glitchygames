@@ -1,3 +1,12 @@
 # git archive (and GitHub's source zips and tarballs) writes the archived commit into this file
 # (glitchygames/build_info.py)
 src/glitchygames/_git_archival.txt export-subst
+
+# Line endings (the owner, 2026-11-22): the repository stores text with LF, and each checkout gets
+# its platform's line ends, so a Windows user can edit a sprite in a plain text editor. The engine
+# saves in the platform's line ends and reads both, normalizing to '\n'.
+* text=auto
+# Batch files keep CRLF on every platform: cmd.exe needs it
+*.bat text eol=crlf
+# Measured data, kept byte for byte as recorded
+plans/data/instrument-audit/merged.tsv -text

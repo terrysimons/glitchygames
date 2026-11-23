@@ -1085,6 +1085,21 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 
 ## Performance and pacing
 
+- **Give the replay-ledger rows a home outside git** (the owner, 2026-11-22: "We're pushing too
+  many large-ish files up, and I really don't want to use lfs - we'll push them to s3 or
+  something"). By then `quality/replay-ledger/` held 7,368 row files (17.6 MB, about 2.4 KB each)
+  and grew by about 19 per commit plus each Pi push's, so the `replay-metrics` pre-commit and
+  `raspberry-pi-replay-metrics` pre-push hooks were removed; `nox -s measure-staged` and
+  `measure-on-raspberry-pi` still measure by hand and stage rows, which stay uncommitted.
+  - Design first (brainstorm): an S3 bucket beside the site's (infra/, CDK), uploaded by whom
+    (a session by hand, the Pis, or a CircleCI job; CI never measures, its machines vary),
+    keyed by code tree and machine as the row files are now; the docs build
+    (`scripts/generate_performance_graphs.py`, `scripts/mkdocs_hooks.py`) reading the bucket
+    instead of the directory, and how a landed row is still told from an unlanded one (today:
+    the commit that added the row's file).
+  - Then: move the 7,368 rows (or leave them as frozen history), point the measuring scripts at
+    the new home instead of staging, and rewrite their docstrings, which still speak of "the
+    hook".
 - **Re-measure the requirements page** (the owner, 2026-11-09). `docs/requirements.md` gives each
   measured machine's verdict per game from runs of November 5 to 9, 2026 (Raspberry Pi 4,
   Raspberry Pi 5, Apple M4 Max). The owner expects the numbers to improve once the in-flight work
@@ -2006,6 +2021,28 @@ discussing it found and decided:
   review, 2026-11-19). `film_strip_rendering.convert_magenta_to_transparent` calls `get_at` and
   `set_at` for each pixel of each thumbnail each time the strip renders: editor time, not memory.
   A colorkey or `pygame.transform.threshold` does it in one call.
+- **The sprite memory bug record lacks the CI headroom after the fix** (the owner's call,
+  2026-11-20). `bugs/2026-11-18-sprite-frames-held-a-tuple-per-pixel.md`'s "Measured" line has
+  only the zombies pair (683 against 1353 MiB). After #220, CI peaked at 1248 MiB (machine 0) and
+  1154 MiB (machine 1) against the 1750 MiB limit then, and the heaviest test
+  (`test_every_recording_replays_inside_an_inner_game.py`) peaked at 238.5 MiB. Record them as
+  measured before #230, which moved the limit to 1500 MiB and changed how each machine collects
+  its tests.
+- **A plan run's decisions go into its plan file when the run finishes** (the owner's call,
+  2026-11-20). The superpowers skills keep a run's ledger (its rulings and deferred minors) in
+  `.superpowers/sdd/<plan>/progress.md`, which is gitignored (#236) and deleted after the final
+  review. Copy the rulings no committed file holds into a "Decisions made during the work"
+  section of the plan, as the instrument batch cleanup did on 2026-11-14, so the plan keeps them.
+- **A watched replay in the browser may judder at 120 Hz** (found with
+  bugs/2026-11-20-browser-frames-juddered-at-120-hz.md; not measured). `run_watched_replay_async`
+  ticks the viewer once per animation frame, but `ReplayViewer` snaps only ticks within
+  `TICK_SNAP_WINDOW_SECONDS` of its 60 Hz `CONTROL_TICK_SECONDS`, so at 120 Hz (8.3 ms) no tick
+  snaps and its accumulator meets the drift and jitter `TickPacer` met. The Arcade branch
+  (`feature/arcade-5-playback-core`) moves that accumulator into `replay/pacer.py`'s
+  `RecordedFramePacer`, leaving the snap in `viewer.py`: the Arcade's `DemoPlayer` tiles then pay
+  raw elapsed time with no snap, the same class. Fix it there (the whole-tick cadence of
+  `host.whole_ticks_per_frame`) once that lands. Measure first: the frame probe
+  (`scripts/frame_phase_probe.py`) wraps `TickPacer`, not the replay pacer.
 - **Test-suite memory on the Linux CI job: the structural options** (the owner's call;
   bugs/2026-11-17-linux-test-memory-guard-stops.md). #218 brought the peak to 1341-1350 MiB of
   1600; what is left grows from 503 to 859 MiB over 274 files, spread thin. In order of

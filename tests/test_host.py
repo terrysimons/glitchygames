@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import collections
 import itertools
+import json
 import logging
+import random
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs this interpreter on a fixed program
 import sys
 import textwrap
 from datetime import UTC, datetime
+from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self
 
@@ -17,18 +21,40 @@ import pytest
 
 from glitchygames.audio.accounting import AudioFrameAccount
 from glitchygames.game_frames import restart_game_frame_clock
-from glitchygames.host import TICKS_BEFORE_LOGGING_RATE, GameHost, HostSources, TickPacer
+from glitchygames.host import (
+    TICKS_BEFORE_LOGGING_RATE,
+    GameHost,
+    HostSources,
+    TickPacer,
+    whole_ticks_per_frame,
+)
 from glitchygames.input.state import IDLE_INPUT
 from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import install_sources
+from glitchygames.timing import DEFAULT_TARGET_FPS
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from glitchygames.state.manager import SaveManager
 
 SIXTY_HERTZ_SECONDS = 1 / 60
 HUNDRED_TWENTY_HERTZ_SECONDS = 1 / 120
 HUNDRED_FORTY_FOUR_HERTZ_SECONDS = 1 / 144
+# Chrome's animation frames at 120 Hz, recorded when the pacer juddered: the bug record is
+# bugs/2026-11-20-browser-frames-juddered-at-120-hz.md
+PACING_FIXTURE = (
+    Path(__file__).resolve().parent
+    / 'fixtures'
+    / 'pacing'
+    / ('chrome-120-hz-animation-frames.json')
+)
+# Seeds that once failed the jittered 120 Hz test, kept so a fix can't quietly regress
+SAVED_JITTER_SEEDS: tuple[int, ...] = (
+    # 2026-11-20, before the fix: 125 frames after one tick and 101 after three, of 3,611
+    547288780,
+)
 
 
 class RecordingDoors:
@@ -361,6 +387,42 @@ class TestWindowRecreationBursts:
         assert hosted_counts == ['0', '1', '1']
 
 
+class TestWholeTicksPerFrame:
+    """When a frame period is a whole number of ticks, and how many."""
+
+    def test_sixty_fps_on_one_hundred_twenty_hertz_is_two_ticks(self):
+        assert (
+            whole_ticks_per_frame(
+                period_seconds=SIXTY_HERTZ_SECONDS, tick_seconds=HUNDRED_TWENTY_HERTZ_SECONDS
+            )
+            == 2
+        )
+
+    def test_the_default_target_on_a_slightly_slow_display_is_still_two_ticks(self):
+        """60.01 FPS on 119.5 Hz: 2.008 ticks, within the tolerance."""
+        assert (
+            whole_ticks_per_frame(period_seconds=1 / DEFAULT_TARGET_FPS, tick_seconds=1 / 119.5)
+            == 2
+        )
+
+    def test_sixty_fps_on_one_hundred_forty_four_hertz_is_not_whole(self):
+        assert (
+            whole_ticks_per_frame(
+                period_seconds=SIXTY_HERTZ_SECONDS, tick_seconds=HUNDRED_FORTY_FOUR_HERTZ_SECONDS
+            )
+            is None
+        )
+
+    def test_a_period_shorter_than_half_a_tick_is_not_whole(self):
+        """240 FPS on 60 Hz: a quarter of a tick, so every tick runs a frame (the accumulator)."""
+        assert (
+            whole_ticks_per_frame(period_seconds=1 / 240, tick_seconds=SIXTY_HERTZ_SECONDS) is None
+        )
+
+    def test_no_measured_tick_is_not_whole(self):
+        assert whole_ticks_per_frame(period_seconds=SIXTY_HERTZ_SECONDS, tick_seconds=0.0) is None
+
+
 class TestTickPacer:
     """When the outer ticks run inner frames."""
 
@@ -438,6 +500,115 @@ class TestTickPacer:
             tick += HUNDRED_TWENTY_HERTZ_SECONDS
 
         assert after_stall == [True, False, True, False, True, False, True, False]
+
+    @staticmethod
+    def ticks_waited(*, tick_times: Sequence[float], period_seconds: float) -> list[int]:
+        """Run ticks at ``tick_times`` through a pacer; return the ticks each frame waited.
+
+        Returns:
+            For each frame after the first, the ticks since the frame before it.
+
+        """
+        pacer = TickPacer()
+        frame_ticks = [
+            index
+            for index, tick_seconds in enumerate(tick_times)
+            if pacer.should_run_frame(tick_seconds=tick_seconds, period_seconds=period_seconds)
+        ]
+        return [later - earlier for earlier, later in itertools.pairwise(frame_ticks)]
+
+    def test_recorded_chrome_animation_frames_run_a_frame_every_second_tick(self):
+        """Chrome's 120 Hz ticks, all on time, at the default 60.01 FPS: every frame waits two.
+
+        The recording (tests/fixtures/pacing/) juddered in the browser: frames after one tick
+        and then three (8 and 25 ms), as the accumulator's leftover sat on the half-tick
+        threshold and each tick's jitter decided the frame. That pacer had run since the game
+        started, so its leftover had drifted there; a new pacer's leftover drifts too slowly on
+        these 16 seconds to reach it (the jittered test below reproduces the drift). This one
+        holds the pacing to the real ticks' shape.
+        """
+        tick_times = json.loads(PACING_FIXTURE.read_text(encoding='utf-8'))['tick_seconds']
+
+        waited = self.ticks_waited(tick_times=tick_times, period_seconds=1 / DEFAULT_TARGET_FPS)
+
+        assert collections.Counter(waited) == {2: len(waited)}
+
+    @pytest.mark.parametrize('seed_case', ['random', *SAVED_JITTER_SEEDS])
+    def test_jittered_drifting_one_hundred_twenty_hertz_runs_a_frame_every_second_tick(
+        self, seed_case: str | int
+    ):
+        """A minute of 119.5-120.5 Hz ticks, each up to 0.8 ms off, at 60.01 FPS: two ticks each.
+
+        What a browser's animation frames look like (the recording above: 8.3 ms with 7.6-9.4 ms
+        intervals). A fresh seed every run, then every seed that once failed (SAVED_JITTER_SEEDS).
+        """
+        seed = random.SystemRandom().randrange(2**31) if seed_case == 'random' else int(seed_case)
+        stream = random.Random(seed)
+        tick_seconds = 1 / stream.uniform(119.5, 120.5)
+        tick_times = [
+            index * tick_seconds + stream.uniform(-0.0008, 0.0008) for index in range(120 * 60)
+        ]
+
+        waited = self.ticks_waited(tick_times=tick_times, period_seconds=1 / DEFAULT_TARGET_FPS)
+
+        assert collections.Counter(waited) == {2: len(waited)}, f'seed {seed}'
+
+    def test_a_missed_animation_frame_delays_one_frame_with_no_catch_up_frame(self):
+        """The browser skips a tick a frame was due on: that frame comes a tick late, then two.
+
+        At 120 Hz and 60.01 FPS, frames run on the even ticks; the browser misses tick 100.
+        The frame runs on tick 101 (25 ms after the last), and the next two ticks later, never
+        one tick later to make up the time: that 25-then-8 ms pair is the judder players see.
+        """
+        tick_times = [index * HUNDRED_TWENTY_HERTZ_SECONDS for index in range(240)]
+        del tick_times[100]
+        pacer = TickPacer()
+        frame_times = [
+            tick_seconds
+            for tick_seconds in tick_times
+            if pacer.should_run_frame(
+                tick_seconds=tick_seconds, period_seconds=1 / DEFAULT_TARGET_FPS
+            )
+        ]
+
+        gaps_in_ticks = collections.Counter(
+            round((later - earlier) / HUNDRED_TWENTY_HERTZ_SECONDS)
+            for earlier, later in itertools.pairwise(frame_times)
+        )
+
+        assert gaps_in_ticks == {2: len(frame_times) - 2, 3: 1}
+
+    def test_a_stall_on_uneven_ticks_runs_one_frame_then_averages_the_rate_again(self):
+        """144 Hz (2.4 ticks a frame, the accumulator): after a one-second stall, no burst."""
+        pacer = TickPacer()
+        tick = 0.0
+        for _ in range(30):
+            pacer.should_run_frame(tick_seconds=tick, period_seconds=SIXTY_HERTZ_SECONDS)
+            tick += HUNDRED_FORTY_FOUR_HERTZ_SECONDS
+        tick += 1.0
+
+        after_stall = []
+        for _ in range(144):
+            after_stall.append(
+                pacer.should_run_frame(tick_seconds=tick, period_seconds=SIXTY_HERTZ_SECONDS)
+            )
+            tick += HUNDRED_FORTY_FOUR_HERTZ_SECONDS
+        run_indices = [index for index, ran in enumerate(after_stall) if ran]
+
+        assert run_indices[0] == 0
+        assert {later - earlier for earlier, later in itertools.pairwise(run_indices)} <= {2, 3}
+        assert abs(len(run_indices) - 60) <= 1
+
+    def test_a_repeated_tick_timestamp_runs_no_extra_frame(self):
+        """Two ticks at one timestamp (no time passed) give the second no frame."""
+        pacer = TickPacer()
+
+        frames = [
+            pacer.should_run_frame(tick_seconds=5.0, period_seconds=SIXTY_HERTZ_SECONDS),
+            pacer.should_run_frame(tick_seconds=5.0, period_seconds=SIXTY_HERTZ_SECONDS),
+        ]
+
+        assert frames == [True, False]
 
     def test_measured_tick_seconds_is_the_median_interval(self):
         pacer = TickPacer()
@@ -517,6 +688,7 @@ def limited(ticks: list[float]) -> None:
 class TestGameHost:
     """The host drives the inner game's frames: blocking, or one per awaited tick."""
 
+    @pytest.mark.draws_frames
     def test_run_is_the_blocking_loop(self, hosted_scene_manager, mocker):
         manager, host = hosted_scene_manager
         start = mocker.spy(manager, 'start')
@@ -528,6 +700,7 @@ class TestGameHost:
         start.assert_called_once_with()
         assert scene.frames_run == HostedCountingScene.QUIT_AFTER_FRAMES
 
+    @pytest.mark.draws_frames
     def test_run_async_runs_a_frame_every_second_tick_at_one_hundred_twenty_hertz(
         self, hosted_scene_manager
     ):
@@ -550,6 +723,7 @@ class TestGameHost:
         assert len(ticks) == 19
         assert manager.active_scene is None
 
+    @pytest.mark.draws_frames
     def test_run_async_logs_the_measured_tick_rate_once(self, hosted_scene_manager, mocker, caplog):
         manager, host = hosted_scene_manager
         mocker.patch.object(HostedCountingScene, 'QUIT_AFTER_FRAMES', TICKS_BEFORE_LOGGING_RATE + 5)
@@ -571,6 +745,7 @@ class TestGameHost:
         assert 'Outer ticks at 60.0 Hz' in rate_lines[0].message
         assert 'target 0 FPS' in rate_lines[0].message
 
+    @pytest.mark.draws_frames
     def test_run_async_follows_the_doors_pacing(self, hosted_scene_manager, mocker):
         """Doors that pace (a positive period) set the frame period, not the target FPS."""
         manager, host = hosted_scene_manager

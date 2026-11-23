@@ -413,6 +413,7 @@ def test_a_pad_plugged_in_or_out_during_the_intro_changes_nothing(mocker):
     assert scene.next_scene is None
 
 
+@pytest.mark.draws_frames
 def test_the_oval_darkens_the_corners_and_shows_the_middle():
     """Once faded in, the screen's corners are the oval's dark; the TV's case shows through."""
     scene = intro()
@@ -449,6 +450,7 @@ def test_setting_the_intro_up_again_keeps_its_sprites():
     assert len(scene.all_sprites) == sprite_count
 
 
+@pytest.mark.draws_frames
 def test_a_zero_length_first_frame_fires_nothing_and_shows_no_oval():
     """A frame that takes no time crosses no cue: nothing starts, the oval has not begun."""
     scene = intro()
