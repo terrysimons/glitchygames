@@ -502,3 +502,23 @@ a new Lucid Circuit sub-plan, `plans/lucid-circuit-modes.md`, linked from Lucid 
 plan. It never names this game. The game's plan keeps only what is specific to the game (the time
 loop, the sealed mound, the cloud of denial) and points to the sub-plan for the engine side. The
 dependency runs one way: games depend on Lucid Circuit, never the reverse.
+
+## 58. User (2026-11-23)
+
+> I think we need a little Lucid Circuit animated mascot for this.  Something cute/fun.  I'd like
+> you to make me a full contact sheet of 5 different mascot ideas - you could consider things
+> like... a robot (johnny 5/claptrap/a drone reminiscient of the last navigator's ship/etc...) Do
+> it blind for me - but before you start, tell me the color profile info - all tables for both
+> pieces.
+
+## 59. Claude
+
+Gave the sprite color profile tables (profiles, and color spaces with the notation) from the
+approved color-profiles design, noting that the converter is approved but not built, so
+`profile` is recorded in a file but not yet enforced. Started five design agents in parallel,
+one mascot each, all 32x32 at the `16-bit` profile (16 colors per sprite, the magenta key
+included), with a shared cyan accent and two looping animations, `idle` and `thinking` (for the
+participating mode's loading scene). The concepts: a tread robot with binocular eyes, a chatty
+one-wheeled robot, a hovering chrome drone, a circuit-board firefly, and a CRT-headed critter.
+Each agent checks its sprite with the engine's own loader and iterates on the rendered frames.
+The drafts live outside the repository until the user decides where the mascot lands.
