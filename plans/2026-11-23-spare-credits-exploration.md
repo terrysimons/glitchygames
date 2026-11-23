@@ -21,6 +21,11 @@ default the builder may revisit; unmarked text explains or connects them.
 **(user)** The game: an original video game that helps someone learn Japanese, similar in concept
 to Slime Forest Adventure (learning woven into RPG play). Research notes stay outside the
 repository; this plan refers only to the ideas.
+- **(user)** Slime Forest Adventure is only the opening reference for the concept (a game that
+  teaches Japanese); most of its ideas are not to be borrowed. The game has its own look and
+  feel.
+- **(user)** Gameplay starting point: the feel of 16-bit console RPGs such as Final Fantasy VI
+  and Chrono Trigger, as a frame for the conversation, not a game to remake.
 
 ## 2. Goals, non-goals, anti-goals
 

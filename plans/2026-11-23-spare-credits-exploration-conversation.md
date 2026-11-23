@@ -88,3 +88,19 @@ What it already has that fits:
 - **Synthesized audio, sprites, scenes, transitions and the camera.**
 - **Speech:** a desktop-only text-to-speech path.
 - **Existing games to start from**, for title screens, HUD text and grid worlds.
+
+## 9. User (2026-11-23)
+
+> So our game isn't necessarily going to be exactly like slime forest adventure - in fact - I
+> don't want to borrow most of the ideas - I just want to use it conceptually to start talking
+> about my actual idea, which should have its own look and feel.  Something more akin to a FF6 or
+> Chrono Trigger vibe in terms of gameplay - as a starting point to start thinking about the
+> game's framing and as a lede to start the conversation.
+
+## 10. Claude
+
+Played it back: Slime Forest Adventure was only the opening reference ("a game that teaches
+Japanese"), not a source of mechanics; the game gets its own look and feel, and its feel as a
+game starts from the 16-bit console RPG era (story, party, exploration, menu-driven battles),
+in its own world rather than a remake of any one game. Asked the user to describe their actual
+idea in their own words.
