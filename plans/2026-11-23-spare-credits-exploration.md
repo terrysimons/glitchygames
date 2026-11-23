@@ -39,6 +39,10 @@ The game, as the user has described it so far:
   language that had all but disappeared from the world, with hints to why it disappeared.
 - **(user)** The tone: mystery, curiosity and a magic in the power of words and culture; a
   feeling of connectedness to a completely different way of seeing the world.
+- **(user)** The time loop is a very pragmatic and functional part of the world.
+- **(user)** The time loop is the first feature to use AI as an integral part. AI will be integral
+  to the gameplay intricacies and the storytelling of this game. (Recorded as stated; details are
+  the user's to give.)
 - **(user)** The user is explaining the mechanics first, then what they are going for. Claude
   listens and holds guesses until both are told.
 - **(user)** Research notes stay outside the repository; this plan refers only to the ideas.

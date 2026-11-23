@@ -194,3 +194,15 @@ struck 5 and 6, and invited the user to continue with the mechanics.
 Played back the time loop as the repetition engine, discovery of meaning as the feeling, the
 grayscale world, the hero arc and the dying language. Asked whether the dying language is one
 invented for the game or a real one.
+
+## 20. User (2026-11-23)
+
+> The time loop should be a very pragmatic and functional part of the world.  In fact, this would
+> be the first feature we'd utilize AI as an integral part for.  For now, just record that AI will
+> be integral to the gameplay intricacies and storytelling aspects of this game.
+
+## 21. Claude
+
+Recorded it in the plan without elaborating: the time loop is a pragmatic, functional part of the
+world; it is the first feature to use AI as an integral part; AI is integral to the gameplay
+intricacies and the storytelling.
