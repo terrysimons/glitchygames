@@ -15,9 +15,13 @@ directory. This bootstrap then:
    installs the page's clipboard
    (browser_clipboard.py) and the player's own files (browser_user_files.py: a file picker to
    open, downloads to save);
+   In a measurement build (``frame_probe`` in boot_config.json) it also installs the
+   frame-phase probe (``install_frame_probe``);
 3. waits for a click on the page (browsers start audio only after a user gesture);
 4. runs the game with ``GameEngine.start_async``, one outer tick per animation frame: the game
-   host paces inner frames at the game's target FPS whatever the display's refresh rate.
+   host's ``TickPacer`` runs a frame on every whole number of display ticks when the target
+   period is that close (60 FPS: every tick at 60 Hz, every second at 120 Hz, so frames follow
+   the display), and otherwise averages the target FPS (60 FPS on 144 Hz).
 
 It runs only in the browser (it imports Pyodide's ``js`` and ``pyodide_js``), outside the package
 and its desktop test suite.
@@ -144,6 +148,22 @@ def install_masterhub_bridge() -> None:
     LOG.info('MasterHUB bridge registered; the hub mirror is active')
 
 
+def install_frame_probe(*, config: dict[str, object]) -> None:
+    """Install the frame-phase probe when boot_config.json asks for one (a measurement build).
+
+    Only ``python -m scripts.measure_browser_frames`` writes ``frame_probe`` (its settings) and
+    copies ``frame_phase_probe.py`` beside this file; a normal bundle has neither, and this does
+    nothing. The probe prints its report to the console (scripts/frame_phase_probe.py).
+    """
+    settings = config.get('frame_probe')
+    if settings is None:
+        return
+    import frame_phase_probe
+
+    frame_phase_probe.install_in_browser(settings=settings, emit=print)
+    LOG.info('Frame-phase probe installed: %s', settings)
+
+
 async def main() -> None:
     """Boot the configured game and run it until it ends."""
     # Standard output reaches only the browser console; PyScript shows anything written to
@@ -182,6 +202,7 @@ async def main() -> None:
         user_files=browser_user_files.BrowserUserFiles(directory=OPENED_FILES_DIRECTORY)
     )
     install_masterhub_bridge()  # bitmappy's hub mirror (skipped in bundles without the bridge)
+    install_frame_probe(config=config)  # a measurement build's probe (nothing otherwise)
 
     set_status(f'{config["title"]}: click to play')
     await wait_for_click()

@@ -9,6 +9,13 @@ ai_program_root: /opt/glitchygames/ai
 ai_user_root: "{{ ansible_facts['env']['XDG_DATA_HOME'] | default(ai_home ~ '/.local/share', true) }}/glitchygames/ai"
 ai_cache_root: "{{ ansible_facts['env']['XDG_CACHE_HOME'] | default(ai_home ~ '/.cache', true) }}/glitchygames/ai"
 ai_log_root: "{{ ansible_facts['env']['XDG_STATE_HOME'] | default(ai_home ~ '/.local/state', true) }}/glitchygames/ai/logs"
+# The free space at a path, in KiB: this command, then the path, and its output's last line is
+# the number alone. df's table names the filesystem first, and a name holding a space (an SMB
+# home, an sshfs or rclone mount) moved the field onto Used
+# (bugs/2026-11-20-free-space-read-from-the-wrong-column.md); GNU's --output=avail prints only
+# the "Avail" header and the number. Every reader runs it: setup.sh's free_kib_of
+# (platform_functions.sh.j2), ai_models' download check and llama_cpp's build check
+ai_free_space_command: [df, -k, --output=avail, --]
 # Ansible never installs under /opt itself: it builds into the package's stage, and the .deb
 # installs it, so a run exercises exactly what a player's machine gets. The stage's program folder
 # is ai_package's (its defaults), named once: ai_package skips copying what is already there and
