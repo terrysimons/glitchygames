@@ -135,8 +135,17 @@ mode's loading scene.
   [data/lucid-circuit-mascots/2026-11-23-contact-sheet-16-bit-plus.png](data/lucid-circuit-mascots/2026-11-23-contact-sheet-16-bit-plus.png).
 - **(user)** The owner likes the owl (candidate 7): an arcane-tech familiar with circuit-board
   feathers, vacuum-tube eyes and a rune on its chest that lights up while the AI thinks. Its
-  name is still to choose. Its working name, "Valve", is also a game company's name, so it is
-  not a candidate.
+  working name, "Valve", is also a game company's name, so it is not a candidate.
+- **(user)** Names the owner likes, all recorded:
+  - **Nixie:** a Nixie tube is a glowing vacuum tube; a nixie is a water spirit of folklore
+    (usually female in the tales).
+  - **Triode:** the classic three-part vacuum tube.
+  - **Ohm:** the unit of resistance, and the meditative "om" of a wise owl.
+  - **Hertz:** the unit of frequency, after its pulsing eyes.
+  - **Grimwire:** a grimoire that is also wiring.
+
+  **(user)** The choice is between Nixie and Grimwire. Each gets its own design, inspired by the
+  owl, with a full character sheet: basic animations in all eight directions and ten emotes.
 - The sprite files are not in the repository yet; where the chosen mascot lands is the owner's
   call.
 
