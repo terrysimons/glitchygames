@@ -1418,6 +1418,7 @@ class TestProcessEvents:
         assert engine.process_events() is True
         assert scene.raw_events == raw_events
 
+    @pytest.mark.draws_frames
     def test_a_raw_event_game_gets_its_events_in_a_running_frame(self):
         """In a game that is really running, a frame hands the raw-event scene its events."""
         with running_game(RawEventGame) as manager:
@@ -3163,7 +3164,16 @@ class TestDefaultBackgroundArgument:
         expected = background_pattern_surface(pattern=CANVAS_PATTERN, size=engine.screen.get_size())
         assert pygame.image.tobytes(engine.screen, 'RGB') == pygame.image.tobytes(expected, 'RGB')
 
-    @pytest.mark.parametrize('pattern', list(BackgroundPattern))
+    # The case whose pattern is the canvas leaves the canvas, so draws nothing; the others draw
+    @pytest.mark.parametrize(
+        'pattern',
+        [
+            pattern
+            if pattern is CANVAS_PATTERN
+            else pytest.param(pattern, marks=pytest.mark.draws_frames)
+            for pattern in BackgroundPattern
+        ],
+    )
     def test_the_option_sets_the_default_and_the_new_display_shows_it(self, mocker, pattern):
         """--default-background NAME: new scenes and the new display show that pattern."""
         engine = _make_engine(mocker, '--default-background', pattern.value)
@@ -3456,6 +3466,7 @@ class TestFpsHistogramArgument:
 class TestReplayRestartExitStatus:
     """A watched replay's restart exits with the status the restarted replays ended with."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.frames_vary(
         reason=(
             "its watched replay shows the live window's mouse focus, which the dummy driver "

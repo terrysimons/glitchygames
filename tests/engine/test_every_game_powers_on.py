@@ -84,6 +84,7 @@ def test_every_game_console_script_is_covered():
     assert set(GAME_CONSOLE_SCRIPTS) == EXPECTED_ALL_CONSOLE_SCRIPTS
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run_environment')
 @pytest.mark.parametrize('background', [pattern.value for pattern in BackgroundPattern])
 @pytest.mark.parametrize('console_script', GAME_CONSOLE_SCRIPTS)
