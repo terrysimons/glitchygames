@@ -825,8 +825,9 @@ def test(session: nox.Session) -> None:
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
     # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion. Two runs:
     # every test but the wall_clock ones on the workers chosen above, then those alone, in this
-    # process (WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS), adding to the first run's coverage, so the
-    # 100% rule is applied once, to both
+    # process (WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS), collecting only the files that hold them
+    # (WALL_CLOCK_TEST_FILES), adding to the first run's coverage, so the 100% rule is applied
+    # once, to both
     failed = False
     try:
         session.run('pytest', *args, *WALL_CLOCK_EXCLUDED_PYTEST_ARGUMENTS)
@@ -837,6 +838,7 @@ def test(session: nox.Session) -> None:
             'pytest',
             *args,
             *WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS,
+            *WALL_CLOCK_TEST_FILES,
             success_codes=NO_TESTS_IS_SUCCESS,
         )
     except CommandFailed:
@@ -888,8 +890,18 @@ def test_markdown(session: nox.Session) -> None:
 # OS sleep by 19 ms against its 3 ms bound (the owner, 2026-11-23: keep the workers, run these
 # alone). The first run leaves them out and its coverage rule off; the second appends to its
 # coverage data, applies the rule to both (a split machine's share keeps it off), and writes its
-# own JUnit report. A split machine dealt none of them collects nothing: pytest's exit 5 passes
+# own JUnit report. A split machine dealt none of them collects nothing: pytest's exit 5 passes.
+# The second run is given only the files that hold them (WALL_CLOCK_TEST_FILES), not the whole
+# suite to collect and then deselect (31-48 s a CI machine, nearly all collection).
+# tests/test_ci_config.py holds the list to exactly the files that use the marker. A split
+# machine's share is unchanged: the splitter (tests/circleci_test_split.py) runs after the
+# marker's deselection, so it is dealt the same wall_clock tests whatever files were collected
 WALL_CLOCK_MARKER = 'wall_clock'
+WALL_CLOCK_TEST_FILES = (
+    'tests/animation/test_animation_hardware.py',
+    'tests/animation/test_animation_visual.py',
+    'tests/timing/test_fast_timer_os.py',
+)
 WALL_CLOCK_EXCLUDED_PYTEST_ARGUMENTS = ('-m', f'not {WALL_CLOCK_MARKER}', '--cov-fail-under=0')
 WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS = (
     '-n',
@@ -1183,7 +1195,7 @@ def test_random(session: nox.Session) -> None:
     )
     dummy_drivers = {'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'}
     # As the test session: every test but the wall_clock ones on every core, then those alone,
-    # in one process (WALL_CLOCK_MARKER)
+    # in one process, collecting only the files that hold them (WALL_CLOCK_TEST_FILES)
     failed = False
     try:
         session.run(
@@ -1206,6 +1218,7 @@ def test_random(session: nox.Session) -> None:
             '-m',
             WALL_CLOCK_MARKER,
             f'--junitxml=test-results/junit-random-{SHUFFLED_RUN_PYTHON}-wall-clock.xml',
+            *WALL_CLOCK_TEST_FILES,
             env=dummy_drivers,
             external=True,
             success_codes=NO_TESTS_IS_SUCCESS,
