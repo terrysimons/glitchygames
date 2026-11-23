@@ -7,7 +7,6 @@ the engine's examples tests (tests/examples/, deleted since) for months.
 """
 
 import ast
-import collections
 import fnmatch
 import importlib.metadata
 import importlib.util
@@ -20,6 +19,7 @@ import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from scripts.git_checkout import run_git
 from scripts.workspace_packages import WorkspaceMember, workspace_members
 
@@ -173,15 +173,26 @@ def _python_files_patterns() -> list[str]:
     return python_files_patterns
 
 
+@pytest.mark.skipif(
+    bool(os.environ.get('GLITCHYGAMES_TEST_SPLIT')),
+    reason=(
+        'a second whole-suite collection in the same 2 GB container: +314 MiB tripped the '
+        "1400 MiB memory guard on #286's Linux job 5098; the split plugin checks the names on "
+        'every CI machine anyway (tests/circleci_test_split.py)'
+    ),
+)
 def test_every_test_in_the_suite_has_its_own_junit_name(tmp_path):
     """A split CI machine names each test as its JUnit report does; no two may share a name.
 
     tests/circleci_test_split.py gives the timing splitter every test's xunit1 name
     (``classname.name``) and stops the run when two tests share one: their timings could not
     be told apart. So such a pair would stop every split CI job. The whole suite is collected
-    in a child pytest, as a CI machine collects it.
+    in a child pytest, as a CI machine collects it. Locally and in the pre-push gate only: in a
+    split CI job the child's collection costs too much memory beside the machine's own, and the
+    plugin's runtime check covers it there (the detection itself: ``repeated_junit_names``'
+    tests in tests/test_circleci_test_split.py).
     """
-    from tests.circleci_test_split import junit_test_name
+    from tests.circleci_test_split import repeated_junit_names
     from tests.list_collected_tests import OUTPUT_VARIABLE
 
     output = tmp_path / 'node-ids.txt'
@@ -207,10 +218,9 @@ def test_every_test_in_the_suite_has_its_own_junit_name(tmp_path):
     )
     assert result.returncode == 0, result.stdout
     node_ids = output.read_text(encoding='utf-8').splitlines()
-    names = collections.Counter(junit_test_name(node_id=node_id) for node_id in node_ids)
 
     assert len(node_ids) > 1000
-    assert [name for name, count in names.items() if count > 1] == []
+    assert repeated_junit_names(node_ids=node_ids) == []
 
 
 def test_every_test_file_matches_python_files():
