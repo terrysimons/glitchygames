@@ -39,7 +39,10 @@ from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
 from glitchygames.audio.instruments import registry as instruments_registry
 from glitchygames.audio.library import ENGINE_SOUND_CACHE
 from glitchygames.audio.voices import release_channels
-from glitchygames.backgrounds import set_active_default_background_pattern
+from glitchygames.backgrounds import (
+    DEFAULT_BACKGROUND_PATTERN,
+    set_active_default_background_pattern,
+)
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import (
@@ -63,6 +66,7 @@ from tests.child_process_guard import ChildProcessGuard, controller_sweep_lines
 from tests.display_canvas import (
     CANVAS_PATTERN,
     TEST_DISPLAY_SIZE,
+    canvas_shown_bytes,
     display_looks_entirely_black,
     present_display,
     real_display_surface,
@@ -296,8 +300,15 @@ def pytest_runtest_protocol(item, nextitem):
         _MEMORY_RELEASE.after_test()
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
-    """Configure pytest to enable strict event handling for all tests, and register markers."""
+    """Configure pytest to enable strict event handling for all tests, and register markers.
+
+    On a canvas other than the default (GLITCHYGAMES_TEST_CANVAS), the draws_frames check
+    reports without failing: the markers say what each test draws on the default canvas, and a
+    test that leaves the default pattern draws on another (glitchygames/testing/
+    frame_fingerprints.py). Run first, so the plugin reads the option set here.
+    """
     # This ensures that unhandled events cause tests to fail, catching bugs
     # The no_unhandled_events flag is enabled globally in mock_game fixture
     config.addinivalue_line(
@@ -305,6 +316,27 @@ def pytest_configure(config):
         f"{BLACK_FRAME_EXPECTED_MARKER}(reason): the test's last frame looks entirely black by "
         'definition (e.g. a fade to black), so the black-frame guard skips it',
     )
+    if CANVAS_PATTERN is not DEFAULT_BACKGROUND_PATTERN:
+        config.option.frame_markers_report_only = True
+
+
+# Optional: a run may load the harness without the frame fingerprints plugin that specifies the
+# hook (tests/world/test_mock_isolation.py's inner run), where pytest would refuse it as unknown
+@pytest.hookimpl(optionalhook=True)
+def pytest_frame_fingerprints_blank_screen(size: tuple[int, int]) -> bytes | None:
+    """Tell the draws_frames check what a test that draws nothing leaves: the canvas at its size.
+
+    Every test starts on the canvas (the display rule), so a display still showing it was not
+    drawn on (glitchygames/testing/frame_fingerprints.py's draws_frames check).
+
+    Args:
+        size: The display's width and height.
+
+    Returns:
+        The canvas pattern's shown RGB bytes at that size.
+
+    """
+    return canvas_shown_bytes(size=size)
 
 
 @pytest.hookimpl(trylast=True)
@@ -761,6 +793,26 @@ def _start_pygame_and_the_test_display() -> None:
     if pygame.display.get_surface() is None:
         with contextlib.suppress(pygame.error):
             pygame.display.set_mode(TEST_DISPLAY_SIZE)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_fixture_setup(fixturedef: pytest.FixtureDef[object]) -> None:
+    """Start pygame and the test display before any fixture wider than one test is made.
+
+    A module-, class-, package- or session-scoped fixture is set up before the first test that
+    asks for it gets its function-scoped fixtures, ``ensure_pygame_graceful_quit`` among them, so
+    without this it saw whatever display the worker's previous test left: none after a test that
+    quit pygame. Zombies' module-scoped ``demo_plan`` builds a real scene, and after
+    tests/test_logging.py (which ends with ``pygame.quit()``) every test of its module errored
+    in setup (seed 1957271441, 2026-11-21;
+    bugs/2026-11-22-a-module-fixture-ran-before-the-test-display.md).
+
+    Args:
+        fixturedef: The fixture about to be set up.
+
+    """
+    if fixturedef.scope != 'function':
+        _start_pygame_and_the_test_display()
 
 
 @pytest.fixture(scope='session')
