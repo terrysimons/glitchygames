@@ -13,7 +13,7 @@ import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import pytest
 import yaml
@@ -23,6 +23,9 @@ from scripts.workspace_packages import workspace_members
 from glitchygames.process import OutputCapture, run_command
 from tests.ansible_inventory import raspberry_pi_hosts
 from tests.ledger_repositories import environment_without_git_variables, git
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # The pipeline's configuration: the workflows, continued from the setup configuration, which only
@@ -378,6 +381,8 @@ class RecordingSession:
         self.commands: list[tuple[str, ...]] = []
         # Each command's environment overrides (``env=``), by command
         self.environments: dict[tuple[str, ...], object] = {}
+        # Each command's options (``success_codes=``, ``silent=``, ...), by command
+        self.options: dict[tuple[str, ...], dict[str, object]] = {}
         # What the session logged (``session.log``), in order
         self.logs: list[str] = []
         self.virtualenv = type('Virtualenv', (), {'location': '.nox/docs-deploy'})()
@@ -395,6 +400,7 @@ class RecordingSession:
         """
         self.commands.append(command)
         self.environments[command] = options.get('env')
+        self.options[command] = options
         return self.outputs.get(command[0]) if options.get('silent') else None
 
     def error(self, message: str) -> NoReturn:
@@ -2075,6 +2081,73 @@ def test_an_unknown_suite_order_stops_the_run():
             noxfile.choose_suite_order(environment={SUITE_ORDER_VARIABLE: value})
 
 
+# The marker of a test that times real work against a tolerance (tests/harness.py registers it)
+WALL_CLOCK_MARKER = 'wall_clock'
+
+
+def option_value(command: Sequence[str], option: str) -> str:
+    """Return the value after the last ``option`` in a command (pytest's last one wins).
+
+    Returns:
+        The value.
+
+    """
+    index = len(command) - 1 - list(reversed(command)).index(option)
+    return command[index + 1]
+
+
+@pytest.mark.parametrize('split', [False, True], ids=['one machine', 'a split machine'])
+def test_the_test_session_runs_the_wall_clock_tests_alone_after_the_rest(monkeypatch, split):
+    """Two pytest runs: every other test in parallel, then the wall_clock tests serially.
+
+    #287's Windows job (5141) ran 4 workers on 4 CPUs, and a timer accuracy test lost its
+    deadline to the other workers (19 ms against a 3 ms bound). The owner, 2026-11-23: keep the
+    workers, and time real work alone. The second run appends to the first's coverage, so the
+    100% rule (off on a split machine) is applied to both; it writes its own JUnit report, and a
+    machine whose share holds no wall_clock test (pytest's exit 5) passes.
+    """
+    import noxfile
+
+    installed = '.nox/test-3-15/lib/python3.15/site-packages/glitchygames'
+    monkeypatch.setenv('PYTEST_WORKERS', '4')
+    if split:
+        monkeypatch.setenv('GLITCHYGAMES_TEST_SPLIT', 'circleci')
+    else:
+        monkeypatch.delenv('GLITCHYGAMES_TEST_SPLIT', raising=False)
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
+    noxfile.test(session)
+    parallel, serial = [command for command in session.commands if command[0] == 'pytest']
+
+    assert option_value(parallel, '-m') == f'not {WALL_CLOCK_MARKER}'
+    assert option_value(parallel, '-n') == '4'
+    assert '--cov-fail-under=0' in parallel
+    assert option_value(serial, '-m') == WALL_CLOCK_MARKER
+    assert option_value(serial, '-n') == '0'
+    assert '--cov-append' in serial
+    assert '--junitxml=test-results/junit-wall-clock.xml' in serial
+    assert ('--cov-fail-under=0' in serial) == split
+    assert session.options[serial]['success_codes'] == [0, 5]
+    # Both runs take the same order and log level
+    for argument in ('--log-cli-level=WARNING',):
+        assert (argument in parallel) == (argument in serial)
+
+
+def test_the_shuffled_pre_push_run_times_the_wall_clock_tests_alone_too():
+    """test-random (the pre-push hook) splits the same way: every core, then one process."""
+    import noxfile
+
+    session = RecordingSession(posargs=['12345'])
+    noxfile.test_random(session)
+    parallel, serial = session.commands
+
+    assert option_value(parallel, '-m') == f'not {WALL_CLOCK_MARKER}'
+    assert option_value(parallel, '-n') == 'auto'
+    assert option_value(serial, '-m') == WALL_CLOCK_MARKER
+    assert option_value(serial, '-n') == '0'
+    assert '--randomly-seed=12345' in serial
+    assert session.options[serial]['success_codes'] == [0, 5]
+
+
 def test_the_test_session_prints_its_order_and_passes_it_to_pytest(monkeypatch):
     """The order is logged before pytest runs, shuffled or fixed, and a shuffle reaches pytest."""
     import noxfile
@@ -2083,18 +2156,23 @@ def test_the_test_session_prints_its_order_and_passes_it_to_pytest(monkeypatch):
     monkeypatch.setenv(SUITE_ORDER_VARIABLE, '4242')
     session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
     noxfile.test(session)
-    (pytest_run,) = [command for command in session.commands if command[0] == 'pytest']
+    # Both runs (the parallel one and the wall_clock tests' serial one) take the order
+    pytest_runs = [command for command in session.commands if command[0] == 'pytest']
 
-    assert '--randomly-seed=4242' in pytest_run
-    assert pytest_run[pytest_run.index('randomly') - 1] == '-p'
+    assert len(pytest_runs) == 2
+    for pytest_run in pytest_runs:
+        assert '--randomly-seed=4242' in pytest_run
+        assert pytest_run[pytest_run.index('randomly') - 1] == '-p'
     assert [log for log in session.logs if 'Test order: shuffled, seed 4242' in log]
 
     monkeypatch.delenv(SUITE_ORDER_VARIABLE)
     session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
     noxfile.test(session)
-    (pytest_run,) = [command for command in session.commands if command[0] == 'pytest']
+    pytest_runs = [command for command in session.commands if command[0] == 'pytest']
 
-    assert not [argument for argument in pytest_run if 'randomly' in argument]
+    assert len(pytest_runs) == 2
+    for pytest_run in pytest_runs:
+        assert not [argument for argument in pytest_run if 'randomly' in argument]
     assert [log for log in session.logs if log.startswith('Test order: fixed')]
 
 
@@ -2261,7 +2339,8 @@ def test_the_shuffled_run_tests_only_the_development_python():
 
     python_at = len(SHUFFLED_RUN_ENVIRONMENT)
     pythons = [command[python_at] for command in session.commands]
-    assert pythons == ['3.15']
+    # The parallel run and the wall_clock tests' serial run, both on 3.15
+    assert pythons == ['3.15', '3.15']
     assert noxfile.TEST_PYTHONS[-1] == noxfile.SHUFFLED_RUN_PYTHON
     assert '--randomly-seed=12345' in session.commands[0]
 

@@ -156,6 +156,9 @@ _load_lazy_pygame_modules()
 # The test display rule (tests/display_canvas.py): every test starts on the canvas pattern, and
 # a test whose last frame is entirely black fails as a rendering bug
 BLACK_FRAME_EXPECTED_MARKER = 'black_frame_expected'
+# A test that times real work against a tolerance: the test session runs these alone, in one
+# process, after the parallel run (noxfile.WALL_CLOCK_MARKER; the owner, 2026-11-23)
+WALL_CLOCK_MARKER = 'wall_clock'
 
 
 @pytest.fixture(scope='session')
@@ -315,6 +318,13 @@ def pytest_configure(config):
         'markers',
         f"{BLACK_FRAME_EXPECTED_MARKER}(reason): the test's last frame looks entirely black by "
         'definition (e.g. a fade to black), so the black-frame guard skips it',
+    )
+    config.addinivalue_line(
+        'markers',
+        f'{WALL_CLOCK_MARKER}(reason): the test times real work against a tolerance, which CPU '
+        'contention breaks in a parallel run (#287: 4 workers on 4 CPUs left a timer test no '
+        'spare core), so nox -s test and test-random run these alone, in one process, after '
+        'the rest',
     )
     if CANVAS_PATTERN is not DEFAULT_BACKGROUND_PATTERN:
         config.option.frame_markers_report_only = True

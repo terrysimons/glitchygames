@@ -306,7 +306,7 @@ Space and quit with Esc, so a game's own pause must not be on Esc (Mr. Muncher's
   in a test (hardware, network, third-party tools, the clock, injected failures) with targeted
   `mocker` calls. Assert on pixels, not draw calls, without assuming the display's pixel format.
 - Wall-clock timings never belong in the normal suite; measure time in benchmarks
-  (`pytest --benchmark-only`).
+  (`pytest --benchmark-only`). A test that must is marked `wall_clock` (runs alone, serially).
 - Tests import the installed packages and never edit `sys.path` (`uv sync` installs them
   editable; `nox -s test` installs a non-editable copy, so it tests what a wheel would ship). Member tests live in
   `src/<layer>/<member>/tests/`, are named `test_<distribution with - as _>*.py`, and import

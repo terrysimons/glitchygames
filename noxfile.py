@@ -823,10 +823,25 @@ def test(session: nox.Session) -> None:
     args.extend(suite_order_pytest_arguments(order=order))
 
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
-    # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
+    # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion. Two runs:
+    # every test but the wall_clock ones on the workers chosen above, then those alone, in this
+    # process (WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS), adding to the first run's coverage, so the
+    # 100% rule is applied once, to both
+    failed = False
     try:
-        session.run('pytest', *args)
+        session.run('pytest', *args, *WALL_CLOCK_EXCLUDED_PYTEST_ARGUMENTS)
     except CommandFailed:
+        failed = True
+    try:
+        session.run(
+            'pytest',
+            *args,
+            *WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS,
+            success_codes=NO_TESTS_IS_SUCCESS,
+        )
+    except CommandFailed:
+        failed = True
+    if failed:
         session.error(f'The tests failed. {description}')
 
 
@@ -865,6 +880,27 @@ def test_markdown(session: nox.Session) -> None:
     _install_from_lockfile(session)
     _stamp_installed_engine(session)
     session.run('pytest', *MARKDOWN_TEST_FILES, '--no-cov', '--dummy-only')
+
+
+# The tests that time real work against a tolerance (tests/harness.py's wall_clock marker) run
+# alone, in one process, after the rest: under CPU contention they measure the machine, not the
+# code. #287's Windows job (5141) ran 4 workers on 4 CPUs, and a timer accuracy test trailed the
+# OS sleep by 19 ms against its 3 ms bound (the owner, 2026-11-23: keep the workers, run these
+# alone). The first run leaves them out and its coverage rule off; the second appends to its
+# coverage data, applies the rule to both (a split machine's share keeps it off), and writes its
+# own JUnit report. A split machine dealt none of them collects nothing: pytest's exit 5 passes
+WALL_CLOCK_MARKER = 'wall_clock'
+WALL_CLOCK_EXCLUDED_PYTEST_ARGUMENTS = ('-m', f'not {WALL_CLOCK_MARKER}', '--cov-fail-under=0')
+WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS = (
+    '-n',
+    '0',
+    '-m',
+    WALL_CLOCK_MARKER,
+    '--cov-append',
+    '--junitxml=test-results/junit-wall-clock.xml',
+)
+# pytest's exit statuses OK and NO_TESTS_COLLECTED (pytest.ExitCode; nox runs without pytest)
+NO_TESTS_IS_SUCCESS = [0, 5]
 
 
 # A machine's share of a split CI job (tests/circleci_test_split.py): its coverage rule off, its
@@ -1137,21 +1173,46 @@ def test_random(session: nox.Session) -> None:
     else:
         seed = secrets.randbelow(RANDOM_ORDER_SEED_LIMIT)
     environment = (*SHUFFLED_RUN_ENVIRONMENT, SHUFFLED_RUN_PYTHON)
+    shuffled = (
+        *environment,
+        'pytest',
+        *RANDOM_ORDER_PYTEST_ARGUMENTS,
+        f'--randomly-seed={seed}',
+        '--no-cov',
+        '--log-cli-level=WARNING',
+    )
+    dummy_drivers = {'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'}
+    # As the test session: every test but the wall_clock ones on every core, then those alone,
+    # in one process (WALL_CLOCK_MARKER)
+    failed = False
     try:
         session.run(
-            *environment,
-            'pytest',
-            *RANDOM_ORDER_PYTEST_ARGUMENTS,
-            f'--randomly-seed={seed}',
+            *shuffled,
             '-n',
             'auto',
-            '--no-cov',
-            '--log-cli-level=WARNING',
+            '-m',
+            f'not {WALL_CLOCK_MARKER}',
             f'--junitxml=test-results/junit-random-{SHUFFLED_RUN_PYTHON}.xml',
-            env={'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
+            env=dummy_drivers,
             external=True,
         )
     except CommandFailed:
+        failed = True
+    try:
+        session.run(
+            *shuffled,
+            '-n',
+            '0',
+            '-m',
+            WALL_CLOCK_MARKER,
+            f'--junitxml=test-results/junit-random-{SHUFFLED_RUN_PYTHON}-wall-clock.xml',
+            env=dummy_drivers,
+            external=True,
+            success_codes=NO_TESTS_IS_SUCCESS,
+        )
+    except CommandFailed:
+        failed = True
+    if failed:
         replay = shlex.join([
             *environment,
             'pytest',

@@ -196,6 +196,23 @@ running a share (`tests/circleci_test_split.py`;
   each machine keeps its `.coverage` in `coverage-data/<job>/`, and a `coverage-combine-*` job
   combines them on the job's Python and applies the rule (`nox -s coverage-combine-3.15`).
 
+## Tests that time real work
+
+**Intent:** a test that times real work against a tolerance measures the machine, not the code,
+when other tests share its CPUs. #287's Windows job (5141) ran four workers on four CPUs, and a
+timer accuracy test trailed the OS sleep by 19 ms against its 3 ms bound; the owner, 2026-11-23,
+kept the workers and set these tests apart.
+
+- Such a test carries `@pytest.mark.wall_clock(reason=...)` (registered in `tests/harness.py`).
+  `tests/test_suite_collection.py` holds the swept files to it: a test there that reads the real
+  clock is marked, or listed with why it bounds no duration.
+- `nox -s test` runs the suite twice: every other test on its workers (`-m "not wall_clock"`,
+  coverage rule off), then the marked tests alone, in one process (`-n 0 -m wall_clock`),
+  appending to the first run's coverage, so the 100% rule is applied to both, and writing
+  `test-results/junit-wall-clock.xml`. On a split CI machine each run is split on its own, and a
+  machine dealt no marked test collects nothing (exit 5, which passes). `nox -s test-random`,
+  the pre-push hook, splits its shuffled run the same way.
+
 ## The suite's order in CI
 
 **Intent:** catch a test that passes only after, or only before, another on every CI platform and
