@@ -58,6 +58,7 @@ from glitchygames.replay.tools.golden_traces import (
 )
 from glitchygames.scenes import SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
+from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.sprites.hud_label import HudLabel
 from glitchygames.state import DiskSaveManager
@@ -775,6 +776,16 @@ class TestPositionalKeys:
         actions = adventurer_scene.actions
         assert actions.get_action(key_at(key=pygame.K_F13, scancode=scancode)) == action
         assert actions.get_action(key_at(key=qwerty_key, scancode=pygame.KSCAN_F13)) is None
+
+
+class TestPausing:
+    """The pause key pauses through the engine's Scene.pause (both editions)."""
+
+    def test_the_pause_key_pauses_through_scene_pause(self, adventurer_scene, mocker):
+        pause = mocker.spy(adventurer_scene, 'pause')
+        _press_key(adventurer_scene, pygame.K_ESCAPE)
+        pause.assert_called_once_with()
+        assert isinstance(adventurer_scene.next_scene, PauseScene)
 
 
 # --- Scene behaviour the golden replays never reach (both editions unless noted) ---

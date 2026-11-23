@@ -210,17 +210,18 @@ saved entry dumps as `{'score': 900, 'floor': 3}`, the same dictionary order.
 **An entry that fails validation: two policies, chosen by an option (the owner, 2026-11-20).**
 Example: Clockwork's save holds `{"scores": [{"floor": 3}]}` (no `score`; today it is kept, sorts
 as 0 and is written back every game). A new engine option, `--invalid-high-scores
-{refuse,drop}` (default `refuse`; a project setting in `[tool.glitchygames]` like the other tool
-options, and an explicit `HighScoreTableSettings.invalid_entries` field for code), picks:
+{refuse,drop}` (default `refuse`; a command-line option, and an explicit
+`HighScoreTableSettings.invalid_entries` field for code). It is not a `[tool.glitchygames]`
+setting: only the repository's tools read that table, and a game installed from a wheel never
+sees `pyproject.toml` (corrected while building it, 2026-11-20). It picks:
 - **`refuse` (the default for now; the owner may switch it later):** the table raises the
   existing `SaveCorruptedError` naming the slot and the first bad entry. The game-over flow
   catches it, still shows the run's score, logs one error, and does not save, so the file stays
   exactly as found.
 - **`drop`:** invalid entries are left out with one logged warning naming each, the table works,
   and the next save writes the file without them.
-The option is described once in `replay/tools/registry.py`'s `TOOLS` pattern or the argument
-system (docs/architecture/argument_system.md), whichever owns engine-wide game options; it must not
-clash with any game's arguments.
+The option is one of the engine's Game Options (`GameEventManager.args`, listed in
+docs/architecture/argument_system.md); it must not clash with any tool's or game's arguments.
 
 **Tests for the policies (behaviours; both branches, the owner's rule that a reachable mode is
 an explicit flag tested both ways):**
@@ -230,7 +231,7 @@ an explicit flag tested both ways):**
 - With `drop`: the same file gives the valid entries in their order, one warning per dropped
   entry is logged, and the next `record()` saves the file without the invalid ones.
 - Valid files behave identically under both policies (the characterization table runs under each).
-- The option parses from the command line and from `[tool.glitchygames]`, defaults to `refuse`,
+- The option parses from the command line, defaults to `refuse`,
   rejects any other value naming the two choices, and the game-over flow under `refuse` shows the
   score, logs the error and does not save (a test through a stand-in game-over scene).
 - An entry with an unknown extra field (refused by `extra='forbid'`) and one with a wrong type
@@ -242,7 +243,15 @@ sees the same calls).
 
 ### Sub-plan 3: HUD labels as sprites, `Scene.pause()`, and the one checked re-record (candidate 3)
 
-Three parts in one PR, in this order; only part C changes recordings.
+Three parts, in two PRs (the coordinator's ruling, 2026-11-21, so the neutral half lands
+sooner); only part C changes recordings:
+
+- **First PR, from main** (`refactor/engine-scene-pause-and-recording-check`): part B and the
+  check of part C (its comparison and command line, with their planted-defect tests). Neither
+  changes a recording, needs Sub-plan 1 or waits for Arcade sub-plan 5.
+- **Second PR** (`refactor/engine-hud-labels`, on Sub-plan 1 and the first PR): part A and the
+  re-record itself, which land together (part A alone fails every Brave and Clockwork golden),
+  between Arcade sub-plans 5 and 6.
 
 **A. `HudLabel`.** Brave's and Clockwork's HUDs (score, lives, and Clockwork's floor name)
 become sprites in the scene's group, rendered only when their text changes, as Zombies' HUD
@@ -311,24 +320,32 @@ decision; "re-record only deliberately, as a reviewed step").
   `replay/rebaseline.py`) replays OLD's inputs and dt under the new code and records NEW from that
   run, so OLD and NEW are frame for frame the same session and every difference is the code's.
 - **The check** (a reusable comparison in `src/glitchygames/replay/recording_differences.py`,
-  its command line and this step's allowances in `scripts/check_rebaselined_recordings.py`, kept
-  in the tree for the next reviewed re-record): for each OLD/NEW pair it fails unless
+  its command line in `scripts/check_rebaselined_recordings.py`, kept in the tree for the next
+  reviewed re-record; this step's allowances are a plan file the script reads, committed with
+  the re-record, so the script names no step): for each OLD/NEW pair it fails unless
   - both hold the same frame count, scenes per frame, served inputs and dt, saves and device
     fields, and internal events, record by record;
   - every sprite record in every frame is identical (id, rect, visible, group order) once the
     pair's allowed sprite ids are set aside, and NEW's extra ids are exactly the allowed ones;
-  - every header and `scene_start` field is identical except recorded time, source revision and
-    the measurement histories (`content_hash`, `processing_seconds`, `audio_*`), plus the pair's
-    named allowances;
-  - the pixels are identical: OLD replayed on the commit before the change and NEW on the change
-    commit, under the frame fingerprints plugin (`glitchygames/testing/frame_fingerprints.py`),
-    compared with `scripts/compare_driver_frames.py compare before=DIR after=DIR`: no test's
-    frame sequence may differ.
+  - every header and `scene_start` field is identical except the measurement histories
+    (`content_hash`, `processing_seconds`, `audio_*`) and the header fields a rebaseline
+    rewrites whatever the code does (the measurement runs, which hold the source revision,
+    `rebaselined_from`, the engine, pygame and Python versions, `custom_event_types`), plus the
+    pair's named allowances. The recorded start time is compared: a rebaseline keeps OLD's.
+    Custom events compare by their type's name: found while building the check, a rebaseline
+    of an unchanged golden rewrites `custom_event_types` with this process's numbering (Brave's
+    and Clockwork's goldens predate the field and gain it, with `glitchygames.sprite_spawn`
+    added since), so numbers alone would report differences the code did not make;
+  - the pixels are identical: the suite run under the frame fingerprints plugin
+    (`glitchygames/testing/frame_fingerprints.py`) on the commit before the change and on the
+    change commit, compared test by test as `compare_driver_frames.py` compares drivers: no
+    test's frame sequence may differ, no test may be in one run only, and the report counts the
+    frames compared.
 
   Allowances, per pair and nothing else: Brave's four recordings, the `HudLabel` ids of the score
   and lives labels and their shadows; Clockwork's two, those plus the floor label and its
-  shadow; `drawing` and `typing`, the window-owner plan's window-setting internal events and that
-  event type's entry in the header's custom event types; Zombies' `golden`, the `run` argument
+  shadow; `drawing` and `typing`, the window-owner plan's window-setting internal events (by
+  custom event type name); Zombies' `golden`, the `run` argument
   of frame 291's `FeatureCardScene` start and `opening: false` of frame 311's `TitleScene` start.
 - **The check is proven able to fail** before it is trusted (the global rule): planted on a
   copy, each of these turns it red: a label one pixel off, a non-HUD sprite moved one pixel, an

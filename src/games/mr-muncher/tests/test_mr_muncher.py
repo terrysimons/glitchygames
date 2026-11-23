@@ -8,7 +8,9 @@ actors, pictures, autopilot) are tested in test_mr_muncher_maze_and_actors.py.
 
 from __future__ import annotations
 
+import logging
 import os
+import types
 from pathlib import Path
 
 import pygame
@@ -64,6 +66,7 @@ from mr_muncher.game import (
     maze_geometry,
 )
 from mr_muncher.maze import Direction, build_maze
+from tests.state.recording_saves import saves_holding
 
 SCREEN_SIZE = (800, 480)
 FRAME_SECONDS = 1.0 / 60.0
@@ -354,8 +357,10 @@ class TestInput:
         assert scene.player.wanted_direction is Direction.UP
 
     @pytest.mark.parametrize('key', [pygame.K_ESCAPE, pygame.K_p])
-    def test_escape_or_p_pauses(self, scene, key):
+    def test_escape_or_p_pauses_through_scene_pause(self, scene, key, mocker):
+        pause = mocker.spy(scene, 'pause')
         _press(scene, key)
+        pause.assert_called_once_with()
         assert isinstance(scene.next_scene, PauseScene)
 
     def test_q_quits(self):
@@ -373,9 +378,11 @@ class TestInput:
         _release(scene, pygame.K_x)
         assert scene.next_scene is None
 
-    def test_losing_focus_pauses_but_not_once_the_game_is_over(self, scene):
+    def test_losing_focus_pauses_but_not_once_the_game_is_over(self, scene, mocker):
+        pause = mocker.spy(scene, 'pause')
         focus_lost = HashableEvent(pygame.WINDOWFOCUSLOST, window=None)
         scene.on_window_focus_lost_event(focus_lost)
+        pause.assert_called_once_with()
         assert isinstance(scene.next_scene, PauseScene)
         scene.next_scene = None
         scene.phase = Phase.GAME_OVER
@@ -950,3 +957,21 @@ def test_the_projector_is_heard_at_its_old_volume_when_centred():
 
     assert mr_muncher_game.PROJECTOR_VOLUME * left == pytest.approx(0.05)
     assert right == pytest.approx(left)
+
+
+def test_a_refused_high_score_table_still_starts_the_game_and_shows_this_score(caplog):
+    """Refused (the default): the best is 0 at start, no save at the end, this game is shown."""
+    saves = saves_holding({'scores': [{'score': 50, 'level': 1}, {'score': 40, 'lvl': 2}]})
+    scene = object.__new__(mr_muncher_game.MrMuncherScene)
+    scene.saves, scene.options, scene.score = saves, {}, 70
+    scene.settings = types.SimpleNamespace(level=5)
+
+    with caplog.at_level(logging.ERROR, logger='glitchygames.state.high_scores'):
+        best = scene._best_saved_score()
+        scene._save_high_score()
+        shown = scene._saved_high_scores()
+
+    assert best == 0
+    assert shown == [{'score': 70, 'level': 5}]
+    assert [call[0] for call in saves.calls] == ['load', 'load', 'load']
+    assert len([record for record in caplog.records if record.levelno == logging.ERROR]) == 2
