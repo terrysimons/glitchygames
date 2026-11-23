@@ -57,6 +57,7 @@ from clockwork_keep.sounds import EFFECTS, ELEVATOR_MOTOR
 from clockwork_keep.terrain import Elevator, MovingGear, Platform
 from glitchygames.audio.exceptions import AudioUnavailableError
 from glitchygames.camera import Camera2D, FollowAxes
+from glitchygames.checks import required
 from glitchygames.collision.layers import collision_rect_offset, get_sprite_collision_rect
 from glitchygames.collision.solids import feet_land_on_surface
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
@@ -1147,8 +1148,7 @@ class ClockworkKeepScene(Scene):
 
         """
         # Set in __init__ (the setter takes no None); the getter is typed for before Scene.__init__
-        assert self.background_color is not None
-        screen.fill(self.background_color)
+        screen.fill(required(self.background_color, what='the scene background colour'))
         self.all_sprites.clear(screen, self.background)
         self.all_sprites.draw(screen)
         self._draw_hud(screen)
@@ -1201,9 +1201,10 @@ class ClockworkKeepVictoryScene(GameOverScene):
     def setup(self: Self) -> None:
         """Lay out the game-over screen, then replace its GAME OVER title with VICTORY!."""
         super().setup()
-        assert self.text_sprite is not None, 'GameOverScene.setup() makes the title'
-        title_center_x, title_center_y = self.text_sprite.rect.center
-        self.text_sprite.kill()
+        # GameOverScene.setup() makes the title
+        title = required(self.text_sprite, what='the game-over title')
+        title_center_x, title_center_y = title.rect.center
+        title.kill()
         self.text_sprite = TextSprite(
             'VICTORY!',
             (round(title_center_x), round(title_center_y)),
