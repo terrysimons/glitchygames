@@ -17,6 +17,7 @@ set -u
 {{ platform.log_root() }}
 {{ platform.total_memory_mb() }}
 {{ platform.sha256_of() }}
+{{ platform.free_kib_of() }}
 {{ platform.machine_can_run_the_service() }}
 {{ platform.ai_threads() }}
 {{ platform.install_agent_definition() }}
@@ -142,11 +143,22 @@ fetch() {
     if [ -f "$models/$file" ] && [ "$(sha256_of "$models/$file")" = "$sha256" ]; then
         return 0
     fi
-    available_kb=$(df -k "$models" | tail -1 | awk '{print $4}')
-    if [ $(( available_kb * 1024 )) -lt "$(( bytes + {{ ai_models_free_margin_bytes }} ))" ]; then
-        say "not enough disk space for $file"
-        return 1
-    fi
+    # A free space that can't be read doesn't stop the download: the check only saves one that
+    # would fail anyway (curl stops on a full disk, and the .part resumes on the next run)
+    available_kb=$(free_kib_of "$models" 2>/dev/null)
+    case "$available_kb" in
+        ''|*[!0-9]*)
+            # What the command printed and said, so a disk that really fills shows why
+            free_space_error=$(free_kib_of "$models" 2>&1 >/dev/null | tr '\n' ' ')
+            say "free space unknown (read '$available_kb'; error '$free_space_error'); downloading $file anyway"
+            ;;
+        *)
+            if [ $(( available_kb * 1024 )) -lt "$(( bytes + {{ ai_models_free_margin_bytes }} ))" ]; then
+                say "not enough disk space for $file"
+                return 1
+            fi
+            ;;
+    esac
     say "downloading $file"
     if ! curl --fail --location --silent --show-error --continue-at - \
         --connect-timeout 30 --speed-time 60 --speed-limit 1024 \

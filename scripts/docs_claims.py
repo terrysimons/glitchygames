@@ -141,6 +141,24 @@ RECORDED_EXCEPTIONS: dict[tuple[str, str], str] = {
     ('docs/architecture/game_packages.md', 'tests/examples'): (
         "named as a place the moves emptied, where an old checkout's leftovers are"
     ),
+    ('docs/architecture/engine_context.md', 'glitchygames.performance.performance_manager'): (
+        'a read-only module view (glitchygames/performance/__init__.py), not a module'
+    ),
+    ('docs/architecture/event_system.md', 'glitchygames.sprite_spawn'): (
+        "a named custom event type's string (glitchygames/events/sprite_spawn.py), not a module"
+    ),
+    ('docs/quality/complexity.md', 'docs/quality/graphs/complexity-explorer.json'): (
+        'written by the docs build, and gitignored'
+    ),
+    ('docs/quality/complexity.md', 'docs/quality/graphs/complexity_graphs.md'): (
+        'written by the docs build, and gitignored'
+    ),
+    ('docs/quality/performance.md', 'docs/quality/metrics/performance_graphs.md'): (
+        'written by the docs build, and gitignored'
+    ),
+    ('docs/requirements.md', 'quality/performance.md'): (
+        'a link relative to its page (docs/quality/performance.md)'
+    ),
 }
 
 

@@ -1,12 +1,14 @@
 """Tests for SceneManager class functionality."""
 
 import contextlib
+import re
 import types
 
 import pygame
 import pytest
 
 from glitchygames import events
+from glitchygames.checks import MissingValueError
 from glitchygames.engine_context import EngineContext
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import Sprite
@@ -817,11 +819,10 @@ def test_a_scene_manager_subclass_keeps_the_singleton_rules_of_the_class_attribu
     SubclassedSceneManager._reset()
 
 
-# What a scene manager raises when a value its own code always sets is missing. Today these sites
-# assert; the assert sweep (fix/assert-sweep-engine-scenes) makes each one raise
-# glitchygames.checks.MissingValueError instead. TODO: switch this to MissingValueError, with the
-# "<what> is missing" message, once feat/checks-required (the shared helper) is on main.
-MISSING_VALUE_ERROR = AssertionError
+# What a scene manager raises when a value its own code always sets is missing
+# (glitchygames.checks.required: "<what> is missing")
+NO_ACTIVE_SCENE = "the scene manager's active scene is missing"
+NO_GAME_ENGINE = "the scene manager's game engine is missing"
 
 # The scene manager's steps that work on the active scene: each with the keyword arguments it takes
 STEPS_ON_THE_ACTIVE_SCENE = (
@@ -870,17 +871,17 @@ class TestMissingValuesStopTheSceneManager:
         self, scene_manager, step, keyword_arguments
     ):
         """Each step that works on the active scene stops when no scene is active."""
-        with pytest.raises(MISSING_VALUE_ERROR):
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_ACTIVE_SCENE)}$'):
             getattr(scene_manager, step)(**keyword_arguments)
 
     def test_a_game_event_stops_without_a_game_engine(self, scene_manager):
         """A game event is dispatched through the engine's registry, so it needs an engine."""
-        with pytest.raises(MISSING_VALUE_ERROR):
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_GAME_ENGINE)}$'):
             scene_manager.on_game_event(events.HashableEvent(events.GAMEEVENT, subtype=1))
 
     def test_registering_a_game_event_stops_without_a_game_engine(self, scene_manager):
         """Registering a game event writes the engine's registry, so it needs an engine."""
-        with pytest.raises(MISSING_VALUE_ERROR):
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_GAME_ENGINE)}$'):
             scene_manager.register_game_event(event_type=1, callback=lambda event: None)
 
     def test_a_transition_frame_stops_without_a_display_surface(self, scene_manager, mocker):
@@ -890,7 +891,9 @@ class TestMissingValuesStopTheSceneManager:
         mocker.patch.object(scene_manager, '_update_frame_services')
         scene_manager.screen = None
 
-        with pytest.raises(MISSING_VALUE_ERROR):
+        with pytest.raises(
+            MissingValueError, match=f'^{re.escape("the scene manager's screen is missing")}$'
+        ):
             scene_manager._run_frame_contents()
 
         transition.render.assert_not_called()
@@ -901,5 +904,6 @@ class TestMissingValuesStopTheSceneManager:
             sources=types.SimpleNamespace(installed_frame_seconds=None)
         )
 
-        with pytest.raises(MISSING_VALUE_ERROR):
+        missing = 'the frame time the playback scope asked its doors for is missing'
+        with pytest.raises(MissingValueError, match=f'^{re.escape(missing)}$'):
             scene_manager._installed_doors_frame_seconds(frame_dt=0.0)

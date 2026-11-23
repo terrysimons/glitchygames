@@ -21,6 +21,7 @@ from brave_adventurer_papyrus.sprite_utils import (
     prepare_papyrus_sprite,
     refresh_drawn_image,
 )
+from glitchygames.checks import required
 from glitchygames.collision.layers import collision_rect_offset
 from glitchygames.opacity import OPAQUE
 from glitchygames.physics import (
@@ -124,8 +125,7 @@ class PapyrusPlayer(AnimatedSprite):
 
         # State machine is auto-loaded from TOML [[transition]] sections
         # (including the falling transitions; see sprites/player.toml).
-        assert self.state_machine is not None, 'player.toml declares the [[transition]]s'
-        self.state_machine.set_state(self.IDLE)
+        required(self.state_machine, what="player.toml's state machine").set_state(self.IDLE)
 
     # --- Property delegates to PhysicsBody ---
 
@@ -209,9 +209,9 @@ class PapyrusPlayer(AnimatedSprite):
         self.physics.tick(dt)
 
         # State machine evaluates the transitions player.toml declares
-        assert self.state_machine is not None, 'player.toml declares the [[transition]]s'
+        state_machine = required(self.state_machine, what="player.toml's state machine")
         context = self.physics.get_animation_context()
-        self.state_machine.evaluate(context, dt)
+        state_machine.evaluate(context, dt)
 
         # Advance TOML animation frames, then start from the drawn frame (the flip below
         # makes a new surface, so it must start afresh each tick)
