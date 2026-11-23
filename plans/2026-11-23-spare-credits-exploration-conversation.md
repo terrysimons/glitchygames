@@ -19,3 +19,13 @@ worktree `../glitchygames-spare-credits-plan`), added this plan skeleton and thi
 record to `plans/`, and asked what the "something fun" is: whether a new game, a
 toy, an engine experiment, or something outside the codebase, since that decides what the
 agents go explore and where the work lives.
+
+## 3. User (2026-11-23, sent while Claude was working)
+
+> Make sure to pull the latest main
+
+## 4. Claude
+
+Fetched `origin` again: `origin/main` is still `d5ae3fff`, the commit the branch started from,
+so the branch already has the latest main. The shared `glitchygames/` checkout was left alone;
+the work stays in this branch's own worktree.
