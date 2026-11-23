@@ -71,6 +71,14 @@
   - Order comparison (Bitmappy's tests only, serially): reversed, and shuffled with seeds 1121 and
     20261121, each 100% line and branch with the fix, so no other branch was found. Not shown:
     coverage under other xdist splits (CI's combine remains the check).
+- **The root fix (2026-11-22, `fix/bitmappy-context-slots`)**: neither piece of state is a
+  module-level object any more. The manager is a context slot (`ONION_SKINNING_MANAGER_SLOT`,
+  read through `get_onion_skinning_manager()`), which the conftest's `fresh_onion_skinning_manager`
+  resets in the default context around each test; with no module name to import, the AST scan
+  `TestNothingHoldsTheSharedManagerByName` is removed and the slot's isolation check
+  (`MEMBER_ISOLATION_CHECKS` in `test_bitmappy_onion_skinning.py`) takes its place. The training
+  state is a frozen `TrainingLibrary` installed once (`bitmappy/training_library.py`; a later load
+  is ignored); the conftest's `fresh_ai_training_library` uninstalls it around each test.
 - **Reporter**: Claude (session 21f7657c), during the Bitmappy assert sweep
 - **Date Reported**: 2026-11-20
 - **Files**: `src/apps/bitmappy/src/bitmappy/onion_skinning.py`,

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import typing
-from typing import Any, cast, override
+from typing import Any, override
 
 import pygame
 
@@ -19,7 +19,7 @@ from bitmappy import (
     AI_MODEL,
     load_ai_training_data,
 )
-from bitmappy.constants import ai_training_state
+from bitmappy.training_library import TRAINING_FORMAT, ai_training_library
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SPRITE_GLYPHS
@@ -122,10 +122,9 @@ class AIQueryInspectorScene(Scene):
     def load_training_data(self) -> None:
         """Load AI training data."""
         try:
-            load_ai_training_data()
+            library = load_ai_training_data()
             self.training_data_loaded = True
-            training_data = cast('list[Any]', ai_training_state['data'])
-            log.info('Loaded %d training examples', len(training_data))
+            log.info('Loaded %d training examples', len(library.examples))
         except (TypeError, OSError, ValueError) as exception:
             log.warning('Could not load training data: %s', exception)
             self.training_data_loaded = False
@@ -349,15 +348,13 @@ class AIQueryInspectorScene(Scene):
             A list of message dicts with 'role' and 'content' keys.
 
         """
-        # Training format defaults to 'toml' after load_ai_training_data() runs
-        training_format: str = (
-            str(ai_training_state['format']) if ai_training_state['format'] else 'toml'
-        )
+        # The training format is TOML when the library has none (no sprite files were found)
+        training_format: str = ai_training_library().training_format or TRAINING_FORMAT
 
         # Use loaded training examples or fall back to mock data
         relevant_examples: list[Any]
         if self.training_data_loaded:
-            relevant_examples = cast('list[Any]', ai_training_state['data'])
+            relevant_examples = ai_training_library().examples_as_dicts()
         else:
             # Use mock examples if training data couldn't be loaded
             relevant_examples = [
@@ -503,7 +500,7 @@ class AIQueryInspectorScene(Scene):
             f'AI Model: {AI_MODEL}',
             f'Max input tokens: {AI_MAX_INPUT_TOKENS}',
             f'Max context size: {AI_MAX_CONTEXT_SIZE}',
-            f'Training format: {ai_training_state["format"]}',
+            f'Training format: {ai_training_library().training_format}',
             f'Training data loaded: {self.training_data_loaded}',
             '',
         ])

@@ -4,7 +4,8 @@ Every Bitmappy in the process reads the same library (it is built from the sprit
 ships), so it is shared rather than per engine context; it is frozen, so a second Bitmappy, or any
 reader, cannot change what another sees. Until ``load_ai_training_data()``
 (``bitmappy.sprite_inspection``) installs it, the library is empty, with no format: Bitmappy's
-``main()`` loads it before the engine starts, and a second load returns the installed one.
+``main()`` loads it before the engine starts. A second load is ignored: it returns the installed
+library and reads no file, so a reload never takes (there is no way to replace the library).
 
 Readers get copies (``examples_as_dicts``): the AI requests that carry examples to the worker
 process are pickled and some add fields, which a frozen mapping would refuse.
@@ -15,7 +16,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, SkipValidation
+from pydantic import BaseModel, ConfigDict, InstanceOf
 
 # The format of every example (the sprite files are TOML)
 TRAINING_FORMAT = 'toml'
@@ -69,7 +70,8 @@ class TrainingLibrary(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
-    examples: SkipValidation[tuple[MappingProxyType[str, Any], ...]] = ()
+    # Only frozen examples: InstanceOf refuses a plain dict (build the library with ``of``)
+    examples: tuple[InstanceOf[MappingProxyType[str, Any]], ...] = ()
     training_format: Literal['toml'] | None = None
 
     @classmethod

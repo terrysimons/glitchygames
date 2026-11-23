@@ -3,6 +3,7 @@
 import logging
 
 import pytest
+from src.apps.bitmappy.tests.training_library_support import use_training_library
 
 from bitmappy.ai_worker import (
     _create_ai_retry_decorator,
@@ -12,9 +13,10 @@ from bitmappy.ai_worker import (
     _setup_ai_worker_logging,
     select_relevant_training_examples,
 )
-from bitmappy.constants import AI_TIMEOUT, ai_training_state
+from bitmappy.constants import AI_TIMEOUT
 from bitmappy.models import AIRequest, AIResponse
 from bitmappy.sprite_inspection import load_ai_training_data
+from bitmappy.training_library import ai_training_library
 
 
 class TestSetupAIWorkerLogging:
@@ -132,76 +134,53 @@ class TestLogCapabilitiesDump:
 class TestSelectRelevantTrainingExamples:
     """Test select_relevant_training_examples function."""
 
-    def test_returns_all_when_under_limit(self):
+    def test_returns_all_when_under_limit(self, mocker):
         """Test returns all examples when under the max limit."""
-        original_data = ai_training_state['data']
-        try:
-            ai_training_state['data'] = [
+        use_training_library(
+            mocker,
+            examples=[
                 {'name': 'slime', 'sprite_type': 'static', 'has_alpha': False},
                 {'name': 'mushroom', 'sprite_type': 'animated', 'has_alpha': True},
-            ]
-            result = select_relevant_training_examples('create a slime', max_examples=100)
-            assert len(result) == 2
-        finally:
-            ai_training_state['data'] = original_data
+            ],
+        )
+        result = select_relevant_training_examples('create a slime', max_examples=100)
+        assert len(result) == 2
 
-    def test_returns_scored_subset_when_over_limit(self):
+    def test_returns_scored_subset_when_over_limit(self, mocker):
         """Test returns scored subset when over the max limit."""
-        original_data = ai_training_state['data']
-        try:
-            ai_training_state['data'] = [
+        use_training_library(
+            mocker,
+            examples=[
                 {'name': f'sprite_{i}', 'sprite_type': 'static', 'has_alpha': False}
                 for i in range(10)
-            ]
-            result = select_relevant_training_examples('create a sprite', max_examples=3)
-            assert len(result) == 3
-        finally:
-            ai_training_state['data'] = original_data
+            ],
+        )
+        result = select_relevant_training_examples('create a sprite', max_examples=3)
+        assert len(result) == 3
 
-    def test_empty_training_data(self):
+    def test_empty_training_data(self, mocker):
         """Test with empty training data."""
-        original_data = ai_training_state['data']
-        try:
-            ai_training_state['data'] = []
-            result = select_relevant_training_examples('create something')
-            assert result == []
-        finally:
-            ai_training_state['data'] = original_data
+        use_training_library(mocker, examples=[])
+        result = select_relevant_training_examples('create something')
+        assert result == []
 
 
-class TestAITrainingState:
-    """Test the ai_training_state global state management."""
+class TestAITrainingLibraryState:
+    """The installed training library, reset per test by the conftest."""
 
-    def test_initial_state_has_data_list(self):
-        """Test that initial state has a data list."""
-        assert isinstance(ai_training_state['data'], list)
+    def test_every_test_starts_with_no_library_installed(self, mocker, tmp_path):
+        """Readers see the empty library and a load installs, for every test.
 
-    def test_initial_format_can_be_set(self):
-        """Test that format field exists in initial state."""
-        assert 'format' in ai_training_state
-
-    def test_every_test_starts_with_the_startup_training_state(self):
-        """No examples and no format, for every test (the conftest's ``fresh_ai_training_state``).
-
-        Then it leaves state behind on purpose: any later test on this worker that saw it would
-        fail this same check.
+        Then it leaves a library installed on purpose: any later test on this worker that saw it
+        would fail this same check (the conftest's ``fresh_ai_training_library`` empties it).
         """
-        assert ai_training_state == {'data': [], 'format': None}
-        training_data = ai_training_state['data']
-        assert isinstance(training_data, list)
-        training_data.append({'name': 'left_behind'})
-        ai_training_state['format'] = 'toml'
-
-
-class TestLoadAITrainingData:
-    """Test load_ai_training_data function."""
-
-    def test_raises_type_error_if_data_not_list(self):
-        """Test that TypeError is raised if data is not a list."""
-        original_data = ai_training_state['data']
-        try:
-            ai_training_state['data'] = 'not_a_list'
-            with pytest.raises(TypeError, match='must be a list'):
-                load_ai_training_data()
-        finally:
-            ai_training_state['data'] = original_data
+        assert ai_training_library().examples == ()
+        assert ai_training_library().training_format is None
+        (tmp_path / 'left_behind.toml').write_text(
+            '[sprite]\nname = "left_behind"\npixels = """\n#\n"""\n\n'
+            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n',
+            encoding='utf-8',
+        )
+        mocker.patch('bitmappy.sprite_inspection.SPRITE_CONFIG_DIR', tmp_path)
+        mocker.patch('bitmappy.sprite_inspection.SpriteFactory.load_sprite', side_effect=ValueError)
+        assert [example['name'] for example in load_ai_training_data().examples] == ['left_behind']

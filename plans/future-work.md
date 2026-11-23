@@ -239,6 +239,12 @@ arc was lost. What follows is left.
   `STRING_LOADS` adds `importlib.__import__`, `builtins.__import__`, `pytest.importorskip` and
   `importlib.util.find_spec`; the member-test naming check already required a separator
   (`test_bitmappyx.py` is refused).
+- **A member's own folder measures coverage differently from the root (found 2026-11-22).**
+  `uv run pytest` run from `src/apps/bitmappy/` doesn't read the root `pyproject.toml`'s
+  `[tool.coverage.report] exclude_lines`, so it reports `editor.py:1674` (the
+  `if __name__ == '__main__':` call) as missed, while the same tests run from the root give 100%.
+  CI and the gate measure from the root, so neither is affected; it misleads anyone checking a
+  member from its folder. Member runs should read the root's coverage settings.
 
 ## Engine context (2026-10-28, sub-plan 2)
 
@@ -259,15 +265,10 @@ arc was lost. What follows is left.
   generic multi-controller code into the engine as a per-context roster and deletes the
   singleton (`src/apps/bitmappy/src/bitmappy/controllers/manager.py:69`). Until it lands,
   `tests/test_process_state_guard.py` lists the singleton under C16. Bitmappy's two other pieces
-  of process state that guard lists, `onion_skinning_manager`
-  (`src/apps/bitmappy/src/bitmappy/onion_skinning.py:162`) and `ai_training_state`
-  (`src/apps/bitmappy/src/bitmappy/constants.py:100`), are not the roster's and have no owning
-  plan yet: each needs one before a Bitmappy runs in more than one engine context. Until then
-  Bitmappy's tests give each test a fresh onion skinning manager and empty training state (the
-  autouse `fresh_onion_skinning_manager` and `fresh_ai_training_state` in
-  `src/apps/bitmappy/tests/conftest.py`; the manager's patch works because code reaches it only
-  through `get_onion_skinning_manager()`, which `test_bitmappy_onion_skinning.py` guards). A
-  `ContextSlot` for each would replace those patches with each context's own.
+  of process state are settled (2026-11-21, `fix/bitmappy-context-slots`): the onion skinning
+  manager is a slot (`bitmappy.onion_skinning.manager`, reset per test by the autouse
+  `fresh_onion_skinning_manager` in `src/apps/bitmappy/tests/conftest.py`), and the AI training
+  data is a frozen library installed once (`bitmappy.training_library`, audit row S21).
 - **The performance gate could compare the FPS slice summaries too** (the controller,
   2026-10-29). Sub-plan 2's Task 17 gate (a) compares each recording's p50 and p99 processing
   times, base against branch; it could later also compare the mean and the "5% low"/"5% high"

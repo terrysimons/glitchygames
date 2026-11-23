@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from bitmappy import constants, onion_skinning
+from bitmappy import onion_skinning, training_library
 from bitmappy.controllers.manager import MultiControllerManager
 from bitmappy.editor import BitmapEditorScene
 from glitchygames.engine_context import default_context
@@ -41,15 +41,14 @@ def fresh_onion_skinning_manager() -> Generator[None]:
 
 
 @pytest.fixture(autouse=True)
-def fresh_ai_training_state(mocker) -> None:
-    """Give every test the AI training state's startup values: no examples, no format.
+def fresh_ai_training_library(mocker) -> None:
+    """Give every test the training library's startup state: none installed, readers see it empty.
 
-    The state is a process-wide dict (``constants.ai_training_state``) that
-    ``load_ai_training_data()`` appends to and sets the format of, so a test would otherwise see
-    what an earlier test loaded. The patch empties it for the test and puts the earlier contents
-    back after it (``clear=True``: only the startup keys, whatever a test added).
+    The library is installed once per process by ``load_ai_training_data()`` and a later load is
+    ignored (bitmappy.training_library), so without this a test would read whatever an earlier
+    test loaded. The patch drops it for the test and puts the earlier one back after it.
     """
-    mocker.patch.dict(constants.ai_training_state, {'data': [], 'format': None}, clear=True)
+    mocker.patch.object(training_library._INSTALLED, 'library', None)  # pyright: ignore[reportPrivateUsage]
 
 
 @pytest.fixture

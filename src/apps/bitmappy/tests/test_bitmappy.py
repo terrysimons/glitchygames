@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import cast
 
+import pydantic
 import pygame
 import pytest
 
@@ -14,7 +15,7 @@ from bitmappy.ai_worker import (
     run_ai_worker,
 )
 from bitmappy.alpha import parse_toml_sprite_data
-from bitmappy.constants import AI_TIMEOUT, ai_training_state
+from bitmappy.constants import AI_TIMEOUT
 from bitmappy.models import AIRequest
 from bitmappy.pixel_sprite import BitmapPixelSprite
 from bitmappy.scroll_arrow import ScrollArrowSprite
@@ -24,6 +25,11 @@ from bitmappy.sprite_inspection import (
     _process_config_file,
     _sprite_has_per_pixel_alpha,
     load_ai_training_data,
+)
+from bitmappy.training_library import (
+    TrainingLibrary,
+    ai_training_library,
+    install_training_library,
 )
 from glitchygames.engine.game_engine import exit_on_signal
 from glitchygames.exit_codes import ExitCode
@@ -452,59 +458,37 @@ blue = 0
 class TestProcessConfigFile:
     """Tests for _process_config_file function."""
 
-    def test_unsupported_format_skipped(self, mocker):
-        """Non-TOML format is skipped with a warning."""
-        mocker.patch.dict(ai_training_state, {'format': 'yaml'})
-        training_data = []
-        _process_config_file(Path('/dummy/file.toml'), training_data)
-        assert len(training_data) == 0
+    def test_file_not_found_handled(self):
+        """A missing file gives no example."""
+        assert _process_config_file(Path('/nonexistent/sprite.toml')) is None
 
-    def test_file_not_found_handled(self, mocker):
-        """Missing file is handled gracefully."""
-        mocker.patch.dict(ai_training_state, {'format': 'toml'})
-        training_data = []
-        _process_config_file(Path('/nonexistent/sprite.toml'), training_data)
-        assert len(training_data) == 0
+    def test_valid_toml_file_becomes_an_example(self, mocker, tmp_path):
+        """A valid TOML sprite file is read as one example, named from the file."""
+        sprite_file = tmp_path / 'training_test.toml'
+        sprite_file.write_text(
+            '[sprite]\nname = "training_test"\npixels = """\n##\n##\n"""\n\n'
+            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n',
+            encoding='utf-8',
+        )
+        # The colorized log's sprite load is not what this checks
+        mocker.patch(
+            'bitmappy.sprite_inspection.SpriteFactory.load_sprite',
+            side_effect=ValueError('mocked'),
+        )
 
-    def test_valid_toml_file_appended(self, mocker):
-        """Valid TOML file gets added to training_data."""
-        mocker.patch.dict(ai_training_state, {'format': 'toml'})
-        toml_content = b"""
-[sprite]
-name = "training_test"
-pixels = \"\"\"
-##
-##
-\"\"\"
+        example = _process_config_file(sprite_file)
 
-[colors."#"]
-red = 0
-green = 0
-blue = 0
-"""
-        with tempfile.NamedTemporaryFile(suffix='.toml', delete=False) as temp_file:
-            temp_file.write(toml_content)
-            temp_file.flush()
-            training_data = []
-            # Mock SpriteFactory.load_sprite to avoid full sprite loading
-            mocker.patch(
-                'bitmappy.sprite_inspection.SpriteFactory.load_sprite',
-                side_effect=ValueError('mocked'),
-            )
-            _process_config_file(Path(temp_file.name), training_data)
+        assert example is not None
+        assert example['name'] == 'training_test'
+        assert example['format'] == 'toml'
 
-        assert len(training_data) == 1
-        assert training_data[0]['name'] == 'training_test'
-        Path(temp_file.name).unlink()
-
-    def test_file_vanishing_before_the_colorized_output_keeps_the_training_data(
+    def test_file_vanishing_before_the_colorized_output_keeps_the_example(
         self,
         mocker,
         tmp_path,
         caplog,
     ):
         """A file gone between the parse and the sprite load only loses the colorized log."""
-        mocker.patch.dict(ai_training_state, {'format': 'toml'})
         sprite_file = tmp_path / 'vanishing.toml'
         sprite_file.write_text(
             '[sprite]\nname = "vanishing"\npixels = """\n##\n"""\n\n'
@@ -515,26 +499,22 @@ blue = 0
             'bitmappy.sprite_inspection.SpriteFactory.load_sprite',
             side_effect=FileNotFoundError('gone'),
         )
-        training_data = []
 
-        _process_config_file(sprite_file, training_data)
+        example = _process_config_file(sprite_file)
 
-        assert [example['name'] for example in training_data] == ['vanishing']
+        assert example is not None
+        assert example['name'] == 'vanishing'
         assert 'Could not create colorized output for vanishing.toml: gone' in caplog.text
 
-    def test_malformed_file_adds_no_training_data(self, mocker, tmp_path, caplog):
+    def test_malformed_file_gives_no_example(self, mocker, tmp_path, caplog):
         """A file that is not valid TOML is skipped with a warning."""
-        mocker.patch.dict(ai_training_state, {'format': 'toml'})
         sprite_file = tmp_path / 'broken.toml'
         sprite_file.write_text('[sprite\nname = ', encoding='utf-8')
         load_sprite = mocker.patch(
             'bitmappy.sprite_inspection.SpriteFactory.load_sprite',
         )
-        training_data = []
 
-        _process_config_file(sprite_file, training_data)
-
-        assert training_data == []
+        assert _process_config_file(sprite_file) is None
         assert 'Error loading sprite config' in caplog.text
         assert load_sprite.call_count == 0
 
@@ -543,61 +523,119 @@ blue = 0
 # TestLoadAiTrainingData
 # ---------------------------------------------------------------------------
 
+BLOCK_SPRITE_TOML = (
+    '[sprite]\nname = "block"\npixels = """\n##\n##\n"""\n\n'
+    '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n'
+)
+
 
 class TestLoadAiTrainingData:
-    """Tests for load_ai_training_data function."""
+    """Tests for load_ai_training_data function: one frozen library, installed once."""
 
-    def test_non_list_data_raises_type_error(self, mocker):
-        """Raises TypeError when data is not a list."""
-        mocker.patch.dict(ai_training_state, {'data': 'not_a_list'})
-        with pytest.raises(TypeError, match='must be a list'):
-            load_ai_training_data()
-
-    def test_missing_directory_handled(self, mocker):
-        """Missing sprite config directory is handled gracefully."""
-        mocker.patch.dict(ai_training_state, {'data': []})
+    def test_missing_directory_installs_an_empty_library(self, mocker):
+        """No sprite directory: an empty library with no format is installed."""
         mocker.patch(
             'bitmappy.sprite_inspection.SPRITE_CONFIG_DIR',
             Path('/nonexistent/directory'),
         )
-        load_ai_training_data()
-        # Should not crash, data remains empty
-        assert isinstance(ai_training_state['data'], list)
 
-    def test_empty_directory_no_files(self, mocker):
-        """Empty directory produces no training data."""
-        mocker.patch.dict(ai_training_state, {'data': []})
-        with tempfile.TemporaryDirectory() as temp_dir:
-            mocker.patch(
-                'bitmappy.sprite_inspection.SPRITE_CONFIG_DIR',
-                Path(temp_dir),
-            )
-            load_ai_training_data()
-        assert ai_training_state['data'] == []
+        library = load_ai_training_data()
+
+        assert library.examples == ()
+        assert library.training_format is None
+        assert ai_training_library() is library
+
+    def test_empty_directory_installs_an_empty_library(self, mocker, tmp_path):
+        """A directory without sprite files gives no examples and no format."""
+        mocker.patch('bitmappy.sprite_inspection.SPRITE_CONFIG_DIR', tmp_path)
+
+        library = load_ai_training_data()
+
+        assert library.examples == ()
+        assert library.training_format is None
 
     def test_toml_files_in_the_directory_become_training_data(self, mocker, tmp_path, caplog):
         """Each TOML sprite in the directory is loaded, logged and added as an example."""
-        (tmp_path / 'block.toml').write_text(
-            '[sprite]\nname = "block"\npixels = """\n##\n##\n"""\n\n'
-            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n',
-            encoding='utf-8',
-        )
+        (tmp_path / 'block.toml').write_text(BLOCK_SPRITE_TOML, encoding='utf-8')
         mocker.patch('bitmappy.sprite_inspection.SPRITE_CONFIG_DIR', tmp_path)
-        mocker.patch.dict(ai_training_state, {'data': [], 'format': None})
 
         with caplog.at_level(logging.INFO, logger='game.tools.bitmappy'):
-            load_ai_training_data()
+            library = load_ai_training_data()
 
-        training_data = ai_training_state['data']
-        assert isinstance(training_data, list)
-        assert ai_training_state['format'] == 'toml'
-        assert [example['name'] for example in training_data] == ['block']
+        assert library.training_format == 'toml'
+        assert [example['name'] for example in library.examples] == ['block']
         messages = [record.getMessage() for record in caplog.records]
         assert 'Found 1 TOML sprite config files' in messages
         assert any(
             message.startswith('Loaded "block" (filename: block.toml') for message in messages
         )
         assert 'Total AI training data loaded: 1 sprites' in messages
+
+    def test_a_read_before_the_first_load_sees_the_empty_library(self):
+        """Until a load installs one, readers get an empty library with no format."""
+        library = ai_training_library()
+
+        assert library.examples == ()
+        assert library.training_format is None
+
+    def test_a_second_load_is_ignored(self, mocker, tmp_path):
+        """The second load returns the first library and reads no file: no duplicates."""
+        (tmp_path / 'block.toml').write_text(BLOCK_SPRITE_TOML, encoding='utf-8')
+        mocker.patch('bitmappy.sprite_inspection.SPRITE_CONFIG_DIR', tmp_path)
+        first = load_ai_training_data()
+        (tmp_path / 'another.toml').write_text(
+            BLOCK_SPRITE_TOML.replace('block', 'another'), encoding='utf-8'
+        )
+
+        second = load_ai_training_data()
+
+        assert second is first
+        assert ai_training_library() is first
+        assert [example['name'] for example in second.examples] == ['block']
+
+    def test_a_second_install_returns_the_first_library_and_changes_nothing(self):
+        """install_training_library keeps the first library: the later one is never installed."""
+        first = TrainingLibrary.of(examples=[{'name': 'first'}], training_format='toml')
+        later = TrainingLibrary.of(examples=[{'name': 'later'}], training_format=None)
+
+        assert install_training_library(library=first) is first
+        assert install_training_library(library=later) is first
+        assert ai_training_library() is first
+
+    def test_the_library_cannot_be_changed(self, mocker, tmp_path):
+        """Its fields, its examples and what they hold all refuse a write."""
+        (tmp_path / 'block.toml').write_text(BLOCK_SPRITE_TOML, encoding='utf-8')
+        mocker.patch('bitmappy.sprite_inspection.SPRITE_CONFIG_DIR', tmp_path)
+        library = load_ai_training_data()
+        example = library.examples[0]
+
+        with pytest.raises(pydantic.ValidationError, match='frozen'):
+            library.training_format = None  # pyright: ignore[reportAttributeAccessIssue]
+        with pytest.raises(TypeError):
+            example['name'] = 'renamed'  # pyright: ignore[reportIndexIssue]
+        with pytest.raises(TypeError):
+            example['colors']['#'] = {}  # pyright: ignore[reportIndexIssue]
+        with pytest.raises(AttributeError):
+            library.examples.append(example)  # pyright: ignore[reportAttributeAccessIssue]
+        assert [item['name'] for item in library.examples] == ['block']
+
+    def test_readers_get_writable_copies(self, mocker, tmp_path):
+        """examples_as_dicts copies: a reader changing its copy leaves the library as it was."""
+        (tmp_path / 'block.toml').write_text(BLOCK_SPRITE_TOML, encoding='utf-8')
+        mocker.patch('bitmappy.sprite_inspection.SPRITE_CONFIG_DIR', tmp_path)
+        library = load_ai_training_data()
+
+        copies = library.examples_as_dicts()
+        copies[0]['name'] = 'selected_frame'
+        copies[0]['colors']['#'] = {}
+
+        assert library.examples[0]['name'] == 'block'
+        assert dict(library.examples[0]['colors']['#']) == {'red': 0, 'green': 0, 'blue': 0}
+
+    def test_a_library_refuses_examples_that_are_not_frozen(self):
+        """Built directly, a library refuses plain dicts: only TrainingLibrary.of freezes them."""
+        with pytest.raises(pydantic.ValidationError, match='instance of mappingproxy'):
+            TrainingLibrary(examples=({'name': 'plain'},))
 
 
 # ---------------------------------------------------------------------------
