@@ -191,6 +191,31 @@ Where the scrub stands, for whoever picks it up (the session that did steps 1-2 
   - Push only from the main checkout, never from a worktree (the pre-push hook broke the
     repository once from one); the hooks take about 20 minutes.
 
+## The audio area (2026-11-22, `docs/scrub-audio`)
+
+Taken by session 21f7657c from main 6163d80c; the other areas are other sessions' (the
+playback pages, `gameplay_replay.md` included, are `docs/scrub-playback`'s).
+
+- **Done:** `sound.md` (claim by claim against the code; a new "Inside the package": how a sound
+  flows and each module's job, which supersedes the design's "shims" list: `recipes` is gone and
+  `synth` and `live` are machinery, not shims), the Sound Board README, `argument_system.md`'s
+  `--crt-power-on` (its default and `GLITCHYGAMES_CRT_POWER_ON`), and the audio API page as one
+  section per module with an API (the owner, 2026-11-22: sections on one page, as the sprites
+  page does, not a page per module). `engine_context.md`'s audio slots checked: right.
+- **Found and fixed on its own branch:** an `[effects.*]` table was not a short name
+  (bugs/2026-11-22-effects-tables-are-not-short-names.md, `fix/effects-tables-are-short-names`).
+  `sound.md` here describes effects tables as short names, so that branch lands first.
+- **Sent to `docs/scrub-playback`:** `gameplay_replay.md`'s `sound-render` row (its
+  `--sample-format` default and exit codes).
+- **Left: `CLAUDE.md`'s audio section, after c3's `CLAUDE.md` change lands** (the file is at its
+  360-line limit, so each correction keeps the count):
+  - "Request sounds in `setup()`: a gameplay compile is counted and logged": no log line is
+    written for a gameplay compile; it is counted and listed in the Audio panel (only a slow
+    setup logs, one INFO line). Say "counted and shown in the Audio panel".
+  - "Sources: a short name ..., a path ..., an `Instrument`, or a `Mix`": an `Effect` is a source
+    too (`audio/effects.py`, tones mixed straight). Add it.
+  - Point at the package map: "the modules: sound.md, Inside the package".
+
 ## `docs/architecture/game_packages.md`
 
 ### Design
