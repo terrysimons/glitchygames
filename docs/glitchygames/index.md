@@ -219,9 +219,6 @@ Note that if you bypass the glitchygames game engine event processing, you'll lo
 
 It is recommended that you use the glitchygames event subsystem.
 
-TODO: Add some benchmark data comparing the two methods in various user scenarios to highlight the performance implications.
-
-
 [glitchygames.fonts](./fonts/index.md)
 
 The glitchygames.fonts module is a module that extends pygame's font mechanisms.

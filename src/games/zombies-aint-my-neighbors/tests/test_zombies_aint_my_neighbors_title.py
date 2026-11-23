@@ -16,9 +16,9 @@ import pygame
 import pytest
 
 from glitchygames.events.base import HashableEvent
+from glitchygames.fonts import font_manager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from tests.input.stand_in_devices import STAND_IN_PAD
-from zombies_aint_my_neighbors import text
 from zombies_aint_my_neighbors.roster import (
     MAXIMUM_PLAYERS,
     PLAYER_COLOURS,
@@ -154,7 +154,7 @@ def test_replay_arguments_rebuild_the_title_with_the_same_roster_through_json():
 
 def test_the_title_scene_renders_no_text_after_setup(scene, mocker: MockerFixture):
     """Every text image is made in setup(); playing never renders text (decision 11)."""
-    spy = mocker.spy(text, 'render_text')
+    spy = mocker.spy(font_manager, 'render_line')
 
     tick_to(scene, seconds=2.0)
     rendered(scene)
@@ -364,9 +364,10 @@ def test_setting_the_title_up_again_after_a_pause_keeps_one_set_of_sprites(scene
 
 def test_a_font_that_never_fits_falls_back_to_the_smallest_size():
     """When no size fits the width, the smallest size is used (text clips rather than fails)."""
-    font = text.fitted_title_font(texts=('PRESS START',), width=1, largest=24)
+    font = font_manager.fitted_font(texts=('PRESS START',), width=1, largest=24)
 
-    assert font.get_height() == text.title_font(size=text.SMALLEST_FONT_SIZE).get_height()
+    smallest = font_manager.bundled_font(bold=True, size=font_manager.SMALLEST_FONT_SIZE)
+    assert font.get_height() == smallest.get_height()
 
 
 def test_a_pad_unplugged_while_paused_frees_its_slot_on_resume():
