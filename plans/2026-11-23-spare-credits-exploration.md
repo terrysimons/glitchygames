@@ -49,7 +49,10 @@ The game, as the user has described it so far:
   ask clarifying questions, test possibilities, and so on.
 - **(user)** AI likely plays a part both while the game is made and while it is played; where
   exactly is an area to research, consider, test and brainstorm.
-- **(user)** The dying language is a real language. The user names it at the end.
+- **(user)** The dying language is Irish (Gaeilge, `ga`). The design works for any language,
+  Japanese included; each language gets its own arc, starting with Irish.
+- **(user)** The historical wound for the Irish arc is the Great Hunger of 1845-1852, which the
+  user holds was not a famine but a massacre.
 - **(user)** The point is acquisition through immersion in a simulated environment, rather than
   something chunky and static (which is how Slime Forest Adventure feels, though it is super
   useful and the user sees why it was made that way).
@@ -95,7 +98,6 @@ The game, as the user has described it so far:
 | 10 | What would make it a failure even if it technically works? | The user is thinking about it |
 | 11 | Where does it live: inside glitchygames or its own project? | Not sure yet |
 | 12 | Does it have a name? | Not yet |
-| 13 | Which real language is it? | Real; the user names it at the end |
 | 15 | What carries over from one loop to the next (the player's memory only, or also the skill tree, notes, items)? | Deferred: re-ask later |
 
 Areas to research, consider, test and brainstorm (named by the user):
@@ -121,7 +123,7 @@ Claude's brainstorm ideas (proposals, not decisions):
 - Because the language is real and the story touches real harm, the research includes how to
   portray it with the community's voice.
 
-Answered: 13 (real language, named later), 14 (immersion; fun, even addictive), 16 (spoken and
+Answered: 13 (Irish, Gaeilge), 14 (immersion; fun, even addictive), 16 (spoken and
 written, own script), 17 (play with it, not the only idea), 18 (single player). Struck by the
 user: 5 (which parts of Japanese) and 6 (how the player answers).
 
