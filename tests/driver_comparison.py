@@ -9,10 +9,12 @@ driver dependence (BUGS.md #142, #189). Outside CI, a pytest run therefore:
    recording every presented frame (glitchygames/testing/frame_fingerprints.py, asked through
    its environment variables), and coverage is measured here alone, so the 99% gate is the
    dummy run's, as before;
-2. runs the same command on the native driver in a child pytest started at the session's start
-   (``NATIVE_WORKER_SHARE`` of the usual workers go to it, the rest stay here: the native run is
-   slower per test, and the two together never use more workers than one run would), with its
-   output in ``test-results/driver-comparison/pytest/native/pytest.log``;
+2. runs the same command on the native driver in a child pytest started at the session's start,
+   with ``--draws-frames-only``: only the tests marked ``draws_frames`` run there, the others
+   having no frame to compare (the plugin keeps the marker true in both runs).
+   ``NATIVE_WORKER_SHARE`` of the usual workers go to it, the rest stay here: the native run is
+   slower per test, and the two together never use more workers than one run would. Its
+   output is in ``test-results/driver-comparison/pytest/native/pytest.log``;
 3. at the session's end compares the two runs' frames (glitchygames/testing/frame_comparison.py),
    re-runs any differing tests on both drivers saving PNG files of the differing frames and a
    difference image, and reports them in the terminal summary. A driver difference, or a failure
@@ -61,6 +63,7 @@ from glitchygames.testing.frame_comparison import (
     images_report,
 )
 from glitchygames.testing.frame_fingerprints import (
+    DRAWS_FRAMES_ONLY_OPTION,
     FINGERPRINTS_OPTION,
     FINGERPRINTS_VARIABLE,
     IMAGES_REQUEST_OPTION,
@@ -246,6 +249,8 @@ def child_pytest_command(
     appended = [
         *([] if workers is None else ['-n', str(workers)]),
         *(['--no-cov'] if coverage_loaded else []),
+        # Only the tests that draw have frames to compare
+        DRAWS_FRAMES_ONLY_OPTION,
         f'--junitxml={directory / "junit.xml"}',
         '-o',
         f'cache_dir={directory / "cache"}',

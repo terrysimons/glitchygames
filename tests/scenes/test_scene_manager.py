@@ -392,6 +392,7 @@ class TestSceneManagerInternals:
         mock_scene.update.assert_called_once()
         mock_scene.render.assert_called_once_with(pygame.display.get_surface())
 
+    @pytest.mark.draws_frames
     def test_scene_manager_render_scene_draws_the_active_scene(self):
         """A real active scene's background and sprites reach the real display."""
         scene_manager = self.scene_manager
@@ -410,6 +411,7 @@ class TestSceneManagerInternals:
         assert pygame.transform.average_color(sprite_area)[:3] == (0, 255, 0)
         assert tuple(display.get_at((5, 5)))[:3] == (10, 20, 30)
 
+    @pytest.mark.draws_frames
     def test_scene_manager_update_display(self, mocker):
         """Test SceneManager _update_display method."""
         scene_manager = self.scene_manager
