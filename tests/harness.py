@@ -39,7 +39,10 @@ from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
 from glitchygames.audio.instruments import registry as instruments_registry
 from glitchygames.audio.library import ENGINE_SOUND_CACHE
 from glitchygames.audio.voices import release_channels
-from glitchygames.backgrounds import set_active_default_background_pattern
+from glitchygames.backgrounds import (
+    DEFAULT_BACKGROUND_PATTERN,
+    set_active_default_background_pattern,
+)
 from glitchygames.clipboard import InProcessClipboard, install_clipboard
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import (
@@ -63,6 +66,7 @@ from tests.child_process_guard import ChildProcessGuard, controller_sweep_lines
 from tests.display_canvas import (
     CANVAS_PATTERN,
     TEST_DISPLAY_SIZE,
+    canvas_shown_bytes,
     display_looks_entirely_black,
     present_display,
     real_display_surface,
@@ -296,8 +300,15 @@ def pytest_runtest_protocol(item, nextitem):
         _MEMORY_RELEASE.after_test()
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
-    """Configure pytest to enable strict event handling for all tests, and register markers."""
+    """Configure pytest to enable strict event handling for all tests, and register markers.
+
+    On a canvas other than the default (GLITCHYGAMES_TEST_CANVAS), the draws_frames check
+    reports without failing: the markers say what each test draws on the default canvas, and a
+    test that leaves the default pattern draws on another (glitchygames/testing/
+    frame_fingerprints.py). Run first, so the plugin reads the option set here.
+    """
     # This ensures that unhandled events cause tests to fail, catching bugs
     # The no_unhandled_events flag is enabled globally in mock_game fixture
     config.addinivalue_line(
@@ -305,6 +316,27 @@ def pytest_configure(config):
         f"{BLACK_FRAME_EXPECTED_MARKER}(reason): the test's last frame looks entirely black by "
         'definition (e.g. a fade to black), so the black-frame guard skips it',
     )
+    if CANVAS_PATTERN is not DEFAULT_BACKGROUND_PATTERN:
+        config.option.frame_markers_report_only = True
+
+
+# Optional: a run may load the harness without the frame fingerprints plugin that specifies the
+# hook (tests/world/test_mock_isolation.py's inner run), where pytest would refuse it as unknown
+@pytest.hookimpl(optionalhook=True)
+def pytest_frame_fingerprints_blank_screen(size: tuple[int, int]) -> bytes | None:
+    """Tell the draws_frames check what a test that draws nothing leaves: the canvas at its size.
+
+    Every test starts on the canvas (the display rule), so a display still showing it was not
+    drawn on (glitchygames/testing/frame_fingerprints.py's draws_frames check).
+
+    Args:
+        size: The display's width and height.
+
+    Returns:
+        The canvas pattern's shown RGB bytes at that size.
+
+    """
+    return canvas_shown_bytes(size=size)
 
 
 @pytest.hookimpl(trylast=True)

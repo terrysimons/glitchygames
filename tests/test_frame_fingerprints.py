@@ -639,3 +639,395 @@ class TestEnvironmentActivation:
         expected_draws = SeededDraws(key='8:test_seeds.py::test_draws_two_seeds')
         seeds = json.loads((tmp_path / 'seeds.json').read_text(encoding='utf-8'))
         assert seeds[0] == expected_draws.randbits(SEED_BITS)
+
+
+# Inner tests for the draws_frames check. The inner conftest's blank screen is green at every
+# size, and each inner test leaves green (draws nothing) or red (draws) on the display. An inner
+# run in this process uses this process's display; one in a child process opens its own
+INNER_BLANK_SCREEN_CONFTEST = textwrap.dedent(
+    """
+    import pygame
+    import pytest
+
+
+    def pytest_frame_fingerprints_blank_screen(size):
+        return bytes((20, 180, 60)) * (size[0] * size[1])
+
+
+    @pytest.fixture(autouse=True, scope='session')
+    def a_display():
+        if not pygame.get_init() or pygame.display.get_surface() is None:
+            pygame.init()
+            pygame.display.set_mode((64, 48))
+    """
+)
+INNER_MARKER_TESTS = textwrap.dedent(
+    """
+    import pygame
+    import pytest
+
+    GREEN = (20, 180, 60)
+    RED = (200, 30, 40)
+
+
+    def leave(color):
+        pygame.display.get_surface().fill(color)
+
+
+    @pytest.fixture
+    def presents_in_setup():
+        pygame.display.flip()
+
+
+    @pytest.fixture
+    def presents_in_teardown():
+        yield
+        pygame.display.flip()
+
+
+    def test_presents_unmarked():
+        leave(GREEN)
+        pygame.display.flip()
+
+
+    def test_updates_unmarked():
+        leave(GREEN)
+        pygame.display.update(pygame.Rect(0, 0, 4, 4))
+
+
+    @pytest.mark.draws_frames
+    def test_presents_marked():
+        leave(GREEN)
+        pygame.display.flip()
+
+
+    def test_leaves_a_picture_unmarked():
+        leave(RED)
+
+
+    @pytest.mark.draws_frames
+    def test_leaves_a_picture_marked():
+        leave(RED)
+
+
+    def test_leaves_the_blank_screen_unmarked():
+        leave(GREEN)
+
+
+    def test_leaves_the_blank_screen_at_a_new_size_unmarked():
+        pygame.display.set_mode((64, 48))
+        leave(GREEN)
+
+
+    @pytest.mark.draws_frames
+    def test_marked_but_draws_nothing():
+        leave(GREEN)
+
+
+    def test_presents_in_its_fixture_setup_unmarked(presents_in_setup):
+        leave(GREEN)
+
+
+    @pytest.mark.draws_frames
+    def test_presents_only_in_its_fixture_teardown_marked(presents_in_teardown):
+        leave(GREEN)
+
+
+    @pytest.mark.draws_frames
+    @pytest.mark.frames_vary(reason='varies on purpose')
+    def test_varies_and_draws_marked():
+        leave(GREEN)
+        pygame.display.flip()
+
+
+    @pytest.mark.parametrize(
+        'draws', [pytest.param(True, marks=pytest.mark.draws_frames), False]
+    )
+    def test_cases_marked_one_by_one(draws):
+        leave(GREEN)
+        if draws:
+            pygame.display.flip()
+
+
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize('draws', [True, False])
+    def test_cases_marked_on_the_function(draws):
+        leave(GREEN)
+        if draws:
+            pygame.display.flip()
+
+
+    def test_presents_then_fails_unmarked():
+        pygame.display.flip()
+        raise AssertionError('fails on purpose')
+    """
+)
+# The inner tests whose marker disagrees with what they did, and why
+UNMARKED_DRAWING_TESTS = {
+    'test_inner_markers.py::test_presents_unmarked': 'presented 1 frame(s)',
+    'test_inner_markers.py::test_updates_unmarked': 'presented 1 frame(s)',
+    'test_inner_markers.py::test_leaves_a_picture_unmarked': (
+        'left a picture other than the blank screen'
+    ),
+    'test_inner_markers.py::test_presents_in_its_fixture_setup_unmarked': 'presented 1 frame(s)',
+}
+MARKED_NON_DRAWING_TESTS = {
+    'test_inner_markers.py::test_marked_but_draws_nothing',
+    'test_inner_markers.py::test_presents_only_in_its_fixture_teardown_marked',
+    'test_inner_markers.py::test_cases_marked_on_the_function[False]',
+}
+INNER_MARKER_TEST_COUNT = 16
+# The failing inner test fails on its own, so it is not judged
+INNER_FAILING_TEST_COUNT = 1
+
+
+def read_markers_report(*, pytester: pytest.Pytester) -> dict[str, str]:
+    """Read an inner run's draws_frames report.
+
+    Returns:
+        The reasons by node id.
+
+    """
+    report_path = pytester.path / frame_fingerprints.MARKERS_REPORT_PATH
+    lines = report_path.read_text(encoding='utf-8').splitlines()
+    return dict(line.split('\t', 1) for line in lines)
+
+
+@pytest.fixture
+def inner_marker_tests(pytester: pytest.Pytester) -> Iterator[pytest.Pytester]:
+    """A pytester directory holding the draws_frames inner tests and their blank screen.
+
+    Yields:
+        The pytester.
+
+    """
+    pytester.makeconftest(INNER_BLANK_SCREEN_CONFTEST)
+    pytester.makepyfile(test_inner_markers=INNER_MARKER_TESTS)
+    yield pytester
+    show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+
+def judge_inner_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make in-process pytest runs judged, as a run no test started is.
+
+    pytest sets PYTEST_CURRENT_TEST at the start of each phase, so this runs in the test body.
+
+    Args:
+        monkeypatch: The test's patcher (it puts the variable back).
+
+    """
+    monkeypatch.delenv(frame_fingerprints.CURRENT_TEST_VARIABLE)
+
+
+# Each test's inner run presents frames in this process, so the test itself draws
+@pytest.mark.draws_frames
+class TestTheDrawsFramesCheck:
+    """In a judged run, a test whose draws_frames marker disagrees with what it did fails."""
+
+    def test_each_disagreeing_test_fails_and_the_rest_pass(self, inner_marker_tests, monkeypatch):
+        """Unmarked drawing tests and marked non-drawing tests fail; every other test passes."""
+        judge_inner_runs(monkeypatch)
+
+        result = inner_marker_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
+
+        disagreeing = len(UNMARKED_DRAWING_TESTS) + len(MARKED_NON_DRAWING_TESTS)
+        result.assert_outcomes(
+            passed=INNER_MARKER_TEST_COUNT - disagreeing - INNER_FAILING_TEST_COUNT,
+            failed=disagreeing + INNER_FAILING_TEST_COUNT,
+        )
+        failed = {report.nodeid for report in result.reprec.getfailures()}
+        assert failed == {
+            *UNMARKED_DRAWING_TESTS,
+            *MARKED_NON_DRAWING_TESTS,
+            'test_inner_markers.py::test_presents_then_fails_unmarked',
+        }
+
+    def test_the_failures_name_the_marker_and_what_to_do(self, inner_marker_tests, monkeypatch):
+        """An unmarked drawing test is told to add the marker, a marked idle one to remove it."""
+        judge_inner_runs(monkeypatch)
+
+        result = inner_marker_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
+
+        result.stdout.fnmatch_lines([
+            (
+                '*test_presents_unmarked draws without the draws_frames marker '
+                '(presented 1 frame(s)): add @pytest.mark.draws_frames*'
+            ),
+            '*test_marked_but_draws_nothing is marked draws_frames but draws nothing*remove*',
+        ])
+
+    def test_the_report_lists_each_disagreement_with_its_reason(
+        self, inner_marker_tests, monkeypatch
+    ):
+        """The report names every disagreeing test and how it drew (or that it did not)."""
+        judge_inner_runs(monkeypatch)
+
+        inner_marker_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
+
+        report = read_markers_report(pytester=inner_marker_tests)
+        assert set(report) == set(UNMARKED_DRAWING_TESTS) | MARKED_NON_DRAWING_TESTS
+        for nodeid, how in UNMARKED_DRAWING_TESTS.items():
+            assert f'({how})' in report[nodeid]
+        for nodeid in MARKED_NON_DRAWING_TESTS:
+            assert 'draws nothing' in report[nodeid]
+
+    def test_report_only_lists_the_disagreements_and_fails_no_test(
+        self, inner_marker_tests, monkeypatch
+    ):
+        """With --frame-markers-report-only, only the test failing on its own fails."""
+        judge_inner_runs(monkeypatch)
+
+        result = inner_marker_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, frame_fingerprints.REPORT_ONLY_OPTION
+        )
+
+        result.assert_outcomes(
+            passed=INNER_MARKER_TEST_COUNT - INNER_FAILING_TEST_COUNT,
+            failed=INNER_FAILING_TEST_COUNT,
+        )
+        report = read_markers_report(pytester=inner_marker_tests)
+        assert set(report) == set(UNMARKED_DRAWING_TESTS) | MARKED_NON_DRAWING_TESTS
+
+    def test_each_run_starts_a_new_report(self, inner_marker_tests, monkeypatch):
+        """A run whose tests all agree leaves an empty report, whatever an earlier run wrote."""
+        judge_inner_runs(monkeypatch)
+        inner_marker_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
+
+        inner_marker_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, '-k', 'leaves_the_blank_screen or presents_marked'
+        ).assert_outcomes(passed=3)
+
+        assert read_markers_report(pytester=inner_marker_tests) == {}
+
+    def test_without_a_blank_screen_only_presents_count(self, pytester, monkeypatch):
+        """With no project hook, a test that only leaves a picture is not judged as drawing."""
+        judge_inner_runs(monkeypatch)
+        pytester.makepyfile(test_inner_markers=INNER_MARKER_TESTS)
+
+        result = pytester.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, '-k', 'leaves_a_picture or presents_unmarked'
+        )
+        show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+        failed = {report.nodeid for report in result.reprec.getfailures()}
+        assert failed == {
+            'test_inner_markers.py::test_presents_unmarked',
+            'test_inner_markers.py::test_leaves_a_picture_marked',
+        }
+
+    def test_a_pytest_started_inside_a_test_is_not_judged(self, inner_marker_tests):
+        """A run configured while a test runs (this one) judges nothing and writes no report."""
+        result = inner_marker_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
+
+        result.assert_outcomes(
+            passed=INNER_MARKER_TEST_COUNT - INNER_FAILING_TEST_COUNT,
+            failed=INNER_FAILING_TEST_COUNT,
+        )
+        assert not (inner_marker_tests.path / frame_fingerprints.MARKERS_REPORT_PATH).exists()
+
+    def test_the_check_runs_beside_the_recorder_and_both_are_put_back(
+        self, inner_marker_tests, monkeypatch, tmp_path
+    ):
+        """Recording too, the verdicts are the same and the present functions are restored."""
+        judge_inner_runs(monkeypatch)
+        flip_before = pygame.display.flip
+        update_before = pygame.display.update
+
+        result = inner_marker_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, f'{FINGERPRINTS_OPTION}={tmp_path / "run"}'
+        )
+
+        failed = {report.nodeid for report in result.reprec.getfailures()}
+        assert failed - {'test_inner_markers.py::test_presents_then_fails_unmarked'} == {
+            *UNMARKED_DRAWING_TESTS,
+            *MARKED_NON_DRAWING_TESTS,
+        }
+        assert pygame.display.flip is flip_before
+        assert pygame.display.update is update_before
+
+
+class TestTheDrawsFramesCheckInAChildProcess:
+    """A pytest a test starts as a child process inherits PYTEST_CURRENT_TEST: not judged.
+
+    Its presents happen in the child, so the test itself draws nothing (it carries no marker).
+    """
+
+    def test_a_pytest_a_test_starts_as_a_child_process_is_not_judged(self, inner_marker_tests):
+        """Every inner test is left to its own outcome, and no report is written."""
+        result = inner_marker_tests.runpytest_subprocess(
+            '-p', PLUGIN_MODULE, '-p', 'no:cacheprovider'
+        )
+
+        result.assert_outcomes(
+            passed=INNER_MARKER_TEST_COUNT - INNER_FAILING_TEST_COUNT,
+            failed=INNER_FAILING_TEST_COUNT,
+        )
+        assert not (inner_marker_tests.path / frame_fingerprints.MARKERS_REPORT_PATH).exists()
+
+
+class TestDrawsFramesOnly:
+    """--draws-frames-only runs the marked tests alone, after any -m of the caller's."""
+
+    INNER = textwrap.dedent(
+        """
+        import pytest
+
+
+        @pytest.mark.draws_frames
+        def test_marked():
+            pass
+
+
+        @pytest.mark.draws_frames
+        @pytest.mark.slow
+        def test_marked_and_slow():
+            pass
+
+
+        def test_unmarked():
+            pass
+        """
+    )
+
+    @pytest.fixture
+    def inner_selection_tests(self, pytester: pytest.Pytester) -> pytest.Pytester:
+        """A directory of marked and unmarked tests.
+
+        Returns:
+            The pytester.
+
+        """
+        pytester.makeini('[pytest]\nmarkers =\n    slow: slow\n')
+        pytester.makepyfile(test_selection=self.INNER)
+        return pytester
+
+    def test_only_the_marked_tests_run(self, inner_selection_tests):
+        """The unmarked test is deselected, not skipped."""
+        result = inner_selection_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, frame_fingerprints.DRAWS_FRAMES_ONLY_OPTION
+        )
+
+        result.assert_outcomes(passed=2, deselected=1)
+
+    def test_a_callers_marker_expression_still_narrows_the_run(self, inner_selection_tests):
+        """-m slow with --draws-frames-only runs the tests that are both."""
+        result = inner_selection_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, frame_fingerprints.DRAWS_FRAMES_ONLY_OPTION, '-m', 'slow'
+        )
+
+        result.assert_outcomes(passed=1, deselected=2)
+
+    def test_a_run_whose_collected_tests_are_all_unmarked_stops(self, inner_selection_tests):
+        """Nothing to compare is an error, not an agreeing comparison."""
+        result = inner_selection_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, frame_fingerprints.DRAWS_FRAMES_ONLY_OPTION, '-k', 'unmarked'
+        )
+
+        assert result.ret == pytest.ExitCode.USAGE_ERROR
+        result.stderr.fnmatch_lines([
+            '*--draws-frames-only: none of the 1 collected test(s) is marked draws_frames*'
+        ])
+
+    def test_without_the_option_every_test_runs(self, inner_selection_tests):
+        """The option is off by default."""
+        inner_selection_tests.runpytest_inprocess('-p', PLUGIN_MODULE).assert_outcomes(passed=3)

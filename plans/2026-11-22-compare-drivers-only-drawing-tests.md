@@ -69,10 +69,13 @@ as strong for frames.
 1. **The marker is `draws_frames`.** It sits beside `frames_vary` (same plugin, same naming
    shape). It is registered by `glitchygames.testing.frame_fingerprints` in every run, as
    `frames_vary` is.
-2. **compare-drivers runs `-m draws_frames`.** Every run gets it (the dummy runs, every native
-   configuration, the PNG re-run of differing tests). A user's own `-m` is combined with `and`. The
-   "a run recorded no test" refusal (BUGS.md #192) still applies, so a mistyped marker fails
-   loudly.
+2. **compare-drivers runs only the marked tests, through the plugin's `--draws-frames-only`.**
+   Every run gets it (the dummy runs, every native configuration, the PNG re-run of differing
+   tests). The option deselects every unmarked test after collection, so a user's own `-m` still
+   narrows the run with no combining. (An option rather than `-m draws_frames`: the noxfile runs
+   outside the project's environment and cannot import a shared helper that would merge a
+   user's `-m`; a second copy would drift.) The "a run recorded no test" refusal (BUGS.md #192)
+   still applies.
 3. **The plugin enforces the marker in every pytest run**, including CI on all three operating
    systems, not only when it records:
    - a test that draws without `draws_frames` fails, with the reason (presents counted, or "final
@@ -83,9 +86,12 @@ as strong for frames.
    - `frames_vary` keeps its meaning (recorded, never compared). A `frames_vary` test that draws
      also carries `draws_frames`, so one rule covers both: the marker says what the test does, and
      `frames_vary` says how to read it;
-   - like recording, enforcement applies only in the pytest process the plugin owns and its xdist
-     workers (`GLITCHYGAMES_FRAME_FINGERPRINTS_OWNER`'s rule). A pytest that a test starts (the
-     plugin's own pytester tests) is not judged.
+   - a run is judged unless a test started it: a pytest that configures while
+     `PYTEST_CURRENT_TEST` is set (pytester, in process or as a child process, which inherits the
+     variable; a tool's run) judges nothing. The run's xdist workers and the local native run
+     start outside any test, so they are judged. (`GLITCHYGAMES_FRAME_FINGERPRINTS_OWNER` is set
+     only when recording, so it cannot serve here.) An xdist worker is told by its configuration
+     (`workerinput`), not its environment, which an in-process nested run inherits.
 4. **Explicit marks everywhere, no folder marks** (the owner, 2026-11-22). Folder marking
    conflicts with the "marked but never draws" rule: a collection hook marking every test under
    `src/games`, `src/apps` and `src/demos` marks 9,317 tests, of which 158 draw, so it needs that
@@ -96,12 +102,14 @@ as strong for frames.
    is engine code (`glitchygames.testing`) and may not import `tests/` (enforced:
    `tests/test_suite_collection.py`). A new hook specification,
    `pytest_frame_fingerprints_blank_screen(size) -> bytes | None`, returns the shown RGB bytes a
-   test leaves when it draws nothing at that size. The root `conftest.py` implements it from
-   `tests/display_canvas.py` (`background_pattern_surface(pattern=CANVAS_PATTERN, size=...)`, read
-   through `opacity.shown_rgb_bytes`, cached per size). A project without an implementation gets
-   the presents-only rule.
+   test leaves when it draws nothing at that size. `tests/harness.py` implements it from
+   `tests/display_canvas.py` (`canvas_shown_bytes`: `background_pattern_surface(pattern=
+   CANVAS_PATTERN, size=...)` read through `opacity.shown_rgb_bytes`); the plugin caches it per
+   size. Not the root `conftest.py`: importing `tests.display_canvas` at its top would import
+   pygame before the harness sets the SDL defaults. A project without an implementation gets the
+   presents-only rule.
 6. **The plain local `pytest` comparison** (`tests/driver_comparison.py`'s native child run) also
-   passes `-m draws_frames`. It is the same comparison; this speeds every local full run as well.
+   passes `--draws-frames-only`. It is the same comparison; this speeds every local full run as well.
    Its frames compare exactly as before, since the tests left out have nothing to compare.
 7. **Seeding.** The enforcement writes its verdicts, per session, to
    `test-results/frame-markers.txt` (unmarked drawing tests and marked non-drawing tests, one node
@@ -161,19 +169,22 @@ hook, and is out of scope here.
   `pytest_runtest_makereport`; the session report file; `--frame-markers-report-only`; the hook
   specification (`pytest_addhooks`). The docstring gains a "the draws_frames marker" section,
   which is the contract.
-- `conftest.py` (root): implements `pytest_frame_fingerprints_blank_screen`.
-- `noxfile.py`: `compare_drivers` and its runs pass `-m draws_frames`; the docstring says so.
-- `tests/driver_comparison.py`: the native child run passes `-m draws_frames`; the module
+- `tests/harness.py`: implements `pytest_frame_fingerprints_blank_screen` (from
+  `tests/display_canvas.py`'s `canvas_shown_bytes`).
+- `noxfile.py`: every compare-drivers run (`_run_fingerprinted_tests`) passes
+  `--draws-frames-only`; the docstring says so.
+- `tests/driver_comparison.py`: the native child run passes `--draws-frames-only`; the module
   docstring says so.
 - `scripts/mark_drawing_tests.py`: the codemod (decision 7).
 - The 67 test files holding drawing tests: the markers.
 - Docs: `docs/quality/driver_comparison.md` ("Every local run compares": the native run runs the
-  drawing tests; "On demand": every run is `-m draws_frames`; a new "The draws_frames marker"
+  drawing tests; "On demand": every run runs the marked tests only; a new "The draws_frames marker"
   section with the rule and the failure messages). In `CLAUDE.md`, the Testing Guidelines'
   driver comparison bullet gets the marker in the same number of lines (the file is at its
   360-line cap): "A test that draws carries `@pytest.mark.draws_frames` (the plugin fails it
-  otherwise); a test whose frames legitimately vary also carries `frames_vary(reason=...)`". The
-  Common Commands' `compare-drivers` lines say "drawing tests only".
+  otherwise); a test whose frames legitimately vary also carries `frames_vary(reason=...)`". (The
+  Common Commands' `compare-drivers` line stays: the words would push it past 100 characters, and
+  the Testing Guidelines bullet already says it.)
 
 ## Sub-plan order
 
@@ -210,10 +221,11 @@ Plugin (pytester, in `tests/test_frame_fingerprints.py`):
 Comparison (the compare-drivers session's tests in `tests/test_ci_config.py`, and
 `tests/test_driver_comparison.py`):
 
-- every compare-drivers run, the PNG re-run included, carries `-m draws_frames`, combined with a
-  user's `-m` by `and`;
+- every compare-drivers run, the PNG re-run included, carries `--draws-frames-only`, with a
+  user's selection kept; the plugin's `--draws-frames-only` runs the marked tests alone, and a
+  caller's `-m` still narrows it;
 - a selection that records no test still fails the session, naming the run;
-- the local native child run carries `-m draws_frames`;
+- the local native child run carries `--draws-frames-only`;
 - `--skip-when-frames-cannot-change` still skips a docs-only push before any run.
 
 Codemod (`tests/test_mark_drawing_tests.py`):

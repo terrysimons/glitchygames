@@ -3163,7 +3163,16 @@ class TestDefaultBackgroundArgument:
         expected = background_pattern_surface(pattern=CANVAS_PATTERN, size=engine.screen.get_size())
         assert pygame.image.tobytes(engine.screen, 'RGB') == pygame.image.tobytes(expected, 'RGB')
 
-    @pytest.mark.parametrize('pattern', list(BackgroundPattern))
+    # The case whose pattern is the canvas leaves the canvas, so draws nothing; the others draw
+    @pytest.mark.parametrize(
+        'pattern',
+        [
+            pattern
+            if pattern is CANVAS_PATTERN
+            else pytest.param(pattern, marks=pytest.mark.draws_frames)
+            for pattern in BackgroundPattern
+        ],
+    )
     def test_the_option_sets_the_default_and_the_new_display_shows_it(self, mocker, pattern):
         """--default-background NAME: new scenes and the new display show that pattern."""
         engine = _make_engine(mocker, '--default-background', pattern.value)
