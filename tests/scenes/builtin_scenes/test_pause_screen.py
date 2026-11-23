@@ -7,6 +7,7 @@ engine's tests import no game; the game engine is one too: PauseScene reads two 
 """
 
 import logging
+import re
 import types
 from typing import TYPE_CHECKING, Any, Self, override
 
@@ -14,6 +15,7 @@ import pygame
 import pytest
 
 from glitchygames import events
+from glitchygames.checks import MissingValueError
 from glitchygames.engine import RunningGame
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene, SceneManager
@@ -295,13 +297,13 @@ class TestPauseSceneBehaviour:
     def test_setup_without_a_game_engine_stops(self, isolated_scene_manager):
         """The pause overlay shows the running game, which only a game engine knows.
 
-        A pause screen runs only inside a running game, so a missing engine is a bug. Today this
-        asserts; the assert sweep makes it raise glitchygames.checks.MissingValueError. TODO:
-        expect MissingValueError, with "<what> is missing", once feat/checks-required is on main.
+        A pause screen runs only inside a running game, so a missing engine is a bug.
         """
         isolated_scene_manager.game_engine = None
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(
+            MissingValueError, match=f'^{re.escape("the scene manager's game engine is missing")}$'
+        ):
             isolated_scene_manager.switch_to_scene(PauseScene())
 
     def test_escape_quits(self, isolated_scene_manager):

@@ -1533,6 +1533,57 @@ for name in names:
     start = '\\\\' if escaped != name else ''
     sys.stdout.write(start + hashlib.sha256(content).hexdigest() + '  ' + escaped + '\\n')
 """
+# Linux's df as GNU coreutils documents it
+# (https://www.gnu.org/software/coreutils/manual/html_node/df-invocation.html), for a host whose
+# own df (the Mac's) has no --output: sizes in 1024-byte blocks with -k; the table's columns are
+# Filesystem, 1K-blocks (1024-blocks with -P), Used, Available, Use% (Capacity with -P) and
+# Mounted on, the filesystem's name printed as it is, spaces included; --output=avail prints only
+# the "Avail" header and the number. Checked against GNU df 9.7 in ubuntu:26.04 and debian:trixie
+# on a tmpfs named "my models" (2026-11-20). The numbers are the path's own (statvfs) unless
+# DF_USED_KIB and DF_AVAILABLE_KIB give them; DF_FILESYSTEM_NAME names the filesystem; DF_FAILS
+# makes it fail as df does on a path it cannot read. Any other option is refused, so a changed
+# call is caught
+GNU_DF_STUB = f"""#!{sys.executable} -I
+import os
+import sys
+
+arguments = sys.argv[1:]
+fields = None
+portable = False
+paths = []
+for argument in arguments:
+    if argument == '-k':
+        continue
+    if argument == '-P':
+        portable = True
+    elif argument.startswith('--output='):
+        fields = argument.removeprefix('--output=').split(',')
+    elif argument == '--':
+        continue
+    elif argument.startswith('-'):
+        sys.exit('unexpected: df ' + ' '.join(arguments))
+    else:
+        paths.append(argument)
+if len(paths) != 1 or (fields is not None and fields != ['avail']):
+    sys.exit('unexpected: df ' + ' '.join(arguments))
+if os.environ.get('DF_FAILS'):
+    sys.stderr.write(f"df: {{paths[0]}}: Input/output error\\n")
+    sys.exit(1)
+status = os.statvfs(paths[0])
+available = int(os.environ.get('DF_AVAILABLE_KIB', status.f_bavail * status.f_frsize // 1024))
+total = status.f_blocks * status.f_frsize // 1024
+used = int(os.environ.get('DF_USED_KIB', total - status.f_bfree * status.f_frsize // 1024))
+size = max(total, used + available)
+if fields == ['avail']:
+    print('Avail')
+    print(available)
+    sys.exit(0)
+name = os.environ.get('DF_FILESYSTEM_NAME', '/dev/stub')
+percent = f'{{-(-used * 100 // max(used + available, 1))}}%'
+print('Filesystem', '1024-blocks' if portable else '1K-blocks', 'Used', 'Available',
+      'Capacity' if portable else 'Use%', 'Mounted on')
+print(name, size, used, available, percent, '/')
+"""
 
 
 class ServiceHome:
@@ -1556,6 +1607,7 @@ class ServiceHome:
             _write_executable(tools / tool, SERVICE_TOOL_STUB)
         if system == 'Linux' and sys.platform != 'linux':
             _write_executable(tools / 'sha256sum', GNU_SHA256SUM_STUB)
+            _write_executable(tools / 'df', GNU_DF_STUB)
         _write_executable(tools / 'runtime' / 'bin' / 'llama-server', LLAMA_SERVER_STUB)
         self.tool_log.write_text('', encoding='utf-8')
 
@@ -3413,6 +3465,243 @@ def test_sha256_of_gives_the_bare_hash_whatever_the_file_is_called(
 
     assert result.returncode == 0, result.stderr
     assert result.stdout == hashlib.sha256(b'model bytes\n').hexdigest() + '\n'
+
+
+# Far more than the default selection's files, which LinuxSetup serves as a few bytes each
+PLENTY_OF_ROOM_KIB = 64 * 1024 * 1024
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('filesystem_name', ['my models', '/dev/mmcblk0p2'])
+@pytest.mark.parametrize(
+    ('used_kib', 'available_kib', 'outcome'),
+    [(0, PLENTY_OF_ROOM_KIB, 'downloads'), (PLENTY_OF_ROOM_KIB, 0, 'refuses')],
+    ids=['room', 'full'],
+)
+def test_setup_reads_the_free_space_whatever_the_filesystem_is_called(
+    tmp_path: Path, filesystem_name: str, used_kib: int, available_kib: int, outcome: str
+):
+    """setup.sh decides from the free space alone, even on a filesystem whose name has a space.
+
+    It read the fourth field of df's last line, which a name with a space (an SMB home, an sshfs
+    or rclone mount) moves onto the Used column: an empty disk read as full, so no model was ever
+    downloaded, and a full one as empty, so the download filled it
+    (bugs/2026-11-20-free-space-read-from-the-wrong-column.md).
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    # GNU's df on every host, as the real one would name this filesystem
+    _write_executable(setup.service.tools / 'df', GNU_DF_STUB)
+    model_file = setup.selected_model_files()[0]
+
+    result = setup.run(
+        extra={
+            'DF_FILESYSTEM_NAME': filesystem_name,
+            'DF_USED_KIB': str(used_kib),
+            'DF_AVAILABLE_KIB': str(available_kib),
+        }
+    )
+
+    model = setup.user_root / 'models' / model_file['file']
+    if outcome == 'downloads':
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert model.exists()
+    else:
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert f'setup: not enough disk space for {model_file["file"]}' in result.stdout
+        assert not model.exists()
+
+
+@needs_a_posix_shell
+def test_setup_downloads_anyway_when_the_free_space_cannot_be_read(tmp_path: Path):
+    """A free space df cannot give is logged as unknown and the download goes ahead.
+
+    The check only saves a doomed download (curl fails on a full disk, and its .part resumes on
+    the next run), so a reading that fails must not stop the service for good. Before, an empty
+    reading counted as no space at all, and a word in its place stopped the script (sh's
+    arithmetic on a non-number) with an exit code it never documents.
+    """
+    setup = LinuxSetup(tmp_path=tmp_path)
+    setup.set_cores(count=4, capacities={})
+    _write_executable(setup.service.tools / 'df', GNU_DF_STUB)
+    model_file = setup.selected_model_files()[0]
+
+    result = setup.run(extra={'DF_FAILS': '1'})
+
+    # The line says what the command printed and said, so a disk that really fills shows why
+    notice = next(line for line in result.stdout.splitlines() if 'free space unknown' in line)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert notice.startswith("setup: free space unknown (read ''; error 'df: "), notice
+    assert 'Input/output error' in notice
+    assert notice.endswith(f'downloading {model_file["file"]} anyway')
+    assert (setup.user_root / 'models' / model_file['file']).exists()
+
+
+# How far apart two readings of the same disk may be, as other processes write to it meanwhile
+FREE_SPACE_DRIFT_KIB = 256 * 1024
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', ['Linux', 'Darwin'])
+def test_free_kib_of_reads_what_the_filesystem_reports(
+    tmp_path: Path, system: Literal['Linux', 'Darwin']
+):
+    """The free space function prints the path's free KiB as statvfs gives it, digits alone.
+
+    Each platform's real tool is used where it exists (GNU df on Linux, osascript on a Mac); a
+    Mac running the Linux rendering uses GNU_DF_STUB, as ServiceHome sets it up.
+    """
+    if system == 'Darwin' and sys.platform != 'darwin':
+        pytest.skip('osascript exists only on a Mac')
+    service = ServiceHome(system=system, home=tmp_path / 'home', tools=tmp_path / 'tools')
+    template = tmp_path / 'free_kib_of.sh.j2'
+    template.write_text(
+        "{% import 'roles/ai_service/templates/platform_functions.sh.j2' as platform"
+        ' with context %}\n'
+        '{{ platform.free_kib_of() }}\n'
+        'free_kib_of "$1"\n',
+        encoding='utf-8',
+    )
+    script = tmp_path / 'free_kib_of.sh'
+    script.write_text(render_template(path=template, variables=service.variables), encoding='utf-8')
+    folder = tmp_path / 'with space'
+    folder.mkdir()
+
+    result = run_command(
+        command=['/bin/sh', str(script), str(folder)],
+        environment=service.environment(),
+        timeout_seconds=60,
+        capture_output=OutputCapture.APART,
+    )
+
+    status = os.statvfs(folder)
+    assert result.returncode == 0, result.stderr
+    assert re.fullmatch(r'[0-9]+\n', result.stdout), result.stdout
+    assert abs(int(result.stdout) - status.f_bavail * status.f_frsize // 1024) <= (
+        FREE_SPACE_DRIFT_KIB
+    )
+
+
+# Ansible's own free-space checks: the role, the variable its command's result is registered
+# as, the variable naming the path it measures, and its refusal's task name
+ANSIBLE_DISK_CHECKS = {
+    'ai_models': (
+        'ai_models_disk',
+        'ai_models_directory',
+        "Refuse to start a download that won't fit",
+    ),
+    'llama_cpp': ('llama_cpp_disk', 'ai_home', 'Refuse to build without the disk space'),
+}
+
+
+def disk_check_tasks(*, role: str) -> dict[str, dict[str, Any]]:
+    """Find a role's free-space tasks by name.
+
+    Returns:
+        The measuring task, the unknown-space notice and the refusal.
+    """
+    tasks = {task.get('name'): task for task in walk_tasks(tasks=role_tasks(role=role))}
+    return {
+        'measure': tasks['Measure the free disk space'],
+        'unknown': tasks["Say when the free disk space can't be read"],
+        'refuse': tasks[ANSIBLE_DISK_CHECKS[role][2]],
+    }
+
+
+@needs_a_posix_shell
+@pytest.mark.parametrize('system', ['Linux', 'Darwin'])
+@pytest.mark.parametrize('role', sorted(ANSIBLE_DISK_CHECKS))
+def test_ansible_measures_the_free_space_as_the_number_alone(
+    tmp_path: Path, role: str, system: Literal['Linux', 'Darwin']
+):
+    """Each Ansible check's command ends its output with the folder's free KiB, digits alone.
+
+    They split df's last line and took the fourth field, which a filesystem name holding a space
+    moves onto Used (bugs/2026-11-20-free-space-read-from-the-wrong-column.md). Each platform's
+    real tool is used where it exists; a Mac running the Linux command uses GNU_DF_STUB.
+    """
+    if system == 'Darwin' and sys.platform != 'darwin':
+        pytest.skip('osascript exists only on a Mac')
+    tools = tmp_path / 'tools'
+    tools.mkdir()
+    if system == 'Linux' and sys.platform != 'linux':
+        _write_executable(tools / 'df', GNU_DF_STUB)
+    folder = tmp_path / 'with space'
+    folder.mkdir()
+    architecture = 'arm64' if system == 'Darwin' else 'aarch64'
+    variables = ansible_variables(system=system, architecture=architecture, home=tmp_path) | {
+        ANSIBLE_DISK_CHECKS[role][1]: str(folder)
+    }
+    command = render_value(
+        value=disk_check_tasks(role=role)['measure']['ansible.builtin.command']['argv'],
+        variables=variables,
+    )
+
+    result = run_command(
+        command=command,
+        environment={'PATH': os.pathsep.join([str(tools), '/usr/bin', '/bin'])},
+        timeout_seconds=60,
+        capture_output=OutputCapture.APART,
+    )
+
+    status = os.statvfs(folder)
+    last_line = result.stdout.splitlines()[-1]
+    assert result.returncode == 0, result.stderr
+    assert re.fullmatch(r'[0-9]+', last_line), result.stdout
+    assert abs(int(last_line) - status.f_bavail * status.f_frsize // 1024) <= (FREE_SPACE_DRIFT_KIB)
+
+
+@pytest.mark.parametrize(
+    ('measured', 'outcome'),
+    [
+        (f'{PLENTY_OF_ROOM_KIB}\n', 'goes ahead'),
+        (f'Avail\n{PLENTY_OF_ROOM_KIB}\n', 'goes ahead'),
+        ('0\n', 'refuses'),
+        ('', 'goes ahead, saying the space is unknown'),
+        ('Avail\n', 'goes ahead, saying the space is unknown'),
+    ],
+    ids=['room', 'room-under-a-header', 'full', 'nothing', 'not-a-number'],
+)
+@pytest.mark.parametrize('role', sorted(ANSIBLE_DISK_CHECKS))
+def test_ansible_refuses_only_work_that_wont_fit(
+    tmp_path: Path, role: str, measured: str, outcome: str
+):
+    """A download or build stops only on a free space it read and found too small.
+
+    A reading that isn't a number is said and the work goes ahead, as setup.sh does: the check
+    only saves work that would fail anyway.
+    """
+    tasks = disk_check_tasks(role=role)
+    variables = ansible_variables(system='Darwin', architecture='arm64', home=tmp_path) | {
+        ANSIBLE_DISK_CHECKS[role][0]: {
+            'stdout': measured,
+            'stdout_lines': measured.splitlines(),
+            'stderr': '',
+        },
+        'ai_models_missing_bytes': 1024 * 1024,
+    }
+
+    def holds(condition: str) -> bool:
+        return render_expression(expression='{{ ' + condition + ' }}', variables=variables)
+
+    notice_runs = holds(tasks['unknown']['when'])
+    refusal_runs = holds(tasks['refuse']['when'])
+    refused = refusal_runs and not holds(tasks['refuse']['ansible.builtin.assert']['that'])
+    if refused:
+        actual = 'refuses'
+    elif notice_runs:
+        actual = 'goes ahead, saying the space is unknown'
+    else:
+        actual = 'goes ahead'
+
+    # Exactly one of the two runs: the notice for a reading that isn't a number, else the check
+    assert notice_runs is not refusal_runs
+    assert actual == outcome
+    # The notice quotes what the command printed, so a disk that really fills shows why
+    notice = render_value(
+        value=tasks['unknown']['ansible.builtin.debug']['msg'], variables=variables
+    )
+    assert json.dumps(measured) in notice
 
 
 @needs_a_posix_shell
