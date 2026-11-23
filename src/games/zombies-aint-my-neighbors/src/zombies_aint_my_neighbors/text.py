@@ -1,4 +1,7 @@
-"""Text for the game's screens: the bundled bold font, rendered lines and a centred picture.
+"""Text for the game's screens: stacked lines of text and a centred picture.
+
+Fonts and single lines come from the engine (``glitchygames.fonts.font_manager``: ``bundled_font``,
+``fitted_font``, ``render_line``); this game asks for the bold font.
 
 Text is rendered once, when a scene is set up, and shown as sprites: a ``TextPicture`` swaps
 between images made in advance and is shown or hidden, so no frame renders text (master plan,
@@ -12,8 +15,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import pygame
 
-from glitchygames.fonts import FontManager
-from glitchygames.fonts.font_manager import bundled_font_path
+from glitchygames.fonts import font_manager
 from glitchygames.sprites import Sprite
 
 if TYPE_CHECKING:
@@ -21,64 +23,12 @@ if TYPE_CHECKING:
 
 type Colour = tuple[int, int, int]
 
-# Fonts never get smaller than this when fitted to a width
 # The game's name: the window's title on the title, a stage and the game over, and the start of
 # every other scene's, "<game name> - <part>" (an f-string in each scene's NAME, which the
 # process-state guard reads as immutable; tests/test_process_state_guard.py)
 GAME_NAME = "Zombies Ain't My Neighbors"
-SMALLEST_FONT_SIZE = 8
 # The space between stacked lines of text, in pixels
 LINE_GAP = 4
-
-
-def title_font(*, size: int) -> pygame.font.Font:
-    """Return the bundled Bitstream Vera Bold at a size.
-
-    Uncached on purpose: a scene asks once per size in ``setup()`` and keeps the font, so no
-    module-level state exists for the process-state guard to flag.
-
-    Args:
-        size: The point size.
-
-    Returns:
-        The font.
-
-    """
-    return pygame.font.Font(bundled_font_path(font_name='VeraBd'), size)
-
-
-def fitted_title_font(*, texts: Sequence[str], width: int, largest: int) -> pygame.font.Font:
-    """Return the largest bold font, up to a size, in which every text fits a width.
-
-    Args:
-        texts: The texts that must fit.
-        width: The width they must fit, in pixels.
-        largest: The largest size wanted.
-
-    Returns:
-        The font (``SMALLEST_FONT_SIZE`` when even that is too wide).
-
-    """
-    for size in range(largest, SMALLEST_FONT_SIZE, -1):
-        font = title_font(size=size)
-        if all(font.size(line)[0] <= width for line in texts):
-            return font
-    return title_font(size=SMALLEST_FONT_SIZE)
-
-
-def render_text(*, font: pygame.font.Font, text: str, colour: Colour) -> pygame.Surface:
-    """Render a line of text, antialiased as the engine's fonts are.
-
-    Args:
-        font: The font.
-        text: The text.
-        colour: Its colour.
-
-    Returns:
-        The rendered line (per-pixel alpha).
-
-    """
-    return font.render(text, antialias=FontManager.antialias(), color=colour)
 
 
 def render_lines(*, font: pygame.font.Font, lines: Sequence[str], colour: Colour) -> pygame.Surface:
@@ -93,7 +43,7 @@ def render_lines(*, font: pygame.font.Font, lines: Sequence[str], colour: Colour
         The image (per-pixel alpha).
 
     """
-    rendered = [render_text(font=font, text=line, colour=colour) for line in lines]
+    rendered = [font_manager.render_line(font=font, text=line, color=colour) for line in lines]
     width = max(line.get_width() for line in rendered)
     height = sum(line.get_height() for line in rendered) + LINE_GAP * (len(rendered) - 1)
     image = pygame.Surface((width, height), pygame.SRCALPHA)

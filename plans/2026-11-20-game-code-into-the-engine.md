@@ -210,17 +210,18 @@ saved entry dumps as `{'score': 900, 'floor': 3}`, the same dictionary order.
 **An entry that fails validation: two policies, chosen by an option (the owner, 2026-11-20).**
 Example: Clockwork's save holds `{"scores": [{"floor": 3}]}` (no `score`; today it is kept, sorts
 as 0 and is written back every game). A new engine option, `--invalid-high-scores
-{refuse,drop}` (default `refuse`; a project setting in `[tool.glitchygames]` like the other tool
-options, and an explicit `HighScoreTableSettings.invalid_entries` field for code), picks:
+{refuse,drop}` (default `refuse`; a command-line option, and an explicit
+`HighScoreTableSettings.invalid_entries` field for code). It is not a `[tool.glitchygames]`
+setting: only the repository's tools read that table, and a game installed from a wheel never
+sees `pyproject.toml` (corrected while building it, 2026-11-20). It picks:
 - **`refuse` (the default for now; the owner may switch it later):** the table raises the
   existing `SaveCorruptedError` naming the slot and the first bad entry. The game-over flow
   catches it, still shows the run's score, logs one error, and does not save, so the file stays
   exactly as found.
 - **`drop`:** invalid entries are left out with one logged warning naming each, the table works,
   and the next save writes the file without them.
-The option is described once in `replay/tools/registry.py`'s `TOOLS` pattern or the argument
-system (docs/architecture/argument_system.md), whichever owns engine-wide game options; it must not
-clash with any game's arguments.
+The option is one of the engine's Game Options (`GameEventManager.args`, listed in
+docs/architecture/argument_system.md); it must not clash with any tool's or game's arguments.
 
 **Tests for the policies (behaviours; both branches, the owner's rule that a reachable mode is
 an explicit flag tested both ways):**
@@ -230,7 +231,7 @@ an explicit flag tested both ways):**
 - With `drop`: the same file gives the valid entries in their order, one warning per dropped
   entry is logged, and the next `record()` saves the file without the invalid ones.
 - Valid files behave identically under both policies (the characterization table runs under each).
-- The option parses from the command line and from `[tool.glitchygames]`, defaults to `refuse`,
+- The option parses from the command line, defaults to `refuse`,
   rejects any other value naming the two choices, and the game-over flow under `refuse` shows the
   score, logs the error and does not save (a test through a stand-in game-over scene).
 - An entry with an unknown extra field (refused by `extra='forbid'`) and one with a wrong type
