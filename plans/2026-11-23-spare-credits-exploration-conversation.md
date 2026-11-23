@@ -419,3 +419,14 @@ could fit the myths, for demos to test: each fairy mound holds one part of the c
 sealed by a forgotten word; the pieces collected are language itself (true names, phrases, ogham
 letters, verses); and each opened section of the tree shows up in the world as resurgence
 (speakers returning, children answering in Irish, color returning).
+
+## 47. User (2026-11-23)
+
+> And the reason it needs to be dynamic is so that as you're learning it, you're using it to
+> learn more, and you're going on your own language journey - literally, and figuratively.
+
+## 48. Claude
+
+Recorded why the tree is dynamic: what the player has learned is the tool for learning more, so
+each player goes on their own language journey, literally (through the world) and figuratively
+(through the language).

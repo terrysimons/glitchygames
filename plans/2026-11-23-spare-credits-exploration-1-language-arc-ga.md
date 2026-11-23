@@ -353,6 +353,10 @@ answers it later.
 
   This fits the user's dynamic tree with no fixed nodes. **(user)** The tree's contents are
   still the user's to explain.
+- **(user)** Why the tree is dynamic: what the player has learned is what they use to learn
+  more, so each player goes on their own language journey, literally and figuratively. A sealed
+  mound's word, for example, is only readable with words already won elsewhere, and which
+  mound a player opens first shapes the path that follows (an illustration, not a decision).
 
 ## 9. The different way of seeing
 

@@ -45,6 +45,9 @@ The game, as the user has described it so far:
   the user's to give.)
 - **(user)** The skill tree is dynamic and has no fixed nodes, so language discovery happens
   organically, as it would in a real, truly immersive situation.
+- **(user)** Why it must be dynamic: as you learn the language you use it to learn more, so each
+  player goes on their own language journey, literally (through the world) and figuratively
+  (through the language).
 - **(user)** AI helps steer things, design the skill tree's mechanics and emergent properties,
   ask clarifying questions, test possibilities, and so on.
 - **(user)** AI likely plays a part both while the game is made and while it is played; where
