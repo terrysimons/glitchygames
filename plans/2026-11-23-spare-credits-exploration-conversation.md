@@ -574,3 +574,13 @@ pass to 16-bit+, keeping each design and adding shading and soft glow, with part
 (the default 32-bit RGBA color space), capped at 64 colors because today's glyph set and
 Bitmappy's save stop at 64 until the glyph generator is built. The 16-bit originals stay for
 comparison.
+
+## 66. Claude
+
+All eighteen mascots were drawn, upgraded to 16-bit+ (24 to 58 colors each, soft glows with
+partial alpha, up to 12 frames per animation), and checked by the engine's own loader. Built a
+contact sheet grouped by cluster, with frame 0 also shown on a light panel. Three pairs chose the
+same name; proposed renames: the firefly Flicker (the drone keeps Glim), the glitch ghost Static
+(the solder slime keeps Blip), the living sigil Runa (the fiber fox keeps Lumen). The sprites,
+generators and sheets stay outside the repository until the user picks a mascot and where it
+lands.
