@@ -71,6 +71,46 @@ TEST_WAITING_ON_A_CHILD = textwrap.dedent(
 )
 
 
+# The stand-in's test goes on a moment after its child is stopped, so the plugin's line is
+# written while the test's output is still captured
+TEST_GOING_ON_AFTER_ITS_CHILD_IS_STOPPED = TEST_WAITING_ON_A_CHILD + textwrap.indent(
+    textwrap.dedent(
+        """
+        import time
+
+        time.sleep(1)
+        """
+    ),
+    '    ',
+)
+# The inner run's conftest: pytest-timeout's end of the worker waits until the test has been
+# reported, so the test's captured output is collected (and, as it passed, dropped) first.
+# That is the order job 5171 met (bugs/2026-11-23-...): a line written into the capture was lost
+DUMP_AFTER_THE_TEST_IS_REPORTED = textwrap.dedent(
+    """
+    import threading
+
+    import pytest_timeout
+
+    REPORTED = threading.Event()
+    end_the_worker = pytest_timeout.timeout_timer
+
+
+    def end_the_worker_once_reported(item, settings):
+        REPORTED.wait(timeout=30)
+        end_the_worker(item, settings)
+
+
+    pytest_timeout.timeout_timer = end_the_worker_once_reported
+
+
+    def pytest_runtest_logreport(report):
+        if report.when == 'call':
+            REPORTED.set()
+    """
+)
+
+
 # Two tests, each shorter than the inner limit but together longer: a timer left running after
 # the first would end the second
 TESTS_ENDING_IN_TIME = textwrap.dedent(
@@ -121,7 +161,7 @@ def test_a_test_ended_at_its_limit_has_its_child_stopped_first(tmp_path):
             '-n',
             '1',
         ],
-        environment={**os.environ, 'STAND_IN_CHILD_PID': str(child_pid_path)},
+        environment={**inner_run_environment(), 'STAND_IN_CHILD_PID': str(child_pid_path)},
         working_directory=PROJECT_ROOT,
         capture_output=OutputCapture.TOGETHER,
         timeout_seconds=INNER_RUN_TIMEOUT_SECONDS,
@@ -140,6 +180,50 @@ def test_a_test_ended_at_its_limit_has_its_child_stopped_first(tmp_path):
     finally:
         if process_exists(pid=child_pid):
             os.kill(child_pid, signal.SIGKILL)
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='the guard records children on POSIX only')
+def test_the_line_naming_the_stopped_children_survives_the_tests_own_capture(tmp_path):
+    """The line goes to the run's own standard error, never into the test's captured output.
+
+    Written while the test still captured (pytest moves descriptor 2 to its file then), it
+    reached the terminal only when pytest-timeout dumped that capture before the test's report
+    collected it: job 5171 lost it, and a Linux container lost it in 6 of 6 plain runs.
+    """
+    (tmp_path / 'pytest.ini').write_text('[pytest]\n', encoding='utf-8')
+    (tmp_path / 'conftest.py').write_text(DUMP_AFTER_THE_TEST_IS_REPORTED, encoding='utf-8')
+    test_file = tmp_path / 'test_stand_in.py'
+    test_file.write_text(TEST_GOING_ON_AFTER_ITS_CHILD_IS_STOPPED, encoding='utf-8')
+    child_pid_path = tmp_path / 'child.pid'
+
+    finished = run_command(
+        command=[*inner_run_arguments(directory=tmp_path, test_file=test_file), '-n', '1'],
+        environment={**inner_run_environment(), 'STAND_IN_CHILD_PID': str(child_pid_path)},
+        working_directory=PROJECT_ROOT,
+        capture_output=OutputCapture.TOGETHER,
+        timeout_seconds=INNER_RUN_TIMEOUT_SECONDS,
+    )
+    child_pid = int(child_pid_path.read_text(encoding='utf-8'))
+    try:
+        assert f'ran past its {INNER_LIMIT_SECONDS} s limit; its children, stopped' in (
+            finished.stdout
+        ), finished.stdout
+    finally:
+        if process_exists(pid=child_pid):
+            os.kill(child_pid, signal.SIGKILL)
+
+
+def inner_run_environment() -> dict[str, str]:
+    """This process's environment without ``PYTEST_ADDOPTS``, as pytester removes it.
+
+    An inherited ``-s`` would turn the inner run's capture off, and the line under test would
+    then reach the terminal however it was written.
+
+    Returns:
+        The environment for an inner run.
+
+    """
+    return {name: value for name, value in os.environ.items() if name != 'PYTEST_ADDOPTS'}
 
 
 def inner_run_arguments(*, directory: Path, test_file: Path) -> list[str]:
@@ -175,7 +259,7 @@ def test_tests_that_end_in_time_have_their_timers_cancelled(tmp_path):
 
     finished = run_command(
         command=inner_run_arguments(directory=tmp_path, test_file=test_file),
-        environment=os.environ,
+        environment=inner_run_environment(),
         working_directory=PROJECT_ROOT,
         capture_output=OutputCapture.TOGETHER,
         timeout_seconds=INNER_RUN_TIMEOUT_SECONDS,
