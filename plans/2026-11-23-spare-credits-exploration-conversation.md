@@ -626,3 +626,7 @@ Each gets a full sheet at 32x32 and 16-bit+:
 Built by a team per character: a lead designer sets the model and idle views; three animators
 work in parallel (locomotion, five emotes each); an art director assembles and checks
 consistency.
+
+## 71. User (2026-11-23)
+
+> Ok, go ahead.
