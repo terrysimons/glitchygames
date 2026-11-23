@@ -1499,6 +1499,19 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
       `glitchygames.audio.listening`, the scripts are gone.
     - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
       clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
+- **Make the driver comparison's image re-run stop at the frames it needs** (the owner,
+  2026-11-22). When frames differ, the differing tests are run again on both drivers to save PNGs
+  (`tests/driver_comparison.py`'s `save_difference_images`, `nox -s compare-drivers`' images
+  run; the request is `frame_comparison.image_request_for`'s `FrameImageRequest`). It saves only
+  a few frames already (the first differing frame and both final frames), but each re-run plays
+  its test to the end, a minute or two when anything differs. A test cannot skip to frame N, so:
+  - stop each re-run once its last requested frame is presented (the recorder knows the
+    positions; ending the test there must not count as a failure of the run);
+  - save a small window around the first difference (a few frames before and after) instead of
+    only that frame, so the images show the context;
+  - for golden replays, measure whether a replay could start from a recorded keyframe just
+    before the difference rather than from frame 0 (depends on what the replay format restores).
+  Measure the re-run's time before and after on a real difference.
 - ~~**Move the games onto the new sound library (sound engine M2's migration), in
   `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache**~~ **Done**
   2026-11-15 (plans/2026-11-14-sound-migration.md, steps 1-9, and its two measurements: ten
