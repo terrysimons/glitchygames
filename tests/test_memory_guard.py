@@ -24,7 +24,6 @@ from tests.memory_guard import (
     cgroup_reclaimable_slab_reader,
     guard_from_environment,
     memory_reader,
-    original_standard_error,
     statm_resident_reader,
     stop_the_run,
 )
@@ -510,16 +509,6 @@ def test_stopping_exits_even_when_the_write_fails(mocker):
     stop_the_run(error_descriptor=write_end, message='over the limit')
 
     exits.assert_called_once_with(LIMIT_EXIT_STATUS)
-
-
-def test_the_original_standard_error_is_a_new_descriptor(pytestconfig):
-    """A duplicate of the run's original standard error (pytest's saved one when capturing)."""
-    descriptor = original_standard_error(config=pytestconfig)
-    try:
-        assert descriptor > 2
-        os.fstat(descriptor)
-    finally:
-        os.close(descriptor)
 
 
 def test_an_xdist_worker_makes_no_guard(pytester, monkeypatch, tmp_path):

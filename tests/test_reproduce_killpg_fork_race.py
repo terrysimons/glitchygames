@@ -12,7 +12,12 @@ import sys
 
 import pytest
 from scripts import reproduce_killpg_fork_race as reproducer
-from scripts.reproduce_killpg_fork_race import main, run_trial
+from scripts.reproduce_killpg_fork_race import (
+    TrialHadNoMemberError,
+    first_member,
+    main,
+    run_trial,
+)
 
 from glitchygames.exit_codes import ExitCode
 
@@ -48,3 +53,49 @@ def test_a_group_signal_that_misses_the_forked_member_is_reported(mocker):
     # The shell itself was killed; what it had forked is left, and only that
     assert left
     assert all(member.endswith(f'sleep {reproducer.MEMBER_SECONDS}') for member in left), left
+
+
+# The shell before 2026-11-23: it logged "started" before its first fork, so a stop could land
+# while the group had no member, and that trial left nothing whatever the stop did
+SHELL_LOGGING_BEFORE_ITS_FIRST_FORK = (
+    f'printf "started\\n" >> "$1"; i=0; while [ "$i" -lt {reproducer.MEMBERS} ]; do '
+    f'sleep {reproducer.MEMBER_SECONDS} & i=$((i + 1)); done; wait'
+)
+
+
+@pytest.mark.parametrize('mode', reproducer.MODES)
+def test_a_trial_whose_shell_logs_before_its_first_fork_is_refused(mocker, mode):
+    """A trial that cannot show a member running when it stops is refused, never counted.
+
+    It would otherwise pass without testing anything (job 5176's ``left == []``).
+    """
+    mocker.patch.object(reproducer, 'TRIAL_SCRIPT', SHELL_LOGGING_BEFORE_ITS_FIRST_FORK)
+
+    with pytest.raises(TrialHadNoMemberError, match='names no member'):
+        run_trial(mode=mode)
+
+
+def test_the_first_members_pid_is_read_from_the_log_line(tmp_path):
+    """The shell logs "started" and the pid of the member it forked first."""
+    log = tmp_path / 'log'
+    log.write_text('started 4321\n', encoding='utf-8')
+
+    assert first_member(log=log) == 4321
+
+
+@pytest.mark.parametrize('line', ['started\n', 'started 12 34\n', 'begun 12\n', 'started x\n'])
+def test_a_log_line_naming_no_member_is_refused(tmp_path, line):
+    """Anything but "started PID" names no member."""
+    log = tmp_path / 'log'
+    log.write_text(line, encoding='utf-8')
+
+    with pytest.raises(TrialHadNoMemberError):
+        first_member(log=log)
+
+
+def test_a_first_member_gone_before_the_stop_is_refused(mocker):
+    """The member the log names must still exist when the stop lands."""
+    mocker.patch.object(reproducer, 'process_exists', return_value=False)
+
+    with pytest.raises(TrialHadNoMemberError, match='gone before the stop'):
+        run_trial(mode='stop-command')

@@ -1341,6 +1341,81 @@ class TestAnInterruptedLaunchStopsAndReapsItsChild:
         assert statuses == [3]
 
 
+@LAUNCHERS
+def test_a_signal_raised_while_the_child_is_created_is_handled_once_after_popen_returns(
+    mocker, handlers_put_back, launch
+):
+    """The deferral records a signal that lands inside ``Popen`` and raises it once afterwards.
+
+    Runs on every platform (``signal.raise_signal`` and a Python handler need no POSIX): the
+    class above, which sends signals to a thread and reaps with waitpid, is POSIX only, and
+    Windows' combined coverage missed the recording, and the raising again
+    (coverage-combine-windows, #287).
+    """
+    del handlers_put_back
+    events: list[str] = []
+
+    def handle_interrupt(_signal_number: int, _frame: object) -> None:
+        events.append('handled')
+
+    signal.signal(signal.SIGINT, handle_interrupt)
+    real_popen = subprocess.Popen
+
+    def popen_interrupted_twice_as_it_returns(
+        *arguments: Any, **keywords: Any
+    ) -> subprocess.Popen[str]:
+        """``Popen`` with two Ctrl-Cs landing after the child started, before it returns.
+
+        Returns:
+            The started child.
+
+        """
+        child = real_popen(*arguments, **keywords)
+        signal.raise_signal(signal.SIGINT)
+        signal.raise_signal(signal.SIGINT)
+        events.append('popen returned')
+        return child
+
+    mocker.patch.object(subprocess, 'Popen', popen_interrupted_twice_as_it_returns)
+
+    launch(command=[sys.executable, '-c', 'pass'])
+
+    assert events == ['popen returned', 'handled']
+
+
+@LAUNCHERS
+def test_a_signal_this_process_ignores_stays_ignored_while_the_child_is_created(
+    mocker, handlers_put_back, launch
+):
+    """An ignored SIGTERM is not deferred: it is still ignored inside ``Popen``, on every platform.
+
+    The POSIX class's ``nohup`` test shows the effect in the child (SIGHUP, which Windows lacks);
+    this one reads the handler where the child is created, so Windows covers the rule too.
+    """
+    del handlers_put_back
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    handlers_during_popen: list[object] = []
+    real_popen = subprocess.Popen
+
+    def popen_reading_the_terminate_handler(
+        *arguments: Any, **keywords: Any
+    ) -> subprocess.Popen[str]:
+        """``Popen`` that notes SIGTERM's handler while the child is created.
+
+        Returns:
+            The started child.
+
+        """
+        handlers_during_popen.append(signal.getsignal(signal.SIGTERM))
+        return real_popen(*arguments, **keywords)
+
+    mocker.patch.object(subprocess, 'Popen', popen_reading_the_terminate_handler)
+
+    launch(command=[sys.executable, '-c', 'pass'])
+
+    assert handlers_during_popen == [signal.SIG_IGN]
+
+
 class ChildInterruptedDuringItsGracePeriod(ChildThatOutlivesTheGracePeriod):
     """Stands in for a child whose grace wait a second Ctrl-C interrupts."""
 
