@@ -80,6 +80,7 @@ class TestAnimationVisual:
         yield set_display_mode(size=(SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.quit()
 
+    @pytest.mark.draws_frames
     def test_animation_scene_setup(self):
         """Test that the animation test scene loads, plays and centres its sprite."""
         scene = AnimationTestScene(COLORS_FILE)
@@ -91,6 +92,7 @@ class TestAnimationVisual:
         assert scene.animated_sprite.rect.size == scene.animated_sprite.image.get_size()
         assert scene.animated_sprite.rect.center == (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
 
+    @pytest.mark.draws_frames
     def test_animation_frame_rendering(self):
         """Test that the first frame renders in the sprite's rect and nowhere else."""
         scene = AnimationTestScene(COLORS_FILE)
@@ -109,6 +111,7 @@ class TestAnimationVisual:
             sprite_rect.height
         )
 
+    @pytest.mark.draws_frames
     def test_animation_frame_transitions(self):
         """Test that setting each frame gives the sprite that frame's colour."""
         scene = AnimationTestScene(COLORS_FILE)
@@ -121,6 +124,7 @@ class TestAnimationVisual:
 
         assert sprite_colors == [{color} for color in FRAME_COLORS]
 
+    @pytest.mark.draws_frames
     def test_animation_timing_visual_verification(self):
         """Test that each frame shows for its own duration, then the animation loops."""
         scene = AnimationTestScene(COLORS_FILE)
@@ -140,6 +144,7 @@ class TestAnimationVisual:
         # After the last frame's duration the looping animation is back on frame 0
         assert scene.sprite_image_colors() == {FRAME_COLORS[0]}
 
+    @pytest.mark.draws_frames
     def test_animation_surface_properties(self):
         """Test that every frame has a same-sized image of its own colour."""
         scene = AnimationTestScene(COLORS_FILE)
@@ -153,6 +158,7 @@ class TestAnimationVisual:
             assert frame.image.get_size() == first_frame_size
             assert region_colors(frame.image, frame.image.get_rect()) == {frame_color}
 
+    @pytest.mark.draws_frames
     def test_animation_pixel_integrity(self):
         """Test that the sprite shows each frame's pixels unchanged."""
         scene = AnimationTestScene(COLORS_FILE)
@@ -169,6 +175,7 @@ class TestAnimationVisual:
                 pygame.surfarray.array3d(frame.image),
             ), f'Frame {frame_index} should be shown unchanged'
 
+    @pytest.mark.draws_frames
     def test_animation_rendering_performance(self):
         """Test that animation rendering performs within acceptable limits."""
         scene = AnimationTestScene(COLORS_FILE)
@@ -186,6 +193,7 @@ class TestAnimationVisual:
             f'Frame capture should be fast: {total_time:.3f}s (max: {RENDERING_PERF_LIMIT}s)'
         )
 
+    @pytest.mark.draws_frames
     def test_animation_screen_integration(self):
         """Test that the sprite appears on the scene's screen, inside its bounds."""
         scene = AnimationTestScene(COLORS_FILE)
@@ -199,6 +207,7 @@ class TestAnimationVisual:
         assert scene.screen.get_rect().contains(sprite_rect), 'Sprite should fit on screen'
         assert tuple(scene.screen.get_at(sprite_rect.topleft))[:3] == FRAME_COLORS[0]
 
+    @pytest.mark.draws_frames
     def test_animation_frame_consistency(self):
         """Test that animation frames maintain consistent properties."""
         scene = AnimationTestScene(COLORS_FILE)

@@ -16,6 +16,7 @@ from collections import Counter
 from pathlib import Path
 
 import pygame
+import pytest
 from scripts.golden_inputs import NEIGHBORHOOD_STAGE_CLEAR_ROUTE
 from scripts.plan_neighborhood_route import plan_route
 
@@ -101,6 +102,7 @@ def stage_2_start_frame(frames: list[dict]) -> int:
     raise AssertionError(message)
 
 
+@pytest.mark.draws_frames
 def test_the_golden_plays_back_from_stage_2s_start():
     """An in-game playback starting on stage 2 matches the recording to its end.
 
@@ -134,6 +136,7 @@ def test_the_golden_plays_back_from_stage_2s_start():
     assert played.end_reason in {'end_of_recording', 'quit'}
 
 
+@pytest.mark.draws_frames
 def test_moving_the_mouse_over_a_kid_does_not_crash():
     """The owner's crash (2026-11-15): the pointer over a kid ended the game.
 

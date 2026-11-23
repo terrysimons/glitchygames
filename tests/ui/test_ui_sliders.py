@@ -773,6 +773,7 @@ class TestSliderSpriteWithRealSurfaces:
         expected[channel_index] = int(middle / TEST_WIDTH * 255)
         assert _rgb_at(slider.image, (middle, 0)) == tuple(expected)
 
+    @pytest.mark.draws_frames
     def test_drawing_the_group_puts_the_knob_at_the_value_on_the_screen(self):
         """Drawn to the real display, the knob covers the track where the value puts it."""
         group = pygame.sprite.LayeredDirty()
@@ -839,6 +840,7 @@ class TestSliderSpriteWithRealSurfaces:
         expected_screen.fill(KNOB_COLOR, slider.slider_knob.rect)
         return pygame.surfarray.array3d(expected_screen.subsurface(slider.rect))
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('name', ['R', 'G', 'B', 'A', None])
     def test_the_drawn_slider_shows_its_gradient_and_knob_frame_after_frame(self, name):
         """On the real display, every frame shows the track's gradient with the knob over it.
