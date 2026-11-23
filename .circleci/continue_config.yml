@@ -731,7 +731,13 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
 
     steps:
-      - checkout
+      # A full clone, not CircleCI's default blobless one: the docs build reads past commits
+      # (the performance graphs' landed rows), and in a blobless clone git fetches each missing
+      # file from GitHub one at a time (job 5174 timed out). The code-tree walk itself no longer
+      # reads file contents (glitchygames/code_tree.py); this keeps the rest of the docs build
+      # from paying for any other history read
+      - checkout:
+          method: full
 
       # hidapi's source build (no Linux wheel for 3.15): every session here installs every extra
       - install-linux-system-dependencies
