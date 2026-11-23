@@ -1811,6 +1811,7 @@ def engine_run_environment(mocker: MockerFixture) -> Generator[None]:
     yield from demo_runs.engine_run_environment(mocker)
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run_environment')
 def test_a_declaration_after_game_engine_lies_above_its_partition_and_survives_its_start(
     small_channels_stand_in: StandInGame,

@@ -354,6 +354,7 @@ def test_the_replay_doors_use_a_given_seed_in_place_of_the_recorded_one():
     assert overridden.random_seed == GIVEN_REPLAY_SEED
 
 
+@pytest.mark.draws_frames
 def test_the_golden_harness_rolls_a_seed_when_none_is_given():
     """``record_trace`` without a seed rolls one, as any run does: two runs differ."""
     first = record_trace(

@@ -80,6 +80,7 @@ def scene():
     return DrawingFireScene(options={'input_mode': 'joystick'})
 
 
+@pytest.mark.draws_frames
 def test_the_scene_draws_paper_and_ground(scene):
     """The paper fills the screen and the ground line is pencilled on it."""
     scene.render(scene.screen)
@@ -171,6 +172,7 @@ def last_two_standing_face_to_face(scene):
     scene.minds[brigade.soldier_id] = ComputerSoldier(target_id=platoon.soldier_id)
 
 
+@pytest.mark.draws_frames
 def test_a_draw_announces_nobody_wins_then_the_next_battle_starts(scene, mocker):
     """The last two soldiers shoot each other at once: a two-line draw banner, then battle 2."""
     last_two_standing_face_to_face(scene)
@@ -213,6 +215,7 @@ def test_the_victory_picture_holds_still(scene):
     assert not scene.walking_soldier_ids
 
 
+@pytest.mark.draws_frames
 def test_the_victory_message_is_drawn_on_the_paper(scene, mocker):
     """The announcement is pencilled in the sky, which was blank before."""
     sky = pygame.Rect(SCREEN_SIZE[0] // 4, 60, SCREEN_SIZE[0] // 2, SCREEN_SIZE[1] // 4)
@@ -236,6 +239,7 @@ def test_the_victory_message_is_drawn_on_the_paper(scene, mocker):
     assert font_constructor.call_count == 0
 
 
+@pytest.mark.draws_frames
 def test_the_battle_is_drawn_in_each_armys_colour(scene):
     """Every living soldier's helmet is pencil yellow or graphite grey, where he stands."""
     scene.render(scene.screen)
@@ -255,6 +259,7 @@ def test_walking_soldiers_are_found_by_their_step(scene):
     assert not scene.walking_soldier_ids
 
 
+@pytest.mark.draws_frames
 def test_bullets_and_sandbags_are_drawn(scene):
     """A bullet in flight is a pencil dash, and every sandbag is on the paper."""
     scene.render(scene.screen)
@@ -271,6 +276,7 @@ def test_bullets_and_sandbags_are_drawn(scene):
     assert tuple(scene.screen.get_at((round(sandbag.x), top)))[:3] != PAPER_COLOR
 
 
+@pytest.mark.draws_frames
 def test_drawing_the_same_battle_twice_gives_the_same_picture(scene):
     """Nothing in the drawing is random."""
     for _ in range(90):
@@ -281,6 +287,7 @@ def test_drawing_the_same_battle_twice_gives_the_same_picture(scene):
     assert pygame.image.tobytes(scene.screen, 'RGB') == first
 
 
+@pytest.mark.draws_frames
 def test_the_soldier_frames_are_scaled_once_for_the_scene(scene):
     """The scene keeps one set of frames, and each army's livery is built once."""
     frames = scene.soldier_frames
@@ -291,6 +298,7 @@ def test_the_soldier_frames_are_scaled_once_for_the_scene(scene):
     assert frames.frames_for(ARMY_LIVERIES[Side.PLATOON]) is scheme_frames
 
 
+@pytest.mark.draws_frames
 def test_a_new_battle_redraws_the_ground(scene):
     """The ground line follows the new battle's terrain."""
     scene.start_battle()
@@ -412,6 +420,7 @@ def colors_in(surface, rect):
     }
 
 
+@pytest.mark.draws_frames
 def test_the_join_prompt_shows_while_a_device_is_unseated(scene):
     """The sticky note is on the paper until every device (here the keyboard) has a seat."""
     note = join_note_rect(scene.screen)
@@ -427,6 +436,7 @@ def test_the_join_prompt_shows_while_a_device_is_unseated(scene):
     assert tuple(scene.screen.get_at(corner))[:3] == NOTE_COLOR
 
 
+@pytest.mark.draws_frames
 def test_a_player_choosing_a_side_sees_the_side_card(scene):
     """START opens a card beside the note; it stays through the soldier choice and the play."""
     card = seat_card_rect(scene.screen, slot=0)
@@ -456,6 +466,7 @@ def test_the_leave_hint_names_the_players_own_key():
     assert leave_hint(PlayerSeat(name='P2', device=controller)) == 'hold Back to leave'
 
 
+@pytest.mark.draws_frames
 def test_holding_back_fills_the_cards_foot_toward_leaving(scene):
     """While a playing player holds Escape, a bar fills along his card's foot; up, it is gone."""
     keyboard_joins_and_plays(scene)
@@ -482,6 +493,7 @@ def test_holding_back_fills_the_cards_foot_toward_leaving(scene):
     assert PENCIL_COLOR not in colors_in(scene.screen, left_half)
 
 
+@pytest.mark.draws_frames
 def test_a_waiting_player_has_a_card(scene):
     """A player who has no soldier yet is told he waits."""
     keyboard_tap(scene, pygame.KSCAN_RETURN)
@@ -495,6 +507,7 @@ def test_a_waiting_player_has_a_card(scene):
     assert CARD_COLOR in colors_in(scene.screen, seat_card_rect(scene.screen, slot=0))
 
 
+@pytest.mark.draws_frames
 def test_the_highlight_marks_the_soldier_being_chosen(scene):
     """In CHOOSING_SOLDIER a pencil ring and the player's name mark the highlighted soldier."""
     keyboard_tap(scene, pygame.KSCAN_RETURN)
@@ -515,6 +528,7 @@ def test_the_highlight_marks_the_soldier_being_chosen(scene):
     assert ARMY_COLORS[highlighted.side] in colors_in(scene.screen, above_head)
 
 
+@pytest.mark.draws_frames
 def test_no_highlight_is_drawn_when_the_last_free_soldier_has_just_died(scene):
     """A chooser's side lost its free soldiers this step: the next update sends him to wait."""
     keyboard_tap(scene, pygame.KSCAN_RETURN)
@@ -529,6 +543,7 @@ def test_no_highlight_is_drawn_when_the_last_free_soldier_has_just_died(scene):
     assert seat.stage is Stage.WAITING
 
 
+@pytest.mark.draws_frames
 def test_a_new_battle_highlights_a_soldier_in_it(scene):
     """The highlight is drawn over the new battle's soldier after battle_started."""
     seat = keyboard_joins_and_plays(scene)
@@ -670,6 +685,7 @@ def test_seats_draw_only_from_their_own_stream(scene):
     } == stream_states
 
 
+@pytest.mark.draws_frames
 def test_the_seat_texts_are_rendered_once(scene, mocker):
     """The note, the card and the highlight's label make no font and render no text twice."""
     keyboard_tap(scene, pygame.KSCAN_RETURN)
@@ -809,6 +825,7 @@ def tag_area_over(soldier, *, raised, width=30):
     return area
 
 
+@pytest.mark.draws_frames
 def test_the_debug_overlay_tags_every_living_soldier_and_draws_the_panel(scene):
     """debug_draw tags each living soldier with his driver and lists the seats in a corner."""
     keyboard_joins_and_plays(scene)
@@ -859,6 +876,7 @@ def test_held_keys_line_shows_an_unnamed_scancode_as_its_number():
     assert held_keys_line(keyboard_input(scancodes=(unnamed,))) == 'held: 499'
 
 
+@pytest.mark.draws_frames
 def test_the_debug_panel_ends_with_the_held_keys(scene):
     """debug_draw's panel has one more line than the seats: the keys this frame's input holds."""
     keyboard_joins_and_plays(scene)

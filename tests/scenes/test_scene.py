@@ -159,6 +159,7 @@ class TestScene:
 
         assert scene.all_sprites == mock_groups
 
+    @pytest.mark.draws_frames
     def test_scene_screenshot_property(self):
         """The screenshot is a copy of what is on the display, not the display itself."""
         scene = Scene()
@@ -2416,6 +2417,7 @@ class TestSceneManagerPostFpsEvent:
 class TestSceneManagerUpdateDisplay:
     """Test SceneManager._update_display method."""
 
+    @pytest.mark.draws_frames
     def test_update_display_update_with_rects(self, mocker):
         """Test _update_display with 'update' type and rects."""
         manager = SceneManager()
@@ -2427,6 +2429,7 @@ class TestSceneManagerUpdateDisplay:
         # Should not raise
         manager._update_display()
 
+    @pytest.mark.draws_frames
     def test_update_display_update_without_rects(self, mocker):
         """Test _update_display with 'update' type and no rects."""
         manager = SceneManager()
@@ -2437,6 +2440,7 @@ class TestSceneManagerUpdateDisplay:
         # Empty rects triggers full display update
         manager._update_display()
 
+    @pytest.mark.draws_frames
     def test_update_display_flip(self, mocker):
         """Test _update_display with 'flip' type."""
         manager = SceneManager()
@@ -2697,6 +2701,7 @@ class TestSceneUpdate:
 class TestSceneRender:
     """Test Scene.render() method."""
 
+    @pytest.mark.draws_frames
     def test_render_draws_the_sprites_onto_the_screen(self):
         """render() clears to the background, draws the sprites, and keeps the changed rects."""
         scene = Scene()
@@ -2904,6 +2909,7 @@ class TestSceneManagerCleanupAndSetup:
 class TestSceneManagerConfigureActiveScene:
     """Test SceneManager._configure_active_scene and sub-methods."""
 
+    @pytest.mark.draws_frames
     def test_configure_active_scene_sets_caption(self, mocker):
         """Test _configure_active_scene sets display caption."""
         manager = SceneManager()

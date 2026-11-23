@@ -182,6 +182,7 @@ def _type(scene: text_input_demo.Game, text: str) -> None:
         scene.on_key_down_event(_key(pygame.KEYDOWN, ord(character), unicode=character))
 
 
+@pytest.mark.draws_frames
 def test_first_frame_shows_the_box_with_its_text_on_yellow(scene: text_input_demo.Game) -> None:
     """The box shows 'Test' in white, as it does after typing (BUGS.md #178 item 30).
 
@@ -199,6 +200,7 @@ def test_setup_sets_the_key_repeat_delay(scene: text_input_demo.Game) -> None:
     assert pygame.key.get_repeat()[0] == 350
 
 
+@pytest.mark.draws_frames
 def test_typing_before_a_click_changes_nothing(scene: text_input_demo.Game) -> None:
     """Without the keyboard, key downs leave the text alone."""
     _type(scene, 'ab')
@@ -206,6 +208,7 @@ def test_typing_before_a_click_changes_nothing(scene: text_input_demo.Game) -> N
     assert _shows_box(_draw_frame(scene), text=STARTING_TEXT, text_rgb=WHITE_RGB)
 
 
+@pytest.mark.draws_frames
 def test_a_click_gives_the_box_the_keyboard(scene: text_input_demo.Game) -> None:
     """After a click, typed characters appear in the box (redrawn in white)."""
     scene.on_mouse_button_up_event(HashableEvent(pygame.MOUSEBUTTONUP, pos=(0, 0), button=1))
@@ -214,6 +217,7 @@ def test_a_click_gives_the_box_the_keyboard(scene: text_input_demo.Game) -> None
     assert _shows_box(_draw_frame(scene), text=f'{STARTING_TEXT}ab', text_rgb=WHITE_RGB)
 
 
+@pytest.mark.draws_frames
 def test_tab_gives_the_box_the_keyboard_and_takes_it_back(scene: text_input_demo.Game) -> None:
     """Releasing Tab gives the box the keyboard; releasing it again takes it back."""
     scene.on_key_up_event(_key(pygame.KEYUP, pygame.K_TAB))
@@ -252,6 +256,7 @@ def test_escape_outside_the_box_quits_on_its_release_not_its_press(
     assert pygame.event.peek(pygame.QUIT)
 
 
+@pytest.mark.draws_frames
 def test_return_submits_the_text(
     scene: text_input_demo.Game, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -285,6 +290,7 @@ def test_the_box_joins_the_sprite_group_it_is_given() -> None:
     assert default_game.input_box.groups() == [default_game.all_sprites]
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run')
 def test_main_runs_the_demo_and_types_into_the_box(mocker: MockerFixture) -> None:
     """``python -m text_input_demo`` (or its console script): a click and typing show in the box."""
