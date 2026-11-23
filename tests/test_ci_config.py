@@ -2945,21 +2945,28 @@ def test_taplo_leaves_the_worktrees_nested_in_this_checkout_alone():
     assert '.claude/**' in configuration['exclude']
 
 
+# Every Linux job's memory guard limit, in MiB (tests/memory_guard.py; the owner, 2026-11-23)
+LINUX_MEMORY_LIMIT_MB = 1500
+
+
 def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
-    """The Linux job (2 GB, serial) stops a run past 1400 MiB, naming the test (memory_guard.py).
+    """The Linux job (2 GB, serial) stops a run past 1500 MiB, naming the test (memory_guard.py).
 
     So does the Raspberry Pi's (real hardware, 3.7 GB with its desktop): one limit for every
-    Linux job (the owner, 2026-11-19). The macOS and Windows jobs have the memory, and the
-    plugin needs Linux's ``/proc/self/statm`` anyway. The Linux job's resource class and worker
-    count stay as they were.
+    Linux job (the owner, 2026-11-19). 1500 from 2026-11-23 (the owner): with every machine
+    collecting the whole suite (#286), the Linux machines peaked at 1335, 1226 and 1240 MiB
+    (job 5115), too near 1400 for a slab that swings about 120 MiB a run. The macOS and Windows
+    jobs have the memory, and the plugin needs Linux's ``/proc/self/statm`` anyway. The Linux
+    job's resource class and worker count stay as they were.
     """
     linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
 
     # Every test job on the Linux image, so a new one can't miss them
     assert set(linux_jobs) == {'test-python-3-15-linux'}
-    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"\n' in raspberry_pi_job()
+    limit = f'      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "{LINUX_MEMORY_LIMIT_MB}"\n'
+    assert limit in raspberry_pi_job()
     for name, job in linux_jobs.items():
-        assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"\n' in job, name
+        assert limit in job, name
         assert '    resource_class: small\n' in job, name
         assert '      PYTEST_WORKERS: "0"\n' in job, name
 
@@ -3045,7 +3052,7 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
     }
     assert {
         'PYTEST_WORKERS=0',
-        'GLITCHYGAMES_TEST_RSS_LIMIT_MB=1400',
+        f'GLITCHYGAMES_TEST_RSS_LIMIT_MB={LINUX_MEMORY_LIMIT_MB}',
         'CI=true',
         'CIRCLECI=true',
     } <= environment

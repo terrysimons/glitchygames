@@ -639,16 +639,18 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
       PYTEST_WORKERS: "0"
-      # Stop the run past 1400 MiB of the container's memory (its page cache left out), naming the
+      # Stop the run past 1500 MiB of the container's memory (its page cache left out), naming the
       # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
-      # no test named (BUGS.md #235). The owner, 2026-11-19: tighten after #226, to 1500, then
-      # 1400 once the memory follow-ups landed (#230: each machine collects only its share, the
-      # free heap is trimmed and the catalog's builds emptied after each test). With them the
-      # job peaked at 1105 and 1139 MiB (job 3948; 302 and 288 MiB of it reclaimable kernel slab,
-      # which the reading still counts: memory_guard.py), against 1328 and 1283 on main (job
-      # 3945); the slab alone swings about 120 MiB from run to run. Was 1750 (2026-11-17), 1600
-      # before that (2026-10-28)
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"
+      # no test named (BUGS.md #235). The owner, 2026-11-23: back to 1500, as every machine now
+      # collects the whole suite (#286, about 180 MiB more each): the three machines peaked at
+      # 1335, 1226 and 1240 MiB (job 5115), too near 1400 for a slab that swings about 120 MiB a
+      # run. The owner, 2026-11-19: tightened after #226, to 1500, then 1400 once the memory
+      # follow-ups landed (#230: each machine collected only its share, the free heap is trimmed
+      # and the catalog's builds emptied after each test). With them the job peaked at 1105 and
+      # 1139 MiB (job 3948; 302 and 288 MiB of it reclaimable kernel slab, which the reading still
+      # counts: memory_guard.py), against 1328 and 1283 on main (job 3945). Was 1750
+      # (2026-11-17), 1600 before that (2026-10-28)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1500"
       # Each machine runs its share of the suite: the heavy replays dealt out, the rest as
       # CircleCI's splitter assigns them by past timings (tests/circleci_test_split.py). One
       # machine ran past CircleCI's one-hour job limit (jobs 3705, 3707; the owner, 2026-11-18:
@@ -818,10 +820,10 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Serially, as on Linux: parallel workers could reach the swap file on the SD card
       PYTEST_WORKERS: "0"
-      # As on Linux: stop past 1400 MiB, naming the test (tests/memory_guard.py), not a kernel
+      # As on Linux: stop past 1500 MiB, naming the test (tests/memory_guard.py), not a kernel
       # kill with no test named. The owner, 2026-11-04: limits stay on the real hardware; and
-      # 2026-11-19: one limit for all Linux systems, including the Pi job, 1400 for the Pi too
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"
+      # 2026-11-19: one limit for all Linux systems, including the Pi job (1500 from 2026-11-23)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1500"
       # As on the other test jobs: roll the suite's order (noxfile.choose_suite_order)
       GLITCHYGAMES_TEST_ORDER: "roll"
 
