@@ -538,8 +538,10 @@ def test_one_pis_failed_measurement_keeps_the_other_pis_rows(
     assert 'raspberry-pi-5-16gb-ubuntu failed' not in errors
 
 
-def test_a_pi_that_cannot_be_reached_stops_the_push_and_says_how_to_skip(repository, capsys):
-    """Nothing is sent, and the message names the way past."""
+def test_a_pi_that_cannot_be_reached_stops_the_measurement_and_says_how_to_retry(
+    repository, capsys
+):
+    """Nothing is sent, and the message says how to measure again."""
     exit_code = measure(
         repository=repository, raspberry_pis=(unreachable_pi(script_runner=('false',)),)
     )
@@ -547,7 +549,8 @@ def test_a_pi_that_cannot_be_reached_stops_the_push_and_says_how_to_skip(reposit
     errors = capsys.readouterr().err
     assert exit_code == ExitCode.OPTIONS_REFUSED
     assert 'could not reach raspberry-pi-4-4gb-ubuntu' in errors
-    assert 'SKIP=raspberry-pi-replay-metrics' in errors
+    assert 'nox -s measure-on-raspberry-pi' in errors
+    assert 'SKIP=' not in errors
 
 
 def test_one_unreachable_pi_stops_the_push_before_any_pi_measures(
@@ -1128,22 +1131,18 @@ def test_the_measurement_stops_the_ai_after_the_lock(raspberry_pi, stand_in_bin,
     run_prefix(control_script=stand_in)
 
 
-def test_the_hook_runs_first_at_push_and_stops_the_rest():
-    """The later pre-push checks do not run for a push that is about to stop for its rows."""
+def test_no_git_hook_measures_a_push_on_the_raspberry_pis():
+    """It runs by hand only (nox -s measure-on-raspberry-pi), never as a pre-push hook.
+
+    The owner, 2026-11-22, stopped committing replay-ledger rows, which a push that measured on
+    the Pis had to commit.
+    """
     configuration = (measure_on_raspberry_pi.PROJECT_ROOT / '.pre-commit-config.yaml').read_text(
         encoding='utf-8'
     )
-    hook = configuration[configuration.index('- id: raspberry-pi-replay-metrics') :]
-    hook = hook[: hook.index('\n\n')]
 
-    assert configuration.index('id: raspberry-pi-replay-metrics') < configuration.index(
-        'id: format'
-    )
-    assert 'entry: uv run --locked --extra dev nox -s measure-on-raspberry-pi\n' in hook
-    assert 'stages: [pre-push]' in hook
-    assert 'fail_fast: true' in hook
-    # It runs for any push that changes more than Markdown (tests/test_ci_config.py)
-    assert 'always_run' not in hook
+    assert 'entry: uv run --locked --extra dev nox -s measure-on-raspberry-pi' not in configuration
+    assert 'id: raspberry-pi-replay-metrics' not in configuration
 
 
 @pytest.mark.parametrize(

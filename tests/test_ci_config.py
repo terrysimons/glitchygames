@@ -2260,8 +2260,9 @@ def test_a_failed_shuffled_run_names_its_seed_and_how_to_replay_it(mocker):
 
 # pre-commit's own run of a hook set in a throwaway repository: a minute is far more than it needs
 PRE_COMMIT_TIMEOUT_SECONDS = 60.0
-# The hook stages .pre-commit-config.yaml installs (default_install_hook_types)
-HOOK_STAGES = ('pre-commit', 'pre-push')
+# The hook stages .pre-commit-config.yaml installs (default_install_hook_types): pre-push alone
+# since the owner stopped committing replay-ledger rows (2026-11-22), which was the commit stage
+HOOK_STAGES = ('pre-push',)
 
 
 def run_project_hooks_on(*, tmp_path: Path, changed_paths: list[str], stage: str) -> dict[str, str]:
