@@ -283,9 +283,10 @@ commands:
     steps:
       - run:
           name: "Lint (ruff, the strict docs build, YAML, TOML, deps, dead code)"
-          # The strict docs build can go quiet for minutes while scripts/mkdocs_hooks.py makes
-          # the graphs (it logs each stage's start and end now): job 5089 (#261) was killed at
-          # the default 10 minutes once #285 moved the docs build to Linux
+          # The strict docs build went quiet for minutes while scripts/mkdocs_hooks.py made the
+          # complexity graphs: job 5089 (#261) was killed at the default 10 minutes once #285
+          # moved the docs build to Linux. Only a deploy generates them now (a placeholder here),
+          # and the hook logs each stage's start and end; the longer timeout stays as a margin
           no_output_timeout: 30m
           command: |
             export PATH="$HOME/.local/bin:$PATH"

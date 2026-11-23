@@ -164,7 +164,11 @@ def _lint_code(session: nox.Session) -> None:
 
 
 def _lint_docs(session: nox.Session) -> None:
-    """Lint documentation with mkdocs strict build."""
+    """Lint documentation with mkdocs strict build.
+
+    A local build: the complexity graphs are not generated (a placeholder stands in for them;
+    only ``docs-deploy`` measures the history, scripts/mkdocs_hooks.py).
+    """
     session.run('mkdocs', 'build', '--strict', '--config-file', _DOCS_CONFIGURATION)
 
 
@@ -419,8 +423,9 @@ def docs_deploy(session: nox.Session) -> None:
     ``nox -s replay-metrics``'s measurement (``--skip-dirty``: nothing is measured on a checkout
     with uncommitted changes). ``mkdocs gh-deploy`` then builds the site (its hook,
     scripts/mkdocs_hooks.py, first generates the complexity graphs from HEAD's whole git history
-    when they were made from another commit: about a minute, and the performance graphs from the
-    published run ledger plus the pending rows, which it publishes with the site), commits it to
+    when they were made from another commit: several minutes, and only a deploy does it; every
+    other docs build writes a placeholder; and the performance graphs from the published run
+    ledger plus the pending rows, which it publishes with the site), commits it to
     gh-pages and pushes it. Only after that succeeded are the now-published pending rows
     removed (``glitchygames clear-published``), and only when the pending ledger holds rows: a
     deploy without any (CircleCI's) skips it, and so the editable install it would build first.
@@ -588,12 +593,14 @@ def _listening_process(session: nox.Session, *, port: int) -> str | None:
 
 @nox.session(venv_backend='none', name='docs-serve', default=False)
 def docs_serve(session: nox.Session) -> None:
-    """Serve the docs locally, built as docs-deploy builds them (graphs included, strict).
+    """Serve the docs locally, built strictly as docs-deploy builds them, but for the graphs.
 
-    ``mkdocs serve --strict`` builds the site (its hook generates the complexity graphs when they
-    were made from another commit; each reload with the same HEAD skips that) and serves it at
+    ``mkdocs serve --strict`` builds the site and serves it at
     http://127.0.0.1:8000/glitchygames/, rebuilding as files change, until Ctrl-C. Nothing is
-    pushed. Arguments after ``--`` go to ``mkdocs serve``.
+    pushed. Arguments after ``--`` go to ``mkdocs serve``. The complexity page shows a
+    placeholder: only a deploy generates the complexity graphs (scripts/mkdocs_hooks.py), unless
+    they were generated from HEAD already (``nox -s code-complexity -- --graphs``) or
+    ``GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1`` is set, which generates them first (minutes).
 
     Each run builds in a fresh environment of its own (``uv run --isolated``: the locked
     versions, the built packages as ``_install_from_lockfile`` installs them, removed when the
@@ -605,6 +612,7 @@ def docs_serve(session: nox.Session) -> None:
     Usage:
         nox -s docs-serve                               # Serve at http://127.0.0.1:8000/
         nox -s docs-serve -- --dev-addr 127.0.0.1:8001  # Another address
+        GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1 nox -s docs-serve  # With the complexity graphs
     """
     host, port = _docs_serve_address(arguments=session.posargs)
     if _address_in_use(host=host, port=port):
@@ -3171,8 +3179,8 @@ def code_complexity(session: nox.Session) -> None:
     Tools: complexity_report.py (wily: the working tree's changes against HEAD, the history measured
     in a temporary worktree so the working tree is never checked out over), and
     generate_complexity_graphs.py (the docs' complexity explorer data, generated in a temporary
-    worktree from the whole history into docs/quality/graphs/, which git ignores; every mkdocs
-    build does too)
+    worktree from the whole history into docs/quality/graphs/, which git ignores; a deploy's
+    docs build does too, and a later local docs build of the same HEAD shows them)
 
     Usage:
         nox -s code-complexity              # The working tree's changes against HEAD
