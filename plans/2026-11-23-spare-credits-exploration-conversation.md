@@ -67,3 +67,24 @@ The first research pass came back, on Slime Forest Adventure and similar games. 
   visible review schedule in one loop.
 - **Correction:** Claude's own research brief named the wrong developer; the official site names
   Darrell Johnson.
+
+## 8. Claude (research update)
+
+The engine survey came back. What a Japanese-learning game would need that the engine lacks:
+
+- **A font that draws Japanese:** only a Latin font is bundled. A full Japanese font is several
+  megabytes, which matters for the browser build. A trimmed font (only the characters the game
+  uses) or a pixel font would solve it.
+- **Japanese typing:** the engine receives the operating system's text-input events but no
+  widget uses them. Converting typed romaji to kana inside the game would avoid depending on the
+  player's own input method, and would work the same in replays and the browser.
+- **Building blocks for an RPG:** no tile maps, dialog boxes, battle system or overworld yet.
+
+What it already has that fits:
+
+- **Saves** that write atomically, where the review schedule would live.
+- **Recording and replay** with seeded randomness, so a run (including which characters were
+  asked) replays exactly.
+- **Synthesized audio, sprites, scenes, transitions and the camera.**
+- **Speech:** a desktop-only text-to-speech path.
+- **Existing games to start from**, for title screens, HUD text and grid worlds.
