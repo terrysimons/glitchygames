@@ -1588,6 +1588,20 @@ def test_every_linux_job_installs_the_linux_jobs_system_packages():
         assert 'apt-get install' not in job, name
 
 
+def test_the_windows_job_runs_a_test_worker_on_every_cpu():
+    """Windows medium (4 CPUs, 16 GB) runs 4 xdist workers, not CI's half-the-CPUs default.
+
+    The owner, 2026-11-23: noxfile.py's half-CPU rule in CI (#71, "to avoid resource
+    exhaustion", from when the count was the host's CPUs) gave each Windows machine 2 workers.
+    The job asks for 4 itself, leaving the rule as it is for every other job; a commit of its
+    own, so it can be dropped alone if 4 workers prove flaky.
+    """
+    job = circleci_job_definition(name='test-python-3-15-windows')
+
+    assert '      name: win/default\n      size: medium\n' in job
+    assert '      PYTEST_WORKERS: "4"\n' in job
+
+
 # Each split test job's machines (parallelism): Linux 6 (the owner, 2026-11-23), Windows 3
 MACHINES_PER_TEST_JOB = {'linux': 6, 'windows': 3}
 

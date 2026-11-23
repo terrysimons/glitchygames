@@ -780,8 +780,9 @@ def test(session: nox.Session) -> None:
     # frames); a driver the caller set is passed on and runs alone.
 
     # PYTEST_WORKERS, when set, is the xdist worker count as given (0: run serially in this
-    # process, no worker; CircleCI's Linux job sets it). Otherwise, in CI, use half the CPUs the
-    # job may use, to avoid resource exhaustion, or run serially with too few for two workers.
+    # process, no worker; CircleCI's Linux job sets 0, its Windows job 4, one a CPU). Otherwise,
+    # in CI, use half the CPUs the job may use, to avoid resource exhaustion, or run serially
+    # with too few for two workers.
     # Locally, -n auto (from pyproject.toml addopts) uses all cores.
     args: list[str] = []
     requested_workers = os.environ.get('PYTEST_WORKERS')

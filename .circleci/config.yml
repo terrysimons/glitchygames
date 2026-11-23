@@ -679,6 +679,11 @@ jobs:
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
+      # A test worker on each of the medium executor's 4 CPUs (16 GB): the test session's CI
+      # default is half the CPUs (noxfile.py, #71: "to avoid resource exhaustion", from when the
+      # count was the host's), 2 here. The owner, 2026-11-23; twice the parallel load on each
+      # machine, so drop this alone if the Windows tests grow flaky under it
+      PYTEST_WORKERS: "4"
       GLITCHYGAMES_TEST_SPLIT: "circleci"
       # Each machine rolls the suite's order, fixed or shuffled, and a shuffle's seed, from the
       # workflow's workspace, job and machine, so a rerun repeats its first run's roll
