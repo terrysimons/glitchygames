@@ -698,11 +698,13 @@ class TestRecordingThroughTheEngine:
         assert frames[1]['scene'] is None
         assert frames[1]['sprites'] == []
 
+    # Every case draws where it runs (SIGBREAK only on Windows, never judged on macOS)
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('signal_name', 'expected_exit_code'),
         [
-            pytest.param('SIGTERM', ExitCode.TERMINATED, marks=pytest.mark.draws_frames),
-            pytest.param('SIGHUP', ExitCode.HANGUP, marks=pytest.mark.draws_frames),
+            ('SIGTERM', ExitCode.TERMINATED),
+            ('SIGHUP', ExitCode.HANGUP),
             ('SIGBREAK', ExitCode.BREAK),
         ],
     )
@@ -805,14 +807,9 @@ class TestRecordingThroughTheEngine:
 
         assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
 
-    @pytest.mark.parametrize(
-        'signal_name',
-        [
-            pytest.param('SIGTERM', marks=pytest.mark.draws_frames),
-            pytest.param('SIGHUP', marks=pytest.mark.draws_frames),
-            'SIGBREAK',
-        ],
-    )
+    # Every case draws where it runs (SIGBREAK only on Windows, never judged on macOS)
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize('signal_name', ['SIGTERM', 'SIGHUP', 'SIGBREAK'])
     def test_existing_signal_handler_is_left_alone(self, mocker, tmp_path, signal_name):
         """A game that installed its own handler for a signal (Bitmappy) keeps it."""
         signal_number = platform_signal(signal_name)
