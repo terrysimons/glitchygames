@@ -366,6 +366,33 @@ def test_the_linux_ci_session_installs_what_the_linux_job_installs():
     assert re.findall(r'uv tool install "?ansible', noxfile_source) == []
 
 
+def test_the_linux_ci_checkout_copies_with_cp_not_tar():
+    """The container's checkout copy uses cp: GNU tar cannot stat the mount under amd64 emulation.
+
+    Docker Desktop's amd64 emulation on Apple silicon refused tar's stat of every file in a
+    subdirectory of the mounted checkout ("Function not implemented"), so the session copied 28
+    of 9,793 files and stopped (2026-11-23); cp copies them all.
+    """
+    import noxfile
+
+    script = noxfile._linux_ci_script(
+        python_versions=['3.15.2'],
+        uv_version='0.13.9',
+        nox_version='2026.7.11',
+        apt_packages=['fontconfig'],
+        checkout=noxfile._HostCheckout(
+            common_directory=Path('/repository/.git'),
+            head='0' * 40,
+            branch='main',
+            origin_url=None,
+            files=b'README.md\x00src/glitchygames/world.py\x00',
+        ),
+    )
+
+    assert 'cp --parents --no-dereference' in script
+    assert 'tar -C /source' not in script
+
+
 class RecordingSession:
     """Stands in for a nox session: records every command, runs nothing."""
 

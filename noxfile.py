@@ -1822,9 +1822,15 @@ def _linux_ci_script(
         f'sudo chown "$(id -u):$(id -g)" {_LINUX_CI_UV_CACHE}',
         # The checkout step: what git would commit, never ignored files (the host's caches,
         # Hypothesis's database, __pycache__) nor a submodule's contents, which CircleCI's
-        # checkout leaves empty. A copy: the session writes its outputs and a build stamp
+        # checkout leaves empty. A copy: the session writes its outputs and a build stamp. cp, not
+        # tar: under Docker Desktop's amd64 emulation on Apple silicon, GNU tar 1.35 could not
+        # stat any file in a subdirectory of the mounted checkout ("Cannot stat: Function not
+        # implemented", 9,765 of 9,793 files, 2026-11-23), while cp copies them all
         f'mkdir -p {project}',
-        f'tar -C /source --null -T {_LINUX_CI_FILE_LIST} -cf - | tar -C {project} -xf -',
+        (
+            f'cd /source && xargs -0 -a {_LINUX_CI_FILE_LIST} '
+            f'cp --parents --no-dereference --preserve=mode,timestamps -t {project}'
+        ),
         # A .git cloned from the repository's own git directory (mounted read-only at its own
         # path: a worktree's .git names it), which another user owns: a safe directory
         "git config --global --add safe.directory '*'",
