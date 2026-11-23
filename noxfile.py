@@ -481,8 +481,12 @@ def docs_deploy(session: nox.Session) -> None:
 
 # mkdocs serve's address when no --dev-addr is given (zensical.yml sets no dev_addr)
 _DOCS_SERVE_DEFAULT_ADDRESS = ('127.0.0.1', 8000)
-# How far past a taken port docs-serve looks for a free one to suggest
+# How far above, then below, a taken port docs-serve looks for a free one to suggest
 _DOCS_SERVE_PORTS_TO_TRY = 20
+# The TCP ports an address may name: bind() refuses one above 65535 (OverflowError), and 0
+# means "any port"
+_LOWEST_PORT = 1
+_HIGHEST_PORT = 65535
 
 
 def _docs_serve_address(*, arguments: list[str]) -> tuple[str, int]:
@@ -494,6 +498,9 @@ def _docs_serve_address(*, arguments: list[str]) -> tuple[str, int]:
     Returns:
         The host and port.
 
+    Raises:
+        ValueError: The port is not a number from 1 to 65535, naming the address as given.
+
     """
     address = None
     for index, argument in enumerate(arguments):
@@ -504,6 +511,12 @@ def _docs_serve_address(*, arguments: list[str]) -> tuple[str, int]:
     if address is None:
         return _DOCS_SERVE_DEFAULT_ADDRESS
     host, _, port = address.rpartition(':')
+    if not (port.isascii() and port.isdigit() and _LOWEST_PORT <= int(port) <= _HIGHEST_PORT):
+        message = (
+            f'--dev-addr {address}: the port must be a number from {_LOWEST_PORT} to '
+            f'{_HIGHEST_PORT}'
+        )
+        raise ValueError(message)
     return host, int(port)
 
 
@@ -527,17 +540,24 @@ def _address_in_use(*, host: str, port: int) -> bool:
     return False
 
 
-def _free_port_after(*, host: str, port: int) -> int:
-    """Return the first port after ``port`` that nothing holds on ``host``.
+def _free_port_near(*, host: str, port: int) -> int | None:
+    """Return a port near ``port`` that nothing holds on ``host``, within 1-65535.
+
+    Looks at the ``_DOCS_SERVE_PORTS_TO_TRY`` ports above ``port``, nearest first, then at as
+    many below it, so a taken 65535 still gets a suggestion. Never probes outside 1-65535:
+    probing 65536 raised ``OverflowError``
+    (bugs/2026-11-22-free-port-search-leaves-the-port-range.md).
 
     Returns:
-        The port; past ``_DOCS_SERVE_PORTS_TO_TRY`` taken ones, the one after them, unchecked.
+        The port, or None when every port looked at is taken.
 
     """
-    for candidate in range(port + 1, port + 1 + _DOCS_SERVE_PORTS_TO_TRY):
+    above = range(port + 1, min(port + _DOCS_SERVE_PORTS_TO_TRY, _HIGHEST_PORT) + 1)
+    below = range(port - 1, max(port - _DOCS_SERVE_PORTS_TO_TRY, _LOWEST_PORT) - 1, -1)
+    for candidate in (*above, *below):
         if not _address_in_use(host=host, port=candidate):
             return candidate
-    return port + 1 + _DOCS_SERVE_PORTS_TO_TRY
+    return None
 
 
 def _listening_process(session: nox.Session, *, port: int) -> str | None:
@@ -598,17 +618,26 @@ def docs_serve(session: nox.Session) -> None:
     run ends; about 15 seconds). A session venv is recreated by every run before its code runs,
     so a second run deleted the first's packages mid-build (2026-11-13); now two runs on two
     addresses both work. A taken address is refused before the build, naming its holder where
-    ``lsof`` can and a free address: mkdocs binds only after the whole build, about five minutes.
+    ``lsof`` can and a free address near it (or that none within 20 ports is): mkdocs binds only
+    after the whole build, about five minutes. So is a port outside 1-65535.
 
     Usage:
         nox -s docs-serve                               # Serve at http://127.0.0.1:8000/
         nox -s docs-serve -- --dev-addr 127.0.0.1:8001  # Another address
     """
-    host, port = _docs_serve_address(arguments=session.posargs)
+    try:
+        host, port = _docs_serve_address(arguments=session.posargs)
+    except ValueError as refusal:
+        session.error(str(refusal))
     if _address_in_use(host=host, port=port):
         holder = _listening_process(session, port=port)
         held_by = f' (by {holder})' if holder is not None else ''
-        free_port = _free_port_after(host=host, port=port)
+        free_port = _free_port_near(host=host, port=port)
+        if free_port is None:
+            session.error(
+                f'{host}:{port} is in use{held_by}: stop it, or serve on another address '
+                f'(no free port within {_DOCS_SERVE_PORTS_TO_TRY} of {port})'
+            )
         session.error(
             f'{host}:{port} is in use{held_by}: stop it, or serve on another address: '
             f'nox -s docs-serve -- --dev-addr {host}:{free_port}'
