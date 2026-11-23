@@ -334,7 +334,7 @@ Space and quit with Esc, so a game's own pause must not be on Esc (Mr. Muncher's
 - Sprite-file checks: call `glitchygames.testing.sprite_files`' `check_*` functions; don't copy them.
 - `GLITCHYGAMES_TEST_SPLIT=circleci` (set by the split CI jobs, never locally: it needs
   CircleCI's `circleci tests split` and `CIRCLE_NODE_*`) runs one machine's share of the
-  collected test files, with the share's coverage rule off (`tests/circleci_test_split.py`).
+  collected tests (`heavy_replay` ones dealt out), coverage off (`tests/circleci_test_split.py`).
 - Coverage is 100% with no configured exclusions; a deliberate defensive line carries
   `# pragma: no cover` with its reason.
 - Run the linters after modifying files.

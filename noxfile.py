@@ -804,7 +804,8 @@ def test(session: nox.Session) -> None:
     # A CircleCI job split across machines (GLITCHYGAMES_TEST_SPLIT, tests/circleci_test_split.py)
     # runs one machine's share: no share reaches the 100% coverage rule, so it is off here and
     # applied once to every machine's data combined (coverage-combine); and the JUnit report
-    # names each test's file (xunit1), from which CircleCI learns the timings it splits by
+    # names each test's file, class and name (xunit1), from which CircleCI learns the timings it
+    # splits by
     args.extend(split_share_pytest_arguments(environment=os.environ))
 
     # The suite's order (GLITCHYGAMES_TEST_ORDER; CircleCI's test jobs roll it), printed before
@@ -978,8 +979,8 @@ def describe_suite_order(*, order: SuiteOrder) -> str:
         f'Test order: shuffled, seed {order.seed}{how}. Replay it with '
         f'{SUITE_ORDER_VARIABLE}={order.seed} nox -s test-3.15, or with pytest '
         f'{shlex.join(suite_order_pytest_arguments(order=order))} -n 0; a split CI machine '
-        f'shuffled only its share, the files in test-results/test-split.txt (its artifacts), '
-        f'so name those files to replay its order'
+        f'shuffled only its share, the tests kept in test-results/test-split.txt (its '
+        f'artifacts), so name those tests to replay its order'
     )
 
 
