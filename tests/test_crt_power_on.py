@@ -214,6 +214,7 @@ def shows_the_default_background(surface: pygame.Surface) -> bool:
     return pygame.image.tobytes(surface, 'RGB') == pygame.image.tobytes(expected, 'RGB')
 
 
+@pytest.mark.draws_frames
 def test_it_plays_to_the_end_one_frame_per_tick(mocker):
     """Each frame draws the moment the clock says and waits a frame; it ends settled."""
     screen = pygame.display.get_surface()
@@ -230,6 +231,7 @@ def test_it_plays_to_the_end_one_frame_per_tick(mocker):
     assert shows_the_default_background(screen)
 
 
+@pytest.mark.draws_frames
 def test_a_key_or_button_skips_to_the_settled_picture(mocker):
     """A key press ends it at once, on the settled picture; the press is dropped."""
     screen = pygame.display.get_surface()
@@ -245,6 +247,7 @@ def test_a_key_or_button_skips_to_the_settled_picture(mocker):
     assert shows_the_default_background(screen)
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize(
     'event_type',
     [
@@ -263,6 +266,7 @@ def test_every_kind_of_button_skips(mocker, event_type):
     assert outcome is PowerOnOutcome.SKIPPED
 
 
+@pytest.mark.draws_frames
 def test_closing_the_window_ends_it_as_a_quit(mocker):
     """A QUIT wins over a skip in the same batch: the engine hands it back to the game."""
     measured_clock(mocker, step=FRAME_SECONDS)
@@ -277,6 +281,7 @@ def test_closing_the_window_ends_it_as_a_quit(mocker):
     assert outcome is PowerOnOutcome.QUIT
 
 
+@pytest.mark.draws_frames
 def test_the_async_player_awaits_one_tick_per_frame(mocker):
     """In a browser (start_async) each frame waits for the next animation frame instead."""
     screen = pygame.display.get_surface()
@@ -367,6 +372,7 @@ class RecordingSoundCues:
         return [value for called, value in self.calls if called == kind]
 
 
+@pytest.mark.draws_frames
 def test_each_frame_cues_the_sound_with_the_progress_it_draws(mocker):
     """Every frame: the cues hear the drawn progress, then move by the measured frame time."""
     measured_clock(mocker, step=FRAME_SECONDS)
@@ -391,6 +397,7 @@ def test_each_frame_cues_the_sound_with_the_progress_it_draws(mocker):
     assert 'skip' not in cues.kinds()
 
 
+@pytest.mark.draws_frames
 def test_a_skip_fades_the_sound_instead_of_cueing_the_rest(mocker):
     """A press skips the picture to the end and the sound to silence: no later cue plays."""
     measured_clock(mocker, step=FRAME_SECONDS)
@@ -407,6 +414,7 @@ def test_a_skip_fades_the_sound_instead_of_cueing_the_rest(mocker):
     assert cues.kinds() == ['at_progress', 'frame', 'at_progress', 'frame', 'skip', 'frame']
 
 
+@pytest.mark.draws_frames
 def test_closing_the_window_fades_the_sound_too(mocker):
     """The game quits after a QUIT: the power-on's sound fades as a skip's does."""
     measured_clock(mocker, step=FRAME_SECONDS)
@@ -421,6 +429,7 @@ def test_closing_the_window_fades_the_sound_too(mocker):
     assert cues.kinds() == ['skip', 'frame']
 
 
+@pytest.mark.draws_frames
 def test_the_async_player_cues_the_sound_too(mocker):
     """In a browser the same cues come once per outer tick."""
     measured_clock(mocker, step=FRAME_SECONDS)
@@ -444,6 +453,7 @@ def test_the_async_player_cues_the_sound_too(mocker):
     assert cues.kinds().count('frame') == len(cues.values('at_progress'))
 
 
+@pytest.mark.draws_frames
 def test_without_sound_cues_it_plays_silently(mocker):
     """No cues (the sound off, or never made): the picture plays exactly as before."""
     measured_clock(mocker, step=FRAME_SECONDS)
@@ -489,6 +499,7 @@ class SteppedCounter:
         return self.now
 
 
+@pytest.mark.draws_frames
 def test_idle_work_runs_after_each_frame_and_the_sleep_is_what_it_left(mocker):
     """Each frame hands the idle work its budget, then sleeps only the rest of the frame."""
     measured_clock(mocker, step=FRAME_SECONDS)
@@ -514,6 +525,7 @@ def test_idle_work_runs_after_each_frame_and_the_sleep_is_what_it_left(mocker):
     assert all(pause == pytest.approx(FRAME_SECONDS - 0.004) for pause in pauses)
 
 
+@pytest.mark.draws_frames
 def test_idle_work_longer_than_a_frame_sleeps_nothing(mocker):
     """Work over the frame (one long sound) delays that frame; it never sleeps less than 0."""
     measured_clock(mocker, step=FRAME_SECONDS)
@@ -535,6 +547,7 @@ def test_idle_work_longer_than_a_frame_sleeps_nothing(mocker):
     assert set(pauses) == {0.0}
 
 
+@pytest.mark.draws_frames
 def test_the_async_player_does_idle_work_before_each_tick(mocker):
     """In a browser the idle work runs in each frame's tick too."""
     measured_clock(mocker, step=FRAME_SECONDS)

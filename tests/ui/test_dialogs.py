@@ -275,6 +275,7 @@ class TestInputConfirmationDialogScene:
         assert not scene.dialog.input_box.text
         assert scene.next_scene is None
 
+    @pytest.mark.draws_frames
     def test_dialog_scene_draws_its_dialog_on_the_display(self, previous_scene):
         """Drawing the scene's sprites puts the dialog's border at its rect on the display."""
         scene = InputConfirmationDialogScene(previous_scene=previous_scene)

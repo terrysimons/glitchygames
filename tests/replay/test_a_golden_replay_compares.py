@@ -103,6 +103,7 @@ def record_stand_in_golden(*, mocker, tmp_path: Path) -> Path:
     return path
 
 
+@pytest.mark.draws_frames
 def test_a_tampered_golden_replay_is_reported_at_its_frame(mocker, capsys, tmp_path):
     """The golden replays really compare: a fixture moved by one pixel diverges there."""
     path = record_stand_in_golden(mocker=mocker, tmp_path=tmp_path)
@@ -124,6 +125,7 @@ def test_a_tampered_golden_replay_is_reported_at_its_frame(mocker, capsys, tmp_p
     assert divergence.kind == SPRITE_DIVERGENCE
 
 
+@pytest.mark.draws_frames
 def test_a_rebaselined_golden_replay_names_the_tampered_frames_and_replays_clean(
     mocker, capsys, tmp_path
 ):

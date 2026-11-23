@@ -398,6 +398,7 @@ class TestX11Environment:
 class TestProbeAndCheck:
     """The check's child opens and fills a window; the parent judges its driver and fill."""
 
+    @pytest.mark.draws_frames
     def test_the_probe_reports_its_driver(self, tmp_path):
         result_path = tmp_path / 'result.json'
 
@@ -565,6 +566,7 @@ class TestCommandLine:
         assert exit_code == ExitCode.INTERNAL_ERROR
         assert log == 'the x11 check failed\n'
 
+    @pytest.mark.draws_frames
     def test_probe_writes_its_result(self, tmp_path):
         result_path = tmp_path / 'result.json'
 
@@ -576,6 +578,7 @@ class TestCommandLine:
         assert ProbeResult.model_validate_json(result_path.read_text(encoding='utf-8')).driver
         assert PROBE_COLOR == build_sdl_x11.PROBE_COLOR
 
+    @pytest.mark.draws_frames
     def test_main_exits_with_the_code(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
             sys, 'argv', ['build_sdl_x11', 'probe', f'--result={tmp_path / "result.json"}']

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
 from scripts.golden_inputs import paddleslap_script
 from scripts.record_golden_traces import GAME_SCENES
 
@@ -45,6 +46,7 @@ def journal_of(manager: SceneManager) -> InstantReplayJournal:
 class TestAnExampleGame:
     """PaddleSlap's golden script, paused and resumed, plays back from its journal exactly."""
 
+    @pytest.mark.draws_frames
     def test_paddleslaps_journal_plays_back_exactly(self, mocker: MockerFixture):
         scene_class = GAME_SCENES['paddleslap']
         mocker.patch.object(scene_class, 'INSTANT_REPLAY_SECONDS', INSTANT_REPLAY_TEST_SECONDS)
