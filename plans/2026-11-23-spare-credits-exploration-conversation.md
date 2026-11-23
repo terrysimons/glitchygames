@@ -48,3 +48,22 @@ and on openly licensed Japanese data, fonts and voices; and one on what the glit
 already offers for such a game (Japanese text rendering, text input, RPG building blocks, saves).
 Noted that the goal is an original game that shares the concept, not a remake of that one.
 Asked what drew the user to the idea and who the game is for.
+
+## 7. Claude (research update)
+
+The first research pass came back, on Slime Forest Adventure and similar games. In general terms:
+
+- **Its core idea:** the combat action is the study action. You attack by typing the reading or
+  meaning of the character over the enemy. A miss costs health and shows the answer, often with
+  a memory hint.
+- **Structure:** hiragana, then katakana, then about 2,000 kanji. Each dungeon works as a
+  lesson and its test, since new characters are introduced only when the next area tests them.
+  Kanji come in an order where every memory hint refers only to kanji already learned.
+- **Review:** a simple custom review queue, not a published spaced-repetition method.
+- **What players miss:** audio most of all, then sentences and grammar, compound words, stroke
+  order and writing, and a visible review schedule. They also find the art and the game side
+  thin.
+- **The opening:** no game found combines typed recall, audio, writing, reading sentences and a
+  visible review schedule in one loop.
+- **Correction:** Claude's own research brief named the wrong developer; the official site names
+  Darrell Johnson.
