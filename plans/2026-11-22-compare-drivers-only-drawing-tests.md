@@ -1,8 +1,8 @@
 # Compare Drivers Only on Tests That Draw: Plan
 
-> **Status: DRAFT for the owner (2026-11-22); nothing is built.** Source: the owner's request of
-> 2026-11-22, relayed by the coordinator: the pre-push gate takes 50 to 75 minutes, and most of
-> it is `compare-drivers` running the whole suite three times.
+> **Status: approved (2026-11-22, #268); in progress on `feature/compare-drivers-only-drawing-tests`.**
+> Source: the owner's request of 2026-11-22, relayed by the coordinator: the pre-push gate takes
+> 50 to 75 minutes, and most of it is `compare-drivers` running the whole suite three times.
 
 **Goal:** `nox -s compare-drivers` (the pre-push hook's driver comparison) runs only the tests
 that draw: the ones whose recorded frames can differ between drivers. They are selected by a
@@ -86,14 +86,12 @@ as strong for frames.
    - like recording, enforcement applies only in the pytest process the plugin owns and its xdist
      workers (`GLITCHYGAMES_FRAME_FINGERPRINTS_OWNER`'s rule). A pytest that a test starts (the
      plugin's own pytester tests) is not judged.
-4. **Per-folder marking (the owner's point 3) is recorded, not chosen**, because the data shows it
-   conflicts with point 2. A collection hook marking every test under `src/games`, `src/apps` and
-   `src/demos` marks 9,317 tests, of which 158 draw. Either the "marked but never draws" rule fails
-   9,159 of them, or folder-marked tests are exempt from that rule and the marker can go stale for
-   a whole layer. It also selects 10,009 tests instead of 850 (16% to 30% of each run's time
-   instead of 4% to 16%). **Recommendation:** explicit marks everywhere, seeded from the data (the
-   158 member tests are in 23 files). If the owner prefers folders, the plan's alternative is the
-   hook plus an exemption for folder-marked tests from the "never draws" rule, at that cost.
+4. **Explicit marks everywhere, no folder marks** (the owner, 2026-11-22). Folder marking
+   conflicts with the "marked but never draws" rule: a collection hook marking every test under
+   `src/games`, `src/apps` and `src/demos` marks 9,317 tests, of which 158 draw, so it needs that
+   rule dropped or an exemption for the whole layer, and it selects 10,009 tests instead of 850
+   (16% to 30% of each run's time instead of 4% to 16%). The member tests that draw (158, in 23
+   files) are marked one by one, seeded from the data like the engine's.
 5. **The canvas the plugin compares with comes from the suite, through a pytest hook.** The plugin
    is engine code (`glitchygames.testing`) and may not import `tests/` (enforced:
    `tests/test_suite_collection.py`). A new hook specification,
@@ -241,8 +239,8 @@ Codemod (`tests/test_mark_drawing_tests.py`):
 1. compare-drivers runs only tests that draw, selected by a marker (named here: `draws_frames`).
 2. The frame-fingerprints plugin keeps the marker from going stale in every normal run, both ways;
    `frames_vary` keeps working.
-3. Member tests by folder, engine drawing tests explicitly. **Open:** the data shows this
-   conflicts with point 2 (decision 4 above); the recommendation is explicit marks everywhere.
+3. Explicit `draws_frames` marks everywhere, not folder marks for member tests (decided
+   2026-11-22 after the data in decision 4; the first request was member tests by folder).
 4. Seed the marking from the recorder's data, and settle what "draws" means from what the
    comparison compares (decided above: a present, or a final screen other than the canvas at its
    size).
