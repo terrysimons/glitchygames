@@ -44,6 +44,8 @@ LAYER_TERRAIN = 4
 LAYER_COLLECTIBLES = 5
 LAYER_ENEMIES = 6
 LAYER_PLAYER = 7
+# The score and lives labels, over everything
+LAYER_HUD = 8
 
 # Animation tuning
 # Speed: radians per second for sin-based animation (~0.8 cycles/sec)

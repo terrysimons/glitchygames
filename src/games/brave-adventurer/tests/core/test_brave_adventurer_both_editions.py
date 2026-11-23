@@ -28,6 +28,7 @@ from brave_adventurer_core.constants import (
     GAME_OVER_RUMBLE_HIGH,
     GAME_OVER_RUMBLE_LOW,
     GROUND_Y,
+    LAYER_HUD,
     PIT_EDGE_COLOR,
     PIT_FLOOR_COLOR,
     PIT_WALL_COLOR,
@@ -58,6 +59,7 @@ from glitchygames.replay.tools.golden_traces import (
 from glitchygames.scenes import SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.sprites import AnimatedSprite
+from glitchygames.sprites.hud_label import HudLabel
 from glitchygames.state import DiskSaveManager
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.world import position_world_sprites
@@ -1134,24 +1136,94 @@ class TestButtonsAndAxesHoldMovement:
 
 
 class TestHud:
-    """The HUD draws only once setup() has loaded its font."""
+    """The score and lives are sprites in the scene's group, drawn on top of everything."""
 
-    def test_before_setup_nothing_is_drawn(self, real_scene):
-        surface = _filled_surface()
-        before = _surface_bytes(surface)
+    def test_before_setup_the_scene_has_no_hud_labels(self, real_scene):
+        assert real_scene.score_label is None
+        assert real_scene.lives_label is None
+        assert not [sprite for sprite in real_scene.all_sprites if isinstance(sprite, HudLabel)]
 
-        real_scene._draw_hud(surface)
-
-        assert _surface_bytes(surface) == before
-
-    def test_after_setup_score_and_lives_are_drawn(self, real_scene):
+    def test_after_setup_the_labels_show_the_score_and_lives_on_the_top_layer(self, real_scene):
         real_scene.setup()
+        score, lives = real_scene.score_label, real_scene.lives_label
+        assert score is not None
+        assert lives is not None
+        assert (score.text, lives.text) == (
+            f'Score: {real_scene.player.score}',
+            f'Lives: {real_scene.player.lives}',
+        )
+        labels = [sprite for sprite in real_scene.all_sprites if isinstance(sprite, HudLabel)]
+        assert labels == [score.shadow, score, lives.shadow, lives]
+        assert {real_scene.all_sprites.get_layer_of_sprite(label) for label in labels} == {
+            LAYER_HUD
+        }
+        assert real_scene.all_sprites.get_top_layer() == LAYER_HUD
+
+    def test_setup_again_on_resuming_from_pause_keeps_one_set_of_labels(self, real_scene):
+        """Resuming runs setup() again: a second set of labels would draw the HUD twice."""
+        real_scene.setup()
+        labels = [sprite for sprite in real_scene.all_sprites if isinstance(sprite, HudLabel)]
+        real_scene.setup()
+        assert [s for s in real_scene.all_sprites if isinstance(s, HudLabel)] == labels
+
+    def test_each_frame_shows_that_frames_score_and_lives(self, real_scene):
+        real_scene.setup()
+        real_scene.player.score = 1250
+        real_scene.player.lives = 1
+        real_scene.render(_filled_surface())
+        assert real_scene.score_label is not None
+        assert real_scene.lives_label is not None
+        assert real_scene.score_label.text == 'Score: 1250'
+        assert real_scene.lives_label.text == 'Lives: 1'
+
+    def test_the_player_drawn_after_the_sprites_never_covers_the_hud(self, real_scene, mocker):
+        """The post-draw pass (pits, enemies in a pit, the player) leaves the labels' pixels alone.
+
+        No recording reaches it (Task 0: the player never rose above y=250 and no pit was drawn
+        in any of Brave's four), so this places the player over the score label: the label's
+        pixels after the group drew it must be its pixels in the finished frame.
+        """
+        real_scene.setup()
+        score = real_scene.score_label
+        assert score is not None
+        labels = (score.shadow, score)
+        # A solid player, centred on the label (the classic player's pose is drawn in dt_tick,
+        # so before the first tick its image is blank)
+        player = real_scene.player
+        player.image = pygame.Surface(player.rect.size)
+        player.image.fill((255, 0, 0))
+        player.rect.center = score.rect.center
         surface = _filled_surface()
-        before = _surface_bytes(surface)
+        after_the_group: list[bytes] = []
+        draw_the_group = real_scene.all_sprites.draw
 
-        real_scene._draw_hud(surface)
+        def draw_and_keep_the_labels(screen):
+            dirty_rects = draw_the_group(screen)
+            after_the_group.extend(
+                pygame.image.tobytes(screen.subsurface(label.rect), 'RGB') for label in labels
+            )
+            return dirty_rects
 
-        assert _surface_bytes(surface) != before
+        mocker.patch.object(real_scene.all_sprites, 'draw', side_effect=draw_and_keep_the_labels)
+        real_scene.render(surface)
+        assert after_the_group == [
+            pygame.image.tobytes(surface.subsurface(label.rect), 'RGB') for label in labels
+        ]
+
+    def test_pits_lie_below_the_hud(self, real_scene):
+        """A pit runs from the ground down, so the pit fill can never reach the labels."""
+        real_scene.setup()
+        sprite_group = pygame.sprite.LayeredDirty()
+        left_segment = GroundSegment(world_x=0.0, segment_width=300, groups=sprite_group)
+        right_segment = GroundSegment(world_x=500.0, segment_width=400, groups=sprite_group)
+        real_scene.ground_sprites[:] = [left_segment, right_segment]
+        position_world_sprites(
+            sprites=sprite_group, camera=real_scene.camera, screen_size=SCREEN_SIZE
+        )
+        [pit] = real_scene._pit_rects()
+        assert real_scene.score_label is not None
+        assert pit.top == GROUND_Y
+        assert pit.top > real_scene.score_label.shadow.rect.bottom
 
 
 class TestMain:

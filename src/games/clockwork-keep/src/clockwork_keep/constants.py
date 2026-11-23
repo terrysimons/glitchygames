@@ -63,6 +63,8 @@ LAYER_FAR_BACKGROUND = 0
 LAYER_TERRAIN = 4
 LAYER_COLLECTIBLES = 5
 LAYER_PLAYER = 7
+# The score, lives and floor labels, over everything
+LAYER_HUD = 8
 
 # ---------------------------------------------------------------------------
 # Animation

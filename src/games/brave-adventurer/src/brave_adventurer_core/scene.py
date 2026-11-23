@@ -29,6 +29,7 @@ from brave_adventurer_core.constants import (
     HUD_SHADOW_COLOR,
     HUD_TEXT_COLOR,
     LAYER_FAR_BACKGROUND,
+    LAYER_HUD,
     LAYER_MID_BACKGROUND,
     LAYER_NEAR_BACKGROUND,
     LAYER_SKY,
@@ -62,11 +63,11 @@ from glitchygames.collision.solids import (
     world_x_flush_left_of,
     world_x_flush_right_of,
 )
-from glitchygames.fonts import FontManager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.sprites.hud_label import HudLabel
 from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
 
 if TYPE_CHECKING:
@@ -199,8 +200,10 @@ class BraveAdventurerSceneBase(Scene):
         # set before the game is built, so the audio engine follows its sound options
         self.sounds: BraveAdventurerSounds = request_sounds(audio=self.scene_manager.audio)
 
-        # HUD font
+        # HUD font, and the score and lives labels (sprites in the scene's group, made in setup)
         self.hud_font: pygame.font.Font | None = None
+        self.score_label: HudLabel | None = None
+        self.lives_label: HudLabel | None = None
 
         # Input action mapping (unifies keyboard + controller)
         self.actions = self._create_action_map(options=self.options)
@@ -262,12 +265,42 @@ class BraveAdventurerSceneBase(Scene):
         """Set up the game scene."""
         super().setup()
         self.hud_font = pygame.font.Font(None, 28)
+        if self.score_label is None:
+            self._add_hud_labels(font=self.hud_font)
         # The engine aims the camera at the player each frame (x only: the camera stays at the
         # top of the world) and places every world sprite from it
         self.camera.follow(target=self.player, axes=FollowAxes.X)
         # Each game's NAME: 'Brave Adventurer setup complete', 'Brave Adventurer: Papyrus
         # Edition setup complete'
         log.info('%s setup complete', self.NAME)
+
+    def _add_hud_labels(self: Self, *, font: pygame.font.Font) -> None:
+        """Add the score and lives labels to the scene's group (once: resuming runs setup again).
+
+        Args:
+            font: The HUD font.
+
+        """
+        # Each label's shadow is its own sprite, added just before it: score shadow, score, lives
+        # shadow, lives, the order the HUD was blitted in before it became sprites
+        self.score_label = HudLabel(
+            font=font,
+            color=HUD_TEXT_COLOR,
+            groups=self.all_sprites,
+            text=self._score_text(),
+            position=(10, 10),
+            shadow_color=HUD_SHADOW_COLOR,
+            layer=LAYER_HUD,
+        )
+        self.lives_label = HudLabel(
+            font=font,
+            color=HUD_TEXT_COLOR,
+            groups=self.all_sprites,
+            text=self._lives_text(),
+            position=(self.screen_width - 110, 10),
+            shadow_color=HUD_SHADOW_COLOR,
+            layer=LAYER_HUD,
+        )
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
@@ -966,36 +999,95 @@ class BraveAdventurerSceneBase(Scene):
         """
         # Fill with sky color
         screen.fill(SKY_COLOR)
+        self._show_score_and_lives()
 
-        # Draw all sprites via the engine's LayeredDirty system
+        # Draw all sprites via the engine's LayeredDirty system (the HUD labels last, on top)
         self.all_sprites.clear(screen, self.background)
         self.rects = self.all_sprites.draw(screen)
 
         # Draw pits AFTER sprites so they render on top of the parallax sand,
         # but only in gaps between ground segments (ground sprites are opaque
         # and already drawn, so they mask the pit fill where ground exists).
-        pit_rects = self._draw_pits(screen)
+        pit_rects = self._pit_rects()
         # Re-draw enemies in a pit and the player on top of the pits, so they're visible when
         # they fall in (the pit fill is drawn after the sprites)
-        for enemy in self.enemy_sprites:
-            if enemy.visible and enemy.rect.collidelist(pit_rects) != -1:
-                screen.blit(enemy.image, enemy.rect)
+        enemies_in_pits = [
+            enemy
+            for enemy in self.enemy_sprites
+            if enemy.visible and enemy.rect.collidelist(pit_rects) != -1
+        ]
+        # The HUD stays on top of all of it (the owner, 2026-11-20): what this pass would draw
+        # over a label is put back afterwards
+        covered_labels = self._hud_pixels_under(
+            screen=screen,
+            rects=[*pit_rects, *(enemy.rect for enemy in enemies_in_pits), self.player.rect],
+        )
+        self._draw_pits(screen, pit_rects=pit_rects)
+        for enemy in enemies_in_pits:
+            screen.blit(enemy.image, enemy.rect)
         screen.blit(self.player.image, self.player.rect)
-
-        # Draw HUD on top
-        self._draw_hud(screen)
+        for label_rect, label_pixels in covered_labels:
+            screen.blit(label_pixels, label_rect)
 
         # Force a full-screen update: the parallax layers and the pits move with the camera
         self.rects = None
 
-    def _draw_pits(self: Self, screen: pygame.Surface) -> list[pygame.Rect]:
+    def _draw_pits(
+        self: Self, screen: pygame.Surface, *, pit_rects: list[pygame.Rect] | None = None
+    ) -> list[pygame.Rect]:
         """Draw dark pits in gaps between ground segments.
 
         Args:
             screen: The display surface to draw on.
+            pit_rects: The pits' screen rects, if already found (``_pit_rects``).
 
         Returns:
             The screen rect of each pit drawn.
+
+        """
+        pits = self._pit_rects() if pit_rects is None else pit_rects
+        for pit in pits:
+            gap_left_screen = pit.left
+            gap_right_screen = pit.right
+            gap_width = pit.width
+            pit_depth = pit.height
+
+            # Dark fill
+            pygame.draw.rect(
+                screen,
+                PIT_WALL_COLOR,
+                (gap_left_screen, GROUND_Y, gap_width, pit_depth),
+            )
+
+            # Thin edge lines for definition
+            pygame.draw.line(
+                screen,
+                PIT_EDGE_COLOR,
+                (gap_left_screen, GROUND_Y),
+                (gap_left_screen, SCREEN_HEIGHT),
+                2,
+            )
+            pygame.draw.line(
+                screen,
+                PIT_WALL_SHADOW,
+                (gap_right_screen - 1, GROUND_Y),
+                (gap_right_screen - 1, SCREEN_HEIGHT),
+                2,
+            )
+
+            # Dark floor
+            pygame.draw.rect(
+                screen,
+                PIT_FLOOR_COLOR,
+                (gap_left_screen, SCREEN_HEIGHT - 4, gap_width, 4),
+            )
+        return pits
+
+    def _pit_rects(self: Self) -> list[pygame.Rect]:
+        """Return the screen rect of each pit on screen: the gaps between ground segments.
+
+        Returns:
+            The rects, left to right.
 
         """
         pit_rects: list[pygame.Rect] = []
@@ -1027,59 +1119,54 @@ class BraveAdventurerSceneBase(Scene):
             pit_depth = SCREEN_HEIGHT - GROUND_Y
             pit_rects.append(pygame.Rect(gap_left_screen, GROUND_Y, gap_width, pit_depth))
 
-            # Dark fill
-            pygame.draw.rect(
-                screen,
-                PIT_WALL_COLOR,
-                (gap_left_screen, GROUND_Y, gap_width, pit_depth),
-            )
-
-            # Thin edge lines for definition
-            pygame.draw.line(
-                screen,
-                PIT_EDGE_COLOR,
-                (gap_left_screen, GROUND_Y),
-                (gap_left_screen, SCREEN_HEIGHT),
-                2,
-            )
-            pygame.draw.line(
-                screen,
-                PIT_WALL_SHADOW,
-                (gap_right_screen - 1, GROUND_Y),
-                (gap_right_screen - 1, SCREEN_HEIGHT),
-                2,
-            )
-
-            # Dark floor
-            pygame.draw.rect(
-                screen,
-                PIT_FLOOR_COLOR,
-                (gap_left_screen, SCREEN_HEIGHT - 4, gap_width, 4),
-            )
-
         return pit_rects
 
-    def _draw_hud(self: Self, screen: pygame.Surface) -> None:
-        """Draw the heads-up display showing score and lives.
+    def _score_text(self: Self) -> str:
+        """Return the score label's text.
 
-        Args:
-            screen: The display surface to draw on.
+        Returns:
+            ``Score: N``.
 
         """
-        if self.hud_font is None:
-            return
+        return f'Score: {self.player.score}'
 
-        score_text = f'Score: {self.player.score}'
-        lives_text = f'Lives: {self.player.lives}'
+    def _lives_text(self: Self) -> str:
+        """Return the lives label's text.
 
-        # Shadow for readability
-        antialias = FontManager.antialias()
-        shadow_surface = self.hud_font.render(score_text, antialias, HUD_SHADOW_COLOR)
-        screen.blit(shadow_surface, (11, 11))
-        text_surface = self.hud_font.render(score_text, antialias, HUD_TEXT_COLOR)
-        screen.blit(text_surface, (10, 10))
+        Returns:
+            ``Lives: N``.
 
-        shadow_surface = self.hud_font.render(lives_text, antialias, HUD_SHADOW_COLOR)
-        screen.blit(shadow_surface, (self.screen_width - 109, 11))
-        text_surface = self.hud_font.render(lives_text, antialias, HUD_TEXT_COLOR)
-        screen.blit(text_surface, (self.screen_width - 110, 10))
+        """
+        return f'Lives: {self.player.lives}'
+
+    def _show_score_and_lives(self: Self) -> None:
+        """Give the HUD labels this frame's score and lives (each renders only when it changes)."""
+        if self.score_label is not None:
+            self.score_label.text = self._score_text()
+        if self.lives_label is not None:
+            self.lives_label.text = self._lives_text()
+
+    def _hud_pixels_under(
+        self: Self, *, screen: pygame.Surface, rects: list[pygame.Rect]
+    ) -> list[tuple[pygame.Rect, pygame.Surface]]:
+        """Copy the drawn HUD where any of these rects meets it, to put back over them.
+
+        Args:
+            screen: The screen, the sprites (HUD labels included) drawn.
+            rects: Where the post-draw pass will draw.
+
+        Returns:
+            Each covered label's rect (clipped to the screen) and a copy of its pixels.
+
+        """
+        covered: list[tuple[pygame.Rect, pygame.Surface]] = []
+        for label in (self.score_label, self.lives_label):
+            if label is None:
+                continue
+            for label_sprite in (label.shadow, label):
+                if label_sprite is None:
+                    continue
+                label_rect = screen.get_rect().clip(label_sprite.rect)
+                if label_rect.collidelist(rects) != -1:
+                    covered.append((label_rect, screen.subsurface(label_rect).copy()))
+        return covered
