@@ -159,6 +159,20 @@ class TestRunCommand:
             OutputCapture.APART,
         ]
 
+    @pytest.mark.parametrize('text', ['a\x00b c \x00', ''], ids=['NUL-separated', 'empty'])
+    def test_input_text_is_the_childs_whole_standard_input(self, text):
+        """Written, then closed: the child reads exactly it, to its end (git's --stdin)."""
+        completed = process.run_command(
+            command=[sys.executable, '-c', 'import sys; print(repr(sys.stdin.read()))'],
+            environment=os.environ,
+            timeout_seconds=WAIT_SECONDS,
+            capture_output=OutputCapture.TOGETHER,
+            input_text=text,
+        )
+
+        assert completed.returncode == 0
+        assert completed.stdout.strip() == repr(text)
+
 
 class TestStartCommand:
     """start_command returns at once; the child writes to the given file."""

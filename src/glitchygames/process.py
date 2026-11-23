@@ -29,6 +29,8 @@ import threading
 from enum import StrEnum
 from typing import TYPE_CHECKING, NamedTuple, TextIO
 
+from pydantic import BaseModel, ConfigDict
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from pathlib import Path
@@ -130,6 +132,40 @@ OUTPUT_STREAMS: dict[OutputCapture, tuple[int | None, int | None]] = {
     OutputCapture.TOGETHER: (subprocess.PIPE, subprocess.STDOUT),
     OutputCapture.APART: (subprocess.PIPE, subprocess.PIPE),
 }
+
+
+class ChildStreams(BaseModel):
+    """Where a launched child's standard streams go (``subprocess.Popen``'s stdin, stdout, stderr).
+
+    Attributes:
+        standard_input: ``subprocess.PIPE`` when the launcher writes it, None for this process's.
+        standard_output: ``OUTPUT_STREAMS``' first entry for the launcher's ``OutputCapture``.
+        standard_error: Its second entry.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    standard_input: int | None = None
+    standard_output: int | None = None
+    standard_error: int | None = None
+
+
+def child_streams(*, capture_output: OutputCapture, writes_input: bool) -> ChildStreams:
+    """Return the streams of a child whose output is captured as asked, its input piped or not.
+
+    Returns:
+        The streams.
+
+    """
+    standard_output, standard_error = OUTPUT_STREAMS[capture_output]
+    return ChildStreams(
+        standard_input=subprocess.PIPE if writes_input else None,
+        standard_output=standard_output,
+        standard_error=standard_error,
+    )
+
+
 # Arguments after a bare -- are not options: appended options go before it
 END_OF_OPTIONS = '--'
 
@@ -195,13 +231,14 @@ def with_options_appended(*, arguments: Sequence[str], appended: Sequence[str]) 
     return [*options, *appended, *rest]
 
 
-def run_command(
+def run_command(  # ruff: ignore[too-many-arguments] - the engine's one launcher: command, environment, timeout, capture, directory, input (keyword-only)
     *,
     command: Sequence[str],
     environment: Mapping[str, str],
     timeout_seconds: float | None,
     capture_output: OutputCapture = OutputCapture.NONE,
     working_directory: Path | None = None,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command (an argument list, never a shell) as a child process and wait for it.
 
@@ -219,6 +256,9 @@ def run_command(
             ``stderr``).
         working_directory: The child's working directory (None: this process's), e.g. a
             build's directory for SDL's configure script (scripts/build_sdl_x11.py).
+        input_text: Written to the child's standard input, which is then closed (git reading
+            paths with ``--stdin``: glitchygames/code_tree.py); None leaves the child this
+            process's standard input.
 
     Returns:
         The finished process (``returncode``; ``stdout`` when captured, else None; ``stderr``
@@ -233,7 +273,7 @@ def run_command(
 
     def wait_for_its_output(child: subprocess.Popen[str]) -> subprocess.CompletedProcess[str]:
         try:
-            output, error = child.communicate(timeout=timeout_seconds)
+            output, error = child.communicate(input=input_text, timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
             # At its timeout the child is killed at once, as subprocess.run kills it
             # (run_command_stopped_at_timeout stops it gently); communicate reaps it and
@@ -249,7 +289,7 @@ def run_command(
         command=command,
         environment=environment,
         working_directory=working_directory,
-        output_streams=OUTPUT_STREAMS[capture_output],
+        streams=child_streams(capture_output=capture_output, writes_input=input_text is not None),
         wait=wait_for_its_output,
     )
 
@@ -293,7 +333,7 @@ def run_command_stopped_at_timeout(
         command=command,
         environment=environment,
         working_directory=working_directory,
-        output_streams=OUTPUT_STREAMS[OutputCapture.NONE],
+        streams=child_streams(capture_output=OutputCapture.NONE, writes_input=False),
         wait=wait_for_it,
     )
 
@@ -303,7 +343,7 @@ def _run_owned_child[Finished](
     command: Sequence[str],
     environment: Mapping[str, str],
     working_directory: Path | None,
-    output_streams: tuple[int | None, int | None],
+    streams: ChildStreams,
     wait: Callable[[subprocess.Popen[str]], Finished],
 ) -> Finished:
     """Start a child and wait for it, holding it until it is reaped: the launchers' one path.
@@ -332,23 +372,22 @@ def _run_owned_child[Finished](
         command: The program and its arguments.
         environment: The child's whole environment.
         working_directory: The child's working directory (None: this process's).
-        output_streams: Where its standard output and error go (``OUTPUT_STREAMS``' entry for
-            the launcher's ``OutputCapture``).
+        streams: Where its standard input, output and error go (``child_streams``).
         wait: Waits for the held child and returns what the launcher returns.
 
     Returns:
         What ``wait`` returned.
 
     """
-    standard_output, standard_error = output_streams
     received: list[int] = []
     deferred = _defer_signals(received=received)
     try:
         child = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true] — sys.executable with a game's command line plus fixed flags, as an argument list (no shell)
             list(command),
             env=dict(environment),
-            stdout=standard_output,
-            stderr=standard_error,
+            stdin=streams.standard_input,
+            stdout=streams.standard_output,
+            stderr=streams.standard_error,
             text=True,
             cwd=working_directory,
         )
