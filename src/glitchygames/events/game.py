@@ -17,6 +17,7 @@ from glitchygames.events import (
     ResourceManager,
     VideoResizeEvent,
 )
+from glitchygames.state.high_scores import InvalidEntries
 
 LOG = logging.getLogger(__name__)
 
@@ -299,6 +300,16 @@ class GameEventManager(ResourceManager, GameEvents):
             help='enable profiling',
             action='store_true',
             default=False,
+        )
+        group.add_argument(
+            '--invalid-high-scores',
+            help=(
+                'what a high-score table does with a saved entry it cannot read: refuse it '
+                '(keep the file as it is, save nothing) or drop it with a warning '
+                '(default: refuse)'
+            ),
+            choices=[policy.value for policy in InvalidEntries],
+            default=InvalidEntries.REFUSE.value,
         )
 
         return parser

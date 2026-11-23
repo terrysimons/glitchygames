@@ -259,7 +259,8 @@ stacks (they exist only for the plans; kept on pay-as-you-go they would add abou
    Route 53 nameservers each zone reports.
 3. Subscribe both distributions to the CloudFront Free plan and attach each Route 53 zone to its
    plan (CloudFront console, Manage Plan), unless CDK can do it.
-4. Confirm the AWS Budgets email subscription.
+4. Nothing to confirm for AWS Budgets: it emails an address directly, with no subscription
+   (found at go-live, plan Task 8 Step 7).
 
 ## Today's DNS (checked 2026-10-27 with `dig`)
 

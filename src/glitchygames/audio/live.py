@@ -274,7 +274,10 @@ class LiveStream:
         """Fade to silence over fade_out seconds of rendered audio, then drain.
 
         LiveAudio.update() keeps rendering the fade and returns the channel to the pool once
-        the voice has drained.
+        the voice has drained. The fade starts in the next chunk rendered: the chunk playing
+        and the one already queued play out unfaded first, so the fade is heard up to about two
+        chunks late (128-198 ms with the default 0.1 s chunks, measured on SDL's disk driver,
+        2026-11-21). stop_now() silences at once.
 
         Returns:
             Whether the fade began (False once stopping or stopped, or before start()).

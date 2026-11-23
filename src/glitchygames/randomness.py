@@ -29,13 +29,13 @@ it does not hold (made after the capture) starts over from its seed, the state i
 on first use at capture time (dropped instead when the captured master seed is None, to be made
 on first use); a stream only the capture holds is made in its captured state.
 
-Streams in use: ``'shake'`` (glitchygames/effects/shake.py), ``'ball.serve'``
-(glitchygames/game_objects/ball.py), ``'paddleslap.spawn'`` and ``'paddleslap.colors'``
-(src/games/paddleslap/src/paddleslap/__init__.py), ``'audio.controller_noise'``
+The engine's streams: ``'shake'`` (glitchygames/effects/shake.py), ``'ball.serve'``
+(glitchygames/game_objects/ball.py), ``'audio.controller_noise'``
 (glitchygames/audio/controller_audio.py), and the numpy streams ``'audio.live'`` and
-``'audio.synth'`` (glitchygames/audio/live.py, synth.py). ``glitchygames/audio/effects.py``
-seeds its noise with the constant ``RECIPE_NOISE_SEED`` so an effect sounds the same every time;
-that is deterministic and needs no stream.
+``'audio.synth'`` (glitchygames/audio/live.py, synth.py). A game names its own streams with its
+package as the prefix (``'<game>.spawn'``), so no two games' streams share a name.
+``glitchygames/audio/effects.py`` seeds its noise with the constant ``RECIPE_NOISE_SEED`` so an
+effect sounds the same every time; that is deterministic and needs no stream.
 
 Never use ``secrets``, ``random.SystemRandom``, the ``random`` module's global functions,
 ``random.Random()`` without a seed or ``np.random.default_rng()`` without a seed in the

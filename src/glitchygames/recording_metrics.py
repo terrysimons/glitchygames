@@ -42,6 +42,7 @@ from typing import TYPE_CHECKING, Any, Self, cast
 from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames.build_info import RevisionSource, SourceRevision
+from glitchygames.output_files import write_text_whole
 from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -989,9 +990,50 @@ def write_row_files(*, rows: Iterable[LedgerRow], directory: Path) -> list[Path]
     paths: list[Path] = []
     for row in rows:
         path = directory / row_file_name(row=row)
-        path.write_text(ledger_text(rows=[row]), encoding='utf-8')
+        write_ledger_file(path=path, rows=[row])
         paths.append(path)
     return paths
+
+
+def write_ledger_file(*, path: Path, rows: Iterable[LedgerRow]) -> None:
+    """Write a ledger file whole or not at all: a stopped write leaves the earlier file as it was.
+
+    Through ``output_files.write_text_whole`` (synced to the disk, as a Pi's SD card can lose
+    power), so a reader, a later measurement or the Pi hook never sees a truncated row
+    (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md).
+
+    Args:
+        path: The ledger file (a row file, or the pending ledger).
+        rows: Its rows, in order.
+
+    """
+    write_text_whole(destination=path, text=ledger_text(rows=rows))
+
+
+def append_ledger_rows(*, path: Path, rows: Iterable[LedgerRow]) -> None:
+    """Append rows to a ledger file (made if missing) as complete lines, in one write.
+
+    A file whose last line a stopped write cut short gets its line break first, so the new rows
+    start lines of their own: the cut line alone is skipped as unreadable, instead of swallowing
+    the first new row (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md).
+
+    Args:
+        path: The ledger file (the pending ledger).
+        rows: The rows to add, in order.
+
+    """
+    text = ledger_text(rows=rows)
+    if not text:
+        return
+    if path.is_file() and path.stat().st_size:
+        with path.open('rb') as existing:
+            existing.seek(-1, os.SEEK_END)
+            if existing.read(1) != b'\n':
+                text = f'\n{text}'
+    with path.open('a', encoding='utf-8') as stream:
+        stream.write(text)
+        stream.flush()
+        os.fsync(stream.fileno())
 
 
 def read_row_files_by_name(*, directory: Path) -> dict[str, tuple[LedgerRow, ...]]:
