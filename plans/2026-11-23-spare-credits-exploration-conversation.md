@@ -430,3 +430,25 @@ letters, verses); and each opened section of the tree shows up in the world as r
 Recorded why the tree is dynamic: what the player has learned is the tool for learning more, so
 each player goes on their own language journey, literally (through the world) and figuratively
 (through the language).
+
+## 49. User (2026-11-23)
+
+> Yes, exactly the idea.  This is why we need the AI to be required for this game.  So we'll need
+> to have a way for the game to opt-in to requiring AI, and if the AI services are down, it would
+> fail.  We may even also want to have a loading intro for games that do require - another scene
+> type that can represent whatever we (or the game, perhaps) want to show while the AI
+> bootstrapping is happening (service boot, which happens on game launch, any data priming,
+> etc...) again - this makes sense only for games that opt-in to requiring AI - games that are
+> passive to the AI should continue to work as they do today - where AI can absolutely interact
+> with them, but the game is unaware.  What did we call our AI feature... Lucid something...
+> LucideWire maybe?  Remind me?
+
+## 50. Claude
+
+Reminded the user that the AI platform is **Lucid Circuit** (master plan `plans/lucid-circuit.md`;
+strictly, the owner's brief used the name for the stage that inspects and changes game internals,
+and the plan took it for the whole platform). Recorded the engine requirements: a game opts in to
+requiring AI; with the service down it fails; a new scene type shows while the AI boots and
+primes data; passive games stay as they are. Flagged where this departs from Lucid Circuit's
+current rules: the live game never waits for AI; a failed AI never changes the exit code; AI is
+never on in replays, headless runs, tests or the browser.

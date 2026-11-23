@@ -146,6 +146,31 @@ Answered: 13 (Irish, Gaeilge), 14 (immersion; fun, even addictive), 16 (spoken a
 written, own script), 17 (play with it, not the only idea), 18 (single player). Struck by the
 user: 5 (which parts of Japanese) and 6 (how the player answers).
 
+### Engine requirements
+
+- **(user)** AI is required for this game, because the dynamic tree depends on it.
+- **(user)** A game can opt in to requiring AI. If the AI services are down, the game fails.
+- **(user)** A loading intro for games that require AI: a new scene type showing whatever the
+  engine (or the game itself) wants while the AI boots: the service starting at launch, data
+  priming and so on.
+- **(user)** Only opted-in games get this. Games passive to the AI keep working as they do today:
+  the AI can interact with them, and the game is unaware.
+- The AI platform is Lucid Circuit (`plans/lucid-circuit.md`). This becomes a Lucid Circuit
+  sub-plan when it is designed.
+
+Where this departs from Lucid Circuit's current rules (to weigh in the design; the reasons are in
+its master plan):
+
+| Rule today | What a required-AI game changes |
+|------------|----------------------------------|
+| The live game never waits for AI | The game waits at launch, behind the loading scene; during play the tree still must not stall a frame, so AI answers arrive asynchronously |
+| The service dying mid-play leaves the game running, with AI unavailable | An opted-in game fails. How (a message scene, then exit) is to design |
+| AI failure never changes the exit code | An opted-in game exits with `ExitCode.SERVICE_UNAVAILABLE` (69), which already means "a required service (the local AI service) ... cannot be reached" |
+| `--no-ai` turns AI off | For an opted-in game, `--no-ai` is refused with a clear message |
+| No AI in replays | Still true: AI answers are recorded as input, so a replay serves them back with no service. The requirement check is skipped in replays |
+| No AI with `--headless`, in tests or in the tools that record goldens | Tests and goldens for an opted-in game need a stand-in service or recorded AI answers |
+| No AI in the browser (it cannot start processes) | An opted-in game cannot run in the browser unless it reaches a service some other way |
+
 ## 2. Goals, non-goals, anti-goals
 
 To be filled in.
