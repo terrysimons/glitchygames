@@ -29,6 +29,16 @@ The game, as the user has described it so far:
   and Chrono Trigger, as a frame for the conversation, not a game to remake.
 - **(user)** An RPG with a really amazing skill tree. Its contents are the user's to explain
   later; no assumptions about them until then.
+- **(user)** A language-learning game, for a language other than Japanese.
+- **(user)** A time loop carries the learning: repetition happens because the player replays the
+  game, and the loop is wired to the different learning mechanisms in a gamified way.
+- **(user)** The feeling to evoke is discovery of meaning and of learning, while replaying.
+- **(user)** The image (metaphorical, or literal, since it is a fantasy RPG): a grayscale world
+  devoid of color; a hero arc where discovery, happenstance, curiosity or something climactic, as
+  in many JRPGs, with grand music, cutscenes and drama, unfolds into the rediscovery of a dying
+  language that had all but disappeared from the world, with hints to why it disappeared.
+- **(user)** The tone: mystery, curiosity and a magic in the power of words and culture; a
+  feeling of connectedness to a completely different way of seeing the world.
 - **(user)** The user is explaining the mechanics first, then what they are going for. Claude
   listens and holds guesses until both are told.
 - **(user)** Research notes stay outside the repository; this plan refers only to the ideas.
