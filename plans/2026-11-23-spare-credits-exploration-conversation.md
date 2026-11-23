@@ -231,3 +231,18 @@ during play would have its answers recorded like any other input.
 Recorded it: AI likely plays a part both while the game is made and while it is played, and
 where exactly is an open area to research, consider, test and brainstorm. Invited the user to
 continue.
+
+## 26. User (2026-11-23)
+
+> Do you have any new questions other than the ones that I deferred?
+
+## 27. Claude
+
+Listed the new questions:
+
+13. Is the language real or invented for the game? (asked earlier, still open)
+14. Does the player walk away knowing a real language?
+15. What carries over from one loop to the next?
+16. Is the language spoken, written, or both?
+17. Is the gray world literal on screen?
+18. One player, or more?
