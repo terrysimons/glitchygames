@@ -330,6 +330,7 @@ def test_a_lower_kid_is_drawn_in_front():
     )
 
 
+@pytest.mark.draws_frames
 def test_unplugging_a_pad_removes_its_kid():
     """A pad unplugged in the neighborhood takes its kid with it and frees its slot."""
     with support.running_game(scene_class=NeighborhoodScene, plugged_in_at_start=False) as (
@@ -350,6 +351,7 @@ def test_unplugging_a_pad_removes_its_kid():
         assert not marisol.alive()
 
 
+@pytest.mark.draws_frames
 def test_unplugging_the_last_player_returns_to_the_title():
     """With nobody left, the neighborhood goes back to the title."""
     with support.running_game(scene_class=NeighborhoodScene, plugged_in_at_start=False) as (
@@ -394,6 +396,7 @@ def test_a_pads_start_on_the_joystick_layer_pauses():
     assert isinstance(scene.next_scene, PauseScene)
 
 
+@pytest.mark.draws_frames
 def test_the_yard_is_lawn_not_black():
     """The yard shows its lawn (never the black of nothing drawn)."""
     scene = neighborhood()
@@ -1856,6 +1859,7 @@ def test_the_shine_follows_the_kid_across_the_screen(mocker):
     assert pans[-1] > pans[0]
 
 
+@pytest.mark.draws_frames
 def test_an_unplugged_players_shine_stops(mocker):
     """A pad unplugged mid-shine takes its kid, and the kid's laser falls silent."""
     with support.running_game(scene_class=NeighborhoodScene, plugged_in_at_start=False) as (
@@ -1984,6 +1988,7 @@ def test_the_same_seed_groans_the_same_groans(mocker, seed_case, request):
     assert runs[0] == runs[1], note
 
 
+@pytest.mark.draws_frames
 def test_an_unplugged_player_who_never_aimed_the_laser_fades_nothing(mocker):
     """A pad unplugged before its kid ever shone: there is no laser sound to fade."""
     with support.running_game(scene_class=NeighborhoodScene, plugged_in_at_start=False) as (

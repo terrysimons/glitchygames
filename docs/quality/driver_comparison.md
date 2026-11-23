@@ -13,7 +13,8 @@ Outside CI, `uv run pytest` (and `nox -s test`) runs the suite twice at once:
 
 1. on `dummy`, in the pytest process and its xdist workers, with coverage and the 99% gate as
    always;
-2. on the native driver, as a child pytest run with the same arguments. The usual workers are
+2. on the native driver, as a child pytest run with the same arguments, running only the tests
+   marked `draws_frames` (the others have no frame to compare; see below). The usual workers are
    split between the two runs (the native run gets two thirds: it is slower per test), so the
    machine is no busier than for one run.
 
@@ -55,6 +56,34 @@ time), watched replays of a live session (the overlay shows the live window's mo
 `dummy` always reports and a background window does not have) and a test that switches the
 display back to the run's driver part way through.
 
+## The `draws_frames` marker
+
+A test **draws** when, from the start of its setup to the end of its body, it presents a frame
+(`pygame.display.flip` or `update`), or it leaves the display showing a picture other than the
+canvas at the display's size (every test starts on the canvas: `tests/display_canvas.py`). Those
+are the two things a comparison compares, so only those tests have frames that can differ. Each
+carries `@pytest.mark.draws_frames`; in a parametrized test whose cases differ, each drawing case
+carries it through `pytest.param(..., marks=pytest.mark.draws_frames)`. A test whose frames vary
+and that draws carries both markers. The comparison's runs pass the frame fingerprints plugin's
+`--draws-frames-only`, which runs only the marked tests (after any `-m` of yours): about 850 of
+the suite's 30,900.
+
+The marker cannot go stale: every run (CI too, every driver) checks each test whose body passed,
+and fails it when the marker disagrees with what it did:
+
+- `... draws without the draws_frames marker (presented 3 frame(s)): add @pytest.mark.draws_frames`
+  (or "left a picture other than the blank screen");
+- `... is marked draws_frames but draws nothing (no present, and it leaves the blank screen):
+  remove the marker`.
+
+Each run also lists its disagreements in `test-results/frame-markers.txt`. To mark many tests at
+once, run the suite with `--frame-markers-report-only` (it lists without failing), then `uv run
+python -m scripts.mark_drawing_tests`, which adds the markers the list asks for (and names
+markers to remove by hand), and `ruff format` the changed files. A pytest that a test starts
+(pytester, a tool's run) is not checked. The check costs about 0.4 ms per test that presents
+nothing. The contract is `src/glitchygames/testing/frame_fingerprints.py`'s docstring; the
+decisions are in `plans/2026-11-22-compare-drivers-only-drawing-tests.md`.
+
 ## On demand: `nox -s compare-drivers`
 
 The session compares every driver configuration available on this machine with every other, an
@@ -67,8 +96,8 @@ N-way matrix (`scripts/driver_configurations.py` lists them and finds which run 
 | `x11-macos` | x11 on this Mac, drawing on XQuartz, through SDL built with x11 | macOS, XQuartz, a C compiler and make |
 | `x11-linux` | x11 in the Linux container of `nox -s test-linux-x11`, forwarded to XQuartz over TCP | macOS, XQuartz (TCP enabled), Docker |
 
-The runs go one after another with four workers each (the container's too), so the machine stays
-usable; `-- --workers N` sets another count, and `-- --workers auto` uses every core. The pre-push
+Every run runs only the tests marked `draws_frames` (above). The runs go one after another with
+four workers each (the container's too), so the machine stays usable; `-- --workers N` sets another count, and `-- --workers auto` uses every core. The pre-push
 hook passes `--workers auto`: a push is waited for, and on a 16-core Mac its three runs took 10
 minutes instead of 19, with every configuration agreeing and nothing more varying between the dummy
 runs (measured 2026-11-13). It also passes `--skip-when-frames-cannot-change`: a push that changes

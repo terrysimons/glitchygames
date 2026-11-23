@@ -555,6 +555,30 @@ def test_replay_metrics_runs_on_the_editable_install_of_every_package():
     assert session.environments[command] == {'VIRTUAL_ENV': None, 'UV_NO_EDITABLE': None}
 
 
+@pytest.mark.parametrize('configuration_name', ['dummy', 'cocoa'])
+def test_every_compare_drivers_run_runs_only_the_drawing_tests(configuration_name, tmp_path):
+    """Each run (a baseline, a native one, the images re-run) passes --draws-frames-only."""
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+    noxfile._run_fingerprinted_tests(
+        session,
+        configuration={
+            'name': configuration_name,
+            'environment': {'SDL_VIDEODRIVER': configuration_name},
+            'runs_in_linux_container': False,
+        },
+        directory=tmp_path / 'run',
+        arguments=['tests/scenes', '-m', 'slow'],
+        settings=noxfile._RunSettings(workers='4'),
+    )
+
+    (command,) = session.commands
+    assert '--draws-frames-only' in command
+    # The caller's selection stays: the plugin deselects after any -m
+    assert command[-3:] == ('tests/scenes', '-m', 'slow')
+
+
 def test_the_test_sessions_install_stays_built():
     """The test sessions install the built packages on purpose (what a user installs)."""
     import noxfile

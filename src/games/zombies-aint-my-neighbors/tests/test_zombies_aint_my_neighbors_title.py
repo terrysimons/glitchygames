@@ -80,6 +80,7 @@ def slot_shown(scene: TitleScene) -> list[bool]:
     return [bool(picture.visible) for picture in scene.slot_pictures]
 
 
+@pytest.mark.draws_frames
 def test_each_unjoined_slot_shows_press_start_in_its_players_colour(scene):
     """Every slot draws in its own player's colour, and no other player's colour."""
     tick_to(scene, seconds=BLINK_SECONDS / 2)
@@ -117,6 +118,7 @@ def test_unjoined_slots_blink_together_every_half_second(scene):
     assert slot_shown(scene) == [True] * MAXIMUM_PLAYERS
 
 
+@pytest.mark.draws_frames
 def test_a_hidden_slot_draws_nothing(scene):
     """While hidden, a slot's area shows none of its colour."""
     tick_to(scene, seconds=0.75)
@@ -152,6 +154,7 @@ def test_replay_arguments_rebuild_the_title_with_the_same_roster_through_json():
     assert rebuilt.roster == roster
 
 
+@pytest.mark.draws_frames
 def test_the_title_scene_renders_no_text_after_setup(scene, mocker: MockerFixture):
     """Every text image is made in setup(); playing never renders text (decision 11)."""
     spy = mocker.spy(font_manager, 'render_line')
@@ -162,6 +165,7 @@ def test_the_title_scene_renders_no_text_after_setup(scene, mocker: MockerFixtur
     assert spy.call_count == 0
 
 
+@pytest.mark.draws_frames
 def test_the_background_is_black(scene):
     """The title sets its background explicitly (black, not the TV test pattern)."""
     screen = rendered(scene)
@@ -247,6 +251,7 @@ def test_p_pauses(scene):
     assert isinstance(scene.next_scene, PauseScene)
 
 
+@pytest.mark.draws_frames
 def test_a_pad_plugged_in_before_the_game_starts_can_join():
     """A pad the title was never told about (no on_input_device_added) joins on START.
 
@@ -260,6 +265,7 @@ def test_a_pad_plugged_in_before_the_game_starts_can_join():
         assert joined_devices(title) == [gamepad(STAND_IN_PAD.instance_id), None, None, None]
 
 
+@pytest.mark.draws_frames
 def test_unplugging_a_pad_frees_its_slot_and_its_slot_blinks_again():
     """A pad that is unplugged gives up its slot, which goes back to PRESS START."""
     with running_title(plugged_in_at_start=False) as (engine, title):
@@ -278,6 +284,7 @@ def test_unplugging_a_pad_frees_its_slot_and_its_slot_blinks_again():
         assert slot_shown(title) == [False, False, False, False]
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize('input_mode', ['auto', 'joystick'])
 def test_raw_device_events_are_handled_under_no_unhandled_events(input_mode):
     """Plugging, remapping and unplugging a pad raises nothing (Review Focus 5)."""
@@ -370,6 +377,7 @@ def test_a_font_that_never_fits_falls_back_to_the_smallest_size():
     assert font.get_height() == smallest.get_height()
 
 
+@pytest.mark.draws_frames
 def test_a_pad_unplugged_while_paused_frees_its_slot_on_resume():
     """The pause screen hears an unplug, not the title; resuming still frees the pad's slot.
 
@@ -401,6 +409,7 @@ def test_a_pad_unplugged_while_paused_frees_its_slot_on_resume():
         assert joined_devices(title) == [None, KEYBOARD, None, None]
 
 
+@pytest.mark.draws_frames
 def test_pausing_and_resuming_keeps_every_connected_player():
     """A pause and a resume, with nothing unplugged, changes nobody's slot."""
     with running_title(plugged_in_at_start=False, unhandled_events_raise=False) as (
@@ -783,6 +792,7 @@ def test_a_pad_start_held_after_a_skip_never_joins(press):
     assert joined_devices(title)[0] == gamepad(1)
 
 
+@pytest.mark.draws_frames
 def test_a_recorded_run_that_idles_into_the_demo_replays(tmp_path, mocker, caplog):
     """A recorded run that idles round the loop, demo and intro in turn, replays matching.
 

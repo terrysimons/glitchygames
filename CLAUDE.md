@@ -317,9 +317,9 @@ Space and quit with Esc, so a game's own pause must not be on Esc (Mr. Muncher's
   tests.
 - `tests/harness.py` defaults SDL to the dummy drivers; macOS joystick drivers are off, so tests
   see only stand-in devices (`tests/input/stand_in_devices.py`).
-- Driver comparison: outside CI, `pytest` also runs on the native driver and fails on any
-  differing frame (PNGs in `test-results/driver-comparison/pytest/`). A test whose frames
-  legitimately vary carries `@pytest.mark.frames_vary(reason=...)`.
+- Driver comparison: outside CI, `pytest` also runs the drawing tests on the native driver and
+  fails on any differing frame. A test that draws carries `@pytest.mark.draws_frames` (the plugin
+  fails it otherwise); one whose frames vary also `frames_vary(reason=...)`.
   Docs: docs/quality/driver_comparison.md.
 - A test that leaves a process running fails (`tests/child_process_guard.py`, the harness's
   autouse `no_child_process_left_running`, BUGS.md #275). Stop a child you start with its whole
