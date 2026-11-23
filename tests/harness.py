@@ -375,6 +375,30 @@ def _reset_all_singleton_instances():
 # changed from run to run: driver comparisons flagged them (tests/test_frame_fingerprints.py's
 # TestRecordingARun, BUGS.md #255) and tests checking inner order failed (#252)
 INNER_RUN_ADDOPTS = '-p no:randomly'
+# The configuration file every pytester project gets. Without one, an inner run looked for a
+# configuration in the folders above the project: a temporary folder inside the repository gave
+# it the repository's pyproject.toml (xdist, 100% coverage) and conftest, failing 25 tests
+# (bugs/2026-11-20-driver-comparison-end-to-end-tests-fail-inside-the-repository.md). tox.ini is
+# the lowest-precedence file pytest reads in a folder, so a project's own pytest.ini, or its
+# pyproject.toml with [tool.pytest.ini_options], still wins; pytester's makeini writes this file.
+OWN_CONFIG_FILE_NAME = 'tox.ini'
+OWN_CONFIG_TEXT = '[pytest]\n'
+
+
+def give_project_its_own_config(*, project: Path) -> None:
+    """Give ``project`` a configuration file, so pytest's search for one stops there.
+
+    pytest takes the first folder, going up from the run's arguments, that holds a
+    configuration; its rootdir (and the conftest search) stops there too. A file the project
+    already has is kept.
+
+    Args:
+        project: The project's folder.
+
+    """
+    own_config = project / OWN_CONFIG_FILE_NAME
+    if not own_config.exists():
+        own_config.write_text(OWN_CONFIG_TEXT, encoding='utf-8')
 
 
 @pytest.fixture(autouse=True)
@@ -385,9 +409,13 @@ def inner_runs_keep_their_order(request: pytest.FixtureRequest, monkeypatch: pyt
     the outer run has already read it, so its own order (shuffled by ``nox -s test-random``)
     is untouched. Set after ``pytester`` is made: making it deletes ``PYTEST_ADDOPTS``, to
     keep the outer run's options out of inner runs.
+
+    The project also gets a configuration of its own (``give_project_its_own_config``), so an
+    inner run never reads the repository's when the temporary folder lies inside it.
     """
     if 'pytester' in request.fixturenames:
-        request.getfixturevalue('pytester')
+        pytester: pytest.Pytester = request.getfixturevalue('pytester')
+        give_project_its_own_config(project=pytester.path)
         outer = os.environ.get('PYTEST_ADDOPTS', '')
         monkeypatch.setenv('PYTEST_ADDOPTS', f'{outer} {INNER_RUN_ADDOPTS}'.strip())
 
