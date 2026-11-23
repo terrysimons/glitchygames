@@ -1,6 +1,9 @@
-# pre-commit install installs both stages: pre-push (format, lint, types, security, complexity)
-# and pre-commit (replay-metrics: a commit carries the measurements of its code); .envrc runs it
-default_install_hook_types: [pre-commit, pre-push]
+# pre-commit install installs the pre-push stage (format, lint, types, security, complexity, the
+# suite, compare-drivers); .envrc runs it. No hook measures the golden replays into the repository
+# any more: the owner, 2026-11-22, stopped committing replay-ledger rows (too many files in git;
+# they move to S3, plans/future-work.md). nox -s measure-staged and measure-on-raspberry-pi
+# still measure by hand
+default_install_hook_types: [pre-push]
 # A commit or push that changes only Markdown (BUGS.md, docs, plans) runs no hook: no check and
 # no measurement (the owner, 2026-11-14). Each hook sees only the other files, so pre-commit
 # skips it when there are none; a hook with always_run would ignore this, so none has it.
@@ -10,20 +13,6 @@ exclude: '\.md$'
 repos:
 - repo: local
   hooks:
-    # Also measures what is being pushed on the Raspberry Pis, all at once, and copies their rows
-    # of its code tree here, staged; one push at a time per Pi, under a lock beside its clone
-    # (scripts/measure_on_raspberry_pi.py, by hand: nox -s measure-on-raspberry-pi).
-    # First, and
-    # fail_fast: a push that stops for rows to commit runs the checks below once, not twice.
-    # SKIP=raspberry-pi-replay-metrics git push ... skips it; a Markdown-only push skips it too
-    - id: raspberry-pi-replay-metrics
-      name: raspberry-pi-replay-metrics (measure on the Pis, copy the rows here)
-      language: system
-      entry: uv run --locked --extra dev nox -s measure-on-raspberry-pi
-      pass_filenames: false
-      fail_fast: true
-      stages: [pre-push]
-
     - id: format
       name: format (code, toml)
       language: system
@@ -91,16 +80,3 @@ repos:
       entry: uv run --extra dev nox -s compare-drivers -- --drivers native --fail-on-difference --workers auto --skip-when-frames-cannot-change
       pass_filenames: false
       stages: [pre-push]
-
-    # Measures the golden replays on the code being committed when it can change them, and
-    # stages the rows (quality/replay-ledger/) into the same commit
-    # (scripts/measure_staged_replays.py, by hand: nox -s measure-staged); SKIP=replay-metrics
-    # git commit ... skips it. --locked: a stale uv.lock fails the hook saying so, where a plain
-    # uv run would rewrite the lock and pre-commit would then fail the hook for modifying files.
-    # A Markdown-only commit skips it (Markdown is no part of the code tree a row is measured at)
-    - id: replay-metrics
-      name: replay-metrics (measure the staged code)
-      language: system
-      entry: uv run --locked --extra dev nox -s measure-staged
-      pass_filenames: false
-      stages: [pre-commit]

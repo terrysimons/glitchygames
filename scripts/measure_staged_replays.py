@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""The pre-commit hook that measures the golden replays on the code a commit holds.
+"""Measure the golden replays on the staged code and stage the rows (by hand only).
 
-Run by the pre-commit framework before each commit (``.pre-commit-config.yaml``, hook
-``replay-metrics``), which stashes unstaged changes to tracked files first, so the tracked files
-are exactly what is being committed. When this machine has no rows yet for the staged code tree
+Until 2026-11-22 the pre-commit hook ``replay-metrics``; the owner then stopped committing
+replay-ledger rows (too many files in git; they move to S3, plans/future-work.md), so no hook
+runs it and "the hook" below means this script run by hand (``nox -s measure-staged``; each Pi's
+clone still runs it for ``scripts/measure_on_raspberry_pi.py``). Run as a hook, the framework
+stashed unstaged changes first, so the tracked files were exactly what was being committed; by
+hand, stage what you mean to measure. When this machine has no rows yet for the staged code tree
 (glitchygames/code_tree.py: only the paths that can change how the replays run), it measures
 every golden replay and bundled demo on that code (``glitchygames measure``, named by its code
 tree) and stages the row files under ``quality/replay-ledger/``, so the commit carries its own
@@ -39,7 +42,7 @@ The rules (a code review's findings, 2026-10-25):
 The repository's settings (``[tool.glitchygames]``: what a code tree holds) are read from the
 repository given, never from a module-level read of this one's (the controller's note to Task D6).
 
-``SKIP=replay-metrics git commit ...`` commits without measuring.
+Measuring is optional and by hand: a commit never runs it.
 
 Usage (the framework runs it through nox; by hand after updating a branch, then commit):
     nox -s measure-staged
@@ -222,8 +225,7 @@ def measure_staged(*, repository: Path, rows_directory: Path) -> int:
     if _is_partial_commit():
         sys.stderr.write(
             'replay-metrics: this commit needs measuring, which a partial commit '
-            '(git commit <path>) cannot carry; stage the files and run git commit, or skip it: '
-            'SKIP=replay-metrics git commit ...\n'
+            '(git commit <path>) cannot carry; stage the files and measure again\n'
         )
         return ExitCode.OPTIONS_REFUSED
     # Untracked files under the measured paths, less the unmeasured ones (a member's tests)
@@ -257,8 +259,7 @@ def measure_staged(*, repository: Path, rows_directory: Path) -> int:
     if exit_code != ExitCode.SUCCESS:
         sys.stderr.write(
             'replay-metrics: measuring the staged code failed (above); fix it and commit again '
-            '(the recordings measured so far are staged, the retry measures the rest), or '
-            'commit without measuring: SKIP=replay-metrics git commit ...\n'
+            '(the recordings measured so far are staged, the retry measures the rest)\n'
         )
         return exit_code
     return ExitCode.SUCCESS
