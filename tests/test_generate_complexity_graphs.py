@@ -12,6 +12,7 @@ import importlib
 import json
 import logging
 import os
+import re
 import sys
 import threading
 import types
@@ -751,6 +752,71 @@ def test_the_mkdocs_hook_generates_the_graphs_before_a_build(fixture_repository,
     assert (graphs_directory / GRAPHS_SNIPPET_NAME).is_file()
     assert (graphs_directory / GENERATED_FROM_NAME).is_file()
     assert (tmp_path / 'metrics' / performance_script.SNIPPET_NAME).is_file()
+
+
+# A stage's lines from the hook's logger (INFO, which mkdocs prints): its start, and its end with
+# the seconds it took
+STAGE_STARTED = r'^{stage}: started$'
+STAGE_DONE = r'^{stage}: done in \d+\.\d s$'
+STAGE_FAILED = r'^{stage}: failed after \d+\.\d s$'
+
+
+def hook_messages(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Return what the hook logged at INFO, in order.
+
+    Returns:
+        The messages.
+
+    """
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == mkdocs_hooks.LOG.name and record.levelno == logging.INFO
+    ]
+
+
+def test_the_mkdocs_hook_logs_each_graph_stages_start_and_end(mocker, caplog):
+    """The build is never silent while the graphs generate, and the log says how long each took.
+
+    CircleCI's checks-linux job (#285 moved the strict docs build to Linux) was killed after 10
+    minutes with no output while the hook generated the graphs silently (job 5089, #261).
+    """
+    graph_script = mkdocs_hooks.load_graph_script()
+    mocker.patch.object(graph_script, 'generate_if_stale')
+    mocker.patch.object(
+        mkdocs_hooks, 'load_performance_script'
+    ).return_value.generate_performance_page = mocker.Mock()
+    caplog.set_level(logging.INFO, logger=mkdocs_hooks.LOG.name)
+
+    mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+
+    messages = hook_messages(caplog)
+    patterns = [
+        STAGE_STARTED.format(stage='Complexity graphs'),
+        STAGE_DONE.format(stage='Complexity graphs'),
+        STAGE_STARTED.format(stage='Performance graphs'),
+        STAGE_DONE.format(stage='Performance graphs'),
+    ]
+    assert len(messages) == len(patterns), messages
+    for message, pattern in zip(messages, patterns, strict=True):
+        assert re.fullmatch(pattern, message), (message, pattern)
+
+
+def test_a_failed_graph_stage_logs_how_long_it_ran(tmp_path, mocker, caplog):
+    """A stage that stops the build still ends its lines: failed, after how long."""
+    graph_script = mkdocs_hooks.load_graph_script()
+    not_a_repository = tmp_path / 'not-a-repository'
+    not_a_repository.mkdir()
+    mocker.patch.object(graph_script, 'PROJECT_ROOT', not_a_repository)
+    mocker.patch.object(graph_script, 'GRAPHS_DIR', tmp_path / 'graphs')
+    caplog.set_level(logging.INFO, logger=mkdocs_hooks.LOG.name)
+
+    with pytest.raises(PluginError):
+        mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+
+    messages = hook_messages(caplog)
+    assert re.fullmatch(STAGE_STARTED.format(stage='Complexity graphs'), messages[0])
+    assert re.fullmatch(STAGE_FAILED.format(stage='Complexity graphs'), messages[-1]), messages
 
 
 def test_the_mkdocs_hook_stops_the_build_when_the_generation_fails(tmp_path, mocker):

@@ -43,6 +43,7 @@ site (``missing_explorer_files``), or the build stops naming what is missing.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 import logging
@@ -56,11 +57,12 @@ from typing import TYPE_CHECKING, Literal, Protocol, override
 
 from mkdocs.exceptions import PluginError
 
+from glitchygames import clock
 from glitchygames.process import run_command
 from glitchygames.replay.tools.performance_pages import UnreadableLedgerError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
     from types import ModuleType
 
     from mkdocs.config.defaults import MkDocsConfig
@@ -120,6 +122,31 @@ class BuildState:
 
 
 BUILD_STATE = BuildState()
+
+
+@contextlib.contextmanager
+def logged_stage(name: str) -> Generator[None]:
+    """Log a slow stage's start, and its end with the seconds it took (failed or done).
+
+    At INFO on the hook's logger, which mkdocs prints: a build is never silent for the whole of
+    a stage, and its log shows where the time went. CircleCI kills a step after 10 minutes with
+    no output (job 5089, #261: the graphs generated silently inside the strict docs build).
+
+    Args:
+        name: The stage, as the lines name it.
+
+    Yields:
+        Nothing; the stage runs inside.
+
+    """
+    LOG.info('%s: started', name)
+    started = clock.measured_seconds()
+    try:
+        yield
+    except BaseException:
+        LOG.info('%s: failed after %.1f s', name, clock.measured_seconds() - started)
+        raise
+    LOG.info('%s: done in %.1f s', name, clock.measured_seconds() - started)
 
 
 def load_script(*, path: Path, module_name: str) -> ModuleType:
@@ -219,14 +246,16 @@ def on_pre_build(config: MkDocsConfig) -> None:
     """
     del config
     graph_script = load_graph_script()
-    try:
-        graph_script.generate_if_stale(
-            project_root=graph_script.PROJECT_ROOT, graphs_directory=graph_script.GRAPHS_DIR
-        )
-    except graph_script.ComplexityGraphError as error:
-        message = f'Could not generate the complexity graphs: {error}'
-        raise PluginError(message) from error
-    generate_performance_graphs()
+    with logged_stage('Complexity graphs'):
+        try:
+            graph_script.generate_if_stale(
+                project_root=graph_script.PROJECT_ROOT, graphs_directory=graph_script.GRAPHS_DIR
+            )
+        except graph_script.ComplexityGraphError as error:
+            message = f'Could not generate the complexity graphs: {error}'
+            raise PluginError(message) from error
+    with logged_stage('Performance graphs'):
+        generate_performance_graphs()
 
 
 def repository_head_commit() -> str:
@@ -434,7 +463,8 @@ def on_post_build(config: MkDocsConfig) -> None:
     site_directory = Path(config.site_dir)
     publishing = BUILD_STATE.command not in {*LOCAL_BUILD_COMMANDS, None}
     if publishing:
-        build_browser_games()
+        with logged_stage('Browser games build'):
+            build_browser_games()
     copy_browser_games(
         games_directory=BROWSER_GAMES_DIRECTORY,
         site_directory=site_directory,
