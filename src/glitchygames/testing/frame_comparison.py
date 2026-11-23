@@ -46,6 +46,8 @@ type RunDirectory = Path
 # Differing pixels in a difference image, and how bright the baseline frame shows under them
 DIFFERENCE_COLOR = (255, 0, 255)
 DIMMED_BRIGHTNESS = 0.3
+# The frames a re-run saves on each side of a test's first difference (image_request_for)
+IMAGE_WINDOW_PRESENTS = 2
 
 
 class LabelledRun(BaseModel):
@@ -401,9 +403,9 @@ def compare_labelled_runs(
 
 
 def image_request_for(*, drivers: Sequence[DriverComparison]) -> FrameImageRequest:
-    """Name the frames to save in a re-run of the differing tests.
+    """Name the frames to save in a re-run of the differing tests, and where it may stop.
 
-    Each test's first differing frame (in both runs) and both runs' final frames.
+    A window around each test's first difference (``image_request_for_differences``).
 
     Args:
         drivers: The driver comparisons.
@@ -422,8 +424,15 @@ def image_request_for_differences(
 ) -> FrameImageRequest:
     """Name the frames to save in a re-run of the tests these differences are in.
 
-    Each difference's first differing frame (in both runs) and both runs' final frames; a test
-    in several differences (several driver pairs) has all their frames.
+    Each difference's window: ``IMAGE_WINDOW_PRESENTS`` frames before and after its first
+    differing frame, in both runs (from the first present to the final frame), so the images
+    show what led up to the difference and what followed. A test cannot skip to its first
+    difference, but its re-run need not play on past the window: when every frame of every
+    window of the test is a present in both runs, the request says where the re-run may stop
+    (``stop_after_by_test``, the window's last present). Otherwise (the window reaches the final
+    frame, which only the test's end shows) both runs' final frames are saved too and the test
+    runs to its end. A test in several differences (several driver pairs) has all their frames,
+    and stops only if every one of them could.
 
     Args:
         differences: The differences.
@@ -433,18 +442,42 @@ def image_request_for_differences(
 
     """
     positions_by_test: dict[str, set[int]] = {}
+    stop_after_by_test: dict[str, int] = {}
+    runs_to_its_end: set[str] = set()
     for difference in differences:
-        positions_by_test.setdefault(difference.nodeid, set()).update({
-            difference.baseline_position,
-            difference.candidate_position,
-            difference.baseline_frame_count - 1,
-            difference.candidate_frame_count - 1,
-        })
+        nodeid = difference.nodeid
+        baseline_final = difference.baseline_frame_count - 1
+        candidate_final = difference.candidate_frame_count - 1
+        window = [
+            (difference.baseline_position + offset, difference.candidate_position + offset)
+            for offset in range(-IMAGE_WINDOW_PRESENTS, IMAGE_WINDOW_PRESENTS + 1)
+        ]
+        window = [
+            (baseline, candidate)
+            for baseline, candidate in window
+            if 0 <= baseline <= baseline_final and 0 <= candidate <= candidate_final
+        ]
+        positions = positions_by_test.setdefault(nodeid, set())
+        positions.update(position for pair in window for position in pair)
+        if all(
+            baseline < baseline_final and candidate < candidate_final
+            for baseline, candidate in window
+        ):
+            last = max(position for pair in window for position in pair)
+            stop_after_by_test[nodeid] = max(last, stop_after_by_test.get(nodeid, last))
+        else:
+            positions.update({baseline_final, candidate_final})
+            runs_to_its_end.add(nodeid)
     return FrameImageRequest(
         positions_by_test={
             nodeid: tuple(sorted(positions))
             for nodeid, positions in sorted(positions_by_test.items())
-        }
+        },
+        stop_after_by_test={
+            nodeid: stop
+            for nodeid, stop in sorted(stop_after_by_test.items())
+            if nodeid not in runs_to_its_end
+        },
     )
 
 
@@ -553,9 +586,12 @@ def compare_rerun_images(
     candidate_record: RecordedFrames,
     output: Path,
 ) -> tuple[FrameSequenceDifference | None, list[FrameImageComparison]]:
-    """Compare one re-run test's saved frames: its first differing frame and its final frames.
+    """Compare one re-run test's saved frames: its first difference, its window and its end.
 
-    The final frames are compared too when they differ (and are not the first difference).
+    The first differing frame comes first, then the other frames of its window that both
+    re-runs saved (the frames around it, for context), then the final frames when they differ
+    and are not among those. A re-run stopped after its window (``RecordedFrames.stopped_after``)
+    has no final frames.
 
     Both drivers' images are copied to ``output/<test folder>/`` as ``<label>-frame-<N>.png``,
     next to ``difference-frame-<N>.png`` (named by the baseline's position).
@@ -576,13 +612,33 @@ def compare_rerun_images(
     if difference is None:
         return None, []
     nodeid = baseline_record.nodeid
-    positions = [(difference.baseline_position, difference.candidate_position)]
+    first = (difference.baseline_position, difference.candidate_position)
+    positions = [first]
     final_positions = (len(baseline_record.frames) - 1, len(candidate_record.frames) - 1)
+    context = [
+        (first[0] + offset, first[1] + offset)
+        for offset in range(-IMAGE_WINDOW_PRESENTS, IMAGE_WINDOW_PRESENTS + 1)
+        if offset and first[0] + offset >= 0 and first[1] + offset >= 0
+    ]
+    positions.extend(
+        pair
+        for pair in context
+        if pair != final_positions
+        and frame_image_path(
+            directory=baseline.directory, nodeid=nodeid, position=pair[0]
+        ).is_file()
+        and frame_image_path(
+            directory=candidate.directory, nodeid=nodeid, position=pair[1]
+        ).is_file()
+    )
+    stopped = (
+        baseline_record.stopped_after is not None or candidate_record.stopped_after is not None
+    )
     final_frames_differ = (
         frame_difference_kind(baseline=baseline_record.final, candidate=candidate_record.final)
         is not None
     )
-    if final_frames_differ and final_positions not in positions:
+    if not stopped and final_frames_differ and final_positions not in positions:
         positions.append(final_positions)
     test_folder = output / images_folder_name(nodeid=nodeid)
     comparisons: list[FrameImageComparison] = []

@@ -27,6 +27,7 @@ from glitchygames.testing.frame_comparison import (
     compare_runs,
     comparison_report,
     image_request_for,
+    image_request_for_differences,
     images_report,
 )
 from glitchygames.testing.frame_fingerprints import (
@@ -382,6 +383,97 @@ class TestFrameImages:
         assert not difference_image.exists()
 
 
+def present_difference(
+    *, nodeid: str = NODE_A, position: int, presents: int, kind: str = 'pixels'
+) -> FrameSequenceDifference:
+    """Return a difference at a position of a test that presented ``presents`` frames on both.
+
+    Returns:
+        The difference (frame count: the presents and the final frame).
+
+    """
+    return FrameSequenceDifference(
+        nodeid=nodeid,
+        baseline_position=position,
+        candidate_position=position,
+        kind=kind,
+        baseline_frame_count=presents + 1,
+        candidate_frame_count=presents + 1,
+        baseline_outcome='passed',
+        candidate_outcome='passed',
+    )
+
+
+class TestImageRequestWindow:
+    """The re-run saves a window of frames around the first difference, and stops after it.
+
+    A test cannot skip to its first differing frame, but its re-run need not go further than
+    the frames it saves: when every frame of the window is a present on both drivers, the
+    request says where the re-run may stop, and the final frames (which only the test's end
+    shows) are not asked for.
+    """
+
+    def test_a_difference_mid_test_saves_its_window_and_stops_after_it(self):
+        """Present 10 of 100: presents 8 to 12, the re-run stops after present 12."""
+        request = image_request_for_differences(
+            differences=[present_difference(position=10, presents=100)]
+        )
+
+        assert request == FrameImageRequest(
+            positions_by_test={NODE_A: (8, 9, 10, 11, 12)}, stop_after_by_test={NODE_A: 12}
+        )
+
+    def test_a_window_near_the_start_begins_at_the_first_present(self):
+        """Present 1: no position before 0."""
+        request = image_request_for_differences(
+            differences=[present_difference(position=1, presents=100)]
+        )
+
+        assert request.positions_by_test == {NODE_A: (0, 1, 2, 3)}
+        assert request.stop_after_by_test == {NODE_A: 3}
+
+    def test_a_window_reaching_the_final_frame_runs_the_test_to_its_end(self):
+        """Present 98 of 100: the window takes in the final frame (100), so no stop."""
+        request = image_request_for_differences(
+            differences=[present_difference(position=98, presents=100)]
+        )
+
+        assert request.positions_by_test == {NODE_A: (96, 97, 98, 99, 100)}
+        assert request.stop_after_by_test == {}
+
+    def test_a_final_frame_difference_saves_the_final_frames_and_never_stops(self):
+        """The final frame differs (position 100 of 100 presents): only the test's end shows it."""
+        request = image_request_for_differences(
+            differences=[present_difference(position=100, presents=100)]
+        )
+
+        assert request.positions_by_test == {NODE_A: (98, 99, 100)}
+        assert request.stop_after_by_test == {}
+
+    def test_a_test_differing_in_two_pairs_stops_only_if_both_could(self):
+        """One pair differs mid-test, another at the end: both windows, and the end, are saved."""
+        request = image_request_for_differences(
+            differences=[
+                present_difference(position=10, presents=100),
+                present_difference(position=100, presents=100),
+            ]
+        )
+
+        assert request.positions_by_test == {NODE_A: (8, 9, 10, 11, 12, 98, 99, 100)}
+        assert request.stop_after_by_test == {}
+
+    def test_each_test_has_its_own_window_and_stop(self):
+        """Two differing tests: each its window and its stop."""
+        request = image_request_for_differences(
+            differences=[
+                present_difference(nodeid=NODE_A, position=10, presents=100),
+                present_difference(nodeid=NODE_B, position=40, presents=50),
+            ]
+        )
+
+        assert request.stop_after_by_test == {NODE_A: 12, NODE_B: 42}
+
+
 class TestImagesReport:
     """The images command: each requested test's re-run frames, compared as images."""
 
@@ -475,6 +567,62 @@ class TestImagesReport:
             '  tests/test_d.py::test_d: not recorded in both re-runs',
         ]
         assert pygame.image.load(folder_a / 'cocoa-frame-2.png').get_at((0, 0))[:3] == BLUE
+
+    def test_a_stopped_rerun_shows_the_window_and_no_final_frame(self, tmp_path):
+        """Stopped after present 4: each window frame is compared, the first difference first."""
+        dummy = tmp_path / 'dummy-images'
+        cocoa = tmp_path / 'cocoa-images'
+        presents = tuple(frame(str(position)) for position in range(5))
+        differing = (*presents[:2], frame('x'), *presents[3:])
+        for directory, presented in ((dummy, presents), (cocoa, differing)):
+            write_run(
+                directory=directory,
+                records=[
+                    RecordedFrames(
+                        nodeid=NODE_A,
+                        outcome='skipped',
+                        presented=presented,
+                        final=None,
+                        stopped_after=4,
+                    )
+                ],
+            )
+        for position in range(5):
+            save_colour_frame(directory=dummy, nodeid=NODE_A, position=position, color=RED)
+            save_colour_frame(
+                directory=cocoa,
+                nodeid=NODE_A,
+                position=position,
+                color=RED,
+                changed_pixel=(0, 0) if position == 2 else None,
+            )
+        output = tmp_path / 'differences'
+        request = FrameImageRequest(
+            positions_by_test={NODE_A: (0, 1, 2, 3, 4)}, stop_after_by_test={NODE_A: 4}
+        )
+
+        report = images_report(
+            request=request,
+            baseline=LabelledRun(label='dummy', directory=dummy),
+            candidate=LabelledRun(label='cocoa', directory=cocoa),
+            output=output,
+        )
+
+        lines = report.splitlines()
+        assert (
+            lines[1] == f'  {NODE_A}: present 2 differs (pixels); 6 frames; outcome skipped on both'
+        )
+        assert lines[3:] == [
+            (
+                '    present 2: 1 of 12 pixels differ '
+                '(dummy-frame-2.png, cocoa-frame-2.png, difference-frame-2.png)'
+            ),
+            *(
+                f'    present {position}: 0 of 12 pixels differ (dummy-frame-{position}.png, '
+                f'cocoa-frame-{position}.png, difference-frame-{position}.png)'
+                for position in (0, 1, 3, 4)
+            ),
+        ]
 
     def test_frames_of_different_sizes_are_noted(self, reruns, tmp_path):
         """Both images saved, sizes differ: the note and both file names."""

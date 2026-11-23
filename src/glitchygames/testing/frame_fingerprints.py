@@ -38,7 +38,12 @@ recorded.
 A frame's position is its index in ``RecordedFrames.frames``: the presents, then the final
 frame. ``--frame-images-request FILE`` (a ``FrameImageRequest``, written by
 glitchygames/testing/frame_comparison.py) also saves the named positions of the named tests as PNG
-files, at ``frame_image_path(directory=DIRECTORY, nodeid=..., position=...)``.
+files, at ``frame_image_path(directory=DIRECTORY, nodeid=..., position=...)``. When it names where
+a test may stop (``stop_after_by_test``, a present), the recorder ends that test right after that
+present with ``pytest.skip``: its frames are saved, and the rest of the test would only cost time
+(a 900-frame test differing at present 20 re-ran in 1.9 s instead of 9.2 s, 2026-11-23). An
+outcome exception passes the engine's ``except Exception``, and a skip fails no run; the record
+has ``stopped_after`` set and no final frame (its body did not finish).
 
 ``--frame-fingerprints-seed SEED`` makes the master seed an engine draws when it is given no
 ``--random-seed`` depend on SEED and the test's node id alone (``SeededDraws``), so tests that
@@ -89,7 +94,7 @@ from typing import TYPE_CHECKING
 
 import pygame
 import pytest
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames import randomness
 from glitchygames.opacity import shown_rgb_bytes
@@ -178,6 +183,9 @@ class RecordedFrames(BaseModel):
     # The test's frames_vary marker reason: its frames are not expected to match between runs
     # or drivers, so a comparison lists it instead of comparing it
     frames_vary_reason: str | None = None
+    # The present a re-run stopped the test after (FrameImageRequest.stop_after_by_test): its
+    # body did not finish, so it has no final frame and its outcome is 'skipped'
+    stopped_after: int | None = None
 
     @property
     def final_on_run_driver(self) -> bool:
@@ -204,11 +212,17 @@ class RecordedFrames(BaseModel):
 
 
 class FrameImageRequest(BaseModel):
-    """The frames to save as PNG files: positions (in ``RecordedFrames.frames``) by node id."""
+    """The frames to save as PNG files: positions (in ``RecordedFrames.frames``) by node id.
+
+    ``stop_after_by_test`` names, for some tests, the present after which the re-run may end
+    the test (as a skip): every frame it saves is a present at or before that one, so the rest
+    of the test would only cost time.
+    """
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     positions_by_test: dict[str, tuple[int, ...]]
+    stop_after_by_test: dict[str, int] = Field(default_factory=dict)
 
 
 def frame_position_name(*, position: int, frame_count: int) -> str:
@@ -408,6 +422,8 @@ class FrameFingerprintRecorder:
         self.presented: list[FrameFingerprint | None] = []
         # The display as the current test's body left it (fingerprint and RGB bytes)
         self.final: tuple[FrameFingerprint, bytes] | None = None
+        # The present the current test was stopped after (the request's stop), or None
+        self.stopped_after: int | None = None
         # Replaces the display's present functions, and puts them back (pytest's own patcher)
         self.display_patches = pytest.MonkeyPatch()
         directory.mkdir(parents=True, exist_ok=True)
@@ -468,13 +484,20 @@ class FrameFingerprintRecorder:
             *args: PresentParameters.args, **kwargs: PresentParameters.kwargs
         ) -> None:
             nodeid = self.current_nodeid
-            if nodeid is None:
+            if nodeid is None or self.stopped_after is not None:
                 present(*args, **kwargs)
                 return
             shown = fingerprint_display()
             present(*args, **kwargs)
-            self.record_frame(nodeid=nodeid, shown=shown, position=len(self.presented))
+            position = len(self.presented)
+            self.record_frame(nodeid=nodeid, shown=shown, position=position)
             self.presented.append(None if shown is None else shown[0])
+            if self.image_request.stop_after_by_test.get(nodeid) == position:
+                self.stopped_after = position
+                # A skip, not an error: pytest's outcome exceptions are BaseExceptions, so the
+                # engine's (and a test's) except Exception lets it through, and a skipped test
+                # fails no run
+                pytest.skip(f'its requested frames were saved by present {position}')
 
         return present_and_record
 
@@ -520,6 +543,7 @@ class FrameFingerprintRecorder:
         self.presented = []
         self.final = None
         self.final_driver = None
+        self.stopped_after = None
         self.seed_master_seed_draws(nodeid=item.nodeid)
         return (yield)
 
@@ -540,9 +564,13 @@ class FrameFingerprintRecorder:
         try:
             return (yield)
         finally:
-            self.final = fingerprint_display()
-            self.final_driver = display_driver()
-            self.record_frame(nodeid=item.nodeid, shown=self.final, position=len(self.presented))
+            # A stopped test's body did not finish: what it shows is not its final frame
+            if self.stopped_after is None:
+                self.final = fingerprint_display()
+                self.final_driver = display_driver()
+                self.record_frame(
+                    nodeid=item.nodeid, shown=self.final, position=len(self.presented)
+                )
 
     @pytest.hookimpl(wrapper=True)
     def pytest_runtest_makereport(
@@ -574,6 +602,7 @@ class FrameFingerprintRecorder:
                 frames_vary_reason=(
                     None if frames_vary is None else str(frames_vary.kwargs.get('reason', ''))
                 ),
+                stopped_after=self.stopped_after,
             )
             with self.records_path.open('a', encoding='utf-8') as records_file:
                 records_file.write(record.model_dump_json() + '\n')

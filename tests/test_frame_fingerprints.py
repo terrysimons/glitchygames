@@ -1112,3 +1112,131 @@ class TestTheDrawsFramesCheckDirectly:
         finally:
             pygame.init()
             show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+
+# Inner tests for a re-run that stops: each presents twelve frames, frame N filled with grey N*20
+INNER_LONG_TESTS = textwrap.dedent(
+    """
+    import pygame
+    import pytest
+
+
+    def present_twelve():
+        display = pygame.display.get_surface()
+        for frame in range(12):
+            display.fill((frame * 20, frame * 20, frame * 20))
+            pygame.display.flip()
+
+
+    @pytest.fixture
+    def presents_in_teardown():
+        yield
+        pygame.display.flip()
+
+
+    def test_long(presents_in_teardown):
+        present_twelve()
+
+
+    def test_long_catching_errors():
+        # As an engine's frame loop catches its game's errors: the stop is not an error
+        try:
+            present_twelve()
+        except Exception:
+            pytest.fail('the stop reached an except Exception')
+
+
+    def test_long_not_stopped():
+        present_twelve()
+    """
+)
+LONG = 'test_long.py::test_long'
+LONG_CATCHING = 'test_long.py::test_long_catching_errors'
+LONG_NOT_STOPPED = 'test_long.py::test_long_not_stopped'
+
+
+# Each test's inner run presents frames in this process, so the test itself draws
+@pytest.mark.draws_frames
+class TestAReRunStopsAfterItsFrames:
+    """A re-run given where to stop ends its test there, as a skip, after saving its frames."""
+
+    @pytest.fixture
+    def long_tests(self, pytester: pytest.Pytester) -> Iterator[pytest.Pytester]:
+        """A pytester directory holding the long inner tests, the display shown again afterwards.
+
+        Yields:
+            The pytester.
+
+        """
+        pytester.makepyfile(test_long=INNER_LONG_TESTS)
+        yield pytester
+        show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+    def run_with_request(
+        self, *, pytester: pytest.Pytester, directory: Path, request: FrameImageRequest
+    ) -> pytest.RunResult:
+        """Run the long inner tests recording into ``directory`` under an image request.
+
+        Returns:
+            The inner run's result.
+
+        """
+        request_path = directory.parent / 'request.json'
+        request_path.write_text(request.model_dump_json(), encoding='utf-8')
+        return pytester.runpytest_inprocess(
+            '-p',
+            PLUGIN_MODULE,
+            f'{FINGERPRINTS_OPTION}={directory}',
+            f'{IMAGES_REQUEST_OPTION}={request_path}',
+        )
+
+    def test_the_test_stops_after_its_last_requested_frame_as_a_skip(self, long_tests, tmp_path):
+        """Frames 3 to 5 saved, the test ended after present 5, skipped (not failed)."""
+        directory = tmp_path / 'run'
+        result = self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(
+                positions_by_test={LONG: (3, 4, 5)}, stop_after_by_test={LONG: 5}
+            ),
+        )
+
+        result.assert_outcomes(passed=2, skipped=1)
+        record = read_recorded_frames(directory=directory)[LONG]
+        assert len(record.presented) == 6
+        assert record.final is None
+        assert record.stopped_after == 5
+        assert record.outcome == 'skipped'
+        saved = sorted(path.name for path in (directory / 'images').glob('*/*.png'))
+        assert saved == ['frame-3.png', 'frame-4.png', 'frame-5.png']
+        fifth = pygame.image.load(frame_image_path(directory=directory, nodeid=LONG, position=5))
+        assert fifth.get_at((0, 0))[:3] == (100, 100, 100)
+
+    def test_the_stop_passes_through_code_that_catches_errors(self, long_tests, tmp_path):
+        """A test catching Exception around its presents still ends as a skip there."""
+        directory = tmp_path / 'run'
+        result = self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(
+                positions_by_test={LONG_CATCHING: (1,)}, stop_after_by_test={LONG_CATCHING: 1}
+            ),
+        )
+
+        result.assert_outcomes(passed=2, skipped=1)
+        assert read_recorded_frames(directory=directory)[LONG_CATCHING].stopped_after == 1
+
+    def test_a_test_with_no_stop_runs_to_its_end(self, long_tests, tmp_path):
+        """Positions alone (a final frame asked for): every present, and the final frame."""
+        directory = tmp_path / 'run'
+        result = self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(positions_by_test={LONG_NOT_STOPPED: (10, 11, 12)}),
+        )
+
+        result.assert_outcomes(passed=3)
+        record = read_recorded_frames(directory=directory)[LONG_NOT_STOPPED]
+        assert len(record.presented) == 12
+        assert record.final is not None
+        assert record.stopped_after is None
