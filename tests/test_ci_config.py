@@ -2389,7 +2389,31 @@ def test_the_pre_push_hooks_run_the_shuffled_suite():
     """Every push shuffles the suite once (the hook, not CI: CI keeps the files' order)."""
     hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
 
-    assert 'entry: uv run --extra dev nox -s test-random' in hooks
+    assert 'entry: uv run --all-extras --all-groups --all-packages nox -s test-random' in hooks
+
+
+def test_every_hook_installs_every_extra_group_and_package():
+    """Whichever hook runs first in a new worktree fills its .venv with all uv.lock pins.
+
+    basedpyright reads the repository's .venv whatever environment nox gives it, so a .venv
+    with only the dev extra failed static-analysis on mkdocs and cookiecutter imports
+    (bugs/2026-11-14-pre-push-fails-in-worktree-synced-with-dev-extra-only.md).
+    """
+    configuration = yaml.safe_load(
+        (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+    )
+    entries = {
+        hook['id']: shlex.split(hook['entry'])
+        for repository in configuration['repos']
+        for hook in repository['hooks']
+    }
+    uv_runs = {name: words for name, words in entries.items() if words[:2] == ['uv', 'run']}
+    every = {'--all-extras', '--all-groups', '--all-packages'}
+
+    assert uv_runs
+    missing = {name: every - set(words) for name, words in uv_runs.items()}
+    assert {name: flags for name, flags in missing.items() if flags} == {}
+    assert [name for name, words in uv_runs.items() if '--extra' in words] == []
 
 
 @pytest.mark.parametrize(
@@ -2481,7 +2505,8 @@ def test_the_pre_push_comparison_runs_on_every_core():
     hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
 
     assert (
-        'entry: uv run --extra dev nox -s compare-drivers -- --drivers native '
+        'entry: uv run --all-extras --all-groups --all-packages nox -s compare-drivers -- '
+        '--drivers native '
         '--fail-on-difference --workers auto --skip-when-frames-cannot-change'
     ) in hooks
 
@@ -2660,8 +2685,8 @@ def test_the_pre_push_hooks_compare_the_native_driver_with_dummy():
     hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
 
     assert (
-        'entry: uv run --extra dev nox -s compare-drivers -- --drivers native --fail-on-difference'
-        in hooks
+        'entry: uv run --all-extras --all-groups --all-packages nox -s compare-drivers -- '
+        '--drivers native --fail-on-difference' in hooks
     )
 
 

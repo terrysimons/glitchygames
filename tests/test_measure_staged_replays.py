@@ -391,7 +391,10 @@ def test_the_hook_is_configured_to_run_before_each_commit():
     )
 
     assert 'id: replay-metrics' in configuration
-    assert 'entry: uv run --locked --extra dev nox -s measure-staged\n' in configuration
+    assert (
+        'entry: uv run --locked --all-extras --all-groups --all-packages nox -s measure-staged\n'
+        in configuration
+    )
     assert 'stages: [pre-commit]' in configuration
 
 

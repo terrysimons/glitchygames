@@ -6,6 +6,11 @@ default_install_hook_types: [pre-commit, pre-push]
 # skips it when there are none; a hook with always_run would ignore this, so none has it.
 # CI still lints the docs and runs the suite on every pull request
 exclude: '\.md$'
+# Every hook runs `uv run --all-extras --all-groups --all-packages`, so whichever runs first in
+# a new worktree fills its .venv with everything uv.lock pins. basedpyright reads the
+# repository's .venv whatever environment nox gives it, so a .venv holding only the dev extra
+# failed static-analysis on mkdocs and cookiecutter imports
+# (bugs/2026-11-14-pre-push-fails-in-worktree-synced-with-dev-extra-only.md)
 
 repos:
 - repo: local
@@ -19,7 +24,7 @@ repos:
     - id: raspberry-pi-replay-metrics
       name: raspberry-pi-replay-metrics (measure on the Pis, copy the rows here)
       language: system
-      entry: uv run --locked --extra dev nox -s measure-on-raspberry-pi
+      entry: uv run --locked --all-extras --all-groups --all-packages nox -s measure-on-raspberry-pi
       pass_filenames: false
       fail_fast: true
       stages: [pre-push]
@@ -27,28 +32,28 @@ repos:
     - id: format
       name: format (code, toml)
       language: system
-      entry: uv run --extra dev nox -s format
+      entry: uv run --all-extras --all-groups --all-packages nox -s format
       pass_filenames: false
       stages: [pre-push]
 
     - id: lint
       name: lint (code, docs, yaml, toml, deps, dead code)
       language: system
-      entry: uv run --extra dev nox -s lint
+      entry: uv run --all-extras --all-groups --all-packages nox -s lint
       pass_filenames: false
       stages: [pre-push]
 
     - id: lint-ci-config
       name: lint-ci-config (circleci)
       language: system
-      entry: uv run --extra dev nox -s lint-ci-config
+      entry: uv run --all-extras --all-groups --all-packages nox -s lint-ci-config
       pass_filenames: false
       stages: [pre-push]
 
     - id: static-analysis
       name: static-analysis (basedpyright, ty)
       language: system
-      entry: uv run --extra dev nox -s static-analysis
+      entry: uv run --all-extras --all-groups --all-packages nox -s static-analysis
       pass_filenames: false
       stages: [pre-push]
 
@@ -58,14 +63,14 @@ repos:
     - id: security-scan
       name: security-scan (bandit, syft SBOM, grype CVEs, licenses)
       language: system
-      entry: uv run --extra dev nox -s security-scan
+      entry: uv run --all-extras --all-groups --all-packages nox -s security-scan
       pass_filenames: false
       stages: [pre-push]
 
     - id: code-complexity
       name: code-complexity (wily diff)
       language: system
-      entry: uv run --extra dev nox -s code-complexity
+      entry: uv run --all-extras --all-groups --all-packages nox -s code-complexity
       pass_filenames: false
       stages: [pre-push]
 
@@ -76,7 +81,7 @@ repos:
     - id: test-random
       name: test-random (the suite, shuffled, on 3.15)
       language: system
-      entry: uv run --extra dev nox -s test-random
+      entry: uv run --all-extras --all-groups --all-packages nox -s test-random
       pass_filenames: false
       stages: [pre-push]
 
@@ -88,7 +93,7 @@ repos:
     - id: compare-drivers
       name: compare-drivers (dummy vs the native driver, each its own run)
       language: system
-      entry: uv run --extra dev nox -s compare-drivers -- --drivers native --fail-on-difference --workers auto --skip-when-frames-cannot-change
+      entry: uv run --all-extras --all-groups --all-packages nox -s compare-drivers -- --drivers native --fail-on-difference --workers auto --skip-when-frames-cannot-change
       pass_filenames: false
       stages: [pre-push]
 
@@ -101,6 +106,6 @@ repos:
     - id: replay-metrics
       name: replay-metrics (measure the staged code)
       language: system
-      entry: uv run --locked --extra dev nox -s measure-staged
+      entry: uv run --locked --all-extras --all-groups --all-packages nox -s measure-staged
       pass_filenames: false
       stages: [pre-commit]
