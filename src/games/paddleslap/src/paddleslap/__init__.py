@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.collision.detection import snapped_world_position
 from glitchygames.collision.layers import get_sprite_collision_rect
 from glitchygames.color import BLACK, WHITE
@@ -279,8 +280,7 @@ class Game(Scene):
 
         self.all_sprites = pygame.sprite.LayeredDirty((self.player1, self.player2, *self.balls))
 
-        assert self.screen is not None
-        self.all_sprites.clear(self.screen, self.background)
+        self.all_sprites.clear(required(self.screen, what='the scene screen'), self.background)
 
     @classmethod
     def args(cls, parser: argparse.ArgumentParser) -> None:
@@ -795,8 +795,10 @@ class Game(Scene):
     ) -> None:
         """Put two balls back where they touched in the frame and collide them there."""
         for ball in (ball1, ball2):
-            start_position = ball.frame_start_world_position
-            assert start_position is not None  # _swept_contact checked both
+            # _swept_contact checked both
+            start_position = required(
+                ball.frame_start_world_position, what="the ball's frame start position"
+            )
             ball.world_x = start_position[0] + (ball.world_x - start_position[0]) * contact_fraction
             ball.world_y = start_position[1] + (ball.world_y - start_position[1]) * contact_fraction
         dx = ball2.world_x - ball1.world_x

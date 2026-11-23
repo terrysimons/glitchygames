@@ -269,6 +269,10 @@ Brave Adventurer launcher) are filled.
 - cpu plays badly by design; deep states need a human (or ai) stimulus.
 - Raw-input games get a weaker explorer (documented per game in its samples).
 - Committed samples grow the repository and each wheel (today about 1 MB compressed in all).
+- `bundled_demos()` pairs a demo with the command whose module is the demo's package, so a demo
+  in a package without a command (say `brave_adventurer/demos/`) would fail collection. No
+  wrapped game ships a demo, so nothing is built for it: the samples catalogue (composition,
+  section 5a) replaces this lookup (moved here from `plans/future-work.md`, 2026-11-21).
 
 ## 13. Open questions for the user
 
