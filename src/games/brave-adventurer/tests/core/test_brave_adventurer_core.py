@@ -1,6 +1,8 @@
 """Brave Adventurer's shared primitives: the terrain sprites and the parallax backgrounds."""
 
 import hashlib
+import logging
+import types
 from pathlib import Path
 
 import pygame
@@ -16,8 +18,10 @@ from brave_adventurer_core.drawing import (
     draw_pyramids,
     draw_sky,
 )
+from brave_adventurer_core.scene import BraveAdventurerSceneBase
 from brave_adventurer_core.terrain import GroundSegment, StoneWall
 from glitchygames.world import CoordinateSpace
+from tests.state.recording_saves import saves_holding
 
 BRAVE_ADVENTURER_CORE_PACKAGE = Path(brave_adventurer_core_package.__file__).parent
 CORE_WORLD_SPRITE_CLASSES = (GroundSegment, StoneWall)
@@ -237,3 +241,18 @@ class TestParallaxDrawingGoldens:
         draw_dunes_and_oasis(surface, 1700.0, 0.0)
 
         assert draw_line_spy.call_count == 0
+
+
+def test_a_refused_high_score_table_still_shows_this_score_and_saves_nothing(caplog):
+    """The default policy leaves the file as it is, logs once, and the screen gets the score."""
+    saves = saves_holding({'scores': [{'score': 50}, {'score': '60'}]})
+    scene = object.__new__(BraveAdventurerSceneBase)
+    scene.saves, scene.options = saves, {}
+    scene.player = types.SimpleNamespace(score=70)
+
+    with caplog.at_level(logging.ERROR, logger='glitchygames.state.high_scores'):
+        shown = scene._save_high_score()
+
+    assert shown == [{'score': 70}]
+    assert [call[0] for call in saves.calls] == ['load']
+    assert len([record for record in caplog.records if record.levelno == logging.ERROR]) == 1

@@ -46,7 +46,12 @@ from glitchygames.opacity import make_opaque
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
+from glitchygames.state import SaveManager, open_saves
+from glitchygames.state.high_scores import (
+    HighScoreEntry,
+    HighScoreTable,
+    HighScoreTableSettings,
+)
 from glitchygames.transitions import FadeTransition
 from mr_muncher import drawing
 from mr_muncher.actors import (
@@ -214,6 +219,13 @@ CONTROL_HINTS: tuple[tuple[str, str], ...] = (
 SAVE_APP_NAME = 'mr-muncher'
 HIGH_SCORES_SAVE_NAME = 'high_scores'
 HIGH_SCORE_ENTRIES = 10
+
+
+class MrMuncherHighScore(HighScoreEntry):
+    """A high score and the level it reached (the saved table's entries)."""
+
+    level: int
+
 
 # The directions' actions; when two are pressed in one frame the first in this order wins
 DIRECTION_ACTIONS: tuple[tuple[str, Direction], ...] = (
@@ -1002,35 +1014,55 @@ class MrMuncherScene(Scene):
 
     # --- Saves ---
 
-    def _saved_high_scores(self: Self) -> list[dict[str, int]]:
+    def _high_score_table(self: Self) -> HighScoreTable[MrMuncherHighScore]:
+        """Return the game's high-score table (the engine's, with the level reached).
+
+        Returns:
+            The table.
+
+        """
+        return HighScoreTable(
+            saves=self.saves,
+            entry_type=MrMuncherHighScore,
+            settings=HighScoreTableSettings.from_options(
+                options=self.options,
+                slot_name=HIGH_SCORES_SAVE_NAME,
+                limit=HIGH_SCORE_ENTRIES,
+            ),
+        )
+
+    def _this_game(self: Self) -> MrMuncherHighScore:
+        """Return this game's high-score entry.
+
+        Returns:
+            The score and the level reached.
+
+        """
+        return MrMuncherHighScore(score=self.score, level=self.settings.level)
+
+    def _saved_high_scores(self: Self) -> list[dict[str, Any]]:
         """Return the saved high score table, best first (empty when there is none).
 
         Returns:
-            Entries with 'score' and 'level'.
+            Entries with 'score' and 'level' (this game alone when the saved table is refused:
+            --invalid-high-scores).
 
         """
-        try:
-            saved = self.saves.load(HIGH_SCORES_SAVE_NAME)
-        except SaveNotFoundError:
-            return []
-        return list(saved.get('scores', []))
+        entries = self._high_score_table().entries_or([self._this_game()])
+        return [entry.model_dump() for entry in entries]
 
     def _best_saved_score(self: Self) -> int:
-        """Return the best saved score (0 when there is none).
+        """Return the best saved score (0 when there is none, or when it is refused).
 
         Returns:
             The score.
 
         """
-        scores = self._saved_high_scores()
-        return scores[0].get('score', 0) if scores else 0
+        return self._high_score_table().best_or_zero()
 
     def _save_high_score(self: Self) -> None:
         """Add this game to the high score table (best HIGH_SCORE_ENTRIES kept)."""
-        scores = self._saved_high_scores()
-        scores.append({'score': self.score, 'level': self.settings.level})
-        scores.sort(key=lambda entry: entry.get('score', 0), reverse=True)
-        self.saves.save(HIGH_SCORES_SAVE_NAME, {'scores': scores[:HIGH_SCORE_ENTRIES]})
+        self._high_score_table().record_or_keep(self._this_game())
 
     # --- Sound ---
 

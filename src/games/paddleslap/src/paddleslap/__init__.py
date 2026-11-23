@@ -48,7 +48,12 @@ from glitchygames.movement import Speed
 from glitchygames.randomness import random_stream
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
-from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
+from glitchygames.state import SaveManager, open_saves
+from glitchygames.state.high_scores import (
+    HighScoreEntry,
+    HighScoreTable,
+    HighScoreTableSettings,
+)
 
 # Its level is the engine's (--log-level): set here, at import, it reached every game.* logger in
 # any process that imported PaddleSlap, so --log-level warning still logged INFO (BUGS.md #236)
@@ -493,27 +498,25 @@ class Game(Scene):
         """
         return {'rally_count': self.rally_count, 'balls_in_play': len(self.balls)}
 
-    def _save_high_score(self: Self) -> list[dict[str, int]]:
+    def _save_high_score(self: Self) -> list[dict[str, Any]]:
         """Save the current rally count to the high scores list.
 
+        A saved table the game cannot read is left as it is under ``--invalid-high-scores
+        refuse`` (the default): the error is logged and the game-over screen still shows this
+        rally, as a table of one.
+
         Returns:
-            The updated high scores list, sorted descending by score.
+            The updated high scores list, best first.
 
         """
-        max_high_scores = 10
-        try:
-            existing = self.saves.load('high_scores')
-            scores: list[dict[str, int]] = existing.get('scores', [])
-        except SaveNotFoundError:
-            scores = []
-
-        scores.append({'score': self.rally_count})
-        scores.sort(key=lambda entry: entry.get('score', 0), reverse=True)
-        scores = scores[:max_high_scores]
-
-        self.saves.save('high_scores', {'scores': scores})
-        log.info('Saved rally score: %d (total entries: %d)', self.rally_count, len(scores))
-        return scores
+        table = HighScoreTable(
+            saves=self.saves,
+            entry_type=HighScoreEntry,
+            settings=HighScoreTableSettings.from_options(options=self.options),
+        )
+        scores = table.record_or_keep(HighScoreEntry(score=self.rally_count))
+        log.info('Rally score: %d (table entries: %d)', self.rally_count, len(scores))
+        return [entry.model_dump() for entry in scores]
 
     def _spawn_new_ball(self: Self, _ball: BallSprite | None = None) -> None:
         """Spawn a new ball at random location with random direction.
