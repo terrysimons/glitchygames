@@ -9,6 +9,7 @@ machine.
 from __future__ import annotations
 
 import html
+import os
 import re
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ import pytest
 from tests import circleci_test_split
 from tests.circleci_test_split import (
     CIRCLECI_SPLIT,
+    CURRENT_TEST_VARIABLE,
     HEAVY_MARKER,
     NODE_INDEX_VARIABLE,
     NODE_TOTAL_VARIABLE,
@@ -91,7 +93,13 @@ class EveryNthSplitter:
 def split_environment(
     monkeypatch: pytest.MonkeyPatch, *, node_index: int = 0, node_total: int = 2
 ) -> None:
-    """Set the split on, as a CircleCI machine (this process may itself be split)."""
+    """Set the split on, as a CircleCI machine (this process may itself be split).
+
+    And as a run no test started: ``PYTEST_CURRENT_TEST`` is removed (pytest sets it at the
+    start of each phase, so this holds for the test body), or the inner run would be nested and
+    split nothing.
+    """
+    monkeypatch.delenv(CURRENT_TEST_VARIABLE, raising=False)
     monkeypatch.setenv(SPLIT_VARIABLE, CIRCLECI_SPLIT)
     monkeypatch.setenv(NODE_TOTAL_VARIABLE, str(node_total))
     monkeypatch.setenv(NODE_INDEX_VARIABLE, str(node_index))
@@ -242,6 +250,31 @@ def test_heavy_tests_never_reach_the_splitter():
     )
 
     assert splitter.given == [['tests.a.test_light']]
+
+
+def test_a_run_a_test_started_keeps_all_its_tests_under_a_split_environment(pytester, monkeypatch):
+    """A nested run (pytester, a tool's pytest) inherits a CI machine's split variables: inactive.
+
+    #286's Windows job (5096) ran this module's own tests on a split machine: a pytester run
+    inherited GLITCHYGAMES_TEST_SPLIT and the node index, asked the real splitter, and its one
+    test went to another machine. A pytest that configures while PYTEST_CURRENT_TEST is set was
+    started by a test, as the draws_frames check rules (glitchygames.testing.frame_fingerprints).
+    """
+    assert os.environ.get(CURRENT_TEST_VARIABLE)
+    monkeypatch.setenv(SPLIT_VARIABLE, CIRCLECI_SPLIT)
+    monkeypatch.setenv(NODE_TOTAL_VARIABLE, '3')
+    monkeypatch.setenv(NODE_INDEX_VARIABLE, '1')
+    monkeypatch.setattr(
+        circleci_test_split,
+        'run_circleci_splitter',
+        lambda _list: pytest.fail('a nested run asked the splitter'),
+    )
+    pytester.makepyfile(**INNER_TESTS)
+
+    result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
+
+    result.assert_outcomes(passed=3)
+    assert not (pytester.path / SPLIT_RECORD).exists()
 
 
 def test_unset_the_plugin_runs_every_test(pytester, monkeypatch):
@@ -395,6 +428,7 @@ def test_an_xdist_worker_after_the_first_writes_no_record(pytester, monkeypatch)
 
 def test_any_other_value_of_the_variable_stops_the_run(pytester, monkeypatch):
     """Only ``circleci`` is a split: a typo never runs the whole suite, or none of it, quietly."""
+    monkeypatch.delenv(CURRENT_TEST_VARIABLE, raising=False)
     monkeypatch.setenv(SPLIT_VARIABLE, 'circle')
     pytester.makepyfile(**INNER_TESTS)
 

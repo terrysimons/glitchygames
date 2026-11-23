@@ -6,7 +6,11 @@ copies of a job (``CIRCLE_NODE_INDEX`` 0 to ``CIRCLE_NODE_TOTAL`` - 1), and each
 (the owner, 2026-11-18: "yes", and "Do it for windows too").
 
 On only when ``GLITCHYGAMES_TEST_SPLIT`` is ``circleci`` (the split CI jobs set it); unset, it
-does nothing, and any other value stops the run.
+does nothing, and any other value stops the run. A run a test started (``PYTEST_CURRENT_TEST`` set
+when it configures: pytester, in process or as a child, or a tool's pytest) inherits a split
+machine's variables and is never split: #286's Windows job (5096) split a pytester run's one test
+away to another machine. The same rule as the draws_frames check
+(glitchygames.testing.frame_fingerprints).
 
 The share is chosen test by test (the owner, 2026-11-23: split by test, the costs accepted). It
 was chosen file by file until then: each file went whole to one machine, so the 42 cases of
@@ -74,6 +78,9 @@ SPLIT_VARIABLE: Final = 'GLITCHYGAMES_TEST_SPLIT'
 CIRCLECI_SPLIT: Final = 'circleci'
 NODE_TOTAL_VARIABLE: Final = 'CIRCLE_NODE_TOTAL'
 NODE_INDEX_VARIABLE: Final = 'CIRCLE_NODE_INDEX'
+# pytest sets this while a test runs: a pytest that configures with it set was started by a
+# test (pytester, a tool's pytest) and splits nothing (as glitchygames.testing.frame_fingerprints)
+CURRENT_TEST_VARIABLE: Final = 'PYTEST_CURRENT_TEST'
 SPLITTER_COMMAND: Final = ('tests', 'split', '--split-by=timings', '--timings-type=testname')
 # The marker of a test dealt out round-robin before the timing split
 HEAVY_MARKER: Final = 'heavy_replay'
@@ -84,6 +91,8 @@ SPLIT_INPUT: Final = Path('test-results') / f'test-split-input-{os.getpid()}.txt
 SPLIT_MESSAGES: Final = Path('test-results') / f'test-split-messages-{os.getpid()}.txt'
 # The splitter reads timings and prints names: seconds, never minutes
 SPLITTER_TIMEOUT_SECONDS: Final = 120.0
+# Whether a test started this run (PYTEST_CURRENT_TEST set at configure): then it splits nothing
+_NESTED_KEY: Final = pytest.StashKey[bool]()
 
 
 def junit_test_name(*, node_id: str) -> str:
@@ -250,7 +259,8 @@ def _write_record(*, node_ids: Sequence[str], heavy: set[str], kept: frozenset[s
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Register the heavy marker."""
+    """Register the heavy marker, and note whether a test started this run."""
+    config.stash[_NESTED_KEY] = bool(os.environ.get(CURRENT_TEST_VARIABLE))
     config.addinivalue_line(
         'markers',
         f'{HEAVY_MARKER}(reason): one of the most taxing tests (a replay in a child process and '
@@ -261,8 +271,12 @@ def pytest_configure(config: pytest.Config) -> None:
 
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Keep this machine's share of the collected tests, deselecting the others."""
-    if not _split_requested():
+    """Keep this machine's share of the collected tests, deselecting the others.
+
+    A run a test started (pytester, a tool's pytest) inherits a split machine's variables and
+    splits nothing: its tests are the test's own, never a share of the job's.
+    """
+    if config.stash.get(_NESTED_KEY, False) or not _split_requested():
         return
     node_ids = [item.nodeid for item in items]
     heavy = {item.nodeid for item in items if item.get_closest_marker(HEAVY_MARKER) is not None}
