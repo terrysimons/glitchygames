@@ -67,6 +67,7 @@ from glitchygames.state import DiskSaveManager
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.transitions import FadeTransition
 from glitchygames.world import CoordinateSpace, position_world_sprites
+from tests.state.recording_saves import saves_holding
 
 FRAME_TIME = 1.0 / 60.0
 SCREEN_SIZE = (800, 480)
@@ -1632,3 +1633,19 @@ def test_the_elevator_motor_is_a_live_instrument_the_game_declares():
     assert right == pytest.approx(left)
     assert (motor.filter.kind, motor.filter.cutoff_hz) == ('low_pass', 600.0)
     assert (motor.tremolo.rate_hz, motor.tremolo.depth) == (8.0, 0.4)
+
+
+def test_a_refused_high_score_table_still_shows_this_climb_and_saves_nothing(caplog):
+    """Refused (the default): one error, no save, and the game-over table is this climb alone."""
+    saves = saves_holding({'scores': [{'score': 50, 'floor': 1}, {'score': 9}]})
+    scene = object.__new__(clockwork_game.ClockworkKeepScene)
+    scene.saves, scene.options, scene.floor_index = saves, {}, 4
+    scene.player = types.SimpleNamespace(score=70)
+
+    with caplog.at_level(logging.ERROR, logger='glitchygames.state.high_scores'):
+        scene._save_high_score()
+        shown = scene._load_high_scores()
+
+    assert shown == [{'score': 70, 'floor': 4}]
+    assert [call[0] for call in saves.calls] == ['load', 'load']
+    assert len([record for record in caplog.records if record.levelno == logging.ERROR]) == 1

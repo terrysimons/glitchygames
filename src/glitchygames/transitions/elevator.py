@@ -1,8 +1,8 @@
-"""Elevator ride transition for Clockwork Keep.
+"""Elevator ride transition: the player rides up between two floors.
 
 A custom transition where the player appears to ride an elevator
-upward through the tower. The old floor scrolls up off screen,
-tower walls stream past, and the new floor scrolls in from below.
+upward through a building. The old floor scrolls up off screen,
+the walls stream past, and the new floor scrolls in from below.
 The elevator and player are pinned at center screen throughout.
 """
 

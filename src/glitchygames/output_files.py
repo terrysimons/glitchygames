@@ -14,12 +14,18 @@
   glitchygames/replay/rebuild.py; a bookmarked copy, glitchygames/replay/driver.py). A
   rebaseline writes its partial file over the whole run and moves it once the run is over
   (glitchygames/replay/rebaseline.py), with the same ``partial_path``.
+- ``write_text_whole``: writes a durable record (a file later runs read: a replay-ledger row file,
+  the pending ledger) whole, through ``write_aside_then_replace``, and syncs it to the disk before
+  it replaces the file, so a power cut keeps either the old text or the new
+  (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md). ``write_aside_then_replace`` itself
+  stays unsynced: a replay's outputs and bookmarks can be made again.
 
 This module is a leaf: it imports only the standard library.
 """
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -61,6 +67,29 @@ def write_aside_then_replace(*, destination: Path, write: Callable[[Path], objec
         aside.replace(destination)
     finally:
         aside.unlink(missing_ok=True)
+
+
+def write_text_whole(*, destination: Path, text: str) -> None:
+    """Write a durable record's text whole: the old text or the new survives any stop.
+
+    The text goes to the partial file, is flushed and synced to the disk, then replaces the
+    destination (``write_aside_then_replace``). Known limit: the directory is not synced after
+    the replace, so a power cut just after it may still show the old file on some file systems
+    (never a truncated one).
+
+    Args:
+        destination: The record's file.
+        text: Its whole text (written as UTF-8).
+
+    """
+
+    def write_and_sync(aside: Path) -> None:
+        with aside.open('w', encoding='utf-8') as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+
+    write_aside_then_replace(destination=destination, write=write_and_sync)
 
 
 def output_refusal(*, path: Path) -> str | None:

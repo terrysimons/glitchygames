@@ -79,7 +79,7 @@ Its recordings name it `games.mr_muncher.game:MrMuncherScene`, its golden replay
 | `src/games/mr-muncher/src/mr_muncher/actors.py` | `MazeGeometry` (tiles to pixels), `MazeActor` (tile-to-tile movement), `Player`, `Muncher`, `MuncherProfile`, `Personality`, `MuncherState`, `ChaseSituation`, `chase_target` |
 | `src/games/mr-muncher/src/mr_muncher/game.py` | `MrMuncherScene` (one reel: phases, scoring, input, saves, sound, drawing), `Phase`, `GameProgress`, `MrMuncherGameOverScene`, `main` |
 | `src/games/mr-muncher/src/mr_muncher/drawing.py` | Every picture, drawn with pygame primitives and cached with `functools.cache`: maze, bucket, munchers, eyes, sprockets, snacks, bonus reel, film-strip panels |
-| `src/games/mr-muncher/src/mr_muncher/scenery.py` | The sprites that never move (`Sprocket`, `Picture`, `SidePanel`) and the text helpers (`bundled_font`, `fitted_font`, `render_text`) |
+| `src/games/mr-muncher/src/mr_muncher/scenery.py` | The sprites that never move (`Sprocket`, `Picture`, `SidePanel`); text comes from the engine's `bundled_font`, `fitted_font` and `render_line` (`glitchygames.fonts.font_manager`) |
 | `src/games/mr-muncher/src/mr_muncher/sounds.py` | The sound effects and jingles as synthesized effects (`Effect`s) |
 | `src/games/mr-muncher/src/mr_muncher/autopilot.py` | `Autopilot`, a bot that plays the game. The golden replay's script and the tests use it |
 | `src/games/mr-muncher/tests/test_mr_muncher.py` | The scene: game flow, scoring, input, saves, screens, whole games |
