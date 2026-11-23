@@ -553,3 +553,24 @@ wisp, silicon sprite, neon-gas jellyfish, solder slime); arcane-tech familiars (
 owl, fiber fox, cable wyrmling); living signals (CRT critter, living sigil, glitch ghost,
 oscilloscope serpent); neon light (a neon-sign creature, a hologram, a lantern golem). Eighteen
 candidates in all, on one contact sheet grouped by cluster.
+
+## 64. User (2026-11-23, sent while Claude was working, quoting a side agent's note)
+
+> Here is a note offered by a side agent:
+>
+> > Heads up · You asked to see the color profile tables before any mascot work started, but
+> > the main agent picked a 16-color limit itself and started all five designs.
+> > [...]
+>
+> Yeah, I want the 16-bit+ variant.  This seems like it would be many more colors than an SNES
+> could do, due to the SNES having a limitation on palettes - is that correct?
+
+## 65. Claude
+
+Confirmed: a real SNES sprite used one 16-color palette (15 + transparent) out of 8 shared
+sprite palettes (128 colors in all), so 16-bit+ (256 per sprite) is more than any SNES sprite had;
+that is the "+". Owned the mistake of starting before showing the tables. Started an upgrade
+pass to 16-bit+, keeping each design and adding shading and soft glow, with partial alpha
+(the default 32-bit RGBA color space), capped at 64 colors because today's glyph set and
+Bitmappy's save stop at 64 until the glyph generator is built. The 16-bit originals stay for
+comparison.
