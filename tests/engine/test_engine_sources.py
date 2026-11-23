@@ -235,6 +235,7 @@ class TestRegistry:
 class TestFrameLoopUsesTheDoors:
     """The frame loop reads events and frame time and ends frames through the doors."""
 
+    @pytest.mark.draws_frames
     def test_events_come_from_the_installed_pump(self):
         manager = start_engine(scene_class=KeyCountingScene)
         try:
@@ -249,6 +250,7 @@ class TestFrameLoopUsesTheDoors:
         finally:
             GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_every_frame_ends_through_the_sources_with_its_number(self):
         manager = start_engine(scene_class=KeyCountingScene)
         try:
@@ -285,6 +287,7 @@ class TestFrameLoopUsesTheDoors:
         finally:
             GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_a_second_engine_starts_numbering_frames_and_the_clock_at_zero(self):
         manager = start_engine(scene_class=KeyCountingScene)
         try:
@@ -304,6 +307,7 @@ class TestFrameLoopUsesTheDoors:
         finally:
             GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_a_second_engine_starts_with_no_supervision(self, mocker: MockerFixture):
         manager = start_engine(scene_class=KeyCountingScene)
         try:

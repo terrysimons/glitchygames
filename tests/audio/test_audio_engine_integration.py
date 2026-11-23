@@ -208,6 +208,7 @@ class TestSoundOptions:
         assert audio.cache_mode is CacheMode.DISK
         assert [path.name for path in tmp_path.iterdir()] == ['tests']  # SoundingGame's package
 
+    @pytest.mark.draws_frames
     def test_the_channels_are_partitioned_from_the_options(self, mocker):
         engine = build_engine(
             mocker,
@@ -254,6 +255,7 @@ class TestARecordedRun:
         engine.start()
         return read_trace_result(path=path).trace['frames']
 
+    @pytest.mark.draws_frames
     def test_recorded_frames_carry_audio_seconds_and_work_as_measurements(self, recorded_frames):
         setup_frame, gameplay_compile_frame, quit_frame = recorded_frames
 
@@ -272,6 +274,7 @@ class TestARecordedRun:
         for frame in recorded_frames:
             assert frame[CONTENT_HASH_FIELD] == [frame_content_hash(frame_record=frame)]
 
+    @pytest.mark.draws_frames
     def test_compiles_are_attributed_to_setup_or_their_frame(self, recorded_frames):
         del recorded_frames
         setup_record, gameplay_record = SoundingGame.seen['compile_log']
@@ -285,18 +288,21 @@ class TestARecordedRun:
         assert gameplay_record.frame_number == GAMEPLAY_COMPILE_FRAME
         assert gameplay_record.during_setup is False
 
+    @pytest.mark.draws_frames
     def test_the_engine_uses_the_options_cache_and_channels(self, recorded_frames):
         del recorded_frames
 
         assert SoundingGame.seen['cache_mode'] is CacheMode.RAM
         assert SoundingGame.seen['library_channels'] == list(range(4, 16))
 
+    @pytest.mark.draws_frames
     def test_shutdown_closes_the_audio_engine(self, recorded_frames):
         del recorded_frames
 
         assert existing_audio_engine() is None
         assert SoundingGame.seen['handle'].is_playing is False
 
+    @pytest.mark.draws_frames
     def test_shutdown_gives_the_channel_reservation_back(self, recorded_frames):
         del recorded_frames
         # A mixer started again in this process (SDL keeps a reservation across a restart)
@@ -307,6 +313,7 @@ class TestARecordedRun:
         assert pygame.mixer.Sound(buffer=bytes(4 * 44100)).play() is not None
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run_environment')
 def test_a_failing_audio_close_still_runs_the_rest_of_the_teardown_then_fails_it(mocker, caplog):
     """GameEngine._shutdown: the reservation is given back and pygame quits, then the error.
@@ -333,6 +340,7 @@ def test_a_failing_audio_close_still_runs_the_rest_of_the_teardown_then_fails_it
     assert 'the fades went wrong' in str(record.exc_info[1])
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run_environment')
 def test_a_run_without_sound_makes_no_audio_engine(mocker):
     """A game that never asks for audio never makes an audio engine."""
@@ -383,6 +391,7 @@ class LateSoundingGame(Scene):
         self.frames_run += 1
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run_environment')
 def test_a_first_audio_access_in_gameplay_is_a_gameplay_compile(mocker, caplog):
     """No setup() use: the compile belongs to its frame, and no setup line is logged."""
@@ -495,6 +504,7 @@ class EarlyAskingGame(Scene):
         self.scene_manager.quit()
 
 
+@pytest.mark.draws_frames
 def test_a_constructor_that_asks_for_audio_gets_the_games_sound_options(mocker):
     """The game engine is set before the game is built, so its sound options apply from there.
 
@@ -542,6 +552,7 @@ class DeclaringGame(Scene):
         self.scene_manager.quit()
 
 
+@pytest.mark.draws_frames
 def test_a_games_declared_sounds_are_compiled_before_it_is_built(mocker):
     """Where the power-on is skipped (the dummy driver), every declared sound compiles first."""
     engine = build_engine(mocker, game=DeclaringGame)
@@ -552,6 +563,7 @@ def test_a_games_declared_sounds_are_compiled_before_it_is_built(mocker):
     assert all(game.compiled_at_build)
 
 
+@pytest.mark.draws_frames
 @pytest.mark.frames_vary(
     reason='the power-on advances by the time its idle work takes compiling, so how far it gets '
     'differs run to run (frame 12 or 13 differed, of 147 or 148, 2026-11-16)'
