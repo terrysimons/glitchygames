@@ -53,6 +53,10 @@ The game, as the user has described it so far:
   Japanese included; each language gets its own arc, starting with Irish.
 - **(user)** The historical wound for the Irish arc is the Great Hunger of 1845-1852, which the
   user holds was not a famine but a massacre.
+- **(user)** Also the centuries of militaristic occupation by the British: the vibe of an
+  imperial army with its barracks, and a commander with a cruel, zealous villain's attitude that
+  evokes Cromwell. Never referenced directly; evoked through stand-ins, the way the film Kneecap
+  evokes real people and movements.
 - **(user)** The point is acquisition through immersion in a simulated environment, rather than
   something chunky and static (which is how Slime Forest Adventure feels, though it is super
   useful and the user sees why it was made that way).

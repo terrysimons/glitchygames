@@ -327,3 +327,34 @@ explore among many, and asked for the specific idea.
 > was a massacre.  Take that whole bit of history - do some reserach and write up a plot for this
 > game into a new document that follows this template, but could be applied to any language.
 > Starting with Gaeilge (ga).  Propose a filename for this game arc.
+
+## 35. Claude
+
+Proposed the filename `plans/2026-11-23-spare-credits-exploration-1-language-arc-ga.md` (the
+first feature plan under the master; the language code lets other languages' arcs sit beside
+it), with a language-neutral arc first and the Irish arc filled in after. Started research on
+the Great Hunger, the decline of Irish and its lore, and Irish learning resources. Asked whether
+the "one very specific idea" was the reveal of Irish or is still to come.
+
+## 36. Claude (research update)
+
+The research on learning Irish in a game came back: place-name data and Common Voice Irish
+recordings are open; the main Irish speech synthesis and the standard dictionaries need
+permission to bundle; no open pixel font exists for the Gaelic script or ogham, so the game would
+draw its own; speech recognition for Irish is too weak to be a core mechanic.
+
+## 37. User (2026-11-23)
+
+> Also the hundreds of years of militaristic occupation by the british (It's giving FF6 Imperial
+> Army Barracks-ish vibes, and that whole evil Kefka sort of attitude (Cromwell, for instance)).
+> We don't want to reference him directly but that's the vibe we're going for.  Like in the movie
+> about Kneecap where theyre obviously talking about the IRA and their dad is a dead ringer for
+> Gerry Adams or whatever thing they were going for there.
+
+## 38. Claude
+
+Recorded the centuries of occupation as part of the arc: an occupying empire with barracks, and
+a cruel commander with the vibe of Cromwell, never named, the way Kneecap evokes real figures
+through stand-ins. Started a fourth research agent on the history of conquest and occupation,
+including how Wolfwalkers (which has a Cromwell-like Lord Protector) and Kneecap handle
+stand-ins, so this game stays distinct.
