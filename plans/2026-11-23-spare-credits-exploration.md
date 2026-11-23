@@ -59,8 +59,13 @@ The game, as the user has described it so far:
   evokes real people and movements.
 - **(user)** Tone: tongue-in-cheek, nudge-nudge-wink-wink stand-ins, while being super respectful
   and mindful of the real tragedy. The Troubles are in view as well.
-- **(my call, proposed)** How to hold both: the humor aims at power (the empire, its pompous
-  commander, its bureaucracy), never at the people who suffered; the grief is played straight.
+- **(user)** How to hold both (proposed by Claude, confirmed as "exactly the vibe"): the humor
+  aims at power (the empire, its pompous commander, its bureaucracy), never at the people who
+  suffered; the grief is played straight.
+- **(user)** *The Boondock Saints* as a source of humor: distinctly Irish and Boston-Irish, Irish
+  yet unique.
+- The Irish arc, written as a template any language's arc can follow:
+  [2026-11-23-spare-credits-exploration-1-language-arc-ga.md](2026-11-23-spare-credits-exploration-1-language-arc-ga.md).
 - **(user)** The point is acquisition through immersion in a simulated environment, rather than
   something chunky and static (which is how Slime Forest Adventure feels, though it is super
   useful and the user sees why it was made that way).

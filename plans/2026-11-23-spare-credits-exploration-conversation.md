@@ -382,3 +382,20 @@ Recorded the tone: tongue-in-cheek, nudge-nudge-wink-wink stand-ins, together wi
 for the tragedy, with the Troubles in view as well. Proposed a rule for holding both: the jokes
 aim at power (the empire, its pompous commander, its bureaucracy), never at the people who
 suffered.
+
+## 42. User (2026-11-23, sent while Claude was working)
+
+> Yes, exactly the vibe.  Also consider The Boondock Saints as a source of humor and distinctly
+> Irish / Boston Irish humor since it very similarly but also differently feels Irish and unique
+> at the same time.
+
+## 43. Claude
+
+Wrote the Irish arc to `plans/2026-11-23-spare-credits-exploration-1-language-arc-ga.md`: each
+part states the language-neutral template, then the Irish answer (language and script, the
+wound, the occupier, the corruption, the denial, the fading, the hero, the loop, the different
+way of seeing, the plot in a prologue, four acts and an epilogue, tone, respect and review, open
+slots). Filled the occupier part from the occupation research, and kept clear of Wolfwalkers'
+Cromwell figure. Recorded the confirmed tone rule and The Boondock Saints as a humor source:
+sibling banter, profane affection, Catholic ritual with a wink and a family saying as a battle
+cry, but not its vigilante violence.
