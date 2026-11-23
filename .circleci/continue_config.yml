@@ -283,6 +283,10 @@ commands:
     steps:
       - run:
           name: "Lint (ruff, the strict docs build, YAML, TOML, deps, dead code)"
+          # The strict docs build can go quiet for minutes while scripts/mkdocs_hooks.py makes
+          # the graphs (it logs each stage's start and end now): job 5089 (#261) was killed at
+          # the default 10 minutes once #285 moved the docs build to Linux
+          no_output_timeout: 30m
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             nox -s lint

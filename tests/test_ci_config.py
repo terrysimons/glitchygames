@@ -3183,6 +3183,19 @@ def test_the_checks_run_on_a_large_linux_container_beside_the_tests():
     }
 
 
+def test_the_lint_step_allows_30_minutes_of_silence():
+    """The strict docs build inside nox -s lint can go quiet for minutes while graphs generate.
+
+    checks-linux (#285 moved the docs build there) was killed on #261's job 5089: "Too long with
+    no output (exceeded 10m0s)" during mkdocs build --strict.
+    """
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    step = configuration.split('\n  nox-lint:\n', 1)[1].split('\n\n', 1)[0]
+
+    assert '          no_output_timeout: 30m\n' in step
+    assert step.index('no_output_timeout') < step.index('nox -s lint')
+
+
 def test_ci_builds_the_docs_once_outside_their_deploy():
     """One strict docs build per pipeline: lint's (job 5021 built them twice, 553 s and 124 s).
 
