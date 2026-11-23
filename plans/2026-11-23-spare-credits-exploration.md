@@ -155,10 +155,16 @@ user: 5 (which parts of Japanese) and 6 (how the player answers).
   priming and so on.
 - **(user)** Only opted-in games get this. Games passive to the AI keep working as they do today:
   the AI can interact with them, and the game is unaware.
-- The AI platform is Lucid Circuit (`plans/lucid-circuit.md`). This becomes a Lucid Circuit
-  sub-plan when it is designed.
+- **(user)** These are two modes of Lucid Circuit's design (`plans/lucid-circuit.md`):
+  - **Passive:** games that do not opt in still work with Lucid Circuit, provided they meet the
+    constraints it already relies on (for example, no raw pygame calls to get the display; only
+    the engine's doors). This is the work Lucid Circuit has done so far.
+  - **Participating:** an opt-in, game-participating AI experience. It allows even more creative
+    avenues to test, try and play with. This game is the first participating game.
 
-Where this departs from Lucid Circuit's current rules (to weigh in the design; the reasons are in
+  The participating mode becomes a Lucid Circuit sub-plan when it is designed.
+
+Where the participating mode departs from Lucid Circuit's current rules (to weigh in the design; the reasons are in
 its master plan):
 
 | Rule today | What a required-AI game changes |

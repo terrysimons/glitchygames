@@ -452,3 +452,19 @@ requiring AI; with the service down it fails; a new scene type shows while the A
 primes data; passive games stay as they are. Flagged where this departs from Lucid Circuit's
 current rules: the live game never waits for AI; a failed AI never changes the exit code; AI is
 never on in replays, headless runs, tests or the browser.
+
+## 51. User (2026-11-23)
+
+> Lucid Circuit yes... Ok so these should be considered 2 different modes of Lucid Circuit's
+> design.  Games that do not opt in must still work with it provided certain constraints that
+> must be true (like not calling raw pygame calls to get the display or things of that nature -
+> we've done a fair bit of work around that with Lucid Circuit already - so that vibe ) - vs an
+> opt-in game-participating AI experience which allows for some even more creative avenues and
+> things to test and try and play with.
+
+## 52. Claude
+
+Recorded two modes of Lucid Circuit's design, in the user's words: passive (games that do not
+opt in still work with it, provided they meet the existing constraints, such as no raw pygame
+calls for the display) and participating (an opt-in, game-participating AI experience that opens
+more creative avenues to test, try and play with). This game is the first participating game.
