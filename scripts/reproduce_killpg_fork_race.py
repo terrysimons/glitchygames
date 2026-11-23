@@ -2,10 +2,12 @@
 
 bugs/2026-11-20-killpg-misses-a-process-forked-during-it-on-macos.md. Each trial starts a shell
 in a session of its own (as the Ansible lock tests start setup.sh, whose fake curl logs its call,
-then forks ``sleep``) that logs a line and then forks MEMBERS ``sleep`` processes in the
-background, one after another; it waits for the log line, stops the group while the shell is
-forking, and waits for the child's pipe to close. A member left running holds it open: the trial
-counts an escape and names what is left. The lock tests' single fork made the window narrow (a
+then forks ``sleep``) that forks its first ``sleep`` in the background, logs a line naming it,
+then forks the rest of MEMBERS one after another; it waits for the log line, checks that the
+member it names runs (a trial with no member could leave nothing, whatever the stop did, so it is
+refused: ``TrialHadNoMemberError``), stops the group while the shell is forking, and waits for
+the child's pipe to close. A member left running holds it open: the trial counts an escape and
+names what is left. The lock tests' single fork made the window narrow (a
 few trials in a hundred, and none when the timing shifts); forking MEMBERS times keeps the kill
 inside a fork on most trials.
 
@@ -15,7 +17,8 @@ Usage (from the repository root, POSIX):
 
 MODE, how the group is stopped:
     killpg          ``os.killpg(SIGKILL)`` once, as the lock tests did before the fix: on macOS
-                    about a third of the trials leave a forked ``sleep`` running (0 on Linux)
+                    16 of 100 trials left a forked ``sleep`` running (M4 Max, other tests
+                    running, 2026-11-23; the rate moves with load), 0 on Linux
     stop-command    ``process.stop_command(first_signal=SIGKILL)``, which kills whatever the
                     group signal missed: no trial leaves anything
 
@@ -55,6 +58,64 @@ PIPES_CLOSE_SECONDS = 10.0
 MEMBER_SECONDS = 30
 MEMBERS = 200
 POLL_SECONDS = 0.001
+# The trial's shell: it forks its first member, logs "started" with that member's pid, then forks
+# the rest one after another and waits. Logging after the first fork means a trial always has a
+# member to leave: logged before it, the stop sometimes landed before any fork (4 of 100 trials
+# on macOS, 2026-11-23), and a trial with nothing to leave passed whatever the stop did
+TRIAL_SCRIPT = (
+    f'sleep {MEMBER_SECONDS} & printf "started %s\\n" "$!" >> "$1"; i=1; '
+    f'while [ "$i" -lt {MEMBERS} ]; do sleep {MEMBER_SECONDS} & i=$((i + 1)); done; wait'
+)
+
+
+class TrialHadNoMemberError(RuntimeError):
+    """A trial's group had no member running when it was stopped: it could leave nothing."""
+
+
+def first_member(*, log: Path) -> int:
+    """Read the pid of the first member the trial's shell forked from its log line.
+
+    Returns:
+        The pid ``TRIAL_SCRIPT`` logged after "started".
+
+    Raises:
+        TrialHadNoMemberError: The line names no member (a shell that logs before it forks).
+
+    """
+    fields = log.read_text(encoding='utf-8').split()
+    match fields:
+        case ['started', pid] if pid.isdigit():
+            return int(pid)
+        case _:
+            message = f'the log line names no member: {fields!r}'
+            raise TrialHadNoMemberError(message)
+
+
+def check_a_member_runs(*, log: Path) -> None:
+    """Check that the member the log names still runs, just before the group is stopped.
+
+    Raises:
+        TrialHadNoMemberError: The log names no member, or the one it names is gone.
+
+    """
+    member = first_member(log=log)
+    if not process_exists(pid=member):
+        message = f'the first member (pid {member}) was gone before the stop'
+        raise TrialHadNoMemberError(message)
+
+
+def process_exists(*, pid: int) -> bool:
+    """Tell whether a process exists (signal 0 reaches it).
+
+    Returns:
+        True while it exists.
+
+    """
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 def stop_the_group(*, mode: str, child: RunningProcess[str]) -> None:
@@ -91,6 +152,10 @@ def run_trial(*, mode: str) -> list[str]:
     Returns:
         Each member left running ("pid command"); empty when the pipe closed in time.
 
+    Raises:
+        TrialHadNoMemberError: No member was running when the group was about to be stopped
+            (the trial could leave nothing); its group is stopped first.
+
     """
     with tempfile.TemporaryDirectory() as folder:
         log = Path(folder) / 'log'
@@ -98,21 +163,17 @@ def run_trial(*, mode: str) -> list[str]:
         try:
             with os.fdopen(write_end, 'w', encoding='utf-8') as output:
                 child = start_command(
-                    command=[
-                        '/bin/sh',
-                        '-c',
-                        (
-                            f'printf "started\\n" >> "$1"; i=0; while [ "$i" -lt {MEMBERS} ]; do '
-                            f'sleep {MEMBER_SECONDS} & i=$((i + 1)); done; wait'
-                        ),
-                        'sh',
-                        str(log),
-                    ],
+                    command=['/bin/sh', '-c', TRIAL_SCRIPT, 'sh', str(log)],
                     environment=os.environ,
                     output=output,
                 )
-            while not (log.exists() and log.stat().st_size):
+            while not (log.exists() and log.read_text(encoding='utf-8').endswith('\n')):
                 clock.raw_sleep(POLL_SECONDS)
+            try:
+                check_a_member_runs(log=log)
+            except TrialHadNoMemberError:
+                stop_command(process=child, first_signal=signal.SIGKILL)
+                raise
             stop_the_group(mode=mode, child=child)
             if pipe_closed(read_end=read_end, within=PIPES_CLOSE_SECONDS):
                 return []
