@@ -167,6 +167,13 @@ Where the scrub stands, for whoever picks it up (the session that did steps 1-2 
   the Sound Board README, an API page per audio module), step 5 (member READMEs, module
   docstrings), step 6 (a test asserting `all_claims() == []`, beside the path guard in
   `tests/test_suite_collection.py`), step 7.
+- **Done, the games area** (2026-11-22, `docs/scrub-games`, one commit per file): step 4's
+  six `docs/games/` pages and step 5's six `src/games/*` READMEs, read against the code and
+  each game's `--help` (one reader per game), with Part 2's judgment conventions applied.
+  Found outside the pages, not fixed there: Mr. Muncher's game-over screen ignores gamepad B
+  and Back (its handlers do not call the engine's), `scripts/record_scripted_session.py`'s
+  "Drawing Fire alone" comment on `POLLED_INPUT_GAMES`, and stale header metadata in
+  PaddleSlap's recordings (fixed only by a re-record).
 - **Open question for the owner:** read steps 3-5 in sequence (the default so far) or as
   parallel agents, one per area.
 - **When the reading pass closes:** update `plans/future-work.md`'s "Documentation scrub" item
