@@ -2,16 +2,15 @@
 
 Drawing Fire is a stick-figure battle drawn in pencil on paper, the way a child draws a war,
 written as one of the engine's example games. Two armies face each other across a hilly field:
-the **Pencil Platoon** in pencil yellow on the left and the **Graphite Brigade** in graphite grey
+the **Pencil Platoon** in pencil yellow on the left and the **Graphite Brigade** in graphite gray
 on the right, both straight off a school pencil. The computer plays every soldier. When one army
 is wiped out the winner is announced on the paper (when both fall at once, nobody wins), and a
-new battle starts on its own. At any
-moment one or two local players can **join**: press START (Enter on the keyboard), choose a side
-and a soldier, and fight as him. A player whose soldier dies takes over another soldier of his
+new battle starts on its own. At any moment one or two local players can **join**: press START
+(Enter on the keyboard), choose a side and a soldier, and fight as him. A player whose soldier dies takes over another soldier of his
 side, and a player who has had enough holds Back (Escape) to leave.
 
 Every new GlitchyGames game proves a new mechanic for the engine. Drawing Fire proves
-**swatches**: recolouring a sprite by palette swap, so one soldier sprite wears both armies'
+**swatches**: recoloring a sprite by palette swap, so one soldier sprite wears both armies'
 liveries (see [Swatches](#swatches-the-mechanic-this-game-proves)).
 
 This page explains how the game is built, for a developer who wants to understand it or write a
@@ -24,8 +23,8 @@ decisions, is `plans/2026-10-25-drawing-fire-design.md`. What comes after the MV
 
 These are screenshots of the MVP.
 
-A battle the computer plays by itself. Each army's name, colour chip and soldier count are at the
-top. The ground is pencilled with hatching under it, and the sandbags are grey-washed bags:
+A battle the computer plays by itself. Each army's name, color chip and soldier count are at the
+top. The ground is penciled with hatching under it, and the sandbags are gray-washed bags:
 
 ![A computer battle: the Pencil Platoon and the Graphite Brigade meet on a hill](drawing_fire/battle.png)
 
@@ -54,8 +53,10 @@ browser keeps from the game shows up missing while you hold it:
 ## Where it is going: concept art
 
 These pictures are **concept art** from the brainstorm, not the game. They show the full vision:
-a battlefield wider than the screen, tunnels, planes and air drops, and bigger guns. None of this
-is in the MVP (see `plans/future-features.md`, entry 54).
+a battlefield wider than the screen, tunnels, planes and air drops, and bigger guns.
+
+!!! note "None of this is in the MVP"
+    See `plans/future-features.md`, entry 54.
 
 ![Concept art: an army scene](drawing_fire/army-scene.png)
 
@@ -73,14 +74,30 @@ is in the MVP (see `plans/future-features.md`, entry 54).
 uv run drawing-fire                      # the console script (its member's pyproject.toml)
 uv run drawing-fire --debug-overlay      # start with the debug seats view (F3 toggles it)
 uv run drawing-fire --random-seed 7      # another battlefield and other battles
-uv run drawing-fire --record-trace run.jsonl.gz   # record the session
-uv run drawing-fire --replay-trace run.jsonl.gz   # watch it again, exactly
 uv run python -m scripts.simulate_drawing_fire --seeds 20   # headless battles: lengths and winners
 nox -s browser -- drawing-fire           # the browser build
 ```
 
+Recording and replay are the engine's tools, the same from either front end:
+
+=== "Game"
+
+    ```bash
+    uv run drawing-fire --record-trace run.jsonl.gz   # record the session
+    uv run drawing-fire --replay-trace run.jsonl.gz   # watch it again, exactly
+    uv run drawing-fire --verify                      # its golden and bundled demo, headless
+    ```
+
+=== "glitchygames"
+
+    ```bash
+    uv run glitchygames record-trace drawing-fire run.jsonl.gz
+    uv run glitchygames replay-trace run.jsonl.gz
+    uv run glitchygames verify --game drawing-fire
+    ```
+
 `main()` (`game.py`) is `GameEngine(game=DrawingFireScene).start()`. The scene adds no options of
-its own; all its options are the engine's. The battlefield fits the window (800x480 by default),
+its own; all its options are the engine's ([Argument System](../architecture/argument_system.md)). The battlefield fits the window (800x480 by default),
 and `--random-seed` decides the terrain, the sandbags and every soldier's choices.
 
 ### Controls
@@ -100,10 +117,15 @@ bound in an `ActionMap`: `players.py` reads every control from the frame's polle
 | Quit the game | Q (on its release) | |
 | Debug seats view | F3 (the engine's debug overlay) | |
 
-W and S do nothing in the MVP (there is no jump or crouch). Escape never quits: the base `Scene`
-quits on the release of Q or Escape, and `DrawingFireScene.on_key_up_event` ignores Escape's
-release, because Escape is the keyboard's Back. There is no pause. Battles never stop for
-anyone: players drop into and out of them, and the next one starts on its own.
+W and S do nothing in the MVP (there is no jump or crouch).
+
+!!! warning "Escape never quits"
+    The base `Scene` quits on the release of Q or Escape, and
+    `DrawingFireScene.on_key_up_event` ignores Escape's release, because Escape is the
+    keyboard's Back.
+
+There is no pause. Battles never stop for anyone: players drop into and out of them, and the
+next one starts on its own.
 
 ## Where things live
 
@@ -121,10 +143,11 @@ anyone: players drop into and out of them, and the next one starts on its own.
 | `src/games/drawing-fire/src/drawing_fire/seat_drawing.py` | The join note, the seat cards, the soldier highlight, and the debug seat tags and panel |
 | `src/games/drawing-fire/src/drawing_fire/sprites/soldier.toml` | The soldier sprite (stand, walk and down), with its `[swatches.livery]` parts |
 | `scripts/simulate_drawing_fire.py` | Headless computer-against-computer battles across seeds (the tuning tool) |
-| `src/games/drawing-fire/tests/` | The tests, one file per module, plus the simulation's and the move's (`test_drawing_fire_logical_names.py`, `_install_location.py`, `_recording_history.py`, `_wheel.py`) |
+| `src/games/drawing-fire/tests/` | The tests, one file per module, plus the simulation's, the golden replay's, the benchmarks' and the move's (`test_drawing_fire_logical_names.py`, `_install_location.py`, `_recording_history.py`, `_wheel.py`) |
 | `src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz` | The golden replay (1,614 frames) |
-| `scripts/golden_inputs.py` | `drawing_fire_script` and `DrawingFireMouse` (the golden replay's player) |
-| `scripts/record_scripted_session.py`, `scripts/golden_inputs.py` | The command that records the fixture (on the engine's scripted-session recorder, `src/glitchygames/replay/tools/scripted_sessions.py`); `drawing_fire_controls` (the controls tail: Q) |
+| `src/games/drawing-fire/src/drawing_fire/demos/battle.jsonl.gz` | The bundled demo, recorded by `scripts/record_bundled_demos.py` (`drawing_fire_battle`: the same player script, 1,600 frames) |
+| `scripts/golden_inputs.py` | `drawing_fire_script` and `DrawingFireMouse` (the golden replay's player), and `drawing_fire_controls` (the controls tail: Q) |
+| `scripts/record_scripted_session.py` | The command that records the fixture (on the engine's scripted-session recorder, `src/glitchygames/replay/tools/scripted_sessions.py`) |
 
 ## One frame
 
@@ -153,7 +176,7 @@ Its `dt_tick(dt)` does everything that decides what happens, in this order:
    a soldier again. Seats treat a draw as they treat a win.
 
 `render(screen)` draws it all from the model, straight onto the screen: the paper and ground (on
-the background, pencilled once per battle and blitted whole each frame), the sandbags, the fallen and then the standing soldiers,
+the background, penciled once per battle and blitted whole each frame), the sandbags, the fallen and then the standing soldiers,
 the bullets, the HUD, the seats' note, cards and highlight, and the banner. The soldiers are not
 sprites in `all_sprites`.
 
@@ -232,36 +255,36 @@ stateDiagram-v2
 
 ## Swatches: the mechanic this game proves
 
-The soldier sprite is drawn once, in the Pencil Platoon's livery. Its file lists the parts that can be
-recoloured, beside its palette:
+The soldier sprite is drawn once, in the Pencil Platoon's livery. Its file lists the parts that
+can be recolored, beside its palette:
 
-```toml
+```toml title="src/games/drawing-fire/src/drawing_fire/sprites/soldier.toml"
 [swatches.livery.helmet]
-colors = ["h", "H"]      # the base colour, then its shades
+colors = ["h", "H"]      # the base color, then its shades
 role = "primary"
 ```
 
-`swatches.py` reads these sets (`load_swatch_sets`), and a `Scheme` gives colours to the parts
+`swatches.py` reads these sets (`load_swatch_sets`), and a `Scheme` gives colors to the parts
 by role (`primary`, `secondary`) or by name. `recolor_surface` swaps them in by exact RGB: a
-part's base colour becomes the scheme's colour, and each shade keeps its brightness relative to
-the base, so the helmet's shadow comes out a darker yellow for the Platoon and a darker grey for
+part's base color becomes the scheme's color, and each shade keeps its brightness relative to
+the base, so the helmet's shadow comes out a darker yellow for the Platoon and a darker gray for
 the Brigade. `RecoloredFrames` builds each scheme's frames once and keeps them. The sprite file
 never changes.
 
 In the game, `drawing.load_soldier_frames` loads the frames with the engine's `AnimatedSprite`
-loader, scales them up by whole pixels (so the exact colours survive), adds mirrored copies for
+loader, scales them up by whole pixels (so the exact colors survive), adds mirrored copies for
 a soldier facing left, and `draw_soldier` asks for his army's livery
 (`ARMY_LIVERIES[soldier.side]`). Nothing in `swatches.py` names the game: it is written to move
-into `src/glitchygames/sprites/`. What that would take is entry 55 in `plans/future-features.md`.
+into `src/glitchygames/sprites/`. What that would take is entry 61 in `plans/future-features.md`.
 
 ## The pencil look
 
 Everything is drawn with pygame primitives onto the surface it is given, from the model. A
 hand-drawn line wanders by `wobble(x, y, salt)`, a deterministic hash of where it is, never a
 random stream, so the same picture is drawn every frame and in every replay. Text is rendered
-once per content, fonts are made once. The colours are the paper (`PAPER_COLOR`), the pencil
-(`PENCIL_COLOR`), a light hatching under the ground, and the two armies' colours: pencil yellow
-`(242, 194, 48)` and graphite grey `(125, 127, 133)`.
+once per content, fonts are made once. The colors are the paper (`PAPER_COLOR`), the pencil
+(`PENCIL_COLOR`), a light hatching under the ground, and the two armies' colors: pencil yellow
+`(242, 194, 48)` and graphite gray `(125, 127, 133)`.
 
 ## How it uses the engine
 
@@ -270,7 +293,7 @@ once per content, fonts are made once. The colours are the paper (`PAPER_COLOR`)
 | Game time and `dt` | Movement, cooldowns, bullets and the victory countdown use the scene's `dt` (capped at `MAX_FRAME_SECONDS`, 0.05 s, after a hitch); the seat log uses `game_time` |
 | Random streams | Terrain, sandbags, the seats and one stream per soldier per battle, all from `random_stream` (seeded from `--random-seed`, kept in recordings) |
 | Polled input | Every control is read from `current_input()` (keys by scancode, the mouse, controller axes and buttons), never from pygame, so a replay serves the same input |
-| Sprite loading | `AnimatedSprite` loads the soldier's frames; swatches recolour them |
+| Sprite loading | `AnimatedSprite` loads the soldier's frames; swatches recolor them |
 | Debug overlay | `DrawingFireScene.debug_draw(surface, camera)` draws the seat tags and the seats panel when the overlay is on (F3) |
 | Recording and replay | `--record-trace` and `--replay-trace` work as for every game; see below |
 | Browser build | `nox -s browser -- drawing-fire` (`scripts/build_browser_bundle.py` `GAMES`). It has no touch layout yet (exempt in `tests/test_browser_touch_controls.py` until its dual-stick controls settle) |
@@ -298,7 +321,8 @@ frames.
 Because the game reads its controls from the polled input, which a posted event never changes in
 SDL, the recorder lays the input it posted over each live snapshot (`PostedPolledInput`), as a
 real keyboard and mouse would. It does so only for the games in `POLLED_INPUT_GAMES` (Drawing
-Fire alone), so every other game's re-recording keeps the snapshots it had. The replay serves the
+Fire and Zombies Ain't My Neighbors), so every other game's re-recording keeps the snapshots it
+had. The replay serves the
 recorded snapshots.
 
 The soldiers, bullets and sandbags are drawn, not sprites, so a replay's sprite comparison sees
@@ -318,15 +342,18 @@ excused (`UNEXERCISED_CONTROLS`, `NO_GAMEPAD_IN_THE_SESSION`), because the scrip
 on the dummy driver, which has no gamepad. Drawing Fire is in `GAMES_WITHOUT_A_PAUSE`, so its
 replay is checked never to reach the pause screen instead of pausing and resuming.
 
-One limit, noted in `plans/future-features.md` entry 54: the fixture is about 185 KB, over the
-100 KB the other games keep. The first frame holds every random stream's state (19 of them,
-twice), about 125 KB compressed on its own.
+!!! note "The fixture is over the size the other games keep"
+    Noted in `plans/future-features.md` entry 54: the fixture is about 185 KB, over the 100 KB the
+    other games keep. The first frame holds every random stream's state (19 of them, twice),
+    about 125 KB compressed on its own.
 
 The pytest plugin `src/glitchygames/testing/replays.py` replays the fixture in a child process
 (`drawing-fire --replay-trace ... --headless`), and the test fails unless it exits `SUCCESS`.
-Re-record the fixture only deliberately (the commands are in the script's docstring), never just
-to make a failing replay pass. A re-recording without the player's death and takeover fails the
-test above.
+A re-recording without the player's death and takeover fails the test above.
+
+!!! warning "Re-record the fixture only deliberately"
+    The commands are in the script's docstring. Never re-record just to make a failing replay
+    pass.
 
 ## Its package
 
@@ -348,7 +375,7 @@ The tests use real pygame on the dummy driver; what is drawn is checked by its p
 | `src/games/drawing-fire/tests/test_drawing_fire_drivers.py` | The computer driver's rules: targets, stand-offs, cover, sandbags, spacing, held aim, each soldier's own stream |
 | `src/games/drawing-fire/tests/test_drawing_fire_players.py` | Keyboard and mouse, and controller, input as intents; dead zones; button edges |
 | `src/games/drawing-fire/tests/test_drawing_fire_seats.py` | Joining, choosing a side and a soldier, the highlight, takeovers on death, waiting, leaving, two players |
-| `src/games/drawing-fire/tests/test_drawing_fire_swatches.py` | Reading swatch sets and their errors, schemes, shades, recolouring, the frame cache |
+| `src/games/drawing-fire/tests/test_drawing_fire_swatches.py` | Reading swatch sets and their errors, schemes, shades, recoloring, the frame cache |
 | `src/games/drawing-fire/tests/test_drawing_fire_drawing.py` | The pencil look by its pixels: wobble, terrain, sandbags, soldiers in their liveries, bullets, HUD, banner |
 | `src/games/drawing-fire/tests/test_drawing_fire_game.py` | The scene: battles, victory (and a draw) and the next battle, players driving soldiers, the seats drawn, the debug seats view, Escape never quitting |
 | `src/games/drawing-fire/tests/test_drawing_fire_simulation.py` | The headless battles of `python -m scripts.simulate_drawing_fire` (`scripts/simulate_drawing_fire.py`) |

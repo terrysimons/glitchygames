@@ -7,7 +7,7 @@ The last floor has no elevator: standing on its top platform, under the victory 
 game.
 
 Everything is drawn from pygame primitives (no image files), every sound is synthesized, and the
-game is small enough to read in one sitting (about 2,700 lines in
+game is small enough to read in one sitting (about 2,800 lines in
 `src/games/clockwork-keep/src/clockwork_keep/`). It is also one of the engine's reference games: its
 golden trace and golden replay pin world space, transitions, pausing and replay, so the page
 below shows both how the game works and which engine features it leans on.
@@ -37,6 +37,7 @@ Every engine option applies too. The ones the game reads or depends on:
 | `--random-seed` | Seeds the engine's `shake` stream, the only randomness in a session (the rattle shake) |
 | `--record-trace PATH` / `--replay-trace PATH` | Record a session / replay it exactly (see [Engine features it uses](#engine-features-it-uses)) |
 | `--target-fps` | The game sets no `TARGET_FPS`, so the engine default (60.01) applies |
+| `--invalid-high-scores {refuse,drop}` | What the high-score table does with a saved entry it cannot read (engine default `refuse`; see [State, score, lives and saves](#state-score-lives-and-saves)) |
 
 ### Controls
 
@@ -57,6 +58,14 @@ or a gamepad's Start or A (on its release, after a press there) resumes, and Esc
 B or Back (on the press) quits; on the game-over and victory screens the same buttons restart
 and quit. The engine's screens answer both gamepad event layers (controller and joystick).
 Losing window focus pauses the game too.
+
+!!! warning "Esc pauses a floor, but Esc on the pause screen quits"
+    The pause, game-over and victory screens are the engine's, and on each of them Esc (or a
+    gamepad's B or Back) ends the run. Resume with Space, or Start or A.
+
+In the browser build, on-screen touch buttons send the same keys: left and right arrows, Use
+(W), Jump (Space), Run (Left Shift) and pause (Esc), as listed in `TOUCH_LAYOUTS` in
+`scripts/build_browser_bundle.py`.
 
 ## Scenes and how they switch
 
@@ -110,18 +119,21 @@ flowchart TB
 | Restart | `GameOverScene.resume()` (also the victory screen's) | `type(previous_scene)(options=...)`: a fresh first floor (the `--floor` one), score 0, 3 lives |
 | Quit | `scene_manager.quit()` | Posts QUIT; the run ends after teardown (BUGS.md #202) |
 
-The floor never sets `next_scene = None` to quit: the scene manager reads that as "no switch
-pending", so `quit` goes through `scene_manager.quit()`.
+!!! warning "Never quit with `next_scene = None`"
+    The scene manager reads `next_scene = None` as "no switch pending", so `quit` goes through
+    `scene_manager.quit()`.
 
 ### replay_arguments: rebuilding a floor
 
 `replay_arguments()` returns the constructor arguments the floor was built with, besides
 `options`:
 
-```python
-{'floor_index': self.floor_index,
- 'player_score': self.starting_player_score,
- 'player_lives': self.starting_player_lives}
+```python title="src/games/clockwork-keep/src/clockwork_keep/game.py"
+return {
+    'floor_index': self.floor_index,
+    'player_score': self.starting_player_score,
+    'player_lives': self.starting_player_lives,
+}
 ```
 
 The engine's default is `{}`, which rebuilds a scene from options alone. That works for the first
@@ -149,7 +161,8 @@ engine's trace tests (`tests/world/golden/clockwork_keep.jsonl.gz`), and its bro
 
 ## Classes
 
-Clockwork Keep's own code is the scene, five sprite classes and the floor data, all in
+Clockwork Keep's own code is the floor scene, its victory screen, the high-score entry
+(`ClockworkHighScore`, not in the diagram), five sprite classes and the floor data, all in
 `src/games/clockwork-keep/src/clockwork_keep/`. The rest comes from the engine: `Scene` and the built-in
 `PauseScene` and `GameOverScene` (`glitchygames.scenes`), `Sprite` (`glitchygames.sprites`) and
 `PhysicsBody` (`glitchygames.physics`). In the diagram, the Engine box is what every game gets; the
@@ -281,12 +294,15 @@ added, so the order is part of the picture. Each class sets `_layer` before `Spr
 Every gameplay sprite (`Tinker`, `Platform`, `Elevator`, `MovingGear`, `CogCollectible`) declares
 `COORDINATE_SPACE = CoordinateSpace.WORLD` and keeps float `world_x` / `world_y`. The game never
 writes their `rect`: each frame the engine sets it from the camera, culls sprites more than 32 px
-off screen, and marks moved sprites dirty. The game reads positions from `world_x` / `world_y` and
-from collision rects, never from `rect` (except `rect.width`, which does not move). A cog bobs by
-moving its `world_y`, not by shifting pixels in its image.
+off screen, and marks moved sprites dirty. A cog bobs by moving its `world_y`, not by shifting
+pixels in its image.
+
+!!! warning "Never read a world sprite's `rect` in game logic"
+    It is where the sprite was last drawn. The game reads positions from `world_x` / `world_y`
+    and from collision rects (except `rect.width`, which does not move).
 
 The HUD is not a sprite: `render()` draws the score (top left), lives (top right) and floor name
-(top centre) straight onto the screen after the sprites, with a 1 px shadow. Its font is loaded in
+(top center) straight onto the screen after the sprites, with a 1 px shadow. Its font is loaded in
 `setup()`, so a floor rendered before setup draws no HUD.
 
 ### Camera
@@ -322,15 +338,15 @@ over.
 
 ### Platforms, elevators, moving gear and cogs
 
-| Sprite | Image | Behaviour |
+| Sprite | Image | Behavior |
 |---|---|---|
-| `Platform` | 12 px tall metal bar in the floor's theme colours, drawn once | One-way support: the Tinker jumps up through it and lands on top of it |
+| `Platform` | 12 px tall metal bar in the floor's theme colors, drawn once | One-way support: the Tinker jumps up through it and lands on top of it |
 | `Elevator` | 60 x 8 px car with caution stripes and an up arrow | Supports like a platform; interact while standing on it rides to the next floor |
-| `MovingGear` | `size` x `size/4` bar with teeth along its top, `dirty = 2` | Moves on `centre + range * sin(timer * speed)` each `dt_tick` and records `moved_x` / `moved_y` |
+| `MovingGear` | `size` x `size/4` bar with teeth along its top, `dirty = 2` | Moves on `center + range * sin(timer * speed)` each `dt_tick` and records `moved_x` / `moved_y` |
 | `CogCollectible` | 16 px cog, redrawn each tick with spinning teeth | Bobs 3 px; picked up when its collision rect overlaps the Tinker's |
 
 The Clock Face's one moving gear (`MovingGearData`: 64 px wide, ±150 px horizontally, speed 1.2,
-a 5.2 s round trip) is the only way up its final approach: the centre step is 180 px below the
+a 5.2 s round trip) is the only way up its final approach: the center step is 180 px below the
 last step, beyond a running jump's ~140 px, so the climber hops onto the gear (90 px up), rides
 it right, and hops off at the end of its sweep, where it pauses. `test_the_route_is_within_a_walking_jump`
 and `test_climbing_the_final_approach_on_the_gear` pin the route.
@@ -349,7 +365,7 @@ and `test_climbing_the_final_approach_on_the_gear` pin the route.
 | Speeds | Walk 160 px/s, run 280 px/s |
 | Jumps | `-480` px/s (~96 px high), running `-580` px/s (~140 px high) |
 
-`move_left` / `move_right` / `stop_horizontal` only set the acceleration behaviour's target
+`move_left` / `move_right` / `stop_horizontal` only set the acceleration behavior's target
 velocity; the body accelerates toward it. `jump()` sets `velocity_y` only when `on_ground`, so an
 airborne Tinker never jumps again.
 
@@ -531,7 +547,7 @@ sequenceDiagram
 
 The ride is `src/glitchygames/transitions/elevator.py`: a tall composite of the old floor, a shaft and
 the new floor scrolls up while the car and the Tinker (a copy of its image) stay pinned at the
-screen's centre. `ease_in_sine` arrives at full speed, so the stop reads as a slam. The car's
+screen's center. `ease_in_sine` arrives at full speed, so the stop reads as a slam. The car's
 speed is the easing's slope (`transition.eased_velocity_at(progress)`), divided by its peak
 (sampled over 101 points when the ride starts), so motor pitch, motor volume and rumble all follow
 the car.
@@ -588,7 +604,9 @@ dropping through it.
 tremolo), `EFFECTS`. Each floor asks the engine's sound library for all of them when it is built
 (`self.sounds`, by name; `play_sound(name)` plays one): the library compiles each once per engine
 context and caches it (on disk too, under `--sound-cache disk`), so no sound compiles mid-frame
-(the clank would otherwise compile on the slam frame). Each plays at its own volume.
+(the clank would otherwise compile on the slam frame). `ClockworkKeepScene.SOUNDS` lists all
+of them (the motor included), so the engine also compiles them while the game starts. Each plays
+at its own volume.
 
 | Sound | When |
 |---|---|
@@ -602,11 +620,15 @@ context and caches it (on disk too, under `--sound-cache disk`), so no sound com
 
 The elevator's motor is not an effect but a live instrument, `sounds.ELEVATOR_MOTOR`: a
 low-passed saw with a tremolo chug, whose `speed` parameter routes to its pitch (45 to 110 Hz) and
-level (0.15 to 0.6 as heard: the route's ends are raised by √2, because a centred sound is 3 dB
-down on each side by the constant-power pan law every sound pans by). The ride starts it with `start(owner=transition)`, so it plays on behind the
-next floor until the ride ends, sets `speed` every frame, and cuts it with `cancel()` as the car
-lands (a fade would sound after the clank). Without a free live voice or an audio device the ride
-is silent.
+level (0.15 to 0.6 as heard). The ride starts it with `start(owner=transition)`, so it plays on
+behind the next floor until the ride ends, sets `speed` every frame, and cuts it with `cancel()`
+as the car lands (a fade would sound after the clank). Without a free live voice or an audio
+device the ride is silent.
+
+!!! note "Why the level route's ends are raised by √2"
+    A centered sound is 3 dB down on each side by the constant-power pan law every sound pans by,
+    so the route's ends are raised by √2 (`CENTRE_PAN_COMPENSATION`) to keep the motor as loud as
+    it was before live sounds took a pan.
 
 ## State, score, lives and saves
 
@@ -618,11 +640,15 @@ is silent.
 | `game_over_triggered`, `riding_gear`, `supporting_platform` | `ClockworkKeepScene` | Per floor (`game_over_triggered` is also set by victory) |
 | High scores | `open_saves(app_name='clockwork-keep')`, save `high_scores` | On disk, across runs |
 
-The game starts with 3 lives (`STARTING_LIVES`). At game over and at victory `_save_high_score` appends
-`{'score': ..., 'floor': ...}` to the saved `scores` list, keeps the 10 best (best first) and
-saves it; `GameOverScene` shows the list. A missing save loads as an empty list. In a replay the
-saves are a `MemorySaveManager` seeded from the recording, so a replayed game over never touches
-real high scores.
+The game starts with 3 lives (`STARTING_LIVES`). Its high scores are the engine's
+`HighScoreTable` (`glitchygames.state.high_scores`) over the `high_scores` save slot, with
+`ClockworkHighScore` (a score and the floor reached) as its entry. At game over and at victory
+`_save_high_score` calls `record_or_keep`, which adds this climb's entry, keeps the 10 best (best
+first) and saves `{'scores': [...]}`; `GameOverScene` shows the list. A missing save loads as an
+empty list. A saved entry that fails validation is refused (the file stays as it is, and the
+screen shows this climb alone) or dropped with a warning, as `--invalid-high-scores` says. In a
+replay the saves are a `MemorySaveManager` seeded from the recording, so a replayed game over
+never touches real high scores.
 
 ## Engine features it uses
 
@@ -637,15 +663,18 @@ real high scores.
 | Transitions | `ElevatorTransition` (with `on_update` and `add_cue`), `FadeTransition` to game over |
 | Shake and rumble | Two SCREEN shakes on arrival, `ELEVATOR_STOP_BOUNCE` (BOUNCE, vertical) and `ELEVATOR_STOP_RATTLE` (NOISE), each with `RumbleSettings(scale_with_strength=False)`; sustained rumble during the ride |
 | Sound synthesis | Seven effects and one live instrument |
-| Saves | `open_saves`, `SaveManager.load` / `save` |
+| Saves and high scores | `open_saves`, and `HighScoreTable` over the `high_scores` slot |
 | Built-in scenes | `PauseScene` and `GameOverScene` |
 | Debug overlay | No `debug_draw` of its own: the hitbox panel shows the `player` and `cogs` layers (platforms, unlayered, as full rects), the physics panel the Tinker's body, the camera panel the bounds |
 | Random streams | The game draws no randomness itself; the NOISE rattle shake draws from the engine's `shake` stream, which `--random-seed` fixes |
 | Recording and replay | `--record-trace` / `--replay-trace` work unchanged: the game reads input only through events and its `ActionMap`, time only from the dt it is given, and saves only through `open_saves`, so the doors serve all of it |
 | Scene starts | `replay_arguments()` lets any floor be rebuilt for a playback scope |
 
-The game does not set `INSTANT_REPLAY_SECONDS`, ships no bundled demo, and sets no
-`PIXEL_SNAP_MODE` (the default, `NEAREST_HALF_UP`).
+The game does not set `INSTANT_REPLAY_SECONDS` and sets no `PIXEL_SNAP_MODE` (the default,
+`NEAREST_HALF_UP`). It ships one bundled demo, `climb`
+(`src/games/clockwork-keep/src/clockwork_keep/demos/climb.jsonl.gz`): the golden script's first
+330 frames, recorded by the `clockwork_keep_climb` recipe in `scripts/record_bundled_demos.py`.
+The game itself does not play it; see [Demos](../architecture/gameplay_replay.md#demos).
 
 ### Golden trace and golden replay
 
@@ -667,11 +696,13 @@ Clockwork Keep has both of the engine's golden checks:
   --frames 330`. The replay plugin replays it in a child process
   (`clockwork-keep --replay-trace ... --headless`) and fails unless it exits `SUCCESS`.
   `tests/replay/test_golden_replays.py` also checks that the golden replays exercise every
-  control the game binds (`ClockworkKeepScene._create_action_map`); the gamepad bindings are
-  listed as unexercised, because the dummy driver has no gamepad.
+  control the game binds (`ClockworkKeepScene._create_action_map`, listed in
+  `tests/replay/golden_replay_controls.py`); the gamepad bindings are listed as unexercised,
+  because the dummy driver has no gamepad.
 
-Both harnesses drop the focus-lost event SDL's dummy driver posts at startup, which would
-otherwise auto-pause the game. Never re-record either baseline to make a change pass.
+!!! warning "Never re-record either baseline to make a change pass"
+    Both harnesses drop the focus-lost event SDL's dummy driver posts at startup, which would
+    otherwise auto-pause the game.
 
 ## Tests
 
@@ -680,31 +711,35 @@ otherwise auto-pause the game. Never re-record either baseline to make a change 
 | `src/games/clockwork-keep/tests/test_clockwork_keep.py` | The game itself: elevator activation by interact only (not jump, BUGS.md #24), every effect renders and each sound plays once at its moment, the elevator ride's motor, rumble, shakes and silent fallbacks, the clock's hand angles and animated layer, `MAX_FRAME_SECONDS`, `replay_arguments`, `--floor`, hitbox-based support, walls and pickups, collision layers, world space (no sprite positions itself, the engine follows the player, follow stops at game over), the pose rule at walls, scancode bindings, the moving gear and the Clock Face route, no fall-through after a slow frame (the swept ground check), victory on the Clock Face's top platform, death, high scores, pause/quit/focus input, joystick and controller buttons, the HUD, `main()` |
 | `src/games/clockwork-keep/tests/test_clockwork_keep_logical_names.py`, `test_clockwork_keep_install_location.py`, `test_clockwork_keep_recording_history.py` | The move out of the engine: every scene the golden replay starts keeps its logical name, nothing is left of `glitchygames.examples.clockwork_keep`, and the golden keeps its history |
 | `tests/world/test_golden_traces.py` | The 900-frame golden trace (above) |
-| `tests/world/test_gameplay_recording.py` | Recording the 900-frame script gives the golden harness's own sprite frames, including the ride and the pause |
+| `src/games/clockwork-keep/tests/test_clockwork_keep_touch_controls.py` | Every browser touch button presses a key the game reads |
+| `tests/world/test_gameplay_recording.py` | Recording a stand-in tower session (after this game's golden script) gives the golden harness's own sprite frames, including a ride and a pause |
 | `tests/world/test_transition_input.py` | A jump pressed during the elevator ride does not jump on arrival |
 | `tests/replay/test_golden_replays.py` and the replay plugin | The golden replay replays clean; its controls coverage |
 | `tests/replay/test_record_scripted_session.py` | A scripted session that would run past the script's first sprite placement (frame 330) is refused; one that stops before it records only input |
 | `tests/animation/test_animation.py` | The state machine's falling condition (`FALLING_VELOCITY_THRESHOLD`) matches the old hand-written logic |
 
-Run them with `uv run pytest src/games/clockwork-keep/tests/test_clockwork_keep.py` (add `--dummy-only` to skip
-the native-driver comparison while iterating).
+!!! tip "Running the game's tests alone"
+    `uv run pytest --no-cov src/games/clockwork-keep/tests` (`--no-cov`: only the whole run meets
+    the coverage gate; add `--dummy-only` to skip the native-driver comparison while iterating).
 
 ## Where things live
 
 | File | Holds |
 |---|---|
-| `src/games/clockwork-keep/src/clockwork_keep/__init__.py` | `main` (the `clockwork-keep` console script in the member's `pyproject.toml`) |
-| `src/games/clockwork-keep/src/clockwork_keep/game.py` | `ClockworkKeepScene` (floors, input, collision, elevator, death, saves, HUD), `CogCollectible`, the arrival shakes, `main()` |
+| `src/games/clockwork-keep/src/clockwork_keep/__init__.py` | `main` (re-exported from `game.py`; the `clockwork-keep` console script in the member's `pyproject.toml`) |
+| `src/games/clockwork-keep/src/clockwork_keep/game.py` | `ClockworkKeepScene` (floors, input, collision, elevator, death, saves, HUD), `ClockworkKeepVictoryScene`, `ClockworkHighScore`, `CogCollectible`, the arrival shakes, `main()` |
 | `src/games/clockwork-keep/src/clockwork_keep/player.py` | `Tinker`: physics body, state machine, the pose rule, wall fitting |
 | `src/games/clockwork-keep/src/clockwork_keep/terrain.py` | `Platform`, `Elevator`, `MovingGear` |
 | `src/games/clockwork-keep/src/clockwork_keep/levels.py` | `FloorData`, `MovingGearData`, the three floors, `ALL_FLOORS` |
 | `src/games/clockwork-keep/src/clockwork_keep/drawing.py` | Primitive drawing: the Tinker, platforms, elevator, cogs, the three backgrounds, `clock_hand_angles` |
 | `src/games/clockwork-keep/src/clockwork_keep/sounds.py` | The seven `Effect`s, `EFFECTS` |
-| `src/games/clockwork-keep/src/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colours, elevator ride feel, the clock |
+| `src/games/clockwork-keep/src/clockwork_keep/constants.py` | Screen, physics, layers, gameplay, colors, elevator ride feel, the clock |
+| `src/games/clockwork-keep/src/clockwork_keep/demos/climb.jsonl.gz` | The bundled demo |
 | `src/glitchygames/transitions/elevator.py` | `ElevatorTransition` (engine, written for this game) |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The pause and game-over screens |
 | `scripts/golden_inputs.py`, `scripts/record_golden_traces.py` | The golden input script (`clockwork_keep_script`) and the golden trace recorder (on the engine's harness, `src/glitchygames/replay/tools/golden_traces.py`) |
 | `scripts/record_scripted_session.py` | Records the golden replay (`clockwork_keep_controls`, in `scripts/golden_inputs.py`, is its tail) |
+| `scripts/record_bundled_demos.py` | Records the bundled demo (recipe `clockwork_keep_climb`) |
 | `tests/world/golden/clockwork_keep.jsonl.gz` | Golden trace baseline |
 | `src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz` | Golden replay fixture |
 | `src/games/clockwork-keep/tests/test_clockwork_keep.py` | The game's tests |

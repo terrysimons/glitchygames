@@ -20,7 +20,7 @@ input, synthesized sounds, saves, recording and replay.
 ```bash
 uv run brave-adventurer                  # the title screen: choose Classic or Papyrus
 uv run brave-adventurer --game classic   # Classic at once: every sprite drawn in code
-uv run brave-adventurer --game papyrus   # Papyrus at once: the Egyptian edition, sprite-sheet art
+uv run brave-adventurer --game papyrus   # Papyrus at once: the Egyptian edition, hand-drawn TOML pixel art
 ```
 
 `brave-adventurer` is the project's one console script (`src/games/brave-adventurer/`, see
@@ -89,7 +89,9 @@ The built-in screens the game switches to have their own keys, by key code:
 | Pause (`PauseScene`) | Space or a gamepad's Start or A (on release, after a press there) resumes; Esc or a gamepad's B or Back (on the press) quits, Q (on release) quits; regaining window focus more than 0.5 s after pausing resumes too |
 | Game over (`GameOverScene`) | Space or a gamepad's Start or A (on release, after a press there) starts a new game; Esc or a gamepad's B or Back (on the press) quits, Q (on release) quits |
 
-The analog sticks move nothing: no axis is bound (`TestButtonsAndAxesHoldMovement` pins it).
+!!! note "The analog sticks move nothing"
+
+    No axis is bound (`TestButtonsAndAxesHoldMovement` pins it).
 
 ### Options
 
@@ -105,6 +107,7 @@ The launcher reads `--game`; each scene's `args()` adds `-v`; everything else is
 | `--screen-shake-intensity` | engine | Passed to `Camera2D(shake_intensity=...)`; the game itself starts no shakes |
 | `--rumble-intensity` | engine | Scales the death and game-over rumble pulses |
 | `--target-fps` | engine | The scene sets no `TARGET_FPS`, so the default 60.01 applies |
+| `--invalid-high-scores {refuse,drop}` | engine | What the high-score table does with a saved entry it cannot read (default `refuse`: keep the file and save nothing; `drop`: leave the entry out with a warning) |
 | `--debug-overlay` (or F3, F4) | engine | Hitboxes by collision layer, physics, camera and performance panels |
 | `--record-trace`, `--replay-trace`, `--headless` | engine | Record and replay a session (see [Recording, replay and golden tests](#recording-replay-and-golden-tests)) |
 
@@ -285,7 +288,7 @@ pit; `render()` draws each one (`_draw_pits`) after the sprites, between the dra
 two segments either side, so the pit edges always meet the ground even at a half-pixel camera
 position. Every visible enemy that overlaps a pit (a scarab that rolled in) and then the
 player are blitted once more, so they show in front of the pit fill.
-Inside a pit the edges of the neighbouring segments act as walls, so the player cannot walk
+Inside a pit the edges of the neighboring segments act as walls, so the player cannot walk
 out; falling more than `PIT_DEATH_THRESHOLD` (100 px) below the screen costs a life.
 
 **Walls** (`StoneWall`) are both platform and obstacle: a player whose feet land within 16 px
@@ -294,7 +297,7 @@ the side it came from (see [Collision](#collision)).
 
 ### Enemies and collectibles
 
-| Sprite | Behaviour (in `dt_tick`) |
+| Sprite | Behavior (in `dt_tick`) |
 |---|---|
 | `Cobra` | Stationary; strikes for 0.3 s every 2 s (`STRIKE_INTERVAL`, `STRIKE_DURATION`) |
 | `Scarab` | Rolls at `roll_speed` (negative is left) under gravity; the scene lands it on ground segments or on a pit floor and reverses it at walls |
@@ -328,11 +331,15 @@ as idle and jumping do.
 
 ### The pose rule
 
-The player draws its pose, and so its hitbox, in `dt_tick`, after physics and the state
-machine and before the scene's collision runs. Its hitbox is the image's visible pixels
-(the engine trims transparent margins), so drawing the pose in `update()` would make collision
-use the previous frame's pose: a player turning toward a wall would sit inside it for a frame
-(BUGS.md, the pose fix). After drawing, the world-edge bound is refitted to the new hitbox and
+!!! warning "Draw the pose in `dt_tick`, never in `update()`"
+
+    The player draws its pose, and so its hitbox, in `dt_tick`, after physics and the state
+    machine and before the scene's collision runs. Its hitbox is the image's visible pixels
+    (the engine trims transparent margins), so drawing the pose in `update()` would make
+    collision use the previous frame's pose: a player turning toward a wall would sit inside it
+    for a frame (BUGS.md #64).
+
+After drawing, the world-edge bound is refitted to the new hitbox and
 applied again. `update()` does visual work only: the respawn fade
 (`image.set_alpha(...)`).
 
@@ -348,7 +355,7 @@ drawn size:
 | Ground | The trailing foot (the back edge of the support span; the middle when still) must be over a segment, the hitbox bottom at or below `GROUND_Y`, and the player not rising. Then it is set so the hitbox bottom (the visible feet) rests on the ground |
 | Pit edges | While below ground and not supported, moving into a segment's side puts the hitbox flush against it |
 | Wall top | Feet within 16 px of the top, head above it, not rising, and the support span over the wall |
-| Wall side | Pushed out on the side the hitbox was on before this frame's move (`velocity_x × dt` back), so a dt hitch cannot carry a fast player through; if it already overlapped (a wider pose), the side of the wall's centre decides (`_entered_wall_from_left`) |
+| Wall side | Pushed out on the side the hitbox was on before this frame's move (`velocity_x × dt` back), so a dt hitch cannot carry a fast player through; if it already overlapped (a wider pose), the side of the wall's center decides (`_entered_wall_from_left`) |
 | Snapping | Terrain edges are taken where the engine draws them (`snapped_world_position`), so collision agrees with the picture |
 | Enemies | `check_overlap('player', 'enemies')`: one death per pass even when touching two enemies; none while respawning |
 | Collectibles | `check_overlap('player', 'collectibles')`: `bonus_points` (kept in the score), sound, the scarab removed from the group, its list and its layer |
@@ -430,8 +437,10 @@ sequenceDiagram
 | 7 | `Scene.update()`, `render()` | The player's fade; then sky fill, sprites, pits, any enemy in a pit and the player again, the HUD |
 | 9, 10 | the engine | Present the frame, pace it |
 
-(Steps 4 and 8, shake and rumble and the still-camera shake, do nothing visible here: the game
-starts no shakes, and its rumble pulses run on their own.)
+!!! note "Steps 4 and 8"
+
+    Shake and rumble (step 4) and the still-camera shake (step 8) do nothing visible here: the
+    game starts no shakes, and its rumble pulses run on their own.
 
 Two things follow from this order:
 
@@ -439,10 +448,14 @@ Two things follow from this order:
   previous frame's events, and a jump pressed this frame takes effect in this frame's handler
   (its physics in the next `dt_tick`).
 - Collision runs before the engine positions the sprites, so this frame's picture already
-  shows the resolved positions. Game logic never reads a world sprite's `rect` (it holds where
-  the sprite was last drawn); only `_draw_pits`, in the render phase, does.
+  shows the resolved positions.
 
-`render()` replaces `Scene.render`: it fills the sky colour, draws the `LayeredDirty` group,
+!!! warning "Game logic never reads a world sprite's `rect`"
+
+    A world sprite's `rect` holds where the sprite was last drawn. Only `_draw_pits`, in the
+    render phase, reads it.
+
+`render()` replaces `Scene.render`: it fills the sky color, draws the `LayeredDirty` group,
 draws the pits, then any enemy that overlaps a pit and the player on top, then the HUD (score top left, lives top right, each with
 a 1 px shadow), and sets `self.rects = None` so the whole screen is presented.
 
@@ -529,7 +542,7 @@ still compiles them and a play is a silent no-op. The game has no live voices.
 |---|---|---|
 | Lives | `player.lives`, from `STARTING_LIVES` = 3 | One per death; game over at 0 |
 | Score | `player.score` | The distance score plus the bonus points, set at the end of every `dt_tick`: `round(max_distance / DISTANCE_SCORE_DIVISOR)` (the furthest world x reached, over 10) + `player.bonus_points`, where each collected gold scarab adds `COLLECTIBLE_SCORE_BONUS` (100) to `bonus_points` |
-| High scores | `open_saves(app_name='brave-adventurer')` (Papyrus: `'brave-adventurer-papyrus'`), save `'high_scores'` | `{'scores': [{'score': n}, ...]}`, the ten best, descending; written at game over and shown (top 5) on the game-over screen |
+| High scores | `open_saves(app_name='brave-adventurer')` (Papyrus: `'brave-adventurer-papyrus'`), save `'high_scores'` | `{'scores': [{'score': n}, ...]}`, the ten best, descending, kept by the engine's `HighScoreTable` (`glitchygames.state.high_scores`; a saved entry it cannot read follows `--invalid-high-scores`); written at game over and shown (top 5) on the game-over screen |
 
 `open_saves` returns the door's `SaveManager`: a `DiskSaveManager` live, an in-memory one in a
 replay, so a replayed game over never touches real saves.
@@ -546,35 +559,50 @@ replay, so a replayed game over never touches real saves.
 | Rumble | `scene_manager.rumble.pulse(...)` on death (0.7 / 0.4, 0.35 s) and game over (1.0 / 0.6, 0.8 s); the game-over pulse is finite, so it outlives the switch |
 | Screen shake | Only the camera's `shake_intensity` setting; the game calls no `shake()` |
 | Random streams | Not needed: nothing in the game is random (the near-ground details are a hash of the world x) |
-| Saves | High scores through `open_saves` |
+| Saves and high scores | `open_saves`, and the engine's `HighScoreTable` on top of it (`--invalid-high-scores`) |
 | Built-in scenes | `PauseScene`, `GameOverScene` |
 | Debug overlay | F3 / F4: the collision layers' hitboxes, the player's velocities and ground state, the camera; no `debug_draw` of its own |
 | Recording and replay | Every input comes through the engine's doors (ActionMap events, saves), so `--record-trace` and `--replay-trace` reproduce a session exactly |
-| Transitions, instant replay, demos | Not used |
+| Transitions, instant replay | Not used |
+| Bundled demos | One recording per edition, `classic.jsonl.gz` and `papyrus.jsonl.gz`, shipped in `brave_adventurer_modes/demos/` (recorded by `scripts/record_bundled_demos.py`); the game's own code does nothing for them |
 
 ## Recording, replay and golden tests
 
 Because the game takes input only from engine events, and has no randomness and no clock reads
 of its own, a recording replays it exactly:
 
-```bash
-uv run brave-adventurer --record-trace /tmp/session.jsonl.gz
-uv run brave-adventurer --replay-trace /tmp/session.jsonl.gz            # watch it
-uv run brave-adventurer --replay-trace /tmp/session.jsonl.gz --headless # check it
-```
+=== "Game"
 
-Two kinds of golden test pin the game's behaviour frame by frame:
+    ```bash
+    uv run brave-adventurer --record-trace /tmp/session.jsonl.gz
+    uv run brave-adventurer --replay-trace /tmp/session.jsonl.gz            # watch it
+    uv run brave-adventurer --replay-trace /tmp/session.jsonl.gz --headless # check it
+    ```
+
+=== "glitchygames"
+
+    ```bash
+    uv run glitchygames record-trace brave-adventurer /tmp/session.jsonl.gz
+    uv run glitchygames replay-trace /tmp/session.jsonl.gz            # watch it
+    uv run glitchygames replay-trace /tmp/session.jsonl.gz --headless # check it
+    ```
+
+Two kinds of golden test pin the game's behavior frame by frame:
 
 | Golden | File | Made by | What it checks |
 |---|---|---|---|
-| Golden replay | `src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz` (and `golden-papyrus.jsonl.gz`), both replayed through the launcher, `brave-adventurer`, which starts the game each header names | `scripts/record_scripted_session.py --game brave_adventurer --frames 400` through the real engine loop: the golden input script, then a controls tail (walk left, jump with Space, quit with Q): 472 frames | Replayed in a child process with `--replay-trace PATH --headless` by the replay pytest plugin; any divergence fails. `tests/replay/test_golden_replays.py` also checks that every bound control is exercised, or listed with the reason it is not (no gamepad on the dummy driver) |
+| Golden replay | `src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz` (and `golden-papyrus.jsonl.gz`), both replayed through the launcher, `brave-adventurer`, which starts the game each header names | `scripts/record_scripted_session.py --game brave_adventurer --frames 400` through the real engine loop: the first 400 frames of the golden input script (screens 0 and 1, the pause and resume), then a controls tail (walk left, jump with Space, quit with Q): 472 frames | Replayed in a child process with `--replay-trace PATH --headless` by the replay pytest plugin; any divergence fails. `tests/replay/test_golden_replays.py` also checks that every bound control is exercised, or listed with the reason it is not (no gamepad on the dummy driver) |
 | Golden trace | `tests/world/golden/brave_adventurer.jsonl.gz` (and `brave_adventurer_papyrus.jsonl.gz`) | `scripts/record_golden_traces.py`, before the world-space change | `tests/world/test_golden_traces.py` replays the script and compares every sprite's rect and visibility with that baseline; every difference must be explained by exactly one `ExpectedDifference` rule (engine culling, separate snapping, the pose fix, scarabs resting on their drawn underside, and the player falling into the screen-4 pit in its falling pose instead of its running pose) |
 
 The golden script (`brave_adventurer_script()` in `scripts/golden_inputs.py`) runs right
-over screens 0 and 1 jumping for the higher scarabs, pauses and resumes, then places the
-player at x = 2400 (a 900-frame run cannot reach the first pit from the start) and jumps the
-two screen-3 walls and the screen-4 pit before walking back. Re-record either golden only
-deliberately, after finding out why it changed (the scripts' docstrings give the commands).
+over screens 0 and 1 jumping for the higher scarabs, pauses and resumes (frames 0 to 399: all
+the golden replay plays of it), then places the player at x = 2400 at frame 400 (a 900-frame
+run cannot reach the first pit from the start) and jumps the two screen-3 walls and the
+screen-4 pit before walking back (the golden trace plays all 900 frames; the golden replay
+stops before the placement). 
+!!! warning "Re-record a golden only deliberately"
+
+    First find out why it changed (the scripts' docstrings give the commands).
 
 ## Tests
 
@@ -605,7 +633,7 @@ data, terrain, background drawing, sounds and constants with the classic edition
 | `GroundSegment` and `StoneWall` (variable-width primitives, which do not suit fixed pixel art) | Sprites are scaled 2x (`SPRITE_SCALE`); TOML hitboxes are in native pixels, so `scale` is set to 2 |
 | The four parallax draw functions and the pits | The player stands on a fixed foot line, `PAPYRUS_PLAYER_HEIGHT` = 27 × 2 px below its snapped world y, instead of its hitbox bottom |
 | The five sound effects (`sounds.py`) | Animation state machines come from the TOML `[[transition]]` sections (the player's, the cobra's timed strike) |
-| Physics, camera, layer, parallax, scoring and colour constants (re-exported by its `constants.py`) | Its own save namespace (`brave-adventurer-papyrus`) and scene `NAME` |
+| Physics, camera, layer, parallax, scoring and color constants (re-exported by its `constants.py`) | Its own save namespace (`brave-adventurer-papyrus`) and scene `NAME` |
 | The controls (move, jump, pause, quit) | No voice assistant and no mic binding |
 
 ### How it is structured
@@ -712,43 +740,52 @@ classDiagram
     PapyrusSprites <.. SpritesPapyrusLevelManager : builds
 ```
 
-- **`PapyrusLevelManager`** gives `_get_enemy_class_map()` (the Papyrus enemy classes) and
-  `_get_collectible_class()` (`PapyrusGoldScarab`); the shared `LevelManager._build()` builds
-  them, as `ClassicLevelManager`'s give `Cobra`, `Scarab`, `Scorpion` and `GoldScarab`.
-- **`BraveAdventurerSceneBase`** (`brave_adventurer_core/scene.py`) is the gameplay both
-  scenes play by: the camera and parallax, the level and player built in that order (recordings
-  number sprites by creation order), the controls, the `dt_tick` order, terrain, wall and enemy
-  collision, death, respawn and high scores, the input handlers, `render()`, the pits and the
-  HUD. Each game's scene stays in its own `game.py` under its own name (recordings name a scene
-  by its module and class) and gives only what differs: `NAME`; `LEVEL_MANAGER_CLASS`,
-  `PLAYER_CLASS` and `PLAYER_START_WORLD_Y`; `SAVE_APP_NAME` (`brave-adventurer`,
-  `brave-adventurer-papyrus`); `_scarab_class()` (the enemy that follows the terrain); and the
-  foot line, `_player_top_and_foot_line()` and `_player_world_y_standing_on()`: the classic
-  edition's hitbox bottom (a `float` world y), Papyrus's `_snapped_player_top()` +
-  `PAPYRUS_PLAYER_HEIGHT` (an `int`). The classic edition adds the voice assistant: it is
-  discovered after the shared `__init__`, its mic button is bound after the shared controls,
-  and it fills the base's voice hooks, which Papyrus leaves empty.
-- **`PapyrusPlayer`** has the same `PhysicsBody` and move methods as `Player`. Each `dt_tick`
-  ticks physics, evaluates the TOML state machine, advances the TOML animation
-  (`AnimatedSprite.update(self, dt)`), starts image from a fresh copy of the drawn frame
-  (`refresh_drawn_image`), and
-  mirrors image and hitbox when facing left (`hitbox_flip_x`), then refits the world-edge
-  bound. That keeps the pose rule: the frame collision uses is the one drawn this frame.
-  `frame_anchor = FrameAnchor.BOTTOM` draws each frame lower by its `draw_offset`, so frames
-  whose feet end on rows 24 to 27 all stand on the 27-row foot line. Its standing support uses
-  the engine's `AnimatedSprite.common_hitbox_x_range()` (the x-span every frame's hitbox
-  shares) where the original measures its procedurally drawn poses.
-- **The Papyrus enemies and gold scarab** do the same, animating in `dt_tick`, and make
-  `update()` a no-op (`Scene.update()` would call it without a dt: BUGS.md #115).
-- **`sprite_utils.py`**: `prepare_papyrus_sprite()` converts every loaded frame from the
-  magenta colour key to per-pixel alpha and sets the engine's `AnimatedSprite.scale` to
-  `SPRITE_SCALE`, which draws every frame, rect, hitbox and `draw_offset` at 2x (BUGS.md #144);
-  `refresh_drawn_image()` copies the engine's drawn frame each tick, so the facing flip and the
-  respawn fade never stack or reach the engine's cached surface.
+`PapyrusLevelManager`
+:   Gives `_get_enemy_class_map()` (the Papyrus enemy classes) and
+    `_get_collectible_class()` (`PapyrusGoldScarab`); the shared `LevelManager._build()` builds
+    them, as `ClassicLevelManager`'s give `Cobra`, `Scarab`, `Scorpion` and `GoldScarab`.
+
+`BraveAdventurerSceneBase`
+:   The gameplay both scenes play by (`brave_adventurer_core/scene.py`): the camera and parallax, the level and player built in that order (recordings
+    number sprites by creation order), the controls, the `dt_tick` order, terrain, wall and enemy
+    collision, death, respawn and high scores, the input handlers, `render()`, the pits and the
+    HUD. Each game's scene stays in its own `game.py` under its own name (recordings name a scene
+    by its module and class) and gives only what differs: `NAME`; `LEVEL_MANAGER_CLASS`,
+    `PLAYER_CLASS` and `PLAYER_START_WORLD_Y`; `SAVE_APP_NAME` (`brave-adventurer`,
+    `brave-adventurer-papyrus`); `_scarab_class()` (the enemy that follows the terrain); and the
+    foot line, `_player_top_and_foot_line()` and `_player_world_y_standing_on()`: the classic
+    edition's hitbox bottom (a `float` world y), Papyrus's `_snapped_player_top()` +
+    `PAPYRUS_PLAYER_HEIGHT` (an `int`). The classic edition adds the voice assistant: it is
+    discovered after the shared `__init__`, its mic button is bound after the shared controls,
+    and it fills the base's voice hooks, which Papyrus leaves empty.
+
+`PapyrusPlayer`
+:   Has the same `PhysicsBody` and move methods as `Player`. Each `dt_tick`
+    ticks physics, evaluates the TOML state machine, advances the TOML animation
+    (`AnimatedSprite.update(self, dt)`), starts image from a fresh copy of the drawn frame
+    (`refresh_drawn_image`), and
+    mirrors image and hitbox when facing left (`hitbox_flip_x`), then refits the world-edge
+    bound. That keeps the pose rule: the frame collision uses is the one drawn this frame.
+    `frame_anchor = FrameAnchor.BOTTOM` draws each frame lower by its `draw_offset`, so frames
+    whose feet end on rows 24 to 27 all stand on the 27-row foot line. Its standing support uses
+    the engine's `AnimatedSprite.common_hitbox_x_range()` (the x-span every frame's hitbox
+    shares) where the original measures its procedurally drawn poses.
+
+The Papyrus enemies and gold scarab
+:   Do the same, animating in `dt_tick`, and make `update()` a no-op that takes the dt
+    (`Scene.update()` calls `update(dt)` on each dirty `AnimatedSprite`, so an `update()` that
+    advanced the animation would advance it twice: BUGS.md #115, resolved).
+
+`sprite_utils.py`
+:   `prepare_papyrus_sprite()` converts every loaded frame from the
+    magenta color key to per-pixel alpha and sets the engine's `AnimatedSprite.scale` to
+    `SPRITE_SCALE`, which draws every frame, rect, hitbox and `draw_offset` at 2x (BUGS.md #144);
+    `refresh_drawn_image()` copies the engine's drawn frame each tick, so the facing flip and the
+    respawn fade never stack or reach the engine's cached surface.
 
 | Papyrus TOML sprite | Animations | Hitbox | State machine |
 |---|---|---|---|
-| `player.toml` (20 x 28) | idle, running, jumping, falling | per frame | 8 `[[transition]]`s on velocity and `on_ground` (falling last, mirroring `FALLING_VELOCITY_THRESHOLD`) |
+| `player.toml` (20 x 28) | idle, running, jumping, falling | per frame | 9 `[[transition]]`s on velocity and `on_ground` (falling last, mirroring `FALLING_VELOCITY_THRESHOLD`) |
 | `cobra.toml` | idle (looping), strike (once) | per frame | idle to strike after 2 s, back after 0.3 s |
 | `scarab.toml` | roll | sprite | none |
 | `scorpion.toml` | walk | sprite | none |
@@ -781,7 +818,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
 | `src/games/brave-adventurer/pyproject.toml` | The project: distribution `brave-adventurer`, its console script (the launcher), the four packages |
 | `src/games/brave-adventurer/src/brave_adventurer_modes/launcher.py` | `main()` (the `brave-adventurer` console script): `--game`, a recording's game (`game_for_recording`), or the title screen; `GAMES_BY_NAME` |
 | `src/games/brave-adventurer/src/brave_adventurer_modes/title.py` | `TitleScene`, its cards (`GameChoiceCard`) and `GAME_CHOICES`: each game's name, line and scene |
-| `src/games/brave-adventurer/src/brave_adventurer_core/constants.py` | Screen, physics, camera, parallax, layer, scoring, terrain and background colour, HUD, lives and rumble constants both games share |
+| `src/games/brave-adventurer/src/brave_adventurer_core/constants.py` | Screen, physics, camera, parallax, layer, scoring, terrain and background color, HUD, lives and rumble constants both games share |
 | `src/games/brave-adventurer/src/brave_adventurer_core/terrain.py` | `GroundSegment`, `StoneWall` |
 | `src/games/brave-adventurer/src/brave_adventurer_core/levels.py` | `ScreenData`, `LEVEL_1` (20 screens), `LevelManager` (the shared builder, with the enemy and collectible hooks) |
 | `src/games/brave-adventurer/src/brave_adventurer_core/drawing.py` | The terrain drawing and the four parallax layers |
@@ -794,13 +831,13 @@ names; and its one browser page, the title screen, ships all four archives, the 
 | `src/games/brave-adventurer/src/brave_adventurer/enemies.py` | `Cobra`, `Scarab`, `Scorpion` |
 | `src/games/brave-adventurer/src/brave_adventurer/levels.py` | `ClassicLevelManager` |
 | `src/games/brave-adventurer/src/brave_adventurer/drawing.py` | The classic sprites' primitive drawing: the player, the gold scarab, the enemies |
-| `src/games/brave-adventurer/src/brave_adventurer/constants.py` | The classic sprites' sizes and colours, the arm and leg swing |
+| `src/games/brave-adventurer/src/brave_adventurer/constants.py` | The classic sprites' sizes and colors, the arm and leg swing |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py` | `PapyrusBraveAdventurerScene`: the shared scene's hooks (its sprites, save name, fixed foot line); `main()` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/player.py` | `PapyrusPlayer` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | `PapyrusCobra`, `PapyrusScarab`, `PapyrusScorpion` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/terrain.py` | `PapyrusGoldScarab`; re-exports the shared `GroundSegment` and `StoneWall` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/levels.py` | `PapyrusLevelManager`; re-exports `LEVEL_1` |
-| `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py` | Colour key to alpha, `scale` set to 2x, per-tick image refresh |
+| `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py` | Color key to alpha, `scale` set to 2x, per-tick image refresh |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/constants.py` | Re-exports the shared constants; `SPRITE_SCALE`, the Papyrus heights, `SPRITES_DIR` |
 | `src/games/brave-adventurer/src/brave_adventurer_papyrus/sprites/*.toml` | The pixel art, hitboxes and state machines |
 | `src/glitchygames/scenes/builtin_scenes/pause_scene.py`, `game_over_scene.py` | The engine's pause and game-over screens |
