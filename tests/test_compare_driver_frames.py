@@ -19,8 +19,12 @@ from scripts.compare_driver_frames import main, parse_labelled_run, run
 from glitchygames.exit_codes import ExitCode
 from glitchygames.testing.frame_comparison import (
     DIFFERENCE_COLOR,
+    DIFFERENCE_PANEL_CAPTION,
+    FIRST_DIFFERENCE_COLOR,
     WINDOW_ANIMATION_FRAME_MILLISECONDS,
+    WINDOW_ANIMATION_HEADER_HEIGHT,
     WINDOW_ANIMATION_HOLD_MILLISECONDS,
+    WINDOW_ANIMATION_MINIMUM_GAP_MILLISECONDS,
     FrameSequenceDifference,
     LabelledRun,
     compare_frame_images,
@@ -32,6 +36,8 @@ from glitchygames.testing.frame_comparison import (
     image_request_for,
     image_request_for_differences,
     images_report,
+    window_panel_caption,
+    window_title,
 )
 from glitchygames.testing.frame_fingerprints import (
     FrameFingerprint,
@@ -112,6 +118,60 @@ def save_colour_frame(
         fingerprint=frame('saved'),
         rgb_bytes=bytes(rgb),
     )
+
+
+# The window animation tests' frames: big enough for the stamp and the marker
+WINDOW_FRAME_SIZE = (160, 120)
+CHANGED_PIXEL = (40, 60)
+# The dummy run's frame clock at each saved present (seconds): a zero gap after present 3, no
+# reading at present 7
+WINDOW_FRAME_CLOCK = {
+    0: 0.0,
+    1: 0.0166,
+    2: 0.0499,
+    3: 0.0999,
+    4: 0.0999,
+    5: 0.1999,
+    6: 0.2166,
+    8: 0.3,
+    9: 0.3166,
+    10: 0.3333,
+}
+
+
+def save_window_frame(
+    *,
+    directory: Path,
+    position: int,
+    color: tuple[int, int, int],
+    changed_pixel: tuple[int, int] | None = None,
+) -> None:
+    """Save a WINDOW_FRAME_SIZE re-run frame of NODE_A: one colour, optionally one white pixel."""
+    width, height = WINDOW_FRAME_SIZE
+    rgb = bytearray(bytes(color) * (width * height))
+    if changed_pixel is not None:
+        start = (changed_pixel[1] * width + changed_pixel[0]) * 3
+        rgb[start : start + 3] = bytes((255, 255, 255))
+    save_frame_image(
+        path=frame_image_path(directory=directory, nodeid=NODE_A, position=position),
+        fingerprint=frame('saved', size=WINDOW_FRAME_SIZE),
+        rgb_bytes=bytes(rgb),
+    )
+
+
+def animation_durations(path: Path) -> list[int]:
+    """Read each frame's duration (milliseconds) from an animated PNG.
+
+    Returns:
+        The durations, in frame order.
+
+    """
+    durations = []
+    with Image.open(path) as animation:
+        for index in range(animation.n_frames):
+            animation.seek(index)
+            durations.append(animation.info['duration'])
+    return durations
 
 
 def save_small_frame(*, directory: Path, nodeid: str, position: int) -> None:
@@ -575,7 +635,10 @@ class TestImagesReport:
     def stopped_reruns(self, tmp_path) -> tuple[LabelledRun, LabelledRun]:
         """Re-runs of NODE_A stopped after present 10: present 5 differs (one pixel on cocoa).
 
-        Each saved its window, presents 0 to 10, frame N filled with grey N*20.
+        Each saved its window, presents 0 to 10, as WINDOW_FRAME_SIZE frames, frame N filled
+        with grey N*20 (cocoa's present 5 has one white pixel at CHANGED_PIXEL). The dummy run
+        read the frame clock at each present it saved (WINDOW_FRAME_CLOCK: a zero gap after
+        present 3, no reading at present 7).
 
         Returns:
             The dummy and the cocoa re-run.
@@ -585,7 +648,10 @@ class TestImagesReport:
         cocoa = tmp_path / 'cocoa-images'
         presents = tuple(frame(str(position)) for position in range(11))
         differing = (*presents[:5], frame('x'), *presents[6:])
-        for directory, presented in ((dummy, presents), (cocoa, differing)):
+        for directory, presented, frame_clock in (
+            (dummy, presents, WINDOW_FRAME_CLOCK),
+            (cocoa, differing, {}),
+        ):
             write_run(
                 directory=directory,
                 records=[
@@ -595,22 +661,42 @@ class TestImagesReport:
                         presented=presented,
                         final=None,
                         stopped_after=10,
+                        frame_clock_at=frame_clock,
                     )
                 ],
             )
         for position in range(11):
             grey = (position * 20, position * 20, position * 20)
-            save_colour_frame(directory=dummy, nodeid=NODE_A, position=position, color=grey)
-            save_colour_frame(
+            save_window_frame(directory=dummy, position=position, color=grey)
+            save_window_frame(
                 directory=cocoa,
-                nodeid=NODE_A,
                 position=position,
                 color=grey,
-                changed_pixel=(0, 0) if position == 5 else None,
+                changed_pixel=CHANGED_PIXEL if position == 5 else None,
             )
         return (
             LabelledRun(label='dummy', directory=dummy),
             LabelledRun(label='cocoa', directory=cocoa),
+        )
+
+    def animations_of(
+        self, *, reruns: tuple[LabelledRun, LabelledRun], output: Path
+    ) -> tuple[Path, Path]:
+        """Write the stopped re-runs' report and return the two animations' paths.
+
+        Returns:
+            The game-speed and the 250 ms animation.
+
+        """
+        dummy, cocoa = reruns
+        request = FrameImageRequest(
+            positions_by_test={NODE_A: tuple(range(11))}, stop_after_by_test={NODE_A: 10}
+        )
+        images_report(request=request, baseline=dummy, candidate=cocoa, output=output)
+        folder = output / images_folder_name(nodeid=NODE_A)
+        return (
+            folder / 'window-side-by-side-game-speed.apng',
+            folder / 'window-side-by-side-250ms.apng',
         )
 
     def test_a_stopped_rerun_shows_the_window_and_no_final_frame(self, stopped_reruns, tmp_path):
@@ -625,70 +711,156 @@ class TestImagesReport:
         )
 
         lines = report.splitlines()
+        pixels = WINDOW_FRAME_SIZE[0] * WINDOW_FRAME_SIZE[1]
         assert lines[1] == (
             f'  {NODE_A}: present 5 differs (pixels); 12 frames; outcome skipped on both'
         )
         assert lines[3] == (
-            '    present 5: 1 of 12 pixels differ '
+            f'    present 5: 1 of {pixels} pixels differ '
             '(dummy-frame-5.png, cocoa-frame-5.png, difference-frame-5.png)'
         )
         assert lines[4:14] == [
-            f'    present {position}: 0 of 12 pixels differ (dummy-frame-{position}.png, '
+            f'    present {position}: 0 of {pixels} pixels differ (dummy-frame-{position}.png, '
             f'cocoa-frame-{position}.png, difference-frame-{position}.png)'
             for position in (0, 1, 2, 3, 4, 6, 7, 8, 9, 10)
         ]
         assert lines[14:] == [
             (
-                '    the window as animations, presents 0 to 10 (11 frames): dummy-window.apng, '
-                'cocoa-window.apng, difference-window.apng'
+                '    the window as one animation (cocoa | dummy | difference), presents 0 to 10 '
+                '(11 frames): window-side-by-side-game-speed.apng (at game speed: the dummy '
+                "run's served frame times), window-side-by-side-250ms.apng (250 ms a frame)"
             )
         ]
 
-    def test_the_window_animations_play_its_frames_in_order(self, stopped_reruns, tmp_path):
-        """Each animation holds the window's frames, first to last: grey 0, 20, ... 200."""
-        dummy, cocoa = stopped_reruns
-        output = tmp_path / 'differences'
-        request = FrameImageRequest(
-            positions_by_test={NODE_A: tuple(range(11))}, stop_after_by_test={NODE_A: 10}
-        )
+    def test_the_strip_shows_both_drivers_and_the_difference_in_step(
+        self, stopped_reruns, tmp_path
+    ):
+        """Each frame is cocoa | dummy | difference, one present of the window, in order."""
+        _game_speed, fixed = self.animations_of(reruns=stopped_reruns, output=tmp_path / 'out')
 
-        images_report(request=request, baseline=dummy, candidate=cocoa, output=output)
-
-        folder = output / images_folder_name(nodeid=NODE_A)
-        with Image.open(folder / 'dummy-window.apng') as animation:
+        width, height = WINDOW_FRAME_SIZE
+        with Image.open(fixed) as animation:
             assert animation.n_frames == 11
-            greys = []
+            assert animation.size == (3 * width, height + WINDOW_ANIMATION_HEADER_HEIGHT)
+            inside = (width // 2, WINDOW_ANIMATION_HEADER_HEIGHT + height // 4)
             for index in range(animation.n_frames):
                 animation.seek(index)
-                greys.append(animation.convert('RGB').getpixel((1, 1)))
-        assert greys == [(position * 20,) * 3 for position in range(11)]
-        with Image.open(folder / 'difference-window.apng') as animation:
-            assert animation.n_frames == 11
+                strip = animation.convert('RGB')
+                grey = (index * 20,) * 3
+                assert strip.getpixel(inside) == grey, index
+                assert strip.getpixel((width + inside[0], inside[1])) == grey, index
             animation.seek(5)
-            assert animation.convert('RGB').getpixel((0, 0)) == DIFFERENCE_COLOR
+            strip = animation.convert('RGB')
+            changed = (
+                2 * width + CHANGED_PIXEL[0],
+                WINDOW_ANIMATION_HEADER_HEIGHT + CHANGED_PIXEL[1],
+            )
+            assert strip.getpixel(changed) == DIFFERENCE_COLOR
 
-    def test_each_animation_holds_its_last_frame_before_it_loops(self, stopped_reruns, tmp_path):
-        """Every frame shows for the frame time; the last for the hold, a pause before the loop."""
-        dummy, cocoa = stopped_reruns
-        output = tmp_path / 'differences'
-        request = FrameImageRequest(
-            positions_by_test={NODE_A: tuple(range(11))}, stop_after_by_test={NODE_A: 10}
+    def test_the_fixed_animation_shows_each_frame_for_250_ms_and_holds_the_last(
+        self, stopped_reruns, tmp_path
+    ):
+        """250 ms a frame, the last held for a second before it loops."""
+        _game_speed, fixed = self.animations_of(reruns=stopped_reruns, output=tmp_path / 'out')
+
+        assert animation_durations(fixed) == [WINDOW_ANIMATION_FRAME_MILLISECONDS] * 10 + [
+            WINDOW_ANIMATION_HOLD_MILLISECONDS
+        ]
+        assert (WINDOW_ANIMATION_FRAME_MILLISECONDS, WINDOW_ANIMATION_HOLD_MILLISECONDS) == (
+            250,
+            1000,
         )
 
-        images_report(request=request, baseline=dummy, candidate=cocoa, output=output)
+    def test_the_game_speed_animation_takes_its_gaps_from_the_served_frame_times(
+        self, stopped_reruns, tmp_path
+    ):
+        """Each gap is the dummy run's frame clock between two presents, in whole milliseconds.
+
+        A zero gap (a clock that did not move) and a gap with no reading take the minimum; the
+        last frame is held.
+        """
+        game_speed, _fixed = self.animations_of(reruns=stopped_reruns, output=tmp_path / 'out')
+
+        minimum = WINDOW_ANIMATION_MINIMUM_GAP_MILLISECONDS
+        assert animation_durations(game_speed) == [
+            17,  # 0 -> 1: 16.6 ms, rounded
+            33,  # 1 -> 2
+            50,  # 2 -> 3
+            minimum,  # 3 -> 4: the clock did not move
+            100,  # 4 -> 5
+            17,  # 5 -> 6
+            minimum,  # 6 -> 7: no reading at 7
+            minimum,  # 7 -> 8: no reading at 7
+            17,  # 8 -> 9
+            17,  # 9 -> 10
+            WINDOW_ANIMATION_HOLD_MILLISECONDS,
+        ]
+        assert minimum == round(1000 / 60)
+
+    def test_each_frame_is_stamped_with_its_present_and_game_time(self, stopped_reruns, tmp_path):
+        """A dark box in each panel's bottom-left corner holds the stamp; the rest is as saved."""
+        _game_speed, fixed = self.animations_of(reruns=stopped_reruns, output=tmp_path / 'out')
+
+        width, height = WINDOW_FRAME_SIZE
+        corner = (3, WINDOW_ANIMATION_HEADER_HEIGHT + height - 3)
+        with Image.open(fixed) as animation:
+            animation.seek(10)
+            strip = animation.convert('RGB')
+        # Frame 10 is grey 200: the stamp's box darkens the corner
+        assert max(strip.getpixel(corner)) < 200
+        assert strip.getpixel((width // 2, WINDOW_ANIMATION_HEADER_HEIGHT + height // 4)) == (
+            200,
+            200,
+            200,
+        )
+
+    def test_only_the_first_differing_frame_is_marked(self, stopped_reruns, tmp_path):
+        """A red border on present 5's frame, on no other."""
+        _game_speed, fixed = self.animations_of(reruns=stopped_reruns, output=tmp_path / 'out')
+
+        with Image.open(fixed) as animation:
+            borders = []
+            for index in range(animation.n_frames):
+                animation.seek(index)
+                borders.append(
+                    animation.convert('RGB').getpixel((0, WINDOW_ANIMATION_HEADER_HEIGHT + 1))
+                )
+        assert [
+            index for index, color in enumerate(borders) if color == FIRST_DIFFERENCE_COLOR
+        ] == [5]
+
+    def test_the_saved_frames_stay_raw(self, stopped_reruns, tmp_path):
+        """Only the animations are stamped: each copied PNG holds the re-run's frame exactly."""
+        dummy, _cocoa = stopped_reruns
+        output = tmp_path / 'out'
+        self.animations_of(reruns=stopped_reruns, output=output)
 
         folder = output / images_folder_name(nodeid=NODE_A)
-        for name in ('dummy-window.apng', 'cocoa-window.apng', 'difference-window.apng'):
-            with Image.open(folder / name) as animation:
-                durations = []
-                for index in range(animation.n_frames):
-                    animation.seek(index)
-                    durations.append(animation.info['duration'])
-            assert durations == [WINDOW_ANIMATION_FRAME_MILLISECONDS] * 10 + [
-                WINDOW_ANIMATION_HOLD_MILLISECONDS
-            ], name
-        assert WINDOW_ANIMATION_FRAME_MILLISECONDS == 250
-        assert WINDOW_ANIMATION_HOLD_MILLISECONDS == 1000
+        for position in range(11):
+            copied = pygame.image.load(folder / f'dummy-frame-{position}.png')
+            saved = pygame.image.load(
+                frame_image_path(directory=dummy.directory, nodeid=NODE_A, position=position)
+            )
+            assert pygame.image.tobytes(copied, 'RGB') == pygame.image.tobytes(saved, 'RGB')
+
+    def test_the_strip_has_a_title_bar_and_a_caption_bar_above_the_frames(
+        self, stopped_reruns, tmp_path
+    ):
+        """The bars are above the game's pixels: every frame pixel is below the header."""
+        _game_speed, fixed = self.animations_of(reruns=stopped_reruns, output=tmp_path / 'out')
+
+        width = WINDOW_FRAME_SIZE[0]
+        with Image.open(fixed) as animation:
+            animation.seek(0)
+            strip = animation.convert('RGB')
+        # Frame 0 is black (grey 0): the header is drawn on its own background, not on it
+        header_pixels = {
+            strip.getpixel((x, y))
+            for x in range(0, 3 * width, 7)
+            for y in range(WINDOW_ANIMATION_HEADER_HEIGHT)
+        }
+        assert header_pixels != {(0, 0, 0)}
+        assert WINDOW_ANIMATION_HEADER_HEIGHT > 0
 
     def test_frames_of_different_sizes_are_noted(self, reruns, tmp_path):
         """Both images saved, sizes differ: the note and both file names."""
@@ -853,3 +1025,61 @@ class TestWhatIsNotCompared:
         )
 
         assert compare_frames(baseline=baseline, candidate=moved) is None
+
+
+class TestWindowCaptions:
+    """The facts each panel's caption and the strip's title state, from the run's record."""
+
+    def test_a_dummy_panel_has_no_refresh_rate(self):
+        """The dummy driver has no display to refresh: "n/a", never a made-up number."""
+        record = RecordedFrames(
+            nodeid=NODE_A,
+            outcome='skipped',
+            presented=(),
+            final=None,
+            run_driver='dummy',
+            refresh_rate_hz=0,
+            configured_fps=60.01,
+        )
+
+        assert window_panel_caption(record=record, size=(800, 600)) == (
+            'dummy · refresh n/a · 60.01 FPS · 800x600'
+        )
+
+    def test_a_native_panel_states_its_refresh_rate_and_an_uncapped_target(self):
+        """0 FPS is uncapped; the refresh rate is what the native run's display reported."""
+        record = RecordedFrames(
+            nodeid=NODE_A,
+            outcome='skipped',
+            presented=(),
+            final=None,
+            run_driver='cocoa',
+            refresh_rate_hz=120,
+            configured_fps=0.0,
+        )
+
+        assert window_panel_caption(record=record, size=(800, 480)) == (
+            'cocoa · 120 Hz · uncapped · 800x480'
+        )
+
+    def test_values_a_run_did_not_record_are_not_available(self):
+        """No engine (no configured FPS), no driver, no refresh reading: each "n/a"."""
+        record = RecordedFrames(nodeid=NODE_A, outcome='skipped', presented=(), final=None)
+
+        assert window_panel_caption(record=record, size=(160, 120)) == (
+            'n/a · refresh n/a · FPS n/a · 160x120'
+        )
+
+    def test_the_title_names_the_test_and_a_shuffled_runs_seed(self):
+        """The node id; the seed only when the run was shuffled."""
+        shuffled = RecordedFrames(
+            nodeid=NODE_A, outcome='skipped', presented=(), final=None, test_order_seed=4163716522
+        )
+        fixed = RecordedFrames(nodeid=NODE_A, outcome='skipped', presented=(), final=None)
+
+        assert window_title(record=shuffled) == f'{NODE_A} · shuffled, seed 4163716522'
+        assert window_title(record=fixed) == NODE_A
+
+    def test_the_difference_panel_says_what_it_shows(self):
+        """Its caption names the magenta pixels."""
+        assert DIFFERENCE_PANEL_CAPTION == 'pixels that differ (magenta)'

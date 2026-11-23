@@ -1226,6 +1226,54 @@ class TestAReRunStopsAfterItsFrames:
         result.assert_outcomes(passed=2, skipped=1)
         assert read_recorded_frames(directory=directory)[LONG_CATCHING].stopped_after == 1
 
+    def test_the_frame_clock_is_noted_at_each_requested_present(self, pytester, tmp_path):
+        """The served game time at each saved present, for the animations' gaps; no others."""
+        pytester.makepyfile(
+            test_clocked=textwrap.dedent(
+                """
+                import pygame
+
+                from glitchygames import clock
+
+
+                def test_clocked(monkeypatch):
+                    served = {'seconds': 0.0}
+                    monkeypatch.setattr(clock, 'frame_clock_seconds', lambda: served['seconds'])
+                    for _frame in range(6):
+                        pygame.display.flip()
+                        served['seconds'] += 1 / 60
+                """
+            )
+        )
+        directory = tmp_path / 'run'
+
+        result = self.run_with_request(
+            pytester=pytester,
+            directory=directory,
+            request=FrameImageRequest(positions_by_test={'test_clocked.py::test_clocked': (2, 4)}),
+        )
+        show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+        result.assert_outcomes(passed=1)
+        record = read_recorded_frames(directory=directory)['test_clocked.py::test_clocked']
+        assert record.frame_clock_at == pytest.approx({2: 2 / 60, 4: 4 / 60})
+
+    def test_the_run_facts_are_noted_with_the_saved_frames(self, long_tests, tmp_path):
+        """The dummy driver has no refresh rate (its 60 Hz is SDL's stand-in); no FPS, no engine."""
+        directory = tmp_path / 'run'
+
+        self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(positions_by_test={LONG_NOT_STOPPED: (3,)}),
+        )
+
+        record = read_recorded_frames(directory=directory)[LONG_NOT_STOPPED]
+        assert pygame.display.get_driver() == 'dummy'
+        assert record.refresh_rate_hz is None
+        assert record.configured_fps is None
+        assert record.test_order_seed is None
+
     def test_a_test_with_no_stop_runs_to_its_end(self, long_tests, tmp_path):
         """Positions alone (a final frame asked for): every present, and the final frame."""
         directory = tmp_path / 'run'
@@ -1240,3 +1288,39 @@ class TestAReRunStopsAfterItsFrames:
         assert len(record.presented) == 12
         assert record.final is not None
         assert record.stopped_after is None
+
+
+class TestRunFacts:
+    """The run facts the recorder notes for a re-run's animation, read on their own."""
+
+    def test_the_configured_fps_is_the_running_engines(self, mocker):
+        """The engine's resolved target (--target-fps, else the scene's TARGET_FPS)."""
+        engine = mocker.Mock(options={'target_fps': 30.0})
+        mocker.patch('glitchygames.engine.game_engine.current_engine', return_value=engine)
+
+        assert frame_fingerprints.configured_fps() == engine.options['target_fps']
+
+    def test_no_running_engine_has_no_configured_fps(self):
+        """Outside an engine (most drawing tests): None, shown as "n/a"."""
+        assert frame_fingerprints.configured_fps() is None
+
+    def test_a_real_drivers_refresh_rate_is_what_pygame_reports(self, mocker):
+        """A native driver's display rate, as pygame reads it."""
+        mocker.patch('pygame.display.get_driver', return_value='cocoa')
+        mocker.patch('pygame.display.get_current_refresh_rate', return_value=120)
+
+        assert frame_fingerprints.display_refresh_rate() == 120  # the stand-in's rate
+
+    def test_the_dummy_drivers_stand_in_rate_is_not_a_refresh_rate(self, mocker):
+        """SDL's dummy driver answers 60 Hz for a display that does not exist: None."""
+        mocker.patch('pygame.display.get_driver', return_value='dummy')
+        mocker.patch('pygame.display.get_current_refresh_rate', return_value=60)
+
+        assert frame_fingerprints.display_refresh_rate() is None
+
+    def test_a_stopped_display_has_no_refresh_rate(self, mocker):
+        """No display (pygame's error) is None, never a made-up number."""
+        mocker.patch('pygame.display.get_driver', return_value='cocoa')
+        mocker.patch('pygame.display.get_current_refresh_rate', side_effect=pygame.error('none'))
+
+        assert frame_fingerprints.display_refresh_rate() is None

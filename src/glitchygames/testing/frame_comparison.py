@@ -19,13 +19,14 @@ every engine test runs under imports no ``scripts.*``.
 
 from __future__ import annotations
 
+import itertools
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 import pygame
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.testing.frame_fingerprints import (
@@ -54,6 +55,28 @@ IMAGE_WINDOW_PRESENTS = 5
 WINDOW_ANIMATION_FRAME_MILLISECONDS = 250
 # How long the last frame shows before the animation loops: a pause marks the restart
 WINDOW_ANIMATION_HOLD_MILLISECONDS = 1000
+# The shortest gap the game-speed animation shows: one frame at 60 FPS, for a served frame time
+# of 0 or none (a test's clock that did not move), above APNG players' 10 ms floor
+WINDOW_ANIMATION_MINIMUM_GAP_MILLISECONDS = round(1000 / 60)
+# The strip's bars above the frames: the title (the test), then each panel's caption
+WINDOW_ANIMATION_TITLE_HEIGHT = 16
+WINDOW_ANIMATION_CAPTION_HEIGHT = 16
+WINDOW_ANIMATION_HEADER_HEIGHT = WINDOW_ANIMATION_TITLE_HEIGHT + WINDOW_ANIMATION_CAPTION_HEIGHT
+WINDOW_ANIMATION_HEADER_COLOR = (34, 34, 42)
+WINDOW_ANIMATION_TEXT_COLOR = (235, 235, 235)
+# Each frame's stamp: a dark, partly see-through box in each panel's bottom-left corner
+WINDOW_ANIMATION_STAMP_BOX_COLOR = (0, 0, 0, 170)
+WINDOW_ANIMATION_STAMP_HEIGHT = 14
+WINDOW_ANIMATION_TEXT_MARGIN = 3
+# The first differing frame's marker: a red border round the panels, and a label
+FIRST_DIFFERENCE_COLOR = (255, 0, 0)
+FIRST_DIFFERENCE_BORDER = 2
+FIRST_DIFFERENCE_LABEL = 'first difference'
+DIFFERENCE_PANEL_CAPTION = 'pixels that differ (magenta)'
+# Pillow's default font: its bitmap one, or a FreeType one where Pillow has FreeType
+type _Font = ImageFont.ImageFont | ImageFont.FreeTypeFont
+GAME_SPEED_ANIMATION_NAME = 'window-side-by-side-game-speed.apng'
+FIXED_SPEED_ANIMATION_NAME = 'window-side-by-side-250ms.apng'
 # A window needs this many frames to be worth an animation
 WINDOW_ANIMATION_MINIMUM_FRAMES = 2
 
@@ -157,16 +180,20 @@ class RepeatComparison(BaseModel):
 
 
 class WindowAnimations(BaseModel):
-    """A re-run test's window of presents on both drivers, as animated PNGs (APNG)."""
+    """A re-run test's window of presents as one side-by-side animation, in two timings.
+
+    Each frame is the other driver | the baseline | the difference, so the drivers stay in
+    step by construction: at game speed (the baseline run's served frame times) and at a fixed
+    ``WINDOW_ANIMATION_FRAME_MILLISECONDS`` a frame.
+    """
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     first_position: int
     last_position: int
     frame_count: int
-    baseline_animation: Path
-    candidate_animation: Path
-    difference_animation: Path
+    game_speed_animation: Path
+    fixed_speed_animation: Path
 
 
 class FrameImageComparison(BaseModel):
@@ -695,8 +722,8 @@ def compare_rerun_images(
     animations = write_window_animations(
         comparisons=comparisons,
         test_folder=test_folder,
-        baseline_label=baseline.label,
-        candidate_label=candidate.label,
+        records=(baseline_record, candidate_record),
+        first_position=difference.baseline_position,
     )
     return difference, comparisons, animations
 
@@ -753,26 +780,94 @@ def _rerun_positions(
     return positions
 
 
+def window_panel_caption(*, record: RecordedFrames, size: tuple[int, int]) -> str:
+    """State a driver panel's run facts: driver, refresh rate, configured FPS, resolution.
+
+    Only what the run recorded: a value it did not record (or a refresh rate of 0, the dummy
+    driver's: no display refreshes) is "n/a", never a guess. A configured FPS of 0 is uncapped.
+
+    Args:
+        record: The test's record in that run.
+        size: The frames' width and height.
+
+    Returns:
+        The caption.
+
+    """
+    driver = record.run_driver or 'n/a'
+    refresh = f'{record.refresh_rate_hz} Hz' if record.refresh_rate_hz else 'refresh n/a'
+    if record.configured_fps is None:
+        fps = 'FPS n/a'
+    elif record.configured_fps == 0:
+        fps = 'uncapped'
+    else:
+        fps = f'{record.configured_fps:g} FPS'
+    return f'{driver} · {refresh} · {fps} · {size[0]}x{size[1]}'
+
+
+def window_title(*, record: RecordedFrames) -> str:
+    """Name the strip: the test, and the run's shuffle seed when it was shuffled.
+
+    Args:
+        record: The test's record in the baseline run.
+
+    Returns:
+        The title.
+
+    """
+    if record.test_order_seed is None:
+        return record.nodeid
+    return f'{record.nodeid} · shuffled, seed {record.test_order_seed}'
+
+
+def game_speed_durations(*, positions: Sequence[int], record: RecordedFrames) -> list[int]:
+    """Return each frame's showing time at game speed: the served game time to the next frame.
+
+    Taken from one run's frame clock (``RecordedFrames.frame_clock_at``), so both drivers'
+    panels share them. A gap with no reading at either end, or of 0 (a clock that did not
+    move), shows for ``WINDOW_ANIMATION_MINIMUM_GAP_MILLISECONDS``; gaps are whole milliseconds,
+    and the last frame is held for ``WINDOW_ANIMATION_HOLD_MILLISECONDS``.
+
+    Args:
+        positions: The window's presents, in order.
+        record: The run whose served frame times set the pace.
+
+    Returns:
+        The durations in milliseconds, one per position.
+
+    """
+    durations: list[int] = []
+    for this, following in itertools.pairwise(positions):
+        start = record.frame_clock_at.get(this)
+        end = record.frame_clock_at.get(following)
+        gap = 0 if start is None or end is None else round((end - start) * 1000)
+        durations.append(max(gap, WINDOW_ANIMATION_MINIMUM_GAP_MILLISECONDS))
+    return [*durations, WINDOW_ANIMATION_HOLD_MILLISECONDS]
+
+
 def write_window_animations(
     *,
     comparisons: Sequence[FrameImageComparison],
     test_folder: Path,
-    baseline_label: str,
-    candidate_label: str,
+    records: tuple[RecordedFrames, RecordedFrames],
+    first_position: int,
 ) -> WindowAnimations | None:
-    """Play a re-run test's window of presents as animated PNGs: each driver's and the difference.
+    """Play a re-run test's window of presents as one side-by-side animation, in two timings.
 
-    The frames are the presents compared as images of one size on both drivers, in order (the
-    final frame is left out: it is not part of the window's sequence), each shown for
-    ``WINDOW_ANIMATION_FRAME_MILLISECONDS``, the last held for
-    ``WINDOW_ANIMATION_HOLD_MILLISECONDS`` before it loops. Written with Pillow, an engine
-    dependency.
+    Each frame is a strip: the other driver | the baseline | the difference, under a title bar
+    (the test) and a caption bar per panel (``window_panel_caption``), so nothing covers the
+    game's pixels. Each panel is stamped in its bottom-left corner with the present and its
+    served game time; the first differing frame has a red border and a label. The frames are
+    the presents compared as images on both drivers, in order (the final frame is not part of
+    the window's sequence). Written twice, at game speed (``game_speed_durations``, from the
+    baseline run) and at ``WINDOW_ANIMATION_FRAME_MILLISECONDS`` a frame, both looping with the
+    last frame held. The copied PNGs stay as saved: only the animations are stamped.
 
     Args:
         comparisons: The test's image comparisons.
         test_folder: The test's report folder (holding the compared images).
-        baseline_label: The baseline driver's label.
-        candidate_label: The other driver's label.
+        records: The test's record in the baseline and in the other re-run.
+        first_position: The first differing frame's position.
 
     Returns:
         The animations, or None when fewer than ``WINDOW_ANIMATION_MINIMUM_FRAMES`` presents
@@ -792,41 +887,173 @@ def write_window_animations(
     )
     if len(frames) < WINDOW_ANIMATION_MINIMUM_FRAMES:
         return None
+    baseline_record, _candidate_record = records
+    strips = [
+        _window_strip(comparison=frame, records=records, first_position=first_position)
+        for frame in frames
+    ]
     animations = WindowAnimations(
         first_position=frames[0].position,
         last_position=frames[-1].position,
         frame_count=len(frames),
-        baseline_animation=test_folder / f'{baseline_label}-window.apng',
-        candidate_animation=test_folder / f'{candidate_label}-window.apng',
-        difference_animation=test_folder / 'difference-window.apng',
+        game_speed_animation=test_folder / GAME_SPEED_ANIMATION_NAME,
+        fixed_speed_animation=test_folder / FIXED_SPEED_ANIMATION_NAME,
     )
-    for path, images in (
-        (animations.baseline_animation, [frame.baseline_image for frame in frames]),
-        (animations.candidate_animation, [frame.candidate_image for frame in frames]),
-        (animations.difference_animation, [frame.difference_image for frame in frames]),
+    positions = [frame.position for frame in frames]
+    fixed = [WINDOW_ANIMATION_FRAME_MILLISECONDS] * (len(frames) - 1)
+    for path, durations in (
+        (
+            animations.game_speed_animation,
+            game_speed_durations(positions=positions, record=baseline_record),
+        ),
+        (animations.fixed_speed_animation, [*fixed, WINDOW_ANIMATION_HOLD_MILLISECONDS]),
     ):
-        _write_animation(path=path, images=[image for image in images if image is not None])
+        strips[0].save(
+            path,
+            format='PNG',
+            save_all=True,
+            append_images=strips[1:],
+            duration=durations,
+            loop=0,
+        )
     return animations
 
 
-def _write_animation(*, path: Path, images: Sequence[Path]) -> None:
-    """Write PNG images as one looping animated PNG, its last frame held before it loops.
+def _window_strip(
+    *,
+    comparison: FrameImageComparison,
+    records: tuple[RecordedFrames, RecordedFrames],
+    first_position: int,
+) -> Image.Image:
+    """Draw one frame of the side-by-side animation: bars, three panels, stamps, marker.
 
     Args:
-        path: The animation (``.apng``).
-        images: The frames, in order, all of one size.
+        comparison: The frame's image comparison (all three images present).
+        records: The test's record in the baseline and in the other re-run.
+        first_position: The first differing frame's position.
+
+    Returns:
+        The strip.
 
     """
-    frames = [Image.open(image).convert('RGB') for image in images]
-    durations = [WINDOW_ANIMATION_FRAME_MILLISECONDS] * (len(frames) - 1)
-    frames[0].save(
-        path,
-        format='PNG',
-        save_all=True,
-        append_images=frames[1:],
-        duration=[*durations, WINDOW_ANIMATION_HOLD_MILLISECONDS],
-        loop=0,
+    baseline_record, candidate_record = records
+    panels = [
+        Image.open(path).convert('RGB')
+        for path in (
+            comparison.candidate_image,
+            comparison.baseline_image,
+            comparison.difference_image,
+        )
+        if path is not None
+    ]
+    width, height = panels[0].size
+    top = WINDOW_ANIMATION_HEADER_HEIGHT
+    strip = Image.new('RGBA', (3 * width, top + height), (*WINDOW_ANIMATION_HEADER_COLOR, 255))
+    for index, panel in enumerate(panels):
+        strip.paste(panel, (index * width, top))
+    overlay = Image.new('RGBA', strip.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    font = ImageFont.load_default()
+    _draw_text(draw=draw, font=font, at=(0, 2), text=window_title(record=baseline_record))
+    captions = (
+        window_panel_caption(record=candidate_record, size=(width, height)),
+        window_panel_caption(record=baseline_record, size=(width, height)),
+        DIFFERENCE_PANEL_CAPTION,
     )
+    # Each driver's panel is stamped with its own run's game time; the difference with the
+    # baseline's
+    stamped_from = (candidate_record, baseline_record, baseline_record)
+    for index, (caption, record) in enumerate(zip(captions, stamped_from, strict=True)):
+        left = index * width
+        _draw_text(draw=draw, font=font, at=(left, WINDOW_ANIMATION_TITLE_HEIGHT + 2), text=caption)
+        served = record.frame_clock_at.get(comparison.position)
+        stamp = f'#{comparison.position}' + (
+            '' if served is None else f' · {round(served * 1000)} ms'
+        )
+        _draw_boxed_text(
+            draw=draw,
+            font=font,
+            at=(left, top + height - WINDOW_ANIMATION_STAMP_HEIGHT),
+            text=stamp,
+            box_color=WINDOW_ANIMATION_STAMP_BOX_COLOR,
+        )
+    if comparison.position == first_position:
+        _draw_first_difference_marker(draw=draw, font=font, width=width, height=height)
+    return Image.alpha_composite(strip, overlay).convert('RGB')
+
+
+def _draw_first_difference_marker(
+    *, draw: ImageDraw.ImageDraw, font: _Font, width: int, height: int
+) -> None:
+    """Draw the first differing frame's red border round the panels, and its label.
+
+    Args:
+        draw: The overlay's drawing.
+        font: The text font.
+        width: One panel's width.
+        height: The panels' height.
+
+    """
+    top = WINDOW_ANIMATION_HEADER_HEIGHT
+    draw.rectangle(
+        (0, top, 3 * width - 1, top + height - 1),
+        outline=(*FIRST_DIFFERENCE_COLOR, 255),
+        width=FIRST_DIFFERENCE_BORDER,
+    )
+    label_width = round(draw.textlength(FIRST_DIFFERENCE_LABEL, font=font))
+    _draw_boxed_text(
+        draw=draw,
+        font=font,
+        at=(
+            3 * width - FIRST_DIFFERENCE_BORDER - label_width - 2 * WINDOW_ANIMATION_TEXT_MARGIN,
+            top + FIRST_DIFFERENCE_BORDER,
+        ),
+        text=FIRST_DIFFERENCE_LABEL,
+        box_color=(*FIRST_DIFFERENCE_COLOR, 255),
+    )
+
+
+def _draw_text(*, draw: ImageDraw.ImageDraw, font: _Font, at: tuple[int, int], text: str) -> None:
+    """Draw a line of the strip's text, a margin in from ``at``.
+
+    Args:
+        draw: The overlay's drawing.
+        font: The text font.
+        at: The line's top-left corner, before the margin.
+        text: The line.
+
+    """
+    draw.text(
+        (at[0] + WINDOW_ANIMATION_TEXT_MARGIN, at[1]),
+        text,
+        font=font,
+        fill=WINDOW_ANIMATION_TEXT_COLOR,
+    )
+
+
+def _draw_boxed_text(
+    *,
+    draw: ImageDraw.ImageDraw,
+    font: _Font,
+    at: tuple[int, int],
+    text: str,
+    box_color: tuple[int, int, int, int],
+) -> None:
+    """Draw a line of text on its own box, its top-left corner at ``at``.
+
+    Args:
+        draw: The overlay's drawing.
+        font: The text font.
+        at: The box's top-left corner.
+        text: The line.
+        box_color: The box's colour, with its opacity.
+
+    """
+    width = round(draw.textlength(text, font=font)) + 2 * WINDOW_ANIMATION_TEXT_MARGIN
+    draw.rectangle(
+        (at[0], at[1], at[0] + width, at[1] + WINDOW_ANIMATION_STAMP_HEIGHT - 1), fill=box_color
+    )
+    _draw_text(draw=draw, font=font, at=(at[0], at[1] + 1), text=text)
 
 
 def _copy_frame_image(
@@ -903,10 +1130,12 @@ def images_report(
         )
         if animations is not None:
             lines.append(
-                f'    the window as animations, presents {animations.first_position} to '
+                f'    the window as one animation ({candidate.label} | {baseline.label} | '
+                f'difference), presents {animations.first_position} to '
                 f'{animations.last_position} ({animations.frame_count} frames): '
-                f'{animations.baseline_animation.name}, {animations.candidate_animation.name}, '
-                f'{animations.difference_animation.name}'
+                f'{animations.game_speed_animation.name} (at game speed: the {baseline.label} '
+                f"run's served frame times), {animations.fixed_speed_animation.name} "
+                f'({WINDOW_ANIMATION_FRAME_MILLISECONDS} ms a frame)'
             )
     return '\n'.join(lines) + '\n'
 

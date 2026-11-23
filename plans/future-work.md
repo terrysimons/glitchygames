@@ -1507,8 +1507,9 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   (`FrameImageRequest.stop_after_by_test`). The recorder ends that test right after that present
   with `pytest.skip` (a skip fails no run, and passes `except Exception`); its record has
   `stopped_after` and no final frame. The images report compares the first difference, then the
-  window's other frames, and plays the window as animated PNGs: `<driver>-window.apng` for each
-  driver and `difference-window.apng` (`frame_comparison.write_window_animations`, Pillow). A
+  window's other frames, and plays the window as one side-by-side animation (native | dummy |
+  difference) at game speed and at 250 ms a frame, with captions of each run's recorded facts
+  (`frame_comparison.write_window_animations`, Pillow; docs/quality/driver_comparison.md). A
   window reaching the final frame runs the test to its end, as before. Measured on a 900-frame
   test differing at present 20 (dummy against cocoa, the local run): the re-run took 9.2 s
   before, 2.5 s after (1.9 s with a window of two).
@@ -1520,6 +1521,14 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
     which applies no recorded options or seed), and a step back rebuilds from frame 0
     unpresented (rule 15). The re-run also replays pytest tests, not recordings. It would need
     the game's state saved at keyframes first.
+  - **The monitor's name in the captions** (the owner, 2026-11-23): SDL 2's
+    `SDL_GetDisplayName` answers "0", "1", "2" on this Mac (three displays), so no name is
+    recorded. A real name needs a per-OS source (macOS `system_profiler SPDisplaysDataType`,
+    about a second, or AppKit's NSScreen through pyobjc, not a dependency); the refresh rate is
+    already the window's own display's.
+  - **Game speed for most tests**: a test without an engine has a frame clock that never moves,
+    so its game-speed animation shows every gap at the 17 ms minimum; only engine runs and
+    replays have served frame times (and a live engine's are measured, so they vary with load).
   - **Fingerprints before the window** (small): the re-run still fingerprints every present
     before its window (about 0.75 ms each at 800x600), which it uses to confirm the difference
     reproduced; skipping them would need another way to tell.
