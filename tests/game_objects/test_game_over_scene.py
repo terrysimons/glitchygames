@@ -96,6 +96,7 @@ class TestGameOverScene:
         # Should have text sprites added
         assert len(scene.all_sprites) > 0
 
+    @pytest.mark.draws_frames
     def test_game_over_scene_draws_its_title_on_the_display(self):
         """Drawing the set-up scene puts the red GAME OVER title on the real display."""
         display = pygame.display.get_surface()
@@ -268,6 +269,7 @@ class TestGameOverSceneRestart:
         assert new_game.options is scene.options
         assert scene._space_pressed is False
 
+    @pytest.mark.draws_frames
     def test_space_release_without_a_press_does_not_restart(self):
         """A SPACE release whose press this scene never saw is passed to the base scene."""
         scene = GameOverScene()
@@ -294,6 +296,7 @@ class TestGameOverSceneRestart:
         assert isinstance(new_game, RestartableGame)
         assert new_game is not previous_game
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
     def test_a_release_whose_press_came_before_game_over_does_not_restart(self, layer):
         """A button held when the game ended (a jump) must not restart on its release."""
@@ -305,6 +308,7 @@ class TestGameOverSceneRestart:
         assert scene_manager.active_scene is scene
         _draw_the_active_scene(scene_manager)
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
     @pytest.mark.parametrize('button', [pygame.CONTROLLER_BUTTON_B, pygame.CONTROLLER_BUTTON_BACK])
     def test_b_or_back_quits(self, layer, button):
@@ -318,6 +322,7 @@ class TestGameOverSceneRestart:
         assert len(_take_quit_events()) == 1
         _draw_the_active_scene(scene_manager)
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
     def test_another_button_does_nothing(self, layer):
         """Any other button neither restarts nor quits."""
@@ -332,6 +337,7 @@ class TestGameOverSceneRestart:
         assert _take_quit_events() == []
         _draw_the_active_scene(scene_manager)
 
+    @pytest.mark.draws_frames
     def test_restart_without_a_previous_scene_warns_and_stays(self, caplog):
         """With no previous scene to restart, resume logs a warning and switches nowhere."""
         scene = GameOverScene()
