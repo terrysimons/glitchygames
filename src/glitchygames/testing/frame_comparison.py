@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pygame
+from PIL import Image
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.testing.frame_fingerprints import (
@@ -46,8 +47,13 @@ type RunDirectory = Path
 # Differing pixels in a difference image, and how bright the baseline frame shows under them
 DIFFERENCE_COLOR = (255, 0, 255)
 DIMMED_BRIGHTNESS = 0.3
-# The frames a re-run saves on each side of a test's first difference (image_request_for)
-IMAGE_WINDOW_PRESENTS = 2
+# The frames a re-run saves on each side of a test's first difference (image_request_for):
+# ...bbbbbdaaaaa..., the difference and five presents before and after it
+IMAGE_WINDOW_PRESENTS = 5
+# How long each frame of a window's animation shows: slow enough to see each frame change
+WINDOW_ANIMATION_FRAME_MILLISECONDS = 250
+# A window needs this many frames to be worth an animation
+WINDOW_ANIMATION_MINIMUM_FRAMES = 2
 
 
 class LabelledRun(BaseModel):
@@ -148,12 +154,28 @@ class RepeatComparison(BaseModel):
         )
 
 
+class WindowAnimations(BaseModel):
+    """A re-run test's window of presents on both drivers, as animated PNGs (APNG)."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    first_position: int
+    last_position: int
+    frame_count: int
+    baseline_animation: Path
+    candidate_animation: Path
+    difference_animation: Path
+
+
 class FrameImageComparison(BaseModel):
     """One frame of a re-run test on both drivers, as images."""
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     position_name: str
+    # The frame's position in the baseline's frames, and whether it is the final frame
+    position: int
+    is_final: bool
     baseline_image: Path | None
     candidate_image: Path | None
     difference_image: Path | None
@@ -585,7 +607,7 @@ def compare_rerun_images(
     baseline_record: RecordedFrames,
     candidate_record: RecordedFrames,
     output: Path,
-) -> tuple[FrameSequenceDifference | None, list[FrameImageComparison]]:
+) -> tuple[FrameSequenceDifference | None, list[FrameImageComparison], WindowAnimations | None]:
     """Compare one re-run test's saved frames: its first difference, its window and its end.
 
     The first differing frame comes first, then the other frames of its window that both
@@ -594,7 +616,9 @@ def compare_rerun_images(
     has no final frames.
 
     Both drivers' images are copied to ``output/<test folder>/`` as ``<label>-frame-<N>.png``,
-    next to ``difference-frame-<N>.png`` (named by the baseline's position).
+    next to ``difference-frame-<N>.png`` (named by the baseline's position). The window's
+    presents are also played as animations, ``<label>-window.apng`` and
+    ``difference-window.apng`` (``write_window_animations``).
 
     Args:
         baseline: The baseline driver's re-run.
@@ -605,16 +629,100 @@ def compare_rerun_images(
 
     Returns:
         The re-run's difference (None when its frames all match: the difference did not
-        reproduce) and the image comparisons made.
+        reproduce), the image comparisons made, and the window's animations (None when fewer
+        than two of its presents were compared as images).
 
     """
     difference = compare_frames(baseline=baseline_record, candidate=candidate_record)
     if difference is None:
-        return None, []
+        return None, [], None
+    nodeid = baseline_record.nodeid
+    final_positions = (len(baseline_record.frames) - 1, len(candidate_record.frames) - 1)
+    positions = _rerun_positions(
+        difference=difference,
+        runs=(baseline, candidate),
+        records=(baseline_record, candidate_record),
+        final_positions=final_positions,
+    )
+    test_folder = output / images_folder_name(nodeid=nodeid)
+    comparisons: list[FrameImageComparison] = []
+    for baseline_position, candidate_position in positions:
+        position_name = frame_position_name(
+            position=baseline_position, frame_count=len(baseline_record.frames)
+        )
+        baseline_copy = _copy_frame_image(
+            run=baseline, nodeid=nodeid, position=baseline_position, test_folder=test_folder
+        )
+        candidate_copy = _copy_frame_image(
+            run=candidate, nodeid=nodeid, position=candidate_position, test_folder=test_folder
+        )
+        if baseline_copy is None or candidate_copy is None:
+            comparisons.append(
+                FrameImageComparison(
+                    position_name=position_name,
+                    position=baseline_position,
+                    is_final=(baseline_position, candidate_position) == final_positions,
+                    baseline_image=baseline_copy,
+                    candidate_image=candidate_copy,
+                    difference_image=None,
+                    differing_pixels=None,
+                    total_pixels=None,
+                    note='no image saved on both drivers (no display, or not requested)',
+                )
+            )
+            continue
+        difference_image = test_folder / f'difference-frame-{baseline_position}.png'
+        counts = compare_frame_images(
+            baseline_image=baseline_copy,
+            candidate_image=candidate_copy,
+            difference_image=difference_image,
+        )
+        comparisons.append(
+            FrameImageComparison(
+                position_name=position_name,
+                position=baseline_position,
+                is_final=(baseline_position, candidate_position) == final_positions,
+                baseline_image=baseline_copy,
+                candidate_image=candidate_copy,
+                difference_image=None if counts is None else difference_image,
+                differing_pixels=None if counts is None else counts[0],
+                total_pixels=None if counts is None else counts[1],
+                note='sizes differ' if counts is None else '',
+            )
+        )
+    animations = write_window_animations(
+        comparisons=comparisons,
+        test_folder=test_folder,
+        baseline_label=baseline.label,
+        candidate_label=candidate.label,
+    )
+    return difference, comparisons, animations
+
+
+def _rerun_positions(
+    *,
+    difference: FrameSequenceDifference,
+    runs: tuple[LabelledRun, LabelledRun],
+    records: tuple[RecordedFrames, RecordedFrames],
+    final_positions: tuple[int, int],
+) -> list[tuple[int, int]]:
+    """Choose a re-run test's frames to compare: first difference, saved window, final frames.
+
+    Args:
+        difference: The re-run's first difference.
+        runs: The baseline and the other re-run.
+        records: The test's record in each.
+        final_positions: Each record's final frame position.
+
+    Returns:
+        The (baseline, other) positions, the first difference first.
+
+    """
+    baseline, candidate = runs
+    baseline_record, candidate_record = records
     nodeid = baseline_record.nodeid
     first = (difference.baseline_position, difference.candidate_position)
     positions = [first]
-    final_positions = (len(baseline_record.frames) - 1, len(candidate_record.frames) - 1)
     context = [
         (first[0] + offset, first[1] + offset)
         for offset in range(-IMAGE_WINDOW_PRESENTS, IMAGE_WINDOW_PRESENTS + 1)
@@ -640,49 +748,80 @@ def compare_rerun_images(
     )
     if not stopped and final_frames_differ and final_positions not in positions:
         positions.append(final_positions)
-    test_folder = output / images_folder_name(nodeid=nodeid)
-    comparisons: list[FrameImageComparison] = []
-    for baseline_position, candidate_position in positions:
-        position_name = frame_position_name(
-            position=baseline_position, frame_count=len(baseline_record.frames)
-        )
-        baseline_copy = _copy_frame_image(
-            run=baseline, nodeid=nodeid, position=baseline_position, test_folder=test_folder
-        )
-        candidate_copy = _copy_frame_image(
-            run=candidate, nodeid=nodeid, position=candidate_position, test_folder=test_folder
-        )
-        if baseline_copy is None or candidate_copy is None:
-            comparisons.append(
-                FrameImageComparison(
-                    position_name=position_name,
-                    baseline_image=baseline_copy,
-                    candidate_image=candidate_copy,
-                    difference_image=None,
-                    differing_pixels=None,
-                    total_pixels=None,
-                    note='no image saved on both drivers (no display, or not requested)',
-                )
-            )
-            continue
-        difference_image = test_folder / f'difference-frame-{baseline_position}.png'
-        counts = compare_frame_images(
-            baseline_image=baseline_copy,
-            candidate_image=candidate_copy,
-            difference_image=difference_image,
-        )
-        comparisons.append(
-            FrameImageComparison(
-                position_name=position_name,
-                baseline_image=baseline_copy,
-                candidate_image=candidate_copy,
-                difference_image=None if counts is None else difference_image,
-                differing_pixels=None if counts is None else counts[0],
-                total_pixels=None if counts is None else counts[1],
-                note='sizes differ' if counts is None else '',
-            )
-        )
-    return difference, comparisons
+    return positions
+
+
+def write_window_animations(
+    *,
+    comparisons: Sequence[FrameImageComparison],
+    test_folder: Path,
+    baseline_label: str,
+    candidate_label: str,
+) -> WindowAnimations | None:
+    """Play a re-run test's window of presents as animated PNGs: each driver's and the difference.
+
+    The frames are the presents compared as images of one size on both drivers, in order (the
+    final frame is left out: it is not part of the window's sequence), each shown for
+    ``WINDOW_ANIMATION_FRAME_MILLISECONDS``, looping. Written with Pillow, an engine dependency.
+
+    Args:
+        comparisons: The test's image comparisons.
+        test_folder: The test's report folder (holding the compared images).
+        baseline_label: The baseline driver's label.
+        candidate_label: The other driver's label.
+
+    Returns:
+        The animations, or None when fewer than ``WINDOW_ANIMATION_MINIMUM_FRAMES`` presents
+        were compared.
+
+    """
+    frames = sorted(
+        (
+            comparison
+            for comparison in comparisons
+            if not comparison.is_final
+            and comparison.baseline_image is not None
+            and comparison.candidate_image is not None
+            and comparison.difference_image is not None
+        ),
+        key=lambda comparison: comparison.position,
+    )
+    if len(frames) < WINDOW_ANIMATION_MINIMUM_FRAMES:
+        return None
+    animations = WindowAnimations(
+        first_position=frames[0].position,
+        last_position=frames[-1].position,
+        frame_count=len(frames),
+        baseline_animation=test_folder / f'{baseline_label}-window.apng',
+        candidate_animation=test_folder / f'{candidate_label}-window.apng',
+        difference_animation=test_folder / 'difference-window.apng',
+    )
+    for path, images in (
+        (animations.baseline_animation, [frame.baseline_image for frame in frames]),
+        (animations.candidate_animation, [frame.candidate_image for frame in frames]),
+        (animations.difference_animation, [frame.difference_image for frame in frames]),
+    ):
+        _write_animation(path=path, images=[image for image in images if image is not None])
+    return animations
+
+
+def _write_animation(*, path: Path, images: Sequence[Path]) -> None:
+    """Write PNG images as one looping animated PNG.
+
+    Args:
+        path: The animation (``.apng``).
+        images: The frames, in order, all of one size.
+
+    """
+    frames = [Image.open(image).convert('RGB') for image in images]
+    frames[0].save(
+        path,
+        format='PNG',
+        save_all=True,
+        append_images=frames[1:],
+        duration=WINDOW_ANIMATION_FRAME_MILLISECONDS,
+        loop=0,
+    )
 
 
 def _copy_frame_image(
@@ -737,7 +876,7 @@ def images_report(
         if baseline_record is None or candidate_record is None:
             lines.append(f'  {nodeid}: not recorded in both re-runs')
             continue
-        difference, comparisons = compare_rerun_images(
+        difference, comparisons, animations = compare_rerun_images(
             baseline=baseline,
             candidate=candidate,
             baseline_record=baseline_record,
@@ -757,6 +896,13 @@ def images_report(
         lines.extend(
             _describe_image_comparison(comparison=comparison) for comparison in comparisons
         )
+        if animations is not None:
+            lines.append(
+                f'    the window as animations, presents {animations.first_position} to '
+                f'{animations.last_position} ({animations.frame_count} frames): '
+                f'{animations.baseline_animation.name}, {animations.candidate_animation.name}, '
+                f'{animations.difference_animation.name}'
+            )
     return '\n'.join(lines) + '\n'
 
 

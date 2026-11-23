@@ -41,7 +41,7 @@ glitchygames/testing/frame_comparison.py) also saves the named positions of the 
 files, at ``frame_image_path(directory=DIRECTORY, nodeid=..., position=...)``. When it names where
 a test may stop (``stop_after_by_test``, a present), the recorder ends that test right after that
 present with ``pytest.skip``: its frames are saved, and the rest of the test would only cost time
-(a 900-frame test differing at present 20 re-ran in 1.9 s instead of 9.2 s, 2026-11-23). An
+(a 900-frame test differing at present 20 re-ran in 2.5 s instead of 9.2 s, 2026-11-23). An
 outcome exception passes the engine's ``except Exception``, and a skip fails no run; the record
 has ``stopped_after`` set and no final frame (its body did not finish).
 

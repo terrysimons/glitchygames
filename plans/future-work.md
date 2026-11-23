@@ -1502,13 +1502,16 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 - ~~**Make the driver comparison's image re-run stop at the frames it needs**~~ **Done**
   2026-11-23 (the owner, 2026-11-22; branch `perf/image-rerun-stops-at-needed-frames`). The image
   request (`frame_comparison.image_request_for`) now names a window of `IMAGE_WINDOW_PRESENTS`
-  (2) frames on each side of each test's first difference, and, when every frame of the window
-  is a present on both drivers, where the re-run may stop (`FrameImageRequest.stop_after_by_test`).
-  The recorder ends that test right after that present with `pytest.skip` (a skip fails no run,
-  and passes `except Exception`); its record has `stopped_after` and no final frame. The images
-  report compares the first difference, then the window's other frames. A window reaching the
-  final frame runs the test to its end, as before. Measured on a 900-frame test differing at
-  present 20 (dummy against cocoa, the local run): the re-run took 9.2 s before, 1.9 s after.
+  (5) frames on each side of each test's first difference (the owner: `...bbbbbdaaaaa...`), and,
+  when every frame of the window is a present on both drivers, where the re-run may stop
+  (`FrameImageRequest.stop_after_by_test`). The recorder ends that test right after that present
+  with `pytest.skip` (a skip fails no run, and passes `except Exception`); its record has
+  `stopped_after` and no final frame. The images report compares the first difference, then the
+  window's other frames, and plays the window as animated PNGs: `<driver>-window.apng` for each
+  driver and `difference-window.apng` (`frame_comparison.write_window_animations`, Pillow). A
+  window reaching the final frame runs the test to its end, as before. Measured on a 900-frame
+  test differing at present 20 (dummy against cocoa, the local run): the re-run took 9.2 s
+  before, 2.5 s after (1.9 s with a window of two).
   Left:
   - **A golden replay's re-run starting near its difference: not possible as things stand**
     (measured 2026-11-23). A trace keyframe holds sprite rects only, not the game's state

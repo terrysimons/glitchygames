@@ -29,9 +29,10 @@ every frame each test presents (`src/glitchygames/testing/frame_fingerprints.py`
 finished, the frames are compared (`src/glitchygames/testing/frame_comparison.py`; its command line
 is `scripts/compare_driver_frames.py`). Any difference, or a
 failure in the native run, fails the run; the differing tests are re-run on both drivers to save
-the frames around each first difference (two before and two after) as PNG files with a difference
-image of each (the baseline dimmed to grey, differing pixels magenta) under
-`test-results/driver-comparison/pytest/`. A re-run stops its test once those frames are saved, as
+the frames around each first difference (five before and five after) as PNG files with a
+difference image of each (the baseline dimmed to grey, differing pixels magenta) under
+`test-results/driver-comparison/pytest/`, and plays them as animations: `<driver>-window.apng` for
+each driver and `difference-window.apng` (each frame shown for a quarter of a second). A re-run stops its test once those frames are saved, as
 a skip (a test cannot skip ahead to its difference, but need not play on past it); only a window
 that reaches the test's final frame runs the test to its end, saving the final frames too. The
 terminal summary names every file and the native run's log.
