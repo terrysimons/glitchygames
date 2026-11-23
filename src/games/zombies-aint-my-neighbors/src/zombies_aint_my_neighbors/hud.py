@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import pygame
 
+from glitchygames.fonts import font_manager
 from zombies_aint_my_neighbors import text
 from zombies_aint_my_neighbors.kid import Weapon
 from zombies_aint_my_neighbors.roster import MAXIMUM_PLAYERS, PLAYER_COLOURS
@@ -102,15 +103,15 @@ class Hud:
             groups: The scene's sprites.
 
         """
-        self._font = text.title_font(size=HUD_FONT_SIZE)
+        self._font = font_manager.bundled_font(bold=True, size=HUD_FONT_SIZE)
         self._groups = groups
         # Each slot's label for each count of lives, rendered now
         self._lives_images = [
             {
-                lives: text.render_text(
+                lives: font_manager.render_line(
                     font=self._font,
                     text=lives_label(slot_index=slot_index, lives=lives),
-                    colour=colour,
+                    color=colour,
                 )
                 for lives in range(LIVES_PER_PLAYER + 1)
             }
@@ -132,15 +133,15 @@ class Hud:
         ]
         self.status_text = ''
         self._status_picture = text.TextPicture(
-            image=text.render_text(font=self._font, text=' ', colour=STATUS_COLOUR),
+            image=font_manager.render_line(font=self._font, text=' ', color=STATUS_COLOUR),
             centre=(screen_width // 2, screen_height - EDGE_MARGIN),
             name='Stage status',
             groups=groups,
         )
-        weapon_font = text.title_font(size=WEAPON_FONT_SIZE)
+        weapon_font = font_manager.bundled_font(bold=True, size=WEAPON_FONT_SIZE)
         self._weapon_images = [
             {
-                weapon: text.render_text(font=weapon_font, text=label, colour=colour)
+                weapon: font_manager.render_line(font=weapon_font, text=label, color=colour)
                 for weapon, label in WEAPON_LABELS.items()
             }
             for colour in PLAYER_COLOURS
@@ -280,5 +281,5 @@ class Hud:
         if status != self.status_text:
             self.status_text = status
             self._status_picture.show_image(
-                image=text.render_text(font=self._font, text=status, colour=STATUS_COLOUR)
+                image=font_manager.render_line(font=self._font, text=status, color=STATUS_COLOUR)
             )

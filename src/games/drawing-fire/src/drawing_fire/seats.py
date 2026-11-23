@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 from drawing_fire.battle import Side
 from drawing_fire.players import Button
+from glitchygames.checks import required
 
 if TYPE_CHECKING:
     import random
@@ -346,13 +347,15 @@ class Seats:
         """Move the highlight with LEFT and RIGHT; START takes the highlighted soldier."""
         if self._wait_if_nothing_to_choose(seat, battle=battle, seconds=seconds):
             return
-        assert seat.side is not None  # only a player with a side chooses a soldier
+        # only a player with a side chooses a soldier
+        side = required(seat.side, what="the choosing seat's side")
         soldier = self.highlighted_soldier(seat, battle=battle)
-        assert soldier is not None  # _wait_if_nothing_to_choose found a free soldier
+        # _wait_if_nothing_to_choose found a free soldier
+        soldier = required(soldier, what='the highlighted soldier')
         # LEFT and RIGHT step from where he is among the free soldiers, left to right
         step = _left_right_step(edges=edges, device=seat.device)
         if step:
-            candidates = self.free_soldiers(seat.side, battle=battle)
+            candidates = self.free_soldiers(side, battle=battle)
             soldier = candidates[(candidates.index(soldier) + step) % len(candidates)]
         seat.highlighted_soldier_id = soldier.soldier_id
         if not edges.pressed(seat.device, Button.START):
@@ -378,10 +381,11 @@ class Seats:
             Whether he now waits.
 
         """
-        assert seat.side is not None  # only a player with a side chooses a soldier
+        # only a player with a side chooses a soldier
+        side = required(seat.side, what="the choosing seat's side")
         if battle.over:
             text = f'{seat.name} waits for the next battle'
-        elif not self.free_soldiers(seat.side, battle=battle):
+        elif not self.free_soldiers(side, battle=battle):
             text = f'{seat.name} waits for a soldier'
         else:
             return False
@@ -429,14 +433,13 @@ class Seats:
             The soldier's id, or None when his side has no free soldier.
 
         """
-        assert seat.side is not None  # only a player with a side chooses a soldier
-        candidates = self.free_soldiers(seat.side, battle=battle)
+        # only a player with a side chooses a soldier
+        side = required(seat.side, what="the choosing seat's side")
+        candidates = self.free_soldiers(side, battle=battle)
         others_on = {
             other.highlighted_soldier_id
             for other in self.players.values()
-            if other is not seat
-            and other.stage is Stage.CHOOSING_SOLDIER
-            and other.side is seat.side
+            if other is not seat and other.stage is Stage.CHOOSING_SOLDIER and other.side is side
         }
         unclaimed = [soldier for soldier in candidates if soldier.soldier_id not in others_on]
         middle = battle.terrain.width / 2

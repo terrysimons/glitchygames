@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Final, override
 
 import pygame
 
+from glitchygames.fonts import font_manager
 from zombies_aint_my_neighbors import music, text
 from zombies_aint_my_neighbors.roster_scene import RosterScene
 from zombies_aint_my_neighbors.sounds import SWITCH_OFF, sound_reference
@@ -174,13 +175,13 @@ class GameOverScene(RosterScene):
             name='Switch-off',
             groups=self.all_sprites,
         )
-        font = text.fitted_title_font(
+        font = font_manager.fitted_font(
             texts=(GAME_OVER_TEXT,),
             width=int(self.screen_width * TEXT_WIDTH_FRACTION),
             largest=GAME_OVER_LARGEST_FONT_SIZE,
         )
         self._game_over_text = text.TextPicture(
-            image=text.render_text(font=font, text=GAME_OVER_TEXT, colour=GAME_OVER_COLOUR),
+            image=font_manager.render_line(font=font, text=GAME_OVER_TEXT, color=GAME_OVER_COLOUR),
             centre=(self.screen_width // 2, self.screen_height // 2),
             name='Game over',
             groups=self.all_sprites,

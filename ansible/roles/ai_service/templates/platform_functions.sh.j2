@@ -177,6 +177,18 @@ sha256_of() {
 }
 {% endmacro %}
 
+{% macro free_kib_of() %}
+# The free space at a path, in KiB, for this user: free_kib_of PATH. Nothing but the number is
+# printed, so no name can move it: df's table names the filesystem first, and a name holding a
+# space (an SMB home, an sshfs or rclone mount) moved Available's field onto Used
+# (bugs/2026-11-20-free-space-read-from-the-wrong-column.md). The command is the platform's
+# ai_free_space_command (group_vars), the one Ansible's own checks run; a path it can't read
+# prints no number. The caller checks for digits
+free_kib_of() {
+    {{ ai_free_space_command | map('quote') | join(' ') }} "$1" | tail -n 1
+}
+{% endmacro %}
+
 {% macro forget_every_agent() %}
 # Stops every agent this service may have and forgets it, running or not
 forget_every_agent() {
