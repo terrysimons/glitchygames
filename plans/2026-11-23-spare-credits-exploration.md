@@ -177,6 +177,107 @@ its master plan):
 | No AI with `--headless`, in tests or in the tools that record goldens | Tests and goldens for an opted-in game need a stand-in service or recorded AI answers |
 | No AI in the browser (it cannot start processes) | An opted-in game cannot run in the browser unless it reaches a service some other way |
 
+### State machines
+
+**(user)** All of this is designed as state machines and drawn as state diagrams. **(my call,
+proposed)** The diagrams use Mermaid `stateDiagram-v2`, as the docs site already does. In code,
+each machine is an explicit set of states with a transition table, and its tests check every
+allowed transition and refuse every other. Diagram 1 is drawn from the code as built. The others
+are first drafts to react to.
+
+**1. Lucid Circuit's link, as built** (`LinkState` in `src/glitchygames/ai_link.py`). This is
+the passive mode today: whatever state the link ends in, the game plays on.
+
+```mermaid
+stateDiagram-v2
+    [*] --> NOT_STARTED
+    NOT_STARTED --> STARTING: start()
+    STARTING --> NOT_ENOUGH_MEMORY: service start reports too little memory
+    STARTING --> UNAVAILABLE: service will not start or cannot be reached
+    STARTING --> CONNECTED: session open
+    CONNECTED --> RECONNECTING: connection lost
+    RECONNECTING --> CONNECTED: session reopened
+    CONNECTED --> REFUSED: service refuses the session
+    RECONNECTING --> REFUSED: service refuses the session
+    NOT_STARTED --> STOPPED: stop()
+    STARTING --> STOPPED: stop()
+    CONNECTED --> STOPPED: stop()
+    RECONNECTING --> STOPPED: stop()
+    NOT_ENOUGH_MEMORY --> [*]
+    UNAVAILABLE --> [*]
+    REFUSED --> [*]
+    STOPPED --> [*]
+```
+
+**2. A participating game's run** (draft). The loading scene covers booting and priming. Every
+failure ends at one failure scene and exit code 69 (`SERVICE_UNAVAILABLE`).
+
+```mermaid
+stateDiagram-v2
+    [*] --> CheckingRun
+    CheckingRun --> Replaying: replay, audit or rebaseline
+    Replaying --> [*]: recorded AI answers served, no service needed
+    CheckingRun --> Refused: --no-ai, or the browser
+    CheckingRun --> Booting: live run
+    state "Loading scene" as Loading {
+        Booting --> Priming: link CONNECTED
+        Priming --> Ready: data primed
+    }
+    Booting --> Failed: NOT_ENOUGH_MEMORY, UNAVAILABLE or REFUSED
+    Priming --> Failed: priming fails or times out
+    Ready --> Playing: game's first scene
+    Playing --> Reconnecting: link RECONNECTING
+    Reconnecting --> Playing: link CONNECTED again
+    Reconnecting --> Failed: still down after a grace period
+    Playing --> Finished: player quits
+    Refused --> FailureScene
+    Failed --> FailureScene
+    FailureScene --> [*]: exit 69
+    Finished --> [*]: exit 0
+```
+
+Open in this draft: how long the grace period is (and what the player sees during it), and
+whether `--no-ai` on a participating game refuses with exit 64 (options refused) or 69.
+
+**3. The time loop** (draft, any language's arc). What carries over at the reset is deferred
+question 15.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Prologue
+    Prologue --> LoopStart: the fading vignette ends
+    LoopStart --> TheYear: Samhain dusk
+    TheYear --> OtherworldOpen: Samhain night
+    OtherworldOpen --> Vision: the washer at the ford shows what is coming
+    Vision --> LoopStart: the loop resets (carry-over to be decided)
+    Vision --> Resurgence: enough of the language restored to change the outcome
+    Resurgence --> [*]: epilogue
+```
+
+**4. A sealed mound** (draft). Opening one grows a section of the dynamic tree.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Sealed
+    Sealed --> Readable: the player knows enough words to read the seal
+    Readable --> Open: the seal word spoken
+    Open --> Explored: the mound's pieces of language collected
+    Explored --> Restored: the tree section grows; speakers and color return in the world
+    Restored --> [*]
+```
+
+**5. A person's cloud of denial** (draft).
+
+```mermaid
+stateDiagram-v2
+    [*] --> Thick
+    Thick --> Thinning: the right word, gently, at the right moment
+    Thinning --> Thick: a clumsy or wrong word
+    Thinning --> Lifted: understood
+    Lifted --> Speaking: answers in the language
+    Speaking --> [*]
+```
+
 ## 2. Goals, non-goals, anti-goals
 
 To be filled in.

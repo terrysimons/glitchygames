@@ -468,3 +468,15 @@ Recorded two modes of Lucid Circuit's design, in the user's words: passive (game
 opt in still work with it, provided they meet the existing constraints, such as no raw pygame
 calls for the display) and participating (an opt-in, game-participating AI experience that opens
 more creative avenues to test, try and play with). This game is the first participating game.
+
+## 53. User (2026-11-23)
+
+> This should all be done up in state machines and state diagrams.
+
+## 54. Claude
+
+Added a "State machines" section to the master plan, in Mermaid state diagrams as the docs site
+uses: Lucid Circuit's link as built (the passive mode); a participating game's run (loading
+scene, failure scene, exit 69, replays served from recorded answers); the time loop; a sealed
+mound; a person's cloud of denial. Proposed that each machine be explicit in code, with tests of
+every allowed and refused transition. Named the open points in the participating-run draft.
