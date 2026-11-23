@@ -158,10 +158,10 @@ Where the scrub stands, for whoever picks it up (the session that did steps 1-2 
   `docs/scattered-doc-todos`): the six claims the report then listed (the two names, the three
   build-written files, the relative link) are `RECORDED_EXCEPTIONS` entries, each with its
   reason. The quicker way, so the checker fixes above remain open if wanted.
-- **Next, on the reading pass's branch: step 3, the root files.** Decide with the owner, per file, keep, fold into `docs/` or
-  retire: `ANIMATION_README.md`, `API_README.md`, `BITMAPPY_ARCHITECTURE.md`,
-  `CONTROLLER_CONTROLS_README.md`, `LOADER_README.md` (`README.md` and `CLAUDE.md` stay; read
-  them in full). Not yet read; bring a recommendation per file. Then step 4 (`docs/` by area,
+- **Step 3, the root files: read and decided (2026-11-22, `docs/scrub-root-files`).** The owner's
+  decision: retire and fold nothing yet, because some of these files are the only architecture
+  record of features and tools still to be ported. The per-file findings and candidates are a
+  to-do in `plans/future-work.md`'s "Documentation scrub". Then step 4 (`docs/` by area,
   one commit each, then the audio area as designed above: `sound.md`'s package map and how a
   sound flows, the 9 undocumented audio modules, `CLAUDE.md`'s audio section, the sound tools,
   the Sound Board README, an API page per audio module), step 5 (member READMEs, module

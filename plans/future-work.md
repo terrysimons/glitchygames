@@ -684,6 +684,14 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
     Content-Security-Policy possible.
   - To brainstorm: build from source or vendor release files; where the build runs (CircleCI
     beside the pygame-ce WebAssembly wheel); version pinning; the bundle size it adds to the site.
+- **Ideas from pygodide** (the owner, 2026-11-22; PyPI 0.1.0, github.com/Elan456/pygodide; we
+  don't need the tool itself: it is build tooling over Pyodide, which we already run on through
+  PyScript, and its 2.5x frame-rate claim is against pygbag's runtime, not Pyodide's).
+  - A headless-browser check that every browser build loads and reaches its first frame. Ours
+    has the pieces but not the check: `scripts/measure_browser_frames.py` builds one game, loads
+    it in headless Chrome, waits for the game to say it is ready and collects frames, run by
+    hand per game; no CI job or test runs every build through it.
+  - itch.io packaging (a zip of the bundle), if wanted.
 - **Website follow-ups from the build's final review** (2026-10-28; minors, deferred):
   - Missing files answer with S3's 403 XML: add a CloudFront error response (403 → a 404 page).
   - `glitchy_site.publish`: upload non-HTML files before HTML (a page could land before its
@@ -1670,6 +1678,33 @@ drafted issue text. Not posted yet:
   module docstrings; promoting the cheap checks to tests; the closing build and suite), after the
   Material formatting below. The plan's "Status and handoff (2026-11-09)" has the next step,
   the claims left to clear and the working notes.
+- **Root files: consider retiring or folding each into `docs/`** (step 3's reading, 2026-11-22).
+  The owner's decision: retire nothing yet, because some of these files are the only
+  architecture record of features and tools still to be ported. What the reading found, for
+  when that is reconsidered:
+  - `BITMAPPY_ARCHITECTURE.md`: a seven-line pointer to `docs/architecture/bitmappy.md`, which
+    holds every diagram; nothing outside `plans/` cites it. Candidate to retire.
+  - `CONTROLLER_CONTROLS_README.md`: `docs/multi_controller_system.md` has the colors,
+    architecture and usage and sends readers here for the bindings (its line 37); only the
+    per-mode buttons, trigger threshold and debounce and keyboard shortcuts are unique.
+    Candidate to fold into a Controls section there. Stale: its line 87 says no button toggles
+    the fill direction, but a left-stick click does (`bitmappy/controllers/strategies.py`
+    `_handle_left_stick_click`, `ControllerSelection.toggle_fill_direction`). Its "Advanced
+    Features" and "Future Improvements" sections describe nothing the code does. Cited by
+    `CLAUDE.md` (the Bitmappy section).
+  - `ANIMATION_README.md` and `LOADER_README.md`: the only prose spec of the sprite TOML format
+    (keys, color modes, timing, troubleshooting) and the only guide to adding a format.
+    Candidates to fold together into one "Sprite files" page under `docs/architecture/`, with
+    the API listings left to the mkdocstrings page. Stale or missing: the `[sprite]` keys omit
+    `profile` and `color_space` (`sprites/sprite_toml.py` `SPRITE_KEYS`; the color-profiles
+    plan part 2 already plans that update), and the add-a-format steps omit the load-time
+    schema every format must pass (`sprites/sprite_file_schema.py`), `sprite_toml.py`,
+    `sprite_text.py` and `SpriteFactory.load_sprite_from_text`. Cited by `CLAUDE.md` (the
+    sprites section) and by eight docstrings ("See LOADER_README.md": `sprites/animated.py`,
+    `factory.py`, `bitmappy_sprite.py`).
+  - `API_README.md`: current (every route, variable, limit and client flag checked) and the
+    only full reference for the AI sprite API; `README.md` keeps a summary. Candidate to fold
+    into a `docs/architecture/` page, or keep at the root.
 - **Format the docs site in Material** (the owner, 2026-11-09: goes first, page by page, ahead of
   the scrub's reading pass). The pages stay markdown, written with Material's markdown
   conventions (admonitions, content tabs, titled and annotated code blocks, collapsible
