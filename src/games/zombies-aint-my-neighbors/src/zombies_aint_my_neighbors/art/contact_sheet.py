@@ -14,8 +14,7 @@ from typing import TYPE_CHECKING, Final
 
 import pygame
 
-from glitchygames.fonts import FontManager
-from glitchygames.fonts.font_manager import bundled_font_path
+from glitchygames.fonts import font_manager
 from zombies_aint_my_neighbors.art import intro_rig, palettes, rig
 
 if TYPE_CHECKING:
@@ -69,10 +68,10 @@ def contact_sheet(*, look: KidLook) -> pygame.Surface:
     cell_width, cell_height = rig.WIDTH * SCALE + GAP, rig.HEIGHT * SCALE + GAP
     sheet = pygame.Surface((LABEL_WIDTH + most_frames * cell_width, len(frames) * cell_height))
     sheet.fill(BACKGROUND)
-    font = pygame.font.Font(bundled_font_path(font_name='VeraBd'), LABEL_FONT_SIZE)
+    font = font_manager.bundled_font(bold=True, size=LABEL_FONT_SIZE)
     for row, (name, grids) in enumerate(frames.items()):
         top = row * cell_height
-        label = font.render(name, antialias=FontManager.antialias(), color=LABEL_COLOUR)
+        label = font_manager.render_line(font=font, text=name, color=LABEL_COLOUR)
         sheet.blit(label, (GAP, top + cell_height // 2 - label.get_height() // 2))
         for column, grid in enumerate(grids):
             sheet.blit(
@@ -101,10 +100,10 @@ def intro_contact_sheet() -> pygame.Surface:
     cell_width, cell_height = widest * SCALE + GAP, tallest * SCALE + GAP
     sheet = pygame.Surface((LABEL_WIDTH + most_frames * cell_width, len(rows) * cell_height))
     sheet.fill(BACKGROUND)
-    font = pygame.font.Font(bundled_font_path(font_name='VeraBd'), LABEL_FONT_SIZE)
+    font = font_manager.bundled_font(bold=True, size=LABEL_FONT_SIZE)
     for row, (label_text, grids, palette) in enumerate(rows):
         top = row * cell_height
-        label = font.render(label_text, antialias=FontManager.antialias(), color=LABEL_COLOUR)
+        label = font_manager.render_line(font=font, text=label_text, color=LABEL_COLOUR)
         sheet.blit(label, (GAP, top + cell_height // 2 - label.get_height() // 2))
         for column, grid in enumerate(grids):
             sheet.blit(
