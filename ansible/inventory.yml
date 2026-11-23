@@ -141,7 +141,7 @@ all:
               # mDNS name it is reached by
               raspberry_pi_hostname: glitchygames-pi5-8gb-raspberry-pi-os
               # .circleci/config.yml's build-and-test-raspberry-pi-5-8gb-raspberry-pi-os names
-              # this (tests/test_ci_config.py); its resource class is not created yet
+              # this (tests/test_ci_config.py); the playbook created its resource class (2026-11-22)
               raspberry_pi_resource_class: terrysimons/raspberry-pi-5-8gb-raspberry-pi-os
               raspberry_pi_description: Raspberry Pi 5 (8 GB) on Raspberry Pi OS with a real display
               host_memory_gb: 8

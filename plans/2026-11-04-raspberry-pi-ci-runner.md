@@ -379,10 +379,12 @@ where the 16 GB Pi's is `raspberrypios`; a DHCP lease on wlan0). Read over SSH 2
 Raspberry Pi 5 Model B Rev 1.0, 8 GB, Debian 13 (13.7), kernel 6.18.60+rpt-rpi-2712, stock clock
 (`arm_freq=2400`, `over_voltage=0`), the `ondemand` governor (none set in the inventory), a PWM
 fan taken as the Active Cooler on the default curve, and a 1 TB microSD card (no NVMe SSD). Its
-`build-and-test-` job is defined and off in the workflow; its CircleCI resource class
-`terrysimons/raspberry-pi-5-8gb-raspberry-pi-os` is not created yet. Not provisioned: no uv, no
-`~/glitchygames-measure` clone; the owner runs the playbook with `--limit` this host. Its memory
-cgroup was not read (see the to-do in plans/future-work.md).
+`build-and-test-` job is defined and off in the workflow, like every Pi's. Provisioned 2026-11-22:
+the owner ran the playbook with `--limit` this host, which created the resource class
+`terrysimons/raspberry-pi-5-8gb-raspberry-pi-os` and registered its runner (online); read back
+over SSH, uv and the `~/glitchygames-measure` clone are in place and the runner service is active.
+Its cgroup has no memory controller, like the 16 GB Raspberry Pi OS Pi's (see the to-do in
+plans/future-work.md).
 
 ### Built (2026-11-16, uncommitted), and what only the Pi can prove
 
