@@ -608,8 +608,8 @@ jobs:
       - nox-timer-report
       # 3.15, every session (noxfile.PINNED_PYTHONS; the owner, 2026-11-18: "Only 3.15 for macos
       # too", "Just change that job's name to test-python-3-15-macos"). Linux and Windows run it
-      # in jobs of their own (test-python-3-15-linux, -windows), split across three machines:
-      # the suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
+      # in jobs of their own (test-python-3-15-linux, -windows), split across six and three
+      # machines: the suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
       - nox-test:
           session: test-3.15
       - nox-performance-test
@@ -626,7 +626,9 @@ jobs:
     # small (1 vCPU, 2 GB): one process runs the machine's share of the suite. It grew past 2 GB
     # until the recording mocks in two timing and hardware tests were replaced (BUGS.md #85)
     resource_class: small
-    parallelism: 3
+    # Six machines (the owner, 2026-11-23; three from 2026-11-20): Docker is billed per CPU, so
+    # six small machines cost about what three did for twice as long
+    parallelism: 6
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
@@ -642,10 +644,11 @@ jobs:
       # 3945); the slab alone swings about 120 MiB from run to run. Was 1750 (2026-11-17), 1600
       # before that (2026-10-28)
       GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"
-      # Three machines, each running its share of the suite, as CircleCI's splitter assigns them
-      # by past timings (tests/circleci_test_split.py): one ran past CircleCI's one-hour job limit
-      # (jobs 3705, 3707; the owner, 2026-11-18: two; 2026-11-20: three). The coverage rule is
-      # applied to the shares combined, by coverage-combine-<os> after this job
+      # Each machine runs its share of the suite: the heavy replays dealt out, the rest as
+      # CircleCI's splitter assigns them by past timings (tests/circleci_test_split.py). One
+      # machine ran past CircleCI's one-hour job limit (jobs 3705, 3707; the owner, 2026-11-18:
+      # two; 2026-11-20: three; 2026-11-23: six). The coverage rule is applied to the shares
+      # combined, by coverage-combine-<os> after this job
       GLITCHYGAMES_TEST_SPLIT: "circleci"
       # Each machine rolls the suite's order, fixed or shuffled, and a shuffle's seed, from the
       # workflow's workspace, job and machine, so a rerun repeats its first run's roll

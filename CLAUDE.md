@@ -36,7 +36,7 @@ Everything runs on Python 3.15: the tests (`noxfile.TEST_PYTHONS`), every other 
 it stays only the oldest the code must parse and type-check as (`requires-python`, ruff's
 `target-version`, the type checkers' python version), because the browser builds' Pyodide 314 runs
 it: nothing tests on 3.14, so keep to what 3.14 has. Move those to 3.15 when a Pyodide on 3.15
-ships. Each Linux and Windows job is split across three machines (`parallelism: 3`), as the
+ships. The Linux job is split across six machines and Windows across three (`parallelism`), as the
 suite alone ran past CircleCI's one-hour job limit on Linux. A split job's machines each run a
 share (`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a `coverage-combine-*` job
 holds their coverage, combined, to 100%. Each CI test machine rolls fixed or shuffled order.

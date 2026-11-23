@@ -1588,6 +1588,10 @@ def test_every_linux_job_installs_the_linux_jobs_system_packages():
         assert 'apt-get install' not in job, name
 
 
+# Each split test job's machines (parallelism): Linux 6 (the owner, 2026-11-23), Windows 3
+MACHINES_PER_TEST_JOB = {'linux': 6, 'windows': 3}
+
+
 @pytest.mark.parametrize(
     ('platform_marker', 'platform', 'save_command', 'combine_job'),
     [
@@ -1604,12 +1608,13 @@ def test_every_linux_job_installs_the_linux_jobs_system_packages():
 def test_every_linux_and_windows_test_job_is_split_and_its_coverage_combined(
     platform_marker, platform, save_command, combine_job
 ):
-    """Each runs on three machines, saves each's coverage, and one combine job applies the rule.
+    """Each runs on its machines, saves each's coverage, and one combine job applies the rule.
 
     The owner, 2026-11-18 (one Python ran past the one-hour limit on Linux, jobs 3705, 3707):
     "yes" to two machines a job, and "Do it for windows too"; 2026-11-20: "split Linux, Windows
-    by 3 instead of 2". tests/circleci_test_split.py picks each machine's share; the combine job
-    holds the shares together to 100%.
+    by 3 instead of 2"; 2026-11-23: Linux on 6 (Docker costs the same per CPU, so about the same
+    credits). tests/circleci_test_split.py picks each machine's share; the combine job holds the
+    shares together to 100%.
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     workflow = configuration[configuration.index('\nworkflows:\n') :]
@@ -1621,7 +1626,7 @@ def test_every_linux_and_windows_test_job_is_split_and_its_coverage_combined(
         session = re.search(r'session: (?P<session>test-[0-9.]+)\n', job)
         assert session is not None, name
         share = f'{platform}-{session["session"]}'
-        assert '    parallelism: 3\n' in job, name
+        assert f'    parallelism: {MACHINES_PER_TEST_JOB[platform]}\n' in job, name
         assert '      GLITCHYGAMES_TEST_SPLIT: "circleci"\n' in job, name
         assert f'      - {save_command}:\n          share: {share}\n' in job, name
         # Saved after the tests ran, so the data is the run's

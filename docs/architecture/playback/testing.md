@@ -170,8 +170,9 @@ test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
 ## A CI job split across machines
 
 **Intent:** one CircleCI job ran past CircleCI's one-hour job limit running the whole suite on
-one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs on three
-(`parallelism: 3`; two until 2026-11-20), each running a share (`tests/circleci_test_split.py`;
+one machine (Linux, jobs 3705 and 3707), so the Linux test job runs on six machines and the
+Windows one on three (`parallelism`; two until 2026-11-20, Linux three until 2026-11-23), each
+running a share (`tests/circleci_test_split.py`;
 `tests/test_circleci_test_split.py`).
 
 - It is on only when `GLITCHYGAMES_TEST_SPLIT` is `circleci`; the split jobs set it, and any
