@@ -231,6 +231,33 @@ drivers, the owner's Mac). Every ordinary run keeps the files' order (`-p no:ran
   from `sys.modules` first; `tests/test_suite_collection.py` fails on any direct
   `runpy.run_module` in a test.
 
+## Docs-only pull requests
+
+**Intent:** a pull request that changes only Markdown (a plan, a bug file, the docs' prose, a
+rule) needn't wait for the test jobs: a plan-only one waited hours for the single macOS queue,
+holding back code pull requests (the owner, 2026-11-20).
+
+- `.circleci/config.yml` is a setup configuration: its one small job lists the branch's change
+  since it left main (`git diff --name-only --no-renames` against the merge-base, both sides of a
+  rename) and runs `scripts/ci_change_scope.py`, which uses Python's standard library only, so
+  nothing is installed first. It continues with `.circleci/continue_config.yml`, which holds every
+  job, passing the `test-scope` parameter.
+- "Markdown only" is the pre-commit hooks' own definition: every changed path matches their
+  `exclude`, `\.md$` (a Markdown-only commit runs no hook). One definition:
+  `tests/test_ci_change_scope.py` holds the script's pattern to the hooks' file.
+- `test-scope` is `markdown` for such a branch: the macOS, Linux and Windows test jobs, the
+  coverage combines and `checks-linux` (whose only Markdown check is the strict docs build) are
+  left out (each carries `filters: pipeline.parameters.test-scope ==
+  "all"`), and `markdown-checks` runs on one Linux machine instead: the strict docs build and the
+  tests that read Markdown (`nox -s test-markdown`). Main, a tag, any other change, or a change git
+  can't list gets `all`.
+- The tests that read Markdown are `noxfile.MARKDOWN_TEST_FILES`, which
+  `tests/test_ci_config.py` holds to exactly the test files that name a Markdown file in their
+  code (a string ending `.md`, or a `*.md` pattern; docstrings and comments don't count). A test
+  that reads Markdown another way isn't detected: add it to the list by hand.
+- The workflow is still `build-and-test`, the check main's ruleset requires, so a docs-only pull
+  request can still merge.
+
 ## Memory by test file
 
 **Intent:** when the guard stops a run, find which test files make the test process grow

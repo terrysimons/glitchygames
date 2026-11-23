@@ -1317,6 +1317,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/sprites/test_legacy_sprite_glyphs.py': ('scripts/raw_sprite_loader.py',),
     'tests/sprites/test_sprite_color_map_limits.py': ('scripts/raw_sprite_loader.py',),
     'tests/test_browser_touch_controls.py': ('scripts/build_browser_bundle.py',),
+    'tests/test_ci_change_scope.py': ('scripts/ci_change_scope.py',),
     'tests/test_build_browser_bundle.py': ('scripts/build_browser_bundle.py',),
     'tests/test_build_info.py': ('scripts/write_build_stamp.py',),
     'tests/test_build_sdl_x11.py': ('scripts/build_sdl_x11.py',),
