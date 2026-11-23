@@ -8,6 +8,7 @@ request saves them.
 from __future__ import annotations
 
 import argparse
+import struct
 import sys
 from typing import TYPE_CHECKING
 
@@ -157,6 +158,30 @@ def save_window_frame(
         fingerprint=frame('saved', size=WINDOW_FRAME_SIZE),
         rgb_bytes=bytes(rgb),
     )
+
+
+# PNG's colour types (IHDR byte 9): truecolour, truecolour with alpha
+PNG_COLOUR_TYPE_RGB = 2
+PNG_COLOUR_TYPE_RGBA = 6
+# The sRGB chunk's rendering intent for photographs and games: perceptual
+SRGB_RENDERING_INTENT_PERCEPTUAL = 0
+
+
+def png_chunks(path: Path) -> list[tuple[bytes, bytes]]:
+    """Read a PNG (or APNG) file's chunks, in order, as written.
+
+    Returns:
+        Each chunk's type and data.
+
+    """
+    data = path.read_bytes()
+    chunks: list[tuple[bytes, bytes]] = []
+    position = len(b'\x89PNG\r\n\x1a\n')
+    while position < len(data):
+        length, chunk_type = struct.unpack('>I4s', data[position : position + 8])
+        chunks.append((chunk_type, data[position + 8 : position + 8 + length]))
+        position += 12 + length
+    return chunks
 
 
 def animation_durations(path: Path) -> list[int]:
@@ -828,6 +853,29 @@ class TestImagesReport:
         assert [
             index for index, color in enumerate(borders) if color == FIRST_DIFFERENCE_COLOR
         ] == [5]
+
+    def test_every_animation_keeps_exact_colour_tagged_as_srgb(self, stopped_reruns, tmp_path):
+        """Lossless truecolour, no palette, tagged sRGB with its fallbacks and no ICC profile.
+
+        SDL does no colour management: the frames are plain sRGB values on both drivers, so the
+        files say so, and every viewer shows the same colours.
+        """
+        animations = self.animations_of(reruns=stopped_reruns, output=tmp_path / 'out')
+
+        for path in animations:
+            chunks = png_chunks(path)
+            types = [chunk_type for chunk_type, _data in chunks]
+            header = dict(chunks)[b'IHDR']
+            assert header[9] in {PNG_COLOUR_TYPE_RGB, PNG_COLOUR_TYPE_RGBA}, path.name
+            assert b'PLTE' not in types, path.name
+            assert b'iCCP' not in types, path.name
+            assert dict(chunks)[b'sRGB'] == bytes([SRGB_RENDERING_INTENT_PERCEPTUAL]), path.name
+            assert dict(chunks)[b'gAMA'] == struct.pack('>I', 45455), path.name
+            assert dict(chunks)[b'cHRM'] == struct.pack(
+                '>8I', 31270, 32900, 64000, 33000, 30000, 60000, 15000, 6000
+            ), path.name
+            first_image_data = types.index(b'IDAT')
+            assert {b'sRGB', b'gAMA', b'cHRM'} <= set(types[:first_image_data]), path.name
 
     def test_the_saved_frames_stay_raw(self, stopped_reruns, tmp_path):
         """Only the animations are stamped: each copied PNG holds the re-run's frame exactly."""

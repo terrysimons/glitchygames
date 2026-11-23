@@ -21,12 +21,13 @@ from __future__ import annotations
 
 import itertools
 import shutil
+import struct
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 import pygame
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, PngImagePlugin
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.testing.frame_fingerprints import (
@@ -75,6 +76,14 @@ FIRST_DIFFERENCE_LABEL = 'first difference'
 DIFFERENCE_PANEL_CAPTION = 'pixels that differ (magenta)'
 # Pillow's default font: its bitmap one, or a FreeType one where Pillow has FreeType
 type _Font = ImageFont.ImageFont | ImageFont.FreeTypeFont
+# The animations' colour: tagged sRGB, the PNG specification's recommended set. SDL does no
+# colour management, so the frames are plain sRGB values on every driver; untagged, each viewer
+# would guess (and Display P3 would misstate them). The sRGB chunk (perceptual intent), with the
+# gAMA and cHRM values for sRGB as fallbacks for viewers that do not read it; never an ICC
+# profile as well (the specification has sRGB and iCCP never together)
+SRGB_RENDERING_INTENT_PERCEPTUAL = 0
+SRGB_GAMMA = 45455
+SRGB_CHROMATICITIES = (31270, 32900, 64000, 33000, 30000, 60000, 15000, 6000)
 GAME_SPEED_ANIMATION_NAME = 'window-side-by-side-game-speed.apng'
 FIXED_SPEED_ANIMATION_NAME = 'window-side-by-side-250ms.apng'
 # A window needs this many frames to be worth an animation
@@ -861,7 +870,10 @@ def write_window_animations(
     the presents compared as images on both drivers, in order (the final frame is not part of
     the window's sequence). Written twice, at game speed (``game_speed_durations``, from the
     baseline run) and at ``WINDOW_ANIMATION_FRAME_MILLISECONDS`` a frame, both looping with the
-    last frame held. The copied PNGs stay as saved: only the animations are stamped.
+    last frame held. The copied PNGs stay as saved: only the animations are stamped. The files
+    are lossless truecolour (RGB, no palette) tagged sRGB (``srgb_chunks``): SDL does no colour
+    management, so the frames are plain sRGB values on both drivers, and every viewer then shows
+    the same colours.
 
     Args:
         comparisons: The test's image comparisons.
@@ -888,8 +900,11 @@ def write_window_animations(
     if len(frames) < WINDOW_ANIMATION_MINIMUM_FRAMES:
         return None
     baseline_record, _candidate_record = records
+    # Pinned to RGB (truecolour) before saving: no frame reaches the writer in another mode
     strips = [
-        _window_strip(comparison=frame, records=records, first_position=first_position)
+        _window_strip(comparison=frame, records=records, first_position=first_position).convert(
+            'RGB'
+        )
         for frame in frames
     ]
     animations = WindowAnimations(
@@ -908,6 +923,8 @@ def write_window_animations(
         ),
         (animations.fixed_speed_animation, [*fixed, WINDOW_ANIMATION_HOLD_MILLISECONDS]),
     ):
+        # Lossless (no quantizing, ever) truecolour: Pillow writes an RGB image as colour type 2
+        # with no palette
         strips[0].save(
             path,
             format='PNG',
@@ -915,8 +932,23 @@ def write_window_animations(
             append_images=strips[1:],
             duration=durations,
             loop=0,
+            pnginfo=srgb_chunks(),
         )
     return animations
+
+
+def srgb_chunks() -> PngImagePlugin.PngInfo:
+    """Return the chunks that tag a PNG's colours as sRGB, with their fallbacks.
+
+    Returns:
+        sRGB (perceptual), gAMA and cHRM, which Pillow writes before the image data.
+
+    """
+    chunks = PngImagePlugin.PngInfo()
+    chunks.add(b'sRGB', bytes([SRGB_RENDERING_INTENT_PERCEPTUAL]))
+    chunks.add(b'gAMA', struct.pack('>I', SRGB_GAMMA))
+    chunks.add(b'cHRM', struct.pack('>8I', *SRGB_CHROMATICITIES))
+    return chunks
 
 
 def _window_strip(
