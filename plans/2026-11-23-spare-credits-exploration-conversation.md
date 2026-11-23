@@ -265,3 +265,46 @@ Listed the new questions:
 
 Recorded the answers in the plan, gathered every deferred question into one table to re-ask when
 the user signals, and noted small demos as the way to feel things out.
+
+## 30. User (2026-11-23)
+
+> Ok, again, just brainstorming so ideas welcome.  The notion is the language has been lost to
+> time.  Hardly anybody outside of the country knows about it and their information is corrupted
+> - like an unkind game of telephone where either through strife, or intentional cultural
+> annihalation, a language - the pain of that - the hurt of the psyche - means that even the
+> ancestors of those who were displaced and lost to time, deny the truth of what happened to
+> them.  This could be demonstrated as animosity in the game with a dark cloud forming around a
+> character that the hero of the story has some deep emotional connection to their ancestry - we
+> can fill in the backstory later - that they are attuned to being able to "sense" - in a loose
+> way - through sight, hearing thoughts of others, magic, etc etc etc. and that starts to weave
+> the story and game mechanics together.  So this language would have very few native speakers
+> left, knowledge outside of the very small communities would be corrupted or misguided and
+> slowly over time the language fades from existence... we could show, for instance a vinette or
+> in-engine video (replay or what have you) of time passing and the language fading from
+> existence and with it, the color fading from the world ( just one example - we should be very
+> open minded about alternative ideas altogether.) And through some set of circumstances - for
+> example, I have one very specific idea that we could try out that would be super fun if it
+> worked... I'll tell you in a moment.
+
+## 31. Claude
+
+Played back the lost language, the corrupted "telephone game" knowledge, the denial carried by
+descendants shown as a dark cloud, the hero's attunement, and the vignette of the language and
+color fading. Offered a few brainstorm ideas, marked as Claude's:
+
+- **Garbled speech that clears up:** speech in the language shows as distorted script and
+  muffled sound, and comes into focus as the player learns it. The game's own "telephone game"
+  corruption becomes something the player sees and hears.
+- **Wrong clues to sort out:** what outsiders tell the hero about the language is partly wrong.
+  The tension comes from finding out which "facts" are corrupted, by checking them against the
+  few people who really speak it.
+- **The cloud reacts to language:** using the right word, gently, at the right moment thins the
+  dark cloud around a person; a clumsy or wrong use thickens it. Learning becomes a way of
+  reaching someone.
+- **The fading told by the replay engine:** the engine already records and replays play exactly.
+  The fading vignette could be a replay of a living village that loses color and words as it
+  plays, and later loops could replay the player's own earlier runs as "echoes".
+- **Respect for the real people:** because the language is real and the story touches real
+  harm, the research should include how to portray it with the community's voice.
+
+Then waited for the user's specific idea.

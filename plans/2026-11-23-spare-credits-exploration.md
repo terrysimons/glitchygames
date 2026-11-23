@@ -60,6 +60,20 @@ The game, as the user has described it so far:
   playability and addictiveness.
 - **(user)** This is a creative brainstorming session: we make a bunch of small demos and feel
   things out. The grayscale world is one idea to play around with, not the only one.
+- **(user)** Brainstorm (ideas welcome; open-minded about alternatives):
+  - The language has been lost to time. Hardly anybody outside the country knows of it, and
+    what outsiders know is corrupted, like an unkind game of telephone.
+  - Through strife or intentional cultural annihilation, the pain and hurt to the psyche mean
+    that even descendants of those displaced deny the truth of what happened to them.
+  - That denial can show in the game as animosity: a dark cloud forming around a character.
+  - The hero has a deep emotional connection to their ancestry (backstory later) and is attuned
+    to "sense" this, loosely: through sight, hearing others' thoughts, magic, and so on. That
+    starts to weave the story and the mechanics together.
+  - Very few native speakers remain. Knowledge outside the small communities is corrupted or
+    misguided, and over time the language fades from existence.
+  - One example: a vignette or in-engine video (a replay, for instance) of time passing, the
+    language fading from existence and the color fading from the world with it.
+  - The user has one very specific idea for how the hero comes to it, still to be told.
 - **(user)** The user is explaining the mechanics first, then what they are going for. Claude
   listens and holds guesses until both are told.
 - **(user)** Research notes stay outside the repository; this plan refers only to the ideas.
@@ -93,6 +107,19 @@ Areas to research, consider, test and brainstorm (named by the user):
 - Situations where multiplayer could improve playability and addictiveness (the game stays single
   player).
 - Small demos to feel things out.
+
+Claude's brainstorm ideas (proposals, not decisions):
+
+- Speech in the language shows as distorted script and muffled sound, and comes into focus as
+  the player learns it, so the corruption is something the player sees and hears.
+- What outsiders tell the hero is partly wrong; the tension is in finding out which "facts" are
+  corrupted, by checking them against the few real speakers.
+- The dark cloud reacts to language: the right word, gently, at the right moment thins it; a
+  clumsy or wrong one thickens it. Learning as a way of reaching someone.
+- The fading vignette as an exact replay of a living village losing color and words; later loops
+  could replay the player's own earlier runs as "echoes".
+- Because the language is real and the story touches real harm, the research includes how to
+  portray it with the community's voice.
 
 Answered: 13 (real language, named later), 14 (immersion; fun, even addictive), 16 (spoken and
 written, own script), 17 (play with it, not the only idea), 18 (single player). Struck by the
