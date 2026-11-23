@@ -121,9 +121,8 @@ The game, as the user has described it so far:
 
 Areas to research, consider, test and brainstorm (named by the user):
 
-- Where AI acts at design time and where at play time. Constraint to weigh: today the engine
-  turns the AI service off in replays and the browser, and replays must repeat exactly, so AI at
-  play time needs its answers recorded and served back on replay.
+- Where AI acts at design time and where at play time in this game. The engine-side constraints
+  (replays, the browser, tests) are in [lucid-circuit-modes.md](lucid-circuit-modes.md).
 - The grayscale world, literal or metaphorical, as one idea among others.
 - Situations where multiplayer could improve playability and addictiveness (the game stays single
   player).
@@ -146,108 +145,26 @@ Answered: 13 (Irish, Gaeilge), 14 (immersion; fun, even addictive), 16 (spoken a
 written, own script), 17 (play with it, not the only idea), 18 (single player). Struck by the
 user: 5 (which parts of Japanese) and 6 (how the player answers).
 
-### Engine requirements
+### What this game needs from the engine
 
-- **(user)** AI is required for this game, because the dynamic tree depends on it.
-- **(user)** A game can opt in to requiring AI. If the AI services are down, the game fails.
-- **(user)** A loading intro for games that require AI: a new scene type showing whatever the
-  engine (or the game itself) wants while the AI boots: the service starting at launch, data
-  priming and so on.
-- **(user)** Only opted-in games get this. Games passive to the AI keep working as they do today:
-  the AI can interact with them, and the game is unaware.
-- **(user)** These are two modes of Lucid Circuit's design (`plans/lucid-circuit.md`):
-  - **Passive:** games that do not opt in still work with Lucid Circuit, provided they meet the
-    constraints it already relies on (for example, no raw pygame calls to get the display; only
-    the engine's doors). This is the work Lucid Circuit has done so far.
-  - **Participating:** an opt-in, game-participating AI experience. It allows even more creative
-    avenues to test, try and play with. This game is the first participating game.
-
-  The participating mode becomes a Lucid Circuit sub-plan when it is designed.
-
-Where the participating mode departs from Lucid Circuit's current rules (to weigh in the design; the reasons are in
-its master plan):
-
-| Rule today | What a required-AI game changes |
-|------------|----------------------------------|
-| The live game never waits for AI | The game waits at launch, behind the loading scene; during play the tree still must not stall a frame, so AI answers arrive asynchronously |
-| The service dying mid-play leaves the game running, with AI unavailable | An opted-in game fails. How (a message scene, then exit) is to design |
-| AI failure never changes the exit code | An opted-in game exits with `ExitCode.SERVICE_UNAVAILABLE` (69), which already means "a required service (the local AI service) ... cannot be reached" |
-| `--no-ai` turns AI off | For an opted-in game, `--no-ai` is refused with a clear message |
-| No AI in replays | Still true: AI answers are recorded as input, so a replay serves them back with no service. The requirement check is skipped in replays |
-| No AI with `--headless`, in tests or in the tools that record goldens | Tests and goldens for an opted-in game need a stand-in service or recorded AI answers |
-| No AI in the browser (it cannot start processes) | An opted-in game cannot run in the browser unless it reaches a service some other way |
+- **(user)** AI is required for this game, because the dynamic tree depends on it. This game is
+  the first to use Lucid Circuit's **participating** mode.
+- **(user)** Clean separation, planned up front: everything about how a game relates to the AI
+  (the passive and participating modes, opting in, failing when the AI is down, the loading
+  scene, the run's state machine) is designed in Lucid Circuit's own sub-plan,
+  [lucid-circuit-modes.md](lucid-circuit-modes.md). This plan holds only what is specific to
+  this game, and depends on that sub-plan; the sub-plan never names this game's content.
 
 ### State machines
 
 **(user)** All of this is designed as state machines and drawn as state diagrams. **(my call,
 proposed)** The diagrams use Mermaid `stateDiagram-v2`, as the docs site already does. In code,
 each machine is an explicit set of states with a transition table, and its tests check every
-allowed transition and refuse every other. Diagram 1 is drawn from the code as built. The others
-are first drafts to react to.
+allowed transition and refuse every other. The engine-side machines (the AI link and a
+participating game's run) live in [lucid-circuit-modes.md](lucid-circuit-modes.md). The game's
+own machines below are first drafts to react to.
 
-**1. Lucid Circuit's link, as built** (`LinkState` in `src/glitchygames/ai_link.py`). This is
-the passive mode today: whatever state the link ends in, the game plays on.
-
-```mermaid
-stateDiagram-v2
-    [*] --> NOT_STARTED
-    NOT_STARTED --> STARTING: start()
-    STARTING --> NOT_ENOUGH_MEMORY: service start reports too little memory
-    STARTING --> UNAVAILABLE: service will not start
-    STARTING --> CONNECTED: welcome received
-    STARTING --> RECONNECTING: first connection fails or drops
-    STARTING --> REFUSED: service refuses the session
-    CONNECTED --> RECONNECTING: connection lost
-    RECONNECTING --> CONNECTED: welcome received
-    CONNECTED --> REFUSED: service refuses the session
-    RECONNECTING --> REFUSED: service refuses the session
-    NOT_STARTED --> STOPPED: stop()
-    STARTING --> STOPPED: stop()
-    CONNECTED --> STOPPED: stop()
-    RECONNECTING --> STOPPED: stop()
-    NOT_ENOUGH_MEMORY --> [*]
-    UNAVAILABLE --> [*]
-    REFUSED --> [*]
-    STOPPED --> [*]
-```
-
-Two facts from the code that matter for the participating mode: an unexpected error on the
-link's thread from any state lands in `UNAVAILABLE`; and a service that starts but never answers
-leaves the link in `RECONNECTING` indefinitely, retrying. So a participating game cannot wait for
-a final state at boot: it needs its own boot deadline (diagram 2).
-
-**2. A participating game's run** (draft). The loading scene covers booting and priming. Every
-failure ends at one failure scene and exit code 69 (`SERVICE_UNAVAILABLE`).
-
-```mermaid
-stateDiagram-v2
-    [*] --> CheckingRun
-    CheckingRun --> Replaying: replay, audit or rebaseline
-    Replaying --> [*]: recorded AI answers served, no service needed
-    CheckingRun --> Refused: --no-ai, or the browser
-    CheckingRun --> Booting: live run
-    state "Loading scene" as Loading {
-        Booting --> Priming: link CONNECTED
-        Priming --> Ready: data primed
-    }
-    Booting --> Failed: NOT_ENOUGH_MEMORY, UNAVAILABLE or REFUSED
-    Booting --> Failed: no welcome before the boot deadline
-    Priming --> Failed: priming fails or times out
-    Ready --> Playing: game's first scene
-    Playing --> Reconnecting: link RECONNECTING
-    Reconnecting --> Playing: link CONNECTED again
-    Reconnecting --> Failed: still down after a grace period
-    Playing --> Finished: player quits
-    Refused --> FailureScene
-    Failed --> FailureScene
-    FailureScene --> [*]: exit 69
-    Finished --> [*]: exit 0
-```
-
-Open in this draft: how long the boot deadline and the grace period are (and what the player sees during it), and
-whether `--no-ai` on a participating game refuses with exit 64 (options refused) or 69.
-
-**3. The time loop** (draft, any language's arc). What carries over at the reset is deferred
+**1. The time loop** (draft, any language's arc). What carries over at the reset is deferred
 question 15.
 
 ```mermaid
@@ -262,7 +179,7 @@ stateDiagram-v2
     Resurgence --> [*]: epilogue
 ```
 
-**4. A sealed mound** (draft). Opening one grows a section of the dynamic tree.
+**2. A sealed mound** (draft). Opening one grows a section of the dynamic tree.
 
 ```mermaid
 stateDiagram-v2
@@ -274,7 +191,7 @@ stateDiagram-v2
     Restored --> [*]
 ```
 
-**5. A person's cloud of denial** (draft).
+**3. A person's cloud of denial** (draft).
 
 ```mermaid
 stateDiagram-v2

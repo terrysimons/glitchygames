@@ -487,3 +487,18 @@ Checked diagram 1 against `ai_link.py` and corrected it: a first connection that
 STARTING to RECONNECTING (not UNAVAILABLE), and REFUSED can come before any welcome. Found that a
 service which starts but never answers leaves the link retrying in RECONNECTING indefinitely, so
 a participating game needs its own boot deadline; added it to diagram 2.
+
+## 56. User (2026-11-23)
+
+> The stuff that belongs with Lucid Circuit should be designed to go with lucid circuit and the
+> stuff for our game idea should go with our game.  Clean separation in that layer - very
+> important to plan up front.
+
+## 57. Claude
+
+Moved everything about how a game relates to the AI (the passive and participating modes, the
+departures from today's rules, the link's state machine as built, a participating game's run) into
+a new Lucid Circuit sub-plan, `plans/lucid-circuit-modes.md`, linked from Lucid Circuit's master
+plan. It never names this game. The game's plan keeps only what is specific to the game (the time
+loop, the sealed mound, the cloud of denial) and points to the sub-plan for the engine side. The
+dependency runs one way: games depend on Lucid Circuit, never the reverse.
