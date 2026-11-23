@@ -795,6 +795,26 @@ def _start_pygame_and_the_test_display() -> None:
             pygame.display.set_mode(TEST_DISPLAY_SIZE)
 
 
+@pytest.hookimpl(tryfirst=True)
+def pytest_fixture_setup(fixturedef: pytest.FixtureDef[object]) -> None:
+    """Start pygame and the test display before any fixture wider than one test is made.
+
+    A module-, class-, package- or session-scoped fixture is set up before the first test that
+    asks for it gets its function-scoped fixtures, ``ensure_pygame_graceful_quit`` among them, so
+    without this it saw whatever display the worker's previous test left: none after a test that
+    quit pygame. Zombies' module-scoped ``demo_plan`` builds a real scene, and after
+    tests/test_logging.py (which ends with ``pygame.quit()``) every test of its module errored
+    in setup (seed 1957271441, 2026-11-21;
+    bugs/2026-11-22-a-module-fixture-ran-before-the-test-display.md).
+
+    Args:
+        fixturedef: The fixture about to be set up.
+
+    """
+    if fixturedef.scope != 'function':
+        _start_pygame_and_the_test_display()
+
+
 @pytest.fixture(scope='session')
 def run_sdl_driver_state() -> SdlDriverState:
     """The drivers this run's display and mixer run on, read before any test body ran.
