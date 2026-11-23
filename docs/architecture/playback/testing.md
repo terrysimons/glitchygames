@@ -239,8 +239,9 @@ holding back code pull requests (the owner, 2026-11-20).
 - "Markdown only" is the pre-commit hooks' own definition: every changed path matches their
   `exclude`, `\.md$` (a Markdown-only commit runs no hook). One definition:
   `tests/test_ci_change_scope.py` holds the script's pattern to the hooks' file.
-- `test-scope` is `markdown` for such a branch: the macOS, Linux and Windows test jobs and the
-  coverage combines are left out (each carries `filters: pipeline.parameters.test-scope ==
+- `test-scope` is `markdown` for such a branch: the macOS, Linux and Windows test jobs, the
+  coverage combines and `checks-linux` (whose only Markdown check is the strict docs build) are
+  left out (each carries `filters: pipeline.parameters.test-scope ==
   "all"`), and `markdown-checks` runs on one Linux machine instead: the strict docs build and the
   tests that read Markdown (`nox -s test-markdown`). Main, a tag, any other change, or a change git
   can't list gets `all`.

@@ -3162,7 +3162,7 @@ def test_the_checks_run_on_a_large_linux_container_beside_the_tests():
     """Format, lint (the docs build with it), the type checkers and the security scan: Linux.
 
     large (4 CPUs, 8 GB): the strict docs build was killed for memory at 4 GB (deploy-docs).
-    Beside the tests: the workflow lists it bare, waiting for no job.
+    Beside the tests: it waits for no job, and runs only where the tests do (test-scope all).
     """
     job = circleci_job_definition(name=CHECKS_JOB)
 
@@ -3177,9 +3177,10 @@ def test_the_checks_run_on_a_large_linux_container_beside_the_tests():
     assert job.index('      - install-supply-chain-tools-linux\n') < job.index(
         '      - nox-security-scan\n'
     )
-    assert CHECKS_JOB in workflow_jobs()
-    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    assert re.search(rf'^      - {CHECKS_JOB}$', configuration, flags=re.MULTILINE)
+    assert workflow_entries()[CHECKS_JOB] == {
+        'job': CHECKS_JOB,
+        'filters': TEST_SCOPE_FILTER.format(scope='all'),
+    }
 
 
 def test_ci_builds_the_docs_once_outside_their_deploy():
@@ -3500,6 +3501,8 @@ TEST_SCOPE_ALL_JOBS = {
     'test-python-3-15-windows',
     'coverage-combine-linux-test-3-15',
     'coverage-combine-windows-test-3-15',
+    # Of its checks only the strict docs build reads Markdown, and markdown-checks runs that build
+    CHECKS_JOB,
 }
 TEST_SCOPE_FILTER = 'pipeline.parameters.test-scope == "{scope}"'
 
@@ -3584,8 +3587,8 @@ def test_the_test_scope_parameter_defaults_to_running_everything():
     }
 
 
-def test_a_docs_only_pipeline_leaves_out_every_test_job_and_nothing_else():
-    """The test and coverage jobs run on ``all`` only, the Markdown checks on ``markdown`` only.
+def test_a_docs_only_pipeline_leaves_out_the_test_jobs_and_checks_and_nothing_else():
+    """The test, coverage and checks jobs run on ``all`` only, the Markdown checks on ``markdown``.
 
     Every other job (the infrastructure tests, the deploys on main) has no test-scope filter, and
     every job that runs a test session is among those left out, so a test job added later can't

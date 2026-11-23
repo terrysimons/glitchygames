@@ -4,9 +4,9 @@
 # See: https://circleci.com/docs/guides/orchestrate/dynamic-config/
 #
 # A branch whose change is Markdown only (scripts/ci_change_scope.py: every changed path matches
-# the pre-commit hooks' Markdown exclude) gets test-scope markdown: the test jobs are left out and
-# the Markdown checks run instead (the owner, 2026-11-20: docs-only pull requests skip the test
-# jobs). Main, a tag, any other change, or a change the script can't read gets test-scope all.
+# the pre-commit hooks' Markdown exclude) gets test-scope markdown: the test jobs and
+# checks-linux are left out and the Markdown checks run instead (the owner, 2026-11-20:
+# docs-only pull requests skip the test jobs). Main, a tag, any other change, or a change the script can't read gets test-scope all.
 # The choice runs before anything is installed: Python's standard library, git, and the curl
 # and jq the continuation needs, all in cimg/python (tests/test_ci_config.py holds the image to
 # continue_config.yml's PYTHON_VERSION).

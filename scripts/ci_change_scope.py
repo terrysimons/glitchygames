@@ -1,9 +1,10 @@
 """Choose which tests a CircleCI pipeline runs: every test job, or only the Markdown checks.
 
 A change whose every path is Markdown (``MARKDOWN_PATTERN``, the pre-commit hooks' own
-``exclude``: a Markdown-only change runs no hook) leaves out the test jobs and runs the Markdown
-checks instead: the strict docs build and the tests that read Markdown (the owner, 2026-11-20, via
-the coordinator: a plan-only pull request waited hours for the single macOS queue). Main always
+``exclude``: a Markdown-only change runs no hook) leaves out the test jobs and checks-linux and
+runs the Markdown checks instead: the strict docs build and the tests that read Markdown (the
+owner, 2026-11-20, via the coordinator: a plan-only pull request waited hours for the single
+macOS queue). Main always
 runs everything, as does a pipeline with no branch (a tag) or a change this can't read.
 
 CircleCI's setup configuration (.circleci/config.yml) runs this before anything is installed, so
