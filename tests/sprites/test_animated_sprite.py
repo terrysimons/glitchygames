@@ -5355,10 +5355,12 @@ class TestAnimatedSpriteFilesLoadWithEitherLineEnd:
         lf_path.write_bytes(text.encode('utf-8'))
         return text
 
-    def test_a_crlf_file_loads_the_same_frames_as_an_lf_file(self, tmp_path):
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_a_crlf_file_loads_the_same_frames_as_an_lf_file(self, tmp_path, line_end):
+        """Windows' CRLF and old Macs' lone CR are read as line feeds before parsing."""
         text = self._two_frame_sprite_text(tmp_path)
         crlf_path = tmp_path / 'crlf.toml'
-        crlf_path.write_bytes(text.replace('\n', '\r\n').encode('utf-8'))
+        crlf_path.write_bytes(text.replace('\n', line_end).encode('utf-8'))
 
         from_lf = AnimatedSprite(filename=str(tmp_path / 'lf.toml'))
         from_crlf = AnimatedSprite(filename=str(crlf_path))
@@ -5368,6 +5370,7 @@ class TestAnimatedSpriteFilesLoadWithEitherLineEnd:
 
         assert frames(from_crlf) == frames(from_lf)
         assert len(frames(from_lf)) == 2
+        assert from_crlf.to_text() == text
 
     def test_a_crlf_file_saves_again_with_the_os_line_ends(self, tmp_path):
         text = self._two_frame_sprite_text(tmp_path)

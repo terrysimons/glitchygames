@@ -337,8 +337,7 @@ class MultiControllerConfig:
             return cls()
 
         try:
-            with config_path.open(encoding='utf-8') as f:
-                config_data = json.load(f)
+            config_data = json.loads(config_path.read_text(encoding='utf-8'))
 
             return cls(**config_data)
         except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:

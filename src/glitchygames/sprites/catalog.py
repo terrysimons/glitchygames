@@ -106,8 +106,7 @@ def read_sprite_text(path: Path) -> SpriteText | None:
         The text, or None when the file has no ``[sprite]`` table.
 
     """
-    with path.open('rb') as file:
-        data = tomllib.load(file)
+    data = tomllib.loads(path.read_text(encoding='utf-8'))
     sprite = data.get('sprite')
     if not isinstance(sprite, dict):
         return None

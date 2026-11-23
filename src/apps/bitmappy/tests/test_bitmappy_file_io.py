@@ -554,6 +554,14 @@ class TestSamplePngColors:
 class TestValidateTomlContent:
     """Test _validate_toml_content."""
 
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_content_with_any_line_end_passes(self, tmp_path, line_end):
+        """A converted file with CRLF or lone-CR line ends validates as with LF."""
+        toml_path = tmp_path / 'ok.toml'
+        toml_path.write_bytes(CONVERTED_TOML.replace('\n', line_end).encode('utf-8'))
+
+        FileIOManager(SimpleNamespace())._validate_toml_content(toml_path)
+
     def test_valid_content_passes(self, tmp_path):
         """A file with sprite, colors and a color definition validates."""
         toml_path = tmp_path / 'ok.toml'

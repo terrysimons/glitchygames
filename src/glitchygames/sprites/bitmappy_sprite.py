@@ -1058,8 +1058,7 @@ class BitmappySprite(Sprite):
         from glitchygames.tools.ascii_renderer import ASCIIRenderer
 
         # Load TOML data from file
-        with Path(filename).open('rb') as toml_file:
-            toml_data = tomllib.load(toml_file)
+        toml_data = tomllib.loads(Path(filename).read_text(encoding='utf-8'))
 
         # Check if it's an animated sprite and show all frames
         if 'animation' in toml_data and len(toml_data['animation']) > 0:

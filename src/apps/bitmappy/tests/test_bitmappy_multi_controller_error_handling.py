@@ -293,6 +293,17 @@ class TestMultiControllerConfig:
         config = MultiControllerConfig.from_file(str(config_file))
         assert config.max_controllers == 8
         assert config.controller_timeout == pytest.approx(600.0)
+
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_from_file_reads_any_line_end(self, tmp_path, line_end):
+        """A config saved on Windows (CRLF) or an old Mac (CR) loads as one with LF."""
+        text = json.dumps({'max_controllers': 8, 'visual_indicator_shape': 'circle'}, indent=2)
+        config_file = tmp_path / 'config.json'
+        config_file.write_bytes(text.replace('\n', line_end).encode('utf-8'))
+
+        config = MultiControllerConfig.from_file(str(config_file))
+
+        assert (config.max_controllers, config.visual_indicator_shape) == (8, 'circle')
         assert config.visual_indicator_shape == 'circle'
 
     def test_from_file_invalid_json(self, tmp_path):

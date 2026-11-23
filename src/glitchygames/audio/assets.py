@@ -976,8 +976,8 @@ def _read_document(path: Path) -> dict[str, Any]:
         SoundAssetError: When the file cannot be read or is not valid TOML.
     """
     try:
-        with path.open('rb') as sound_file:
-            return tomllib.load(sound_file)
+        # Text mode: CRLF and a lone CR read as LF, whatever OS saved the file
+        return tomllib.loads(path.read_text(encoding='utf-8'))
     except OSError as error:
         message = f'{path}: the file cannot be read: {error.strerror or error}'
         raise SoundAssetError(message) from error

@@ -190,11 +190,12 @@ class TestExportIsWholeOrNothing:
         assert not output.with_name('sprites.jsonl.partial').exists()
 
 
-def test_a_crlf_sprite_file_is_read_the_same_as_an_lf_one(library, tmp_path):
-    """A sprite saved on Windows (CRLF) reads, and exports, as one saved on a Mac (LF)."""
+@pytest.mark.parametrize('line_end', [b'\r\n', b'\r'], ids=['crlf', 'lone-cr'])
+def test_a_crlf_sprite_file_is_read_the_same_as_an_lf_one(library, tmp_path, line_end):
+    """A sprite saved on Windows (CRLF) or an old Mac (CR) reads as one saved with LF."""
     crlf_path = tmp_path / 'sword.toml'
     lf_bytes = (library / 'sword.toml').read_bytes()
-    crlf_path.write_bytes(lf_bytes.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))
+    crlf_path.write_bytes(lf_bytes.replace(b'\r\n', b'\n').replace(b'\n', line_end))
 
     (from_lf,) = read_sprite_texts([library / 'sword.toml'])
     (from_crlf,) = read_sprite_texts([crlf_path])

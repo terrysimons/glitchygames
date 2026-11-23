@@ -37,6 +37,18 @@ class TestSaveAndLoad:
         result = saves.load('slot_1')
         assert result == data
 
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_a_save_with_any_line_end_loads_the_same(self, tmp_path: Path, line_end: str) -> None:
+        """A save moved from Windows (CRLF) or an old Mac (CR) loads as it was saved."""
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        data = {'score': 100, 'names': ['a', 'b']}
+        path = saves.save('slot_1', data)
+        text = path.read_bytes().decode('utf-8').replace('\r\n', '\n')
+        path.write_bytes(text.replace('\n', line_end).encode('utf-8'))
+
+        assert saves.load('slot_1') == data
+        assert [slot.name for slot in saves.list_slots()] == ['slot_1']
+
     def test_save_creates_directory(self, tmp_path: Path) -> None:
         """Save creates the save directory if it doesn't exist."""
         save_dir = tmp_path / 'nested' / 'dir'

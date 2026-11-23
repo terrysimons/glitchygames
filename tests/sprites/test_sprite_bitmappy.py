@@ -549,12 +549,26 @@ class TestStaticFilesLoadWithEitherLineEnd:
         path.write_bytes(self.TEXT.replace('\n', line_end).encode('utf-8'))
         return BitmappySprite(x=0, y=0, filename=str(path))
 
-    def test_a_crlf_file_loads_the_same_pixels_as_an_lf_file(self, tmp_path):
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_a_crlf_file_loads_the_same_pixels_as_an_lf_file(self, tmp_path, line_end):
+        """Windows' CRLF and old Macs' lone CR are read as line feeds before parsing."""
         from_lf = self._load(tmp_path / 'lf.toml', '\n')
-        from_crlf = self._load(tmp_path / 'crlf.toml', '\r\n')
+        from_crlf = self._load(tmp_path / 'crlf.toml', line_end)
 
         assert from_crlf.pixels == from_lf.pixels
         assert from_crlf.image.get_size() == from_lf.image.get_size() == (2, 2)
+        assert '\r' not in repr(from_crlf.deflate(file_format='toml'))
+
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_a_crlf_file_is_shown_as_an_lf_file_is(self, tmp_path, line_end):
+        """The text rendering reads the file through the same line-feed step."""
+        sprite = self._load(tmp_path / 'lf.toml', '\n')
+        (tmp_path / 'crlf.toml').write_bytes(self.TEXT.replace('\n', line_end).encode('utf-8'))
+
+        shown_lf = sprite._render_file_str(str(tmp_path / 'lf.toml'))
+        shown_crlf = sprite._render_file_str(str(tmp_path / 'crlf.toml'))
+
+        assert shown_crlf == shown_lf
 
     def test_a_crlf_file_saves_again_with_the_os_line_ends(self, tmp_path):
         lf_saved = tmp_path / 'from_lf.toml'

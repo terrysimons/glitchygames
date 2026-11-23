@@ -1336,8 +1336,8 @@ class AnimatedSprite(AnimatedSpriteInterface, RootSprite):  # ruff: ignore[too-m
 
         """
         try:
-            # Bytes decoded, not read_text: the TOML parser then sees the file's own line endings
-            text = Path(filename).read_bytes().decode('utf-8')
+            # Text mode: CRLF and a lone CR read as LF, whatever OS saved the file
+            text = Path(filename).read_text(encoding='utf-8')
         except FileNotFoundError as e:
             raise FileNotFoundError(ERR_SPRITE_FILE_NOT_FOUND.format(filename)) from e
         except UnicodeDecodeError as e:

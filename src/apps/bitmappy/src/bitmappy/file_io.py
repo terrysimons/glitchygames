@@ -405,8 +405,7 @@ class FileIOManager:
             ValueError: If the TOML file is missing required sections.
 
         """
-        with output_path.open(encoding='utf-8') as f:
-            content = f.read()
+        content = output_path.read_text(encoding='utf-8')
 
         if '[sprite]' not in content:
             self.log.error('TOML file missing [sprite] section!')
