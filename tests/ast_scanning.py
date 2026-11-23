@@ -411,8 +411,8 @@ def _skips_line_end_translation(*, call: ast.Call) -> bool:
     """Return whether a call reads or writes a file without text mode's line-end translation.
 
     That is ``tomllib.load`` or ``tomli_w.dump`` (a binary file), ``read_bytes`` or
-    ``write_bytes``, an ``open``
-    whose literal mode is binary, or any call passing an empty or line-feed ``newline``.
+    ``write_bytes``, an ``open`` whose literal mode is binary, or any call passing an empty or
+    line-feed ``newline``.
 
     Returns:
         True for such a call.

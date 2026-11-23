@@ -2,8 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** DONE (2026-10-26) on `feature/workspace-packages-4-bitmappy`, not yet merged. The
-commits run from a97efbe9 to the branch tip; the final hash is pinned at merge.
+**Status:** DONE (2026-10-26) on `feature/workspace-packages-4-bitmappy`, merged as #110
+(`73ed261f`). The commits ran from a97efbe9 to the branch tip.
 - **Tasks 1-7 and an added Task 5b,** the user's engine-test path fixes: `sys.path` edits removed
   and guarded, and the examples check counts only tracked files.
 - **The user's manual checks passed (2026-10-26):** the frozen binary loads a sprite by path and
