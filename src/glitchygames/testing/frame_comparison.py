@@ -57,8 +57,10 @@ WINDOW_ANIMATION_FRAME_MILLISECONDS = 250
 # How long the last frame shows before the animation loops: a pause marks the restart
 WINDOW_ANIMATION_HOLD_MILLISECONDS = 1000
 # The shortest gap the game-speed animation shows: one frame at 60 FPS, for a served frame time
-# of 0 or none (a test's clock that did not move), above APNG players' 10 ms floor
-WINDOW_ANIMATION_MINIMUM_GAP_MILLISECONDS = round(1000 / 60)
+# of 0 or none (a test's clock that did not move), above APNG players' 10 ms floor. Written as
+# the number (1000 / 60, rounded): a module constant made by a call fails the process-state
+# audit, which cannot tell its result is immutable (tests/test_process_state_guard.py)
+WINDOW_ANIMATION_MINIMUM_GAP_MILLISECONDS = 17
 # The strip's bars above the frames: the title (the test), then each panel's caption
 WINDOW_ANIMATION_TITLE_HEIGHT = 16
 WINDOW_ANIMATION_CAPTION_HEIGHT = 16

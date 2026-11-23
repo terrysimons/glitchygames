@@ -1293,7 +1293,11 @@ class TestAReRunStopsAfterItsFrames:
         assert record.frame_clock_at == pytest.approx({2: 2 / 60, 4: 4 / 60})
 
     def test_the_run_facts_are_noted_with_the_saved_frames(self, long_tests, tmp_path):
-        """The dummy driver has no refresh rate (its 60 Hz is SDL's stand-in); no FPS, no engine."""
+        """The display's refresh rate as pygame reports it (none on dummy); no FPS, no engine.
+
+        It draws, so compare-drivers runs it on the native driver too, where the display has a
+        real refresh rate (the dummy driver's 60 Hz is SDL's stand-in: None).
+        """
         directory = tmp_path / 'run'
 
         self.run_with_request(
@@ -1303,8 +1307,10 @@ class TestAReRunStopsAfterItsFrames:
         )
 
         record = read_recorded_frames(directory=directory)[LONG_NOT_STOPPED]
-        assert pygame.display.get_driver() == 'dummy'
-        assert record.refresh_rate_hz is None
+        if pygame.display.get_driver() == 'dummy':
+            assert record.refresh_rate_hz is None
+        else:
+            assert record.refresh_rate_hz == pygame.display.get_current_refresh_rate()
         assert record.configured_fps is None
         assert record.test_order_seed is None
 
