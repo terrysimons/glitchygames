@@ -13,9 +13,9 @@ flowchart TD
         doors["Doors guard<br/>tests/test_engine_doors.py"]
         memory["Memory guard<br/>(CI Linux only)"]
     end
-    subgraph tools ["On demand, and in the commit hook"]
+    subgraph tools ["On demand"]
         verify["glitchygames verify"]
-        measure["glitchygames measure<br/>(pre-commit replay-metrics)"]
+        measure["glitchygames measure<br/>(by hand: nox -s measure-staged)"]
         rebaseline["--rebaseline<br/>(after an intended change)"]
         audit["--audit<br/>(determinism)"]
     end
@@ -98,16 +98,15 @@ refusal, every exit code.
   golden follows an intended change. NEW replaces OLD only as a deliberate, reviewed step.
 - **`glitchygames measure`** rebaselines each recording headless into a temporary file, in a
   child, and turns the result into ledger rows (`src/glitchygames/replay/tools/measure.py`).
-  - The `replay-metrics` pre-commit hook (`scripts/measure_staged_replays.py`) runs it whenever
-    this machine has not measured the staged code tree, so every commit carries its measurements.
+  - `nox -s measure-staged` (`scripts/measure_staged_replays.py`) runs it by hand whenever this
+    machine has not measured the staged code tree. It was the `replay-metrics` pre-commit hook
+    until the owner stopped committing replay-ledger rows (2026-11-22; they move to S3).
 
 ```mermaid
 flowchart LR
     change["intended change<br/>to a game"] --> rb["--rebaseline OLD NEW<br/>(review the summary)"]
     rb --> replace["replace OLD with NEW<br/>(deliberate step)"]
     replace --> commit["git commit"]
-    commit --> hook["replay-metrics hook:<br/>measure = rebaseline each recording<br/>into a temp file"]
-    hook --> rows["ledger rows<br/>staged into the commit"]
     commit --> suite["test run: golden replays<br/>must match"]
 ```
 
