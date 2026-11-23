@@ -225,6 +225,7 @@ def run_stand_in_game(
     return completed.returncode, completed.stdout or ''
 
 
+@pytest.mark.draws_frames
 @pytest.mark.frames_vary(
     reason='the session runs the real frame loop: each frame moves by its measured frame time'
 )
@@ -262,6 +263,7 @@ def test_scripted_session_records_and_replays(mocker, tmp_path):
     assert replay.result.frames_replayed == RECORDED_FRAME_COUNT
 
 
+@pytest.mark.draws_frames
 @pytest.mark.frames_vary(
     reason='the session runs the real frame loop: each frame moves by its measured frame time'
 )
@@ -288,6 +290,7 @@ def test_a_polled_input_session_shows_the_posted_keys_held(mocker, tmp_path):
     assert live_sources.capture_live_snapshot.__name__ == 'capture_live_snapshot'
 
 
+@pytest.mark.draws_frames
 @pytest.mark.frames_vary(
     reason='the session runs the real frame loop: each frame moves by its measured frame time'
 )
@@ -405,6 +408,7 @@ def snapshot_axis(
     )
 
 
+@pytest.mark.draws_frames
 @pytest.mark.frames_vary(
     reason='the session runs the real frame loop: each frame moves by its measured frame time'
 )
@@ -472,6 +476,7 @@ def test_a_session_with_a_stand_in_pad_records_and_replays_it(mocker, tmp_path):
     assert replay.result.frames_replayed == PAD_SESSION_FRAMES
 
 
+@pytest.mark.draws_frames
 @pytest.mark.frames_vary(
     reason='the session runs the real frame loop: each frame moves by its measured frame time'
 )
@@ -693,6 +698,7 @@ def test_a_controls_tail_without_key_events_is_refused(scene_manager):
         )
 
 
+@pytest.mark.draws_frames
 @pytest.mark.frames_vary(
     reason='the session runs the real frame loop: each frame moves by its measured frame time'
 )

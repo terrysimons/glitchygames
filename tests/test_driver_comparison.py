@@ -57,13 +57,15 @@ INNER_CONFTEST = textwrap.dedent(
 INNER_WINDOW_SIZE = (96, 64)
 INNER_WINDOW_PIXELS = INNER_WINDOW_SIZE[0] * INNER_WINDOW_SIZE[1]
 # Inner tests: one draws the same in both runs; one draws red in the first run and its re-run
-# (recording into dummy/ and dummy-images/) and green in the second run and its re-run
+# (recording into dummy/ and dummy-images/) and green in the second run and its re-run. Both
+# draw, so both carry draws_frames: the second run runs only the tests that do
 INNER_TESTS = textwrap.dedent(
     f"""
     import os
     from pathlib import Path
 
     import pygame
+    import pytest
 
 
     def present(color):
@@ -73,10 +75,12 @@ INNER_TESTS = textwrap.dedent(
         pygame.display.flip()
 
 
+    @pytest.mark.draws_frames
     def test_same_everywhere():
         present((10, 20, 30))
 
 
+    @pytest.mark.draws_frames
     def test_differs_in_the_second_run(request):
         # Not recording at all (--dummy-only): a first run
         directory = request.config.getoption({FINGERPRINTS_OPTION!r}) or os.environ.get(
@@ -218,7 +222,7 @@ class TestWorkersAndCommands:
         assert split_workers(workers=workers) == expected
 
     def test_the_child_command_appends_its_options(self, tmp_path):
-        """This interpreter's pytest, the arguments, then workers, no coverage, its outputs."""
+        """This interpreter's pytest, the arguments, then its options: drawing tests only."""
         command = child_pytest_command(
             arguments=['tests/a.py', '-k', 'name'],
             workers=4,
@@ -237,6 +241,7 @@ class TestWorkersAndCommands:
             '-n',
             '4',
             '--no-cov',
+            '--draws-frames-only',
             f'--junitxml={tmp_path / "junit.xml"}',
             '-o',
             f'cache_dir={tmp_path / "cache"}',
@@ -348,8 +353,15 @@ class TestEndToEnd:
                 f"""
                 import os
 
+                import pygame
+                import pytest
 
+
+                @pytest.mark.draws_frames
                 def test_fails_in_the_second_run():
+                    pygame.init()
+                    pygame.display.set_mode({INNER_WINDOW_SIZE})
+                    pygame.display.flip()
                     assert {FINGERPRINTS_VARIABLE!r} in os.environ
                 """
             )

@@ -232,6 +232,7 @@ class TestRecordings:
         assert 'made before logical names' in caplog.text
         assert '--game classic or --game papyrus' in caplog.text
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('golden', 'game_module'),
         [(CLASSIC_GOLDEN, brave_adventurer_game), (PAPYRUS_GOLDEN, papyrus_game)],
@@ -306,6 +307,7 @@ class TestTheTitleScreen:
             'games.brave_adventurer_modes.title:TitleScene'
         )
 
+    @pytest.mark.draws_frames
     def test_it_shows_both_games_with_how_each_differs(self, tmp_path):
         with _title_screen(tmp_path) as manager:
             scene = manager.active_scene
@@ -318,6 +320,7 @@ class TestTheTitleScreen:
             assert 'Egyptian' in GAME_CHOICES[1].description
             assert 'sprite-sheet' in GAME_CHOICES[1].description
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('keys', 'scene_class'),
         [
@@ -345,12 +348,14 @@ class TestTheTitleScreen:
             assert type(manager.active_scene) is scene_class
             assert manager.active_scene.options is manager.game_engine.OPTIONS
 
+    @pytest.mark.draws_frames
     def test_a_release_without_its_press_on_the_title_screen_chooses_nothing(self, tmp_path):
         with _title_screen(tmp_path) as manager:
             _run_frames(manager, release(pygame.K_SPACE), press(pygame.K_a), release(pygame.K_a))
 
             assert isinstance(manager.active_scene, TitleScene)
 
+    @pytest.mark.draws_frames
     def test_q_quits_on_its_press(self, tmp_path):
         with _title_screen(tmp_path) as manager:
             _run_frames(manager, press(pygame.K_q))
@@ -358,6 +363,7 @@ class TestTheTitleScreen:
             assert manager.quit_requested
             assert isinstance(manager.active_scene, TitleScene)
 
+    @pytest.mark.draws_frames
     def test_escape_does_nothing_on_the_title_screen(self, tmp_path):
         """The browser's touch Pause button sends Escape: it must not end the run from here."""
         with _title_screen(tmp_path) as manager:
@@ -497,6 +503,7 @@ class TestTheTitleScreen:
 
         assert started_games == [TitleScene, 'started']
 
+    @pytest.mark.draws_frames
     def test_a_recording_made_from_the_launcher_replays_through_it(self, mocker, tmp_path):
         """It names the title screen first, then the game; the launcher replays it from there.
 

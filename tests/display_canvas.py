@@ -25,7 +25,7 @@ from glitchygames.backgrounds import (
     background_pattern_surface,
 )
 from glitchygames.display_mode import set_display_mode
-from glitchygames.opacity import every_pixel_has_alpha, has_per_pixel_alpha
+from glitchygames.opacity import every_pixel_has_alpha, has_per_pixel_alpha, shown_rgb_bytes
 
 TEST_CANVAS_VARIABLE = 'GLITCHYGAMES_TEST_CANVAS'
 TEST_DISPLAY_SIZE = (800, 600)
@@ -70,6 +70,22 @@ def canvas_color_at(*, x: int, y: int, size: tuple[int, int] = TEST_DISPLAY_SIZE
 
     """
     return background_pattern_surface(pattern=CANVAS_PATTERN, size=size).get_at((x, y))
+
+
+def canvas_shown_bytes(*, size: tuple[int, int]) -> bytes:
+    """Return the canvas at a size as the window shows it: a test that draws nothing leaves it.
+
+    The draws_frames check compares the display a test left with these bytes (the root
+    conftest's ``pytest_frame_fingerprints_blank_screen``).
+
+    Args:
+        size: The display size.
+
+    Returns:
+        bytes: The canvas pattern's shown RGB bytes (``opacity.shown_rgb_bytes``).
+
+    """
+    return shown_rgb_bytes(surface=background_pattern_surface(pattern=CANVAS_PATTERN, size=size))
 
 
 def real_display_surface() -> pygame.Surface | None:
