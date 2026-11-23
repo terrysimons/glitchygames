@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""The pre-push hook that also measures the replays on the Raspberry Pis and copies the rows here.
+"""Measure the replays on the Raspberry Pis and copy the rows here (by hand only).
 
-Run by the pre-commit framework before each push (``.pre-commit-config.yaml``, hook
-``raspberry-pi-replay-metrics``), in addition to what this machine measures at each commit
+Until 2026-11-22 the pre-push hook ``raspberry-pi-replay-metrics``; the owner then stopped
+committing replay-ledger rows (too many files in git; they move to S3, plans/future-work.md), so
+no hook runs it and "the hook" below means this script run by hand (``nox -s
+measure-on-raspberry-pi``). It works in addition to what this machine measures
 (``scripts/measure_staged_replays.py``, which each Pi's clone runs too, so the rules are the same:
 once per code tree per machine). It sends the commit being pushed to a clone on each Pi that only
 this uses (``ansible/raspberry_pi_runner.yml`` makes it), measures there, and copies the row files
@@ -54,7 +56,7 @@ already measured.
 Rows left in a Pi's clone by a measurement or push that went no further stay there, untracked:
 the next measurement of the same tree counts them, staging them again rather than measuring twice.
 
-``SKIP=raspberry-pi-replay-metrics git push ...`` pushes without measuring on the Pis.
+Measuring on the Pis is optional and by hand: a push never runs it.
 
 Usage (the framework runs it through nox; by hand, then commit what it stages):
     nox -s measure-on-raspberry-pi
@@ -739,8 +741,8 @@ def measure_on_raspberry_pis(
     if unreachable:
         names = ', '.join(each.name for each in unreachable)
         sys.stderr.write(
-            f'raspberry-pi-replay-metrics: could not reach {names}; start it and push again, or '
-            'push without measuring on the Pis: SKIP=raspberry-pi-replay-metrics git push ...\n'
+            f'raspberry-pi-replay-metrics: could not reach {names}; start it and measure again '
+            '(nox -s measure-on-raspberry-pi); nothing was sent to any Pi\n'
         )
         return ExitCode.OPTIONS_REFUSED
     commit = run_git(repository=repository, arguments=['rev-parse', f'{commit_name}^{{commit}}'])
@@ -781,8 +783,8 @@ def measure_on_raspberry_pis(
             )
         )
         sys.stderr.write(
-            f'raspberry-pi-replay-metrics: {reason}, or push without measuring on the Pis: '
-            'SKIP=raspberry-pi-replay-metrics git push ...\n'
+            f'raspberry-pi-replay-metrics: {reason} (measuring on the Pis is by hand only: '
+            'nox -s measure-on-raspberry-pi)\n'
         )
     if failed:
         return failed[0].measure_status

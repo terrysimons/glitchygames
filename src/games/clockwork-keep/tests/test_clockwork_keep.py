@@ -1243,6 +1243,7 @@ class TestFloorInput:
         _press_key(clockwork_scene, pygame.K_ESCAPE)
         assert isinstance(clockwork_scene.next_scene, PauseScene)
 
+    @pytest.mark.draws_frames
     def test_the_quit_key_ends_the_run(self):
         """Through the engine's frame loop (next_scene = None never ended it)."""
         with golden_game(scene_class=ClockworkKeepScene, random_seed=1) as manager:
@@ -1368,6 +1369,7 @@ class TestFloorRendering:
 GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'
 
 
+@pytest.mark.draws_frames
 def test_main_runs_the_game_through_the_engine(mocker, capsys):
     """main() starts Clockwork Keep in the engine: here a headless replay of the golden run.
 

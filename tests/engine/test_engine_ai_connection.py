@@ -176,6 +176,7 @@ def test_a_machine_without_the_service_gets_the_plain_doors(scene):
     assert engine.ai_link is None
 
 
+@pytest.mark.draws_frames
 @pytest.mark.frames_vary(reason=PROPOSAL_ARRIVES_IN_REAL_TIME)
 def test_a_proposal_reaches_the_scene_and_the_session_ends_with_the_run(
     scene, fake_service, installed
@@ -193,6 +194,7 @@ def test_a_proposal_reaches_the_scene_and_the_session_ends_with_the_run(
     assert fake_service.sessions_closed.wait(timeout=5)
 
 
+@pytest.mark.draws_frames
 def test_a_service_that_never_answers_leaves_the_game_running(scene, installed, monkeypatch):
     """Nothing listening is only a state: the run plays out, and ends as it would have."""
     links_connect_to(url=NOTHING_LISTENING_URL, monkeypatch=monkeypatch)
@@ -207,6 +209,7 @@ def test_a_service_that_never_answers_leaves_the_game_running(scene, installed, 
     assert engine.ai_link.state is LinkState.STOPPED
 
 
+@pytest.mark.draws_frames
 @pytest.mark.frames_vary(reason=PROPOSAL_ARRIVES_IN_REAL_TIME)
 def test_a_run_with_ai_replays_exactly_with_no_service(scene, fake_service, tmp_path, monkeypatch):
     """The core promise: AI input is recorded, so a replay needs no AI, model or service."""
@@ -271,6 +274,7 @@ class TypingScene(ProposalWatchingScene):
         type(self).releases_received.append(event.key)
 
 
+@pytest.mark.draws_frames
 def test_typing_in_the_console_reaches_neither_the_game_nor_the_recording(tmp_path, monkeypatch):
     """The whole path on a real engine: the game sees one clean press and release of its own key.
 

@@ -107,6 +107,7 @@ def _probe_positions(*, path: Path, probe: int) -> list[tuple[int, int]]:
     return [tuple(frame['sprites'][probe]['rect'][:2]) for frame in frames]
 
 
+@pytest.mark.draws_frames
 def test_the_recording_holds_what_the_game_read_of_the_sound_engine(recording):
     """The stand-in really exercises it: a length and peak, a note that plays, and steals."""
     lengths = _probe_positions(path=recording, probe=LENGTH_PROBE)
@@ -126,6 +127,7 @@ def test_the_recording_holds_what_the_game_read_of_the_sound_engine(recording):
     assert bursts[-1] == (0, steals)
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize('cache_mode', ['ram', 'none'])
 def test_the_recording_replays_exactly_under_each_cache_mode(mocker, recording, cache_mode):
     """``--sound-cache`` is replay-local: what the game read is the same under each mode."""
@@ -141,6 +143,7 @@ def test_the_recording_replays_exactly_under_each_cache_mode(mocker, recording, 
     assert replay.result.frames_replayed == SOUNDING_RALLY_FRAMES
 
 
+@pytest.mark.draws_frames
 def test_the_recording_replays_exactly_through_a_silenced_rebuild(mocker, recording):
     """A watched replay restarted at PAUSE_FRAME rebuilds frames 0 .. PAUSE_FRAME - 1 silenced.
 

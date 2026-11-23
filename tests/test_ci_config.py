@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import re
 import shlex
@@ -553,6 +554,30 @@ def test_replay_metrics_runs_on_the_editable_install_of_every_package():
     assert session.environments[command] == {'VIRTUAL_ENV': None, 'UV_NO_EDITABLE': None}
 
 
+@pytest.mark.parametrize('configuration_name', ['dummy', 'cocoa'])
+def test_every_compare_drivers_run_runs_only_the_drawing_tests(configuration_name, tmp_path):
+    """Each run (a baseline, a native one, the images re-run) passes --draws-frames-only."""
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+    noxfile._run_fingerprinted_tests(
+        session,
+        configuration={
+            'name': configuration_name,
+            'environment': {'SDL_VIDEODRIVER': configuration_name},
+            'runs_in_linux_container': False,
+        },
+        directory=tmp_path / 'run',
+        arguments=['tests/scenes', '-m', 'slow'],
+        settings=noxfile._RunSettings(workers='4'),
+    )
+
+    (command,) = session.commands
+    assert '--draws-frames-only' in command
+    # The caller's selection stays: the plugin deselects after any -m
+    assert command[-3:] == ('tests/scenes', '-m', 'slow')
+
+
 def test_the_test_sessions_install_stays_built():
     """The test sessions install the built packages on purpose (what a user installs)."""
     import noxfile
@@ -1102,7 +1127,7 @@ def test_both_linux_jobs_install_their_system_packages_through_one_command():
 
     jobs = circleci_jobs()
 
-    for name in ('test-python-3-15-linux', 'deploy-docs'):
+    for name in ('test-python-3-15-linux', 'deploy-docs', CHECKS_JOB):
         steps = jobs[name]['steps']
         assert isinstance(steps, list)
         assert steps.count(LINUX_SYSTEM_DEPENDENCIES_COMMAND) == 1, name
@@ -1813,7 +1838,7 @@ def test_every_session_but_the_tests_is_pinned_to_3_15():
         )
         assert python == expected, name
     jobs = circleci_job_texts()
-    for job in ('test-python-3-15-macos', 'deploy-docs'):
+    for job in ('test-python-3-15-macos', 'deploy-docs', CHECKS_JOB):
         assert re.findall(r'          pythons: (.+)\n', jobs[job]) == [PYTHON_PARAMETERS['3.15']], (
             job
         )
@@ -2262,8 +2287,9 @@ def test_a_failed_shuffled_run_names_its_seed_and_how_to_replay_it(mocker):
 
 # pre-commit's own run of a hook set in a throwaway repository: a minute is far more than it needs
 PRE_COMMIT_TIMEOUT_SECONDS = 60.0
-# The hook stages .pre-commit-config.yaml installs (default_install_hook_types)
-HOOK_STAGES = ('pre-commit', 'pre-push')
+# The hook stages .pre-commit-config.yaml installs (default_install_hook_types): pre-push alone
+# since the owner stopped committing replay-ledger rows (2026-11-22), which was the commit stage
+HOOK_STAGES = ('pre-push',)
 
 
 def run_project_hooks_on(*, tmp_path: Path, changed_paths: list[str], stage: str) -> dict[str, str]:
@@ -3092,32 +3118,115 @@ def test_circleci_pins_the_syft_that_wrote_the_committed_sbom():
     assert syft_versions == [pipeline_parameter_default(name='SYFT_VERSION')]
 
 
+# The Linux job that runs every check whose answer is the same on every OS (format, lint with
+# the docs build, the type checkers, the security scan), beside the test jobs
+CHECKS_JOB = 'checks-linux'
+LINUX_IMAGE = '    docker:\n      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>\n'
+# The release architectures the Linux job's syft and grype are pinned for: CircleCI's Docker
+# executors (x86_64) and Linux on ARM
+SUPPLY_CHAIN_ARCHITECTURES = ('AMD64', 'ARM64')
+
+
+def nox_steps_of(job: str) -> list[str]:
+    """Return a job's nox steps (the commands named ``nox-...``), in order.
+
+    Returns:
+        The steps' command names.
+
+    """
+    return re.findall(r'^      - (nox-[a-z-]+):?$', job, flags=re.MULTILINE)
+
+
+def test_the_macos_job_runs_only_what_is_there_for_a_mac():
+    """The macOS job keeps the tests, the timer report, the benchmarks and the build alone.
+
+    The owner, 2026-11-22 (through the coordinator): every non-test check ran on the one macOS
+    machine, at 200 credits a minute, one macOS job at a time (job 5021: 1,601 s, 558 of them
+    lint). The timer report explains the macOS tests' timings, the benchmarks keep their history
+    on one hardware, and the build is the macOS binary.
+    """
+    job = macos_job()
+
+    assert nox_steps_of(job) == [
+        'nox-timer-report',
+        'nox-test',
+        'nox-performance-test',
+        'nox-build',
+    ]
+    assert 'install-supply-chain-tools' not in job
+
+
+def test_the_checks_run_on_a_large_linux_container_beside_the_tests():
+    """Format, lint (the docs build with it), the type checkers and the security scan: Linux.
+
+    large (4 CPUs, 8 GB): the strict docs build was killed for memory at 4 GB (deploy-docs).
+    Beside the tests: the workflow lists it bare, waiting for no job.
+    """
+    job = circleci_job_definition(name=CHECKS_JOB)
+
+    assert job.startswith(LINUX_IMAGE)
+    assert '    resource_class: large\n' in job
+    assert nox_steps_of(job) == [
+        'nox-format',
+        'nox-lint',
+        'nox-static-analysis',
+        'nox-security-scan',
+    ]
+    assert job.index('      - install-supply-chain-tools-linux\n') < job.index(
+        '      - nox-security-scan\n'
+    )
+    assert CHECKS_JOB in workflow_jobs()
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    assert re.search(rf'^      - {CHECKS_JOB}$', configuration, flags=re.MULTILINE)
+
+
+def test_ci_builds_the_docs_once_outside_their_deploy():
+    """One strict docs build per pipeline: lint's (job 5021 built them twice, 553 s and 124 s).
+
+    nox -s lint builds the docs (the local pre-push lint hook keeps them), so no job runs
+    lint-docs beside it.
+    """
+    import noxfile
+
+    jobs = circleci_job_texts()
+    docs_builds = [
+        name
+        for name in workflow_jobs()
+        if name != 'deploy-docs'
+        for step in nox_steps_of(jobs[name])
+        if step in {'nox-lint', 'nox-lint-docs'}
+    ]
+
+    assert docs_builds == [CHECKS_JOB]
+    assert '_lint_docs(session)' in inspect.getsource(noxfile.lint_all)
+    assert 'nox-lint-docs' not in CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+
+
 @pytest.mark.parametrize('tool', ['SYFT', 'GRYPE'])
 def test_circleci_pins_syft_and_grype_with_checksums(tool):
-    """Each is pinned to an exact version and the SHA-256 of its release tarball."""
+    """Each is pinned to an exact version and the SHA-256 of each Linux release tarball."""
     assert re.fullmatch(r'\d+\.\d+\.\d+', pipeline_parameter_default(name=f'{tool}_VERSION'))
-    assert re.fullmatch(
-        r'[0-9a-f]{64}', pipeline_parameter_default(name=f'{tool}_DARWIN_ARM64_SHA256')
-    )
+    for architecture in SUPPLY_CHAIN_ARCHITECTURES:
+        assert re.fullmatch(
+            r'[0-9a-f]{64}',
+            pipeline_parameter_default(name=f'{tool}_LINUX_{architecture}_SHA256'),
+        )
 
 
 def test_circleci_installs_syft_and_grype_checked_before_the_security_scan():
     """The pinned releases are checksummed before extraction, and installed before the scan."""
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-    job = macos_job()
 
     assert 'https://github.com/anchore/${tool}/releases/download/v${version}/${archive}' in (
         configuration
     )
-    assert configuration.index('shasum -a 256 -c -') < configuration.index('tar -xzf')
+    assert configuration.index('sha256sum -c -') < configuration.index('tar -xzf')
     for tool in ('SYFT', 'GRYPE'):
-        assert (
-            f'"<< pipeline.parameters.{tool}_VERSION >>" '
-            f'"<< pipeline.parameters.{tool}_DARWIN_ARM64_SHA256 >>"'
-        ) in configuration
-    assert job.index('      - install-supply-chain-tools-macos\n') < job.index(
-        '      - nox-security-scan\n'
-    )
+        for architecture in SUPPLY_CHAIN_ARCHITECTURES:
+            assert f'<< pipeline.parameters.{tool}_LINUX_{architecture}_SHA256 >>' in (
+                configuration
+            )
+    assert 'DARWIN_ARM64' not in configuration
     # No other installer: never the newest release, never an unchecked script
     assert 'install.sh | sh -s' not in configuration
     assert 'raw.githubusercontent.com/anchore' not in configuration

@@ -36,21 +36,29 @@ parameters:
   # binaries rather than Python packages, so uv.lock cannot pin them. SYFT_VERSION is the syft that
   # wrote docs/sbom.cyclonedx.json (its metadata.tools, which tests/test_ci_config.py checks): a
   # different syft writes a different SBOM, and the drift check fails. Each release tarball is
-  # checked against its SHA-256 below (the darwin_arm64 lines of the release's checksums.txt,
-  # https://github.com/anchore/syft/releases, https://github.com/anchore/grype/releases); the scan
-  # runs on the macOS job only, Apple silicon
+  # checked against its SHA-256 below (the linux_amd64 and linux_arm64 lines of the release's
+  # checksums.txt, https://github.com/anchore/syft/releases,
+  # https://github.com/anchore/grype/releases); the scan runs in the checks-linux job (CircleCI's
+  # Docker executors are amd64; arm64 for Linux on ARM). The SBOM is the same on every platform
+  # (scripts/generate_sbom.py), so the one macOS wrote is the one Linux checks for drift
   SYFT_VERSION:
     type: string
     default: "1.57.1"
-  SYFT_DARWIN_ARM64_SHA256:
+  SYFT_LINUX_AMD64_SHA256:
     type: string
-    default: "e0a74a5d2688d1254b4e17b71f068a83215e3625f846265bf6614c7ba06f3a96"
+    default: "bf52519eb57f675d47c07d43213cb6dff6449f3d6d1147ff6701ed91f44eef0c"
+  SYFT_LINUX_ARM64_SHA256:
+    type: string
+    default: "aa3d3e07344f590bcce8d31043b752daa76c8a56c2aa34ceeee63c6168152582"
   GRYPE_VERSION:
     type: string
     default: "0.121.3"
-  GRYPE_DARWIN_ARM64_SHA256:
+  GRYPE_LINUX_AMD64_SHA256:
     type: string
-    default: "54336f2cd8cdee8b3d8ea83462561ff7fa9293498054c7c53a193db44bfea4c8"
+    default: "e9da18cc1429e786722e32161288103600efffd8e483c90761f90485bd1bec85"
+  GRYPE_LINUX_ARM64_SHA256:
+    type: string
+    default: "b7815598d48da78bfd16f5b98ef28e1bb09c03d34fc8c3e350f99b6ccb3c7cba"
   # The fingerprint of the deploy key that may push gh-pages (a GitHub deploy key with write
   # access to this repository, its private half in this CircleCI project's SSH keys): the
   # deploy-docs job loads it with add_ssh_keys
@@ -132,9 +140,10 @@ commands:
             nox --version
 
   # The system packages the Linux jobs need, from apt, with apt's lists and downloads cached:
-  # the test job (test-python-3-15-linux) and the docs deploy (deploy-docs, which runs on Linux
-  # so it takes no Mac from the macOS jobs: the owner, 2026-11-20). One list for both, so one
-  # cache key and one install line (nox -s test-linux-ci reads it)
+  # the test job (test-python-3-15-linux), the checks (checks-linux, which installs the project
+  # with every extra, hidapi's source build included) and the docs deploy (deploy-docs, which
+  # runs on Linux so it takes no Mac from the macOS jobs: the owner, 2026-11-20). One list for
+  # all, so one cache key and one install line (nox -s test-linux-ci reads it)
   install-linux-system-dependencies:
     steps:
       # apt's package lists and the packages it downloaded, kept between jobs, so an Ubuntu mirror
@@ -271,7 +280,7 @@ commands:
   nox-lint:
     steps:
       - run:
-          name: "Lint (ruff)"
+          name: "Lint (ruff, the strict docs build, YAML, TOML, deps, dead code)"
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             nox -s lint
@@ -283,14 +292,6 @@ commands:
           command: |
             export PATH="$HOME/.local/bin:$PATH"
             nox -s static-analysis
-
-  nox-lint-docs:
-    steps:
-      - run:
-          name: "Lint docs (mkdocs)"
-          command: |
-            export PATH="$HOME/.local/bin:$PATH"
-            nox -s lint-docs
 
   nox-timer-report:
     parameters:
@@ -379,30 +380,42 @@ commands:
             - coverage-data/<< parameters.share >>
 
   # syft and grype at their pinned versions, each release tarball checked against its pinned
-  # SHA-256 before anything is extracted (macOS, Apple silicon: the checksums are darwin_arm64's)
-  install-supply-chain-tools-macos:
+  # SHA-256 before anything is extracted (Linux, amd64 or arm64: the machine's own checksums)
+  install-supply-chain-tools-linux:
     steps:
       - run:
           name: "Install syft and grype (pinned, checksummed)"
           command: |
             set -euo pipefail
-            if [ "$(uname -s) $(uname -m)" != "Darwin arm64" ]; then
-              echo "The pinned syft and grype checksums are darwin_arm64's; this is $(uname -s) $(uname -m)" >&2
-              exit 1
-            fi
+            case "$(uname -s) $(uname -m)" in
+              "Linux x86_64")
+                architecture=amd64
+                syft_sha256="<< pipeline.parameters.SYFT_LINUX_AMD64_SHA256 >>"
+                grype_sha256="<< pipeline.parameters.GRYPE_LINUX_AMD64_SHA256 >>"
+                ;;
+              "Linux aarch64")
+                architecture=arm64
+                syft_sha256="<< pipeline.parameters.SYFT_LINUX_ARM64_SHA256 >>"
+                grype_sha256="<< pipeline.parameters.GRYPE_LINUX_ARM64_SHA256 >>"
+                ;;
+              *)
+                echo "The pinned syft and grype checksums are Linux amd64's and arm64's; this is $(uname -s) $(uname -m)" >&2
+                exit 1
+                ;;
+            esac
             mkdir -p "$HOME/.local/bin"
             download_directory=$(mktemp -d)
             install_release() {
               local tool="$1" version="$2" sha256="$3"
-              local archive="${tool}_${version}_darwin_arm64.tar.gz"
+              local archive="${tool}_${version}_linux_${architecture}.tar.gz"
               curl -fsSL -o "$download_directory/$archive" \
                 "https://github.com/anchore/${tool}/releases/download/v${version}/${archive}"
-              echo "$sha256  $download_directory/$archive" | shasum -a 256 -c -
+              echo "$sha256  $download_directory/$archive" | sha256sum -c -
               tar -xzf "$download_directory/$archive" -C "$download_directory" "$tool"
               install -m 0755 "$download_directory/$tool" "$HOME/.local/bin/$tool"
             }
-            install_release syft "<< pipeline.parameters.SYFT_VERSION >>" "<< pipeline.parameters.SYFT_DARWIN_ARM64_SHA256 >>"
-            install_release grype "<< pipeline.parameters.GRYPE_VERSION >>" "<< pipeline.parameters.GRYPE_DARWIN_ARM64_SHA256 >>"
+            install_release syft "<< pipeline.parameters.SYFT_VERSION >>" "$syft_sha256"
+            install_release grype "<< pipeline.parameters.GRYPE_VERSION >>" "$grype_sha256"
             rm -rf "$download_directory"
             export PATH="$HOME/.local/bin:$PATH"
             syft version
@@ -583,10 +596,11 @@ jobs:
       - restore-uv-cache-posix
       - install-deps-posix:
           pythons: << pipeline.parameters.PYTHON_VERSION >>
-      - nox-format
-      - nox-lint
-      - nox-static-analysis
-      - nox-lint-docs
+      # Only what is there for a Mac (the owner, 2026-11-22: format, lint, the docs, type checks
+      # and the security scan moved to checks-linux, at a tenth of a Mac's credits a minute): the
+      # timer report explains this machine's timing tests, the benchmarks keep their history on
+      # one hardware (their real-time relations flip under load: tests/benchmarks/), and the
+      # build is the macOS binary
       - nox-timer-report
       # 3.15, every session (noxfile.PINNED_PYTHONS; the owner, 2026-11-18: "Only 3.15 for macos
       # too", "Just change that job's name to test-python-3-15-macos"). Linux and Windows run it
@@ -594,17 +608,14 @@ jobs:
       # the suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
       - nox-test:
           session: test-3.15
-      - install-supply-chain-tools-macos
-      - nox-security-scan
       - nox-performance-test
       - nox-build
       - save-uv-cache-posix
 
   # The suite on Linux and Windows, a job each: only what differs by platform (the tests, the
   # OS's build, and its uv cache, saved last: the owner, 2026-11-18, "Yes, let's move the uv
-  # cache"). Format, lint, type checks, docs, security scans and benchmarks give the same answer
-  # on every OS and run on macOS (the fastest runner; the committed SBOM is macOS's, so its drift
-  # check runs there)
+  # cache"). The checks that give the same answer on every OS run in checks-linux, and the
+  # benchmarks on macOS
   test-python-3-15-linux:
     docker:
       - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
@@ -682,6 +693,38 @@ jobs:
           share: windows-test-3.15
       - nox-build-windows
       - save-uv-cache-windows
+
+  # Every check that gives the same answer on every OS, once, on Linux beside the test jobs (the
+  # owner, 2026-11-22): format, lint (ruff, the one strict docs build of a pipeline, YAML, TOML,
+  # deptry, vulture), the type checkers, and the security scan (bandit, the syft SBOM and its
+  # drift check, grype, licenses; the SBOM is the same on every platform). They ran on the macOS
+  # job, where the docs were built twice (job 5021: 553 s inside lint, 124 s in lint-docs) at 200
+  # credits a minute, and macOS jobs run one at a time
+  checks-linux:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
+    # large (4 vCPUs, 8 GB): the strict docs build was killed for memory at medium's 4 GB
+    # (deploy-docs)
+    resource_class: large
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+
+    steps:
+      - checkout
+
+      # hidapi's source build (no Linux wheel for 3.15): every session here installs every extra
+      - install-linux-system-dependencies
+
+      - restore-uv-cache-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - nox-format
+      - nox-lint
+      - nox-static-analysis
+      - install-supply-chain-tools-linux
+      - nox-security-scan
+      - save-uv-cache-posix
 
   # A split test job's coverage, its machines' data combined, held to the 100% rule
   # (nox -s coverage-combine; tests/circleci_test_split.py). Only coverage is installed
@@ -991,6 +1034,8 @@ workflows:
       - test-python-3-15-macos
       - test-python-3-15-linux
       - test-python-3-15-windows
+      # Format, lint, the docs build, type checks and the security scan, beside the tests
+      - checks-linux
       # Each split job's coverage, combined
       - coverage-combine-linux:
           name: coverage-combine-linux-test-3-15
