@@ -606,3 +606,23 @@ once, like the owl.
 > direct and diagonal directionality, and 10 different emotes.  I want you to make one for
 > Nixie, and one for Grimwire - what you think they each would look like - both inspired by the
 > owl.
+
+## 70. Claude
+
+Recorded all five names (Nixie, Triode, Ohm, Hertz, Grimwire) in the Lucid Circuit plan, with
+the choice narrowed to Nixie or Grimwire. Designed two characters from the owl:
+
+- **Nixie:** sleek and playful. Glowing Nixie-tube filament shapes show its mood, with
+  mesh-grid feathers and a water-spirit shimmer of teal against warm tube orange.
+- **Grimwire:** rounder, scholarly, a little grumpy and kind. Its wings fold like a spellbook's
+  covers over circuit-etched pages, with wire ear tufts, brass spectacles and the original chest
+  rune.
+
+Each gets a full sheet at 32x32 and 16-bit+:
+
+- idle, walk and fly in all eight directions;
+- ten emotes: happy, laugh, love, surprised, confused, sad, angry, sleepy, thinking, idea.
+
+Built by a team per character: a lead designer sets the model and idle views; three animators
+work in parallel (locomotion, five emotes each); an art director assembles and checks
+consistency.
