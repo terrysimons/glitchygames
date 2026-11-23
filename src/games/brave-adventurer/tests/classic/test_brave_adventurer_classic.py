@@ -248,6 +248,7 @@ class TestVoiceAssistantNeverStartsInAReplay:
 
         discover.assert_called_once_with()
 
+    @pytest.mark.draws_frames
     def test_a_replay_discovers_no_voice_assistant(self, mocker):
         discover = mocker.patch.object(VoiceAssistant, 'discover', return_value=None)
         mocker.patch.object(brave_adventurer_game, 'GameEngine', GoldenTraceEngine)

@@ -1418,6 +1418,7 @@ class TestProcessEvents:
         assert engine.process_events() is True
         assert scene.raw_events == raw_events
 
+    @pytest.mark.draws_frames
     def test_a_raw_event_game_gets_its_events_in_a_running_frame(self):
         """In a game that is really running, a frame hands the raw-event scene its events."""
         with running_game(RawEventGame) as manager:
@@ -3465,6 +3466,7 @@ class TestFpsHistogramArgument:
 class TestReplayRestartExitStatus:
     """A watched replay's restart exits with the status the restarted replays ended with."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.frames_vary(
         reason=(
             "its watched replay shows the live window's mouse focus, which the dummy driver "

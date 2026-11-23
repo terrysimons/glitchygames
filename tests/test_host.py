@@ -688,6 +688,7 @@ def limited(ticks: list[float]) -> None:
 class TestGameHost:
     """The host drives the inner game's frames: blocking, or one per awaited tick."""
 
+    @pytest.mark.draws_frames
     def test_run_is_the_blocking_loop(self, hosted_scene_manager, mocker):
         manager, host = hosted_scene_manager
         start = mocker.spy(manager, 'start')
@@ -699,6 +700,7 @@ class TestGameHost:
         start.assert_called_once_with()
         assert scene.frames_run == HostedCountingScene.QUIT_AFTER_FRAMES
 
+    @pytest.mark.draws_frames
     def test_run_async_runs_a_frame_every_second_tick_at_one_hundred_twenty_hertz(
         self, hosted_scene_manager
     ):
@@ -721,6 +723,7 @@ class TestGameHost:
         assert len(ticks) == 19
         assert manager.active_scene is None
 
+    @pytest.mark.draws_frames
     def test_run_async_logs_the_measured_tick_rate_once(self, hosted_scene_manager, mocker, caplog):
         manager, host = hosted_scene_manager
         mocker.patch.object(HostedCountingScene, 'QUIT_AFTER_FRAMES', TICKS_BEFORE_LOGGING_RATE + 5)
@@ -742,6 +745,7 @@ class TestGameHost:
         assert 'Outer ticks at 60.0 Hz' in rate_lines[0].message
         assert 'target 0 FPS' in rate_lines[0].message
 
+    @pytest.mark.draws_frames
     def test_run_async_follows_the_doors_pacing(self, hosted_scene_manager, mocker):
         """Doors that pace (a positive period) set the frame period, not the target FPS."""
         manager, host = hosted_scene_manager

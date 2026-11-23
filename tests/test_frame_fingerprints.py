@@ -151,6 +151,7 @@ def inner_tests(pytester: pytest.Pytester) -> Iterator[pytest.Pytester]:
 class TestRecordingARun:
     """A run with --frame-fingerprints writes each test's frames, in present order."""
 
+    @pytest.mark.draws_frames
     def test_each_test_gets_its_presents_and_final_frame(self, inner_tests, tmp_path):
         """Setup and body presents count, in order; the final frame is the display as left."""
         directory = tmp_path / 'run'
@@ -181,6 +182,7 @@ class TestRecordingARun:
         assert records[FAILS].outcome == 'failed'
         assert len(records[FAILS].presented) == 1
 
+    @pytest.mark.draws_frames
     def test_the_display_functions_are_put_back_after_the_run(self, inner_tests, tmp_path):
         """The wrappers live only as long as the inner run."""
         flip_before = pygame.display.flip
@@ -193,6 +195,7 @@ class TestRecordingARun:
         assert pygame.display.flip is flip_before
         assert pygame.display.update is update_before
 
+    @pytest.mark.draws_frames
     def test_without_the_option_nothing_is_recorded(self, inner_tests):
         """Loading the plugin alone changes nothing: no files are written."""
         result = inner_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
@@ -200,6 +203,7 @@ class TestRecordingARun:
         result.assert_outcomes(passed=2, failed=1, skipped=1)
         assert not list(inner_tests.path.glob('**/*.jsonl'))
 
+    @pytest.mark.draws_frames
     def test_requested_frames_are_saved_as_images(self, inner_tests, tmp_path):
         """--frame-images-request saves the named positions of the named tests as PNG files."""
         directory = tmp_path / 'run'
@@ -451,6 +455,7 @@ class TestFingerprintDisplay:
 class TestTheRecorderBetweenTests:
     """The recorder object, used directly."""
 
+    @pytest.mark.draws_frames
     def test_presents_outside_a_test_are_passed_through_unrecorded(self, tmp_path):
         """With no test being recorded the wrappers only present."""
         recorder = FrameFingerprintRecorder(directory=tmp_path / 'run', image_request=None)
