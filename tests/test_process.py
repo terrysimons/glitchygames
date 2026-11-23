@@ -187,8 +187,9 @@ class TestStartCommand:
         started like any other, so it is stopped and reaped like any other.
         """
         output_path = tmp_path / 'output.txt'
-        with output_path.open('w', encoding='utf-8') as output:
-            child = start_command(
+        with (
+            output_path.open('w', encoding='utf-8') as output,
+            start_command(
                 command=[
                     sys.executable,
                     '-c',
@@ -197,7 +198,8 @@ class TestStartCommand:
                 environment=os.environ,
                 output=output,
                 errors=ErrorOutput.PIPED,
-            )
+            ) as child,
+        ):
             try:
                 assert child.stderr is not None
                 errors = child.stderr.read()
