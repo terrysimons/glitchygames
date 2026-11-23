@@ -346,6 +346,28 @@ class TestEndToEnd:
         assert result.ret == pytest.ExitCode.OK
         result.stdout.fnmatch_lines(['*driver comparison: off (--dummy-only given)*'])
 
+    def test_a_run_with_no_drawing_tests_passes_and_says_so(self, inner_project):
+        """Nothing selected draws: the second run has nothing to run, and that is no failure."""
+        inner_project.makepyfile(test_plain='def test_plain():\n    pass\n')
+
+        result = inner_project.runpytest_subprocess(
+            'test_plain.py', timeout=SUBPROCESS_TIMEOUT_SECONDS
+        )
+
+        assert result.ret == pytest.ExitCode.OK
+        result.assert_outcomes(passed=1)
+        result.stdout.fnmatch_lines(['*no drawing tests selected: nothing to compare*'])
+        assert 'failed' not in result.stdout.str().split('driver comparison', 1)[1]
+
+    def test_only_drawing_tests_are_recorded_on_either_side(self, inner_project):
+        """A test that draws nothing is recorded on neither driver, so neither lists it."""
+        inner_project.makepyfile(test_plain='def test_plain():\n    pass\n')
+
+        result = inner_project.runpytest_subprocess(timeout=SUBPROCESS_TIMEOUT_SECONDS)
+
+        result.assert_outcomes(passed=3)
+        result.stdout.fnmatch_lines(['*Recorded on dummy only: 0*'])
+
     def test_a_failure_in_the_second_run_fails_this_run(self, inner_project):
         """A test failing only in the comparison's second run is listed, and fails the run."""
         inner_project.makepyfile(

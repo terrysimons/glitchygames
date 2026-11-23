@@ -1023,16 +1023,50 @@ class TestDrawsFramesOnly:
 
         result.assert_outcomes(passed=1, deselected=2)
 
-    def test_a_run_whose_collected_tests_are_all_unmarked_stops(self, inner_selection_tests):
-        """Nothing to compare is an error, not an agreeing comparison."""
+    def test_a_run_whose_collected_tests_are_all_unmarked_runs_nothing(self, inner_selection_tests):
+        """Nothing to run is pytest's "no tests ran", not an error: a targeted run may draw nothing.
+
+        A driver comparison that runs nothing is refused where it compares (a run that recorded
+        no test: scripts/driver_frame_matrix.py, BUGS.md #192).
+        """
         result = inner_selection_tests.runpytest_inprocess(
             '-p', PLUGIN_MODULE, frame_fingerprints.DRAWS_FRAMES_ONLY_OPTION, '-k', 'unmarked'
         )
 
-        assert result.ret == pytest.ExitCode.USAGE_ERROR
-        result.stderr.fnmatch_lines([
-            '*--draws-frames-only: none of the 1 collected test(s) is marked draws_frames*'
-        ])
+        assert result.ret == pytest.ExitCode.NO_TESTS_COLLECTED
+        result.assert_outcomes(deselected=3)
+
+    def test_recording_drawing_tests_only_leaves_the_others_out(
+        self, inner_selection_tests, tmp_path
+    ):
+        """--frame-fingerprints-drawing-only: every test runs, only the marked ones are recorded."""
+        directory = tmp_path / 'run'
+
+        result = inner_selection_tests.runpytest_inprocess(
+            '-p',
+            PLUGIN_MODULE,
+            f'{FINGERPRINTS_OPTION}={directory}',
+            frame_fingerprints.DRAWING_ONLY_OPTION,
+        )
+
+        result.assert_outcomes(passed=3)
+        assert set(read_recorded_frames(directory=directory)) == {
+            'test_selection.py::test_marked',
+            'test_selection.py::test_marked_and_slow',
+        }
+
+    def test_recording_drawing_tests_only_can_be_asked_by_the_environment(
+        self, inner_selection_tests, monkeypatch, tmp_path
+    ):
+        """GLITCHYGAMES_FRAME_FINGERPRINTS_DRAWING_ONLY, for the run it names, as the others."""
+        directory = tmp_path / 'run'
+        monkeypatch.setenv(FINGERPRINTS_VARIABLE, str(directory))
+        monkeypatch.setenv(frame_fingerprints.DRAWING_ONLY_VARIABLE, '1')
+        monkeypatch.setenv(OWNER_VARIABLE, str(os.getpid()))
+
+        inner_selection_tests.runpytest_inprocess('-p', PLUGIN_MODULE).assert_outcomes(passed=3)
+
+        assert 'test_selection.py::test_unmarked' not in read_recorded_frames(directory=directory)
 
     def test_without_the_option_every_test_runs(self, inner_selection_tests):
         """The option is off by default."""
