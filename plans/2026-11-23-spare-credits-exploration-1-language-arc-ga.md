@@ -313,6 +313,47 @@ Irish myth already holds the shapes:
 **(user)** What carries over from one loop to the next is deferred question 15; the user
 answers it later.
 
+### The sealed otherworld
+
+**Template:** where the culture went when the language faded, and how the player gets it back.
+
+**Irish:**
+
+- **(user)** The otherworld is where the culture, through its language, has been sealed off.
+- **(user)** Collection in the style of the Legend of Zelda (gathering pieces across the world
+  and its dungeons) unlocks further sections of a skill-tree-like part of the game. Offered as an
+  idea.
+- **(user)** What the player unlocks is the resurgence of the Irish language.
+
+**(my call, proposed)** Ways this could fit the myths above, for demos to test:
+
+- **The sealed mounds:** the culture went under the hills with the Tuatha Dé Danann, behind the
+  féth fíada. Each mound (sí) holds one part of it, for example:
+  - the place-lore;
+  - the songs and keening;
+  - the stories;
+  - the law and the old crafts.
+
+  Each mound is a dungeon, sealed by a word the living world has forgotten.
+- **What gets collected is language:**
+  - true place names, read from the stones;
+  - phrases heard from the last speakers;
+  - ogham letters;
+  - verses of a song;
+  - a family's own name restored.
+
+  Each piece is something the player now understands, not a token. A set opens a section of the
+  tree.
+- **The tree grows as the language comes back:** opening a section grows the tree and brings
+  the resurgence forward:
+  - speakers return to a village;
+  - children answer in Irish;
+  - signs change script;
+  - color returns.
+
+  This fits the user's dynamic tree with no fixed nodes. **(user)** The tree's contents are
+  still the user's to explain.
+
 ## 9. The different way of seeing
 
 **Template:** the features of the language that frame the world differently from the player's

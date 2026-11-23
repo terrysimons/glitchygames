@@ -64,6 +64,9 @@ The game, as the user has described it so far:
   suffered; the grief is played straight.
 - **(user)** *The Boondock Saints* as a source of humor: distinctly Irish and Boston-Irish, Irish
   yet unique.
+- **(user)** The otherworld is where the culture, through its language, has been sealed off.
+  Zelda-style collection could unlock further sections of a skill-tree-like part of the game
+  (an idea). What the player unlocks is the resurgence of the Irish language.
 - The Irish arc, written as a template any language's arc can follow:
   [2026-11-23-spare-credits-exploration-1-language-arc-ga.md](2026-11-23-spare-credits-exploration-1-language-arc-ga.md).
 - **(user)** The point is acquisition through immersion in a simulated environment, rather than

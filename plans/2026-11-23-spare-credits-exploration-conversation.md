@@ -399,3 +399,23 @@ slots). Filled the occupier part from the occupation research, and kept clear of
 Cromwell figure. Recorded the confirmed tone rule and The Boondock Saints as a humor source:
 sibling banter, profane affection, Catholic ritual with a wink and a family saying as a battle
 cry, but not its vigilante violence.
+
+## 44. User (2026-11-23, sent while Claude was working)
+
+> Yes!  Except this "other world" is where the culture - through language - has been sealed off.
+> Think Legend of Zelda-esque collection systems that unlock more of a skill-tree type section of
+> the game perhaps.  Just an idea.
+
+## 45. User (2026-11-23, sent while Claude was working)
+
+> And what are we unlocking?  The resurgence of the Irish language.
+
+## 46. Claude
+
+Added "The sealed otherworld" to the arc's loop part: the otherworld is where the culture,
+through its language, has been sealed off; Zelda-style collection unlocks further sections of a
+skill-tree-like part of the game; what is unlocked is the resurgence of Irish. Proposed ways it
+could fit the myths, for demos to test: each fairy mound holds one part of the culture and is
+sealed by a forgotten word; the pieces collected are language itself (true names, phrases, ogham
+letters, verses); and each opened section of the tree shows up in the world as resurgence
+(speakers returning, children answering in Irish, color returning).
