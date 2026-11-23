@@ -104,6 +104,25 @@ class OutputCapture(StrEnum):
     APART = 'apart'
 
 
+class ErrorOutput(StrEnum):
+    """Where a child ``start_command`` starts writes its standard error.
+
+    Attributes:
+        WITH_OUTPUT: To the same file as its standard output.
+        PIPED: To a pipe of its own, read from the process's ``stderr`` (a child whose
+            standard error is a channel: Chrome prints its DevTools address there).
+
+    """
+
+    WITH_OUTPUT = 'with-output'
+    PIPED = 'piped'
+
+
+# The subprocess setting (stderr) that makes each ErrorOutput
+ERROR_STREAMS: dict[ErrorOutput, int] = {
+    ErrorOutput.WITH_OUTPUT: subprocess.STDOUT,
+    ErrorOutput.PIPED: subprocess.PIPE,
+}
 # The subprocess settings (stdout, stderr) that make each capture
 OUTPUT_STREAMS: dict[OutputCapture, tuple[int | None, int | None]] = {
     OutputCapture.NONE: (None, None),
@@ -423,7 +442,11 @@ def stop_and_reap(*, process: subprocess.Popen[str]) -> None:
 
 
 def start_command(
-    *, command: Sequence[str], environment: Mapping[str, str], output: TextIO
+    *,
+    command: Sequence[str],
+    environment: Mapping[str, str],
+    output: TextIO,
+    errors: ErrorOutput = ErrorOutput.WITH_OUTPUT,
 ) -> subprocess.Popen[str]:
     """Start a command (an argument list, never a shell) as a child process; do not wait.
 
@@ -434,7 +457,10 @@ def start_command(
     Args:
         command: The program and its arguments.
         environment: The child's whole environment, in place before its interpreter starts.
-        output: Where the child's standard output and error go (an open file).
+        output: Where the child's standard output goes (an open file), and its standard error
+            unless ``errors`` pipes it.
+        errors: Where the child's standard error goes: with its output, or to a pipe of its
+            own (``ErrorOutput.PIPED``: read it from the returned process's ``stderr``).
 
     Returns:
         The running process (``wait()`` for its ``returncode``).
@@ -444,7 +470,7 @@ def start_command(
         list(command),
         env=dict(environment),
         stdout=output,
-        stderr=subprocess.STDOUT,
+        stderr=ERROR_STREAMS[errors],
         text=True,
         # POSIX only (Windows ignores it): stop_command terminates a Windows child alone
         start_new_session=True,

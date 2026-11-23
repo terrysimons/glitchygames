@@ -21,7 +21,7 @@ from typing import Any, cast
 import pytest
 
 from glitchygames import process
-from glitchygames.process import OutputCapture, start_command, stop_command
+from glitchygames.process import ErrorOutput, OutputCapture, start_command, stop_command
 
 # SIGKILL's number on POSIX (Windows' signal module has no SIGKILL)
 SIGKILL_NUMBER = 9
@@ -179,6 +179,33 @@ class TestStartCommand:
             assert child.wait(timeout=WAIT_SECONDS) == 3
 
         assert sorted(output_path.read_text(encoding='utf-8').split()) == ['err', 'out']
+
+    def test_piped_errors_are_read_apart_from_the_output(self, tmp_path):
+        """With ``errors=PIPED`` the file gets standard output only; ``stderr`` is read on its own.
+
+        A child whose standard error is a channel (Chrome prints its DevTools address there) is
+        started like any other, so it is stopped and reaped like any other.
+        """
+        output_path = tmp_path / 'output.txt'
+        with output_path.open('w', encoding='utf-8') as output:
+            child = start_command(
+                command=[
+                    sys.executable,
+                    '-c',
+                    "import sys; print('out'); print('err', file=sys.stderr)",
+                ],
+                environment=os.environ,
+                output=output,
+                errors=ErrorOutput.PIPED,
+            )
+            try:
+                assert child.stderr is not None
+                errors = child.stderr.read()
+            finally:
+                stop_command(process=child)
+
+        assert errors == 'err\n'
+        assert output_path.read_text(encoding='utf-8') == 'out\n'
 
     def test_the_child_gets_the_given_environment(self, tmp_path):
         """The environment is the child's whole environment."""
