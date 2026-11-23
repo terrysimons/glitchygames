@@ -5,24 +5,28 @@ through the engine, from bootstrap to rendering.
 
 ## Its package
 
-Bitmappy is an app, not part of the engine: the first member of the apps layer of the
+Bitmappy is an app, not part of the engine: the only member of the apps layer of the
 [uv workspace](game_packages.md), at `src/apps/bitmappy/`. The distribution, the import package
 and the console script are all `bitmappy` (`uv run bitmappy`), and its scene's logical name, the
-one a recording holds, is `apps.bitmappy.editor:BitmapEditorScene`. A recording made when the scene
-lived in the engine (`glitchygames.bitmappy.editor:BitmapEditorScene`) is refused by a plain
-replay, which names the remedy; `--replay-trace OLD --rebaseline NEW --headless` converts it
-([gameplay replay](gameplay_replay.md)).
+one a recording holds, is `apps.bitmappy.editor:BitmapEditorScene`. It depends on the engine,
+numpy, pydantic, pygame-ce and tenacity (`src/apps/bitmappy/pyproject.toml`).
+
+!!! note "Recordings made before the move"
+    A recording made when the scene lived in the engine
+    (`glitchygames.bitmappy.editor:BitmapEditorScene`) is refused by a plain replay, which names
+    the remedy; `--replay-trace OLD --rebaseline NEW --headless` converts it
+    ([gameplay replay](gameplay_replay.md)).
 
 - **Its code** is `src/apps/bitmappy/src/bitmappy/`. The engine never imports it, and Bitmappy uses
   the engine's public API (sprite file-format detection, for one, is the engine's
   `src/glitchygames/sprites/file_format.py`).
-- **Its sprite library** is 71 sprites in `src/apps/bitmappy/src/bitmappy/resources/sprites/`,
+- **Its sprite library** is 71 TOML sprite files in `src/apps/bitmappy/src/bitmappy/resources/sprites/`,
   shipped as package data and found through `bitmappy.SPRITE_CONFIG_DIR`. They are also the AI's
   training data (`load_ai_training_data()` below), so they stay in the package.
 - **Its other resources** (the window icon and `bitmappy.cfg`) are beside them, in
   `src/apps/bitmappy/src/bitmappy/resources/`.
-- **Its tests** are in `src/apps/bitmappy/tests/`, rootless, every file named
-  `test_bitmappy_*.py`.
+- **Its tests** are in `src/apps/bitmappy/tests/`, with no `__init__.py`. Every test module is
+  named `test_bitmappy*.py`; `conftest.py` and the helper `film_strip_support.py` sit beside them.
 - **The Load and Save dialogs** (the engine's `glitchygames.ui` dialog scenes) treat every file the
   same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
   library is opened by its path. The `example:` prefix they once understood is gone, and Save
@@ -211,8 +215,8 @@ which overrides handlers like `on_key_down_event()`,
 `on_left_mouse_button_down_event()`, `on_left_mouse_drag_event()`, and
 `on_controller_button_down_event()`. Events it doesn't override hit the stubs, which call
 `unhandled_event()`: it does nothing by default, logs each event type once when `debug_events`
-is on (the `--debug-events` flag, off by default), and raises `UnhandledEventError` under `--no-unhandled-events` (as the tests
-run).
+is on (the `--debug-events` flag, off by default), and raises `UnhandledEventError` under
+`--no-unhandled-events` (as the tests run).
 
 ### Sprite hierarchy (renderable objects)
 
@@ -220,9 +224,12 @@ run).
 rendering. GlitchyGames extends it through `RootSprite` → `Sprite` → `BitmappySprite` to add
 mouse and keyboard events, non-optional `image`/`rect`, named parent tracking and TOML
 load/save. `AnimatedSprite` stands on `RootSprite` too, so it has every mouse and keyboard
-handler (silent by default; before 2026-11-15 it derived from `DirtySprite` directly and had
-none, and the pointer over one ended the game). `DirtySprite` is pygame's, outside both boxes;
-the Bitmappy box holds the editor's own sprites.
+handler (silent by default). `DirtySprite` is pygame's, outside both boxes; the Bitmappy box
+holds the editor's own sprites.
+
+!!! note "History"
+    Before 2026-11-15 `AnimatedSprite` derived from `DirtySprite` directly and had no mouse
+    handlers, so the pointer over one ended the game.
 
 ```mermaid
 flowchart TD
@@ -509,16 +516,21 @@ flowchart TD
 Up to 4 color-coded controllers can operate simultaneously. Each controller
 independently switches between film strip, canvas and slider (A, R, G, B) modes using the
 triggers: L2 steps forward, R2 steps back (R2 does nothing in film strip mode). B undoes
-and X redoes in film strip and canvas modes.
+and X redoes in film strip and canvas modes. A controller is assigned on its first button press
+and takes the next color (Red, Green, Blue, Yellow, in activation order) when its Start button
+activates it, so pressing Start again re-colors it. The full button list, known issues and
+workarounds are in `CONTROLLER_CONTROLS_README.md` at the repository root; the code is
+`src/apps/bitmappy/src/bitmappy/controllers/`.
 
 ```mermaid
 flowchart TD
     subgraph Assignment["Controller Assignment"]
         CONNECT["Controller connected"] --> FIRST["First button press\nMultiControllerManager.assign_controller()"]
-        FIRST --> RED["Red - controller 0"]
-        FIRST --> GREEN["Green - controller 1"]
-        FIRST --> BLUE["Blue - controller 2"]
-        FIRST --> YELLOW["Yellow - controller 3"]
+        FIRST --> START["Start in film strip mode:\nactivate and take the next color"]
+        START --> RED["1st activation: Red"]
+        START --> GREEN["2nd: Green"]
+        START --> BLUE["3rd: Blue"]
+        START --> YELLOW["4th: Yellow"]
     end
 
     subgraph Modes["Mode Switching per Controller (ModeSwitcher)"]
