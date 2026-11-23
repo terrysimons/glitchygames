@@ -22,7 +22,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from glitchygames.events.base import HashableEvent
 
@@ -109,6 +109,9 @@ BUNDLED_FONT_FILE_NAMES: dict[str, str] = {
 
 # The size a font configuration that names none gets
 DEFAULT_FONT_SIZE = 14
+
+# fitted_font never chooses a size smaller than this
+SMALLEST_FONT_SIZE = 8
 
 # pygame.freetype's own default resolution, at which a size in points is a size in pixels.
 # pygame.font has no resolution, so a pygame font's size is scaled by font_dpi / BASE_FONT_DPI
@@ -203,6 +206,69 @@ def bundled_font_path(*, font_name: str) -> Path | None:
     if file_name is None:
         return None
     return BUNDLED_FONT_DIRECTORY / file_name
+
+
+# The text helpers games share (plans/2026-11-20-game-code-into-the-engine.md, sub-plan 1; were
+# copies in Mr. Muncher's scenery.py and Zombies' text.py). Uncached on purpose: a scene asks once
+# per size in setup() and keeps the font, so there is no module state for the process-state guard
+
+
+def bundled_font(*, bold: bool, size: int) -> pygame.font.Font:
+    """Return the bundled Bitstream Vera Bold, or Vera, at a size.
+
+    Args:
+        bold: Vera Bold rather than Vera.
+        size: The point size.
+
+    Returns:
+        The font.
+
+    """
+    return pygame.font.Font(bundled_font_path(font_name='VeraBd' if bold else 'Vera'), size)
+
+
+def fitted_font(
+    *, texts: Sequence[str], width: int, largest: int, bold: bool = True
+) -> pygame.font.Font:
+    """Return the largest bundled font, up to a size, in which every text fits a width.
+
+    Sizes are tried from ``largest`` down to one above ``SMALLEST_FONT_SIZE``; when none fits,
+    the font is ``SMALLEST_FONT_SIZE``, even if the texts are still too wide. With no texts,
+    every text fits, so the font is ``largest``.
+
+    Args:
+        texts: The texts that must fit.
+        width: The width they must fit, in pixels.
+        largest: The largest size wanted.
+        bold: Vera Bold (the default) rather than Vera.
+
+    Returns:
+        The font.
+
+    """
+    for size in range(largest, SMALLEST_FONT_SIZE, -1):
+        font = bundled_font(bold=bold, size=size)
+        if all(font.size(text)[0] <= width for text in texts):
+            return font
+    return bundled_font(bold=bold, size=SMALLEST_FONT_SIZE)
+
+
+def render_line(
+    *, font: pygame.font.Font, text: str, color: tuple[int, int, int]
+) -> pygame.Surface:
+    """Render a line of text, antialiased as the current engine context's fonts are.
+
+    Args:
+        font: The font.
+        text: The text.
+        color: Its color.
+
+    Returns:
+        The rendered line: per-pixel alpha when antialiased, an 8-bit surface with a color key
+        when not (pygame's own choice).
+
+    """
+    return font.render(text, antialias=FontManager.antialias(), color=color)
 
 
 class FontManager(ResourceManager, metaclass=ReadOnlyViews):

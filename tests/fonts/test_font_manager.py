@@ -24,7 +24,11 @@ from glitchygames.fonts.font_manager import (
     BASE_FONT_DPI,
     BUNDLED_FONT_DIRECTORY,
     DEFAULT_FONT_NAME,
+    SMALLEST_FONT_SIZE,
+    bundled_font,
     bundled_font_path,
+    fitted_font,
+    render_line,
 )
 from glitchygames.scenes.builtin_scenes.game_over_scene import TextSprite
 from glitchygames.ui import InputBox
@@ -735,4 +739,112 @@ class TestTheAntialiasSetting:
 
         assert pygame.image.tobytes(text_sprite.image, 'RGBA') == pygame.image.tobytes(
             expected_text, 'RGBA'
+        )
+
+
+def rendered_bytes(surface: pygame.Surface) -> bytes:
+    """Return a surface's pixels as RGBA bytes, whatever its pixel format.
+
+    Returns:
+        The bytes.
+
+    """
+    return pygame.image.tobytes(surface, 'RGBA')
+
+
+class TestBundledTextHelpers:
+    """bundled_font, fitted_font and render_line: the text helpers games share."""
+
+    @pytest.mark.parametrize(('bold', 'font_name'), [(True, 'VeraBd'), (False, 'Vera')])
+    def test_a_bundled_font_is_vera_bold_or_vera_at_the_size_asked(self, bold, font_name):
+        font = bundled_font(bold=bold, size=20)
+        reference = pygame.font.Font(bundled_font_path(font_name=font_name), 20)
+
+        assert font.point_size == 20
+        assert rendered_bytes(
+            font.render('Glitchy', antialias=True, color=(255, 255, 255))
+        ) == rendered_bytes(reference.render('Glitchy', antialias=True, color=(255, 255, 255)))
+
+    @pytest.mark.parametrize('bold', [True, False])
+    @pytest.mark.parametrize('width', [60, 150, 400])
+    def test_a_fitted_font_is_the_largest_size_in_which_every_text_fits(self, bold, width):
+        texts = ('GAME OVER', 'Press Space')
+        largest = 48
+
+        font = fitted_font(texts=texts, width=width, largest=largest, bold=bold)
+
+        size = font.point_size
+        assert all(font.size(text)[0] <= width for text in texts)
+        assert SMALLEST_FONT_SIZE < size <= largest
+        if size < largest:
+            larger = bundled_font(bold=bold, size=size + 1)
+            assert any(larger.size(text)[0] > width for text in texts)
+
+    def test_a_fitted_font_is_the_largest_asked_when_everything_fits(self):
+        assert fitted_font(texts=('Hi',), width=640, largest=48).point_size == 48
+
+    def test_a_fitted_font_never_gets_smaller_than_the_smallest_size(self):
+        assert fitted_font(texts=('GAME OVER',), width=1, largest=48).point_size == 8
+        assert SMALLEST_FONT_SIZE == 8
+
+    def test_a_text_that_would_fit_only_below_the_smallest_size_still_gets_the_smallest(self):
+        """Too wide at 8 but narrow enough at 7: the font is 8, never 7."""
+        text = 'GAME OVER, PRESS SPACE'
+        width = bundled_font(bold=True, size=SMALLEST_FONT_SIZE - 1).size(text)[0]
+        assert bundled_font(bold=True, size=SMALLEST_FONT_SIZE).size(text)[0] > width
+
+        assert fitted_font(texts=(text,), width=width, largest=48).point_size == 8
+
+    def test_a_text_that_fits_only_at_the_smallest_size_gets_it(self):
+        """The search stops above SMALLEST_FONT_SIZE; the floor still returns that size."""
+        width = bundled_font(bold=True, size=SMALLEST_FONT_SIZE).size('GAME OVER')[0]
+
+        assert fitted_font(texts=('GAME OVER',), width=width, largest=48).point_size == 8
+
+    def test_no_texts_fit_at_the_largest_size(self):
+        """With nothing to fit, every text fits: the largest size (pinned, as both games had it)."""
+        assert fitted_font(texts=(), width=10, largest=30).point_size == 30
+
+    def test_a_fitted_font_is_bold_unless_asked_otherwise(self):
+        texts = ('Zombies',)
+        bold = fitted_font(texts=texts, width=640, largest=24)
+        regular = fitted_font(texts=texts, width=640, largest=24, bold=False)
+
+        assert rendered_bytes(
+            bold.render('Zombies', antialias=True, color=(0, 0, 0))
+        ) == rendered_bytes(
+            bundled_font(bold=True, size=24).render('Zombies', antialias=True, color=(0, 0, 0))
+        )
+        assert rendered_bytes(
+            regular.render('Zombies', antialias=True, color=(0, 0, 0))
+        ) == rendered_bytes(
+            bundled_font(bold=False, size=24).render('Zombies', antialias=True, color=(0, 0, 0))
+        )
+
+    @pytest.mark.parametrize('arguments', [(), ('--no-font-antialias',)])
+    def test_a_rendered_line_follows_the_antialias_setting(self, arguments):
+        engine_font_manager(*arguments)
+        font = bundled_font(bold=True, size=18)
+
+        line = render_line(font=font, text='Score 120', color=(255, 200, 0))
+
+        expected = font.render('Score 120', antialias=not arguments, color=(255, 200, 0))
+        assert rendered_bytes(line) == rendered_bytes(expected)
+        # pygame gives an antialiased line per-pixel alpha, a hard-edged one a color key
+        assert bool(line.get_flags() & pygame.SRCALPHA) is not arguments
+
+    def test_a_rendered_line_follows_the_context_it_is_rendered_in(self):
+        """An inner game (an Arcade tile) renders with its own context's antialias setting."""
+        font = bundled_font(bold=True, size=18)
+        inner = EngineContext(name='inner')
+        with inner.active():
+            engine_font_manager('--no-font-antialias')
+            inner_line = render_line(font=font, text='Lives 3', color=(255, 255, 255))
+        outer_line = render_line(font=font, text='Lives 3', color=(255, 255, 255))
+
+        assert rendered_bytes(inner_line) == rendered_bytes(
+            font.render('Lives 3', antialias=False, color=(255, 255, 255))
+        )
+        assert rendered_bytes(outer_line) == rendered_bytes(
+            font.render('Lives 3', antialias=True, color=(255, 255, 255))
         )

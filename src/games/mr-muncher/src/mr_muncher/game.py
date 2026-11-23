@@ -37,15 +37,22 @@ import pygame
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.exceptions import AudioUnavailableError
+from glitchygames.checks import required
 from glitchygames.color import BLACK
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
+from glitchygames.fonts.font_manager import bundled_font, fitted_font, render_line
 from glitchygames.input import ActionMap
 from glitchygames.opacity import make_opaque
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
+from glitchygames.state import SaveManager, open_saves
+from glitchygames.state.high_scores import (
+    HighScoreEntry,
+    HighScoreTable,
+    HighScoreTableSettings,
+)
 from glitchygames.transitions import FadeTransition
 from mr_muncher import drawing
 from mr_muncher.actors import (
@@ -70,14 +77,7 @@ from mr_muncher.maze import (
     Maze,
     build_maze,
 )
-from mr_muncher.scenery import (
-    Picture,
-    SidePanel,
-    Sprocket,
-    bundled_font,
-    fitted_font,
-    render_text,
-)
+from mr_muncher.scenery import Picture, SidePanel, Sprocket
 from mr_muncher.sounds import CRUNCH_EFFECTS, EFFECTS, PROJECTOR
 
 if TYPE_CHECKING:
@@ -213,6 +213,13 @@ CONTROL_HINTS: tuple[tuple[str, str], ...] = (
 SAVE_APP_NAME = 'mr-muncher'
 HIGH_SCORES_SAVE_NAME = 'high_scores'
 HIGH_SCORE_ENTRIES = 10
+
+
+class MrMuncherHighScore(HighScoreEntry):
+    """A high score and the level it reached (the saved table's entries)."""
+
+    level: int
+
 
 # The directions' actions; when two are pressed in one frame the first in this order wins
 DIRECTION_ACTIONS: tuple[tuple[str, Direction], ...] = (
@@ -453,7 +460,7 @@ class MrMuncherScene(Scene):
             tile_x=self.message_cell[0], tile_y=self.message_cell[1]
         )
         self.muncher_points = Picture(
-            image=render_text(font=self.popup_font, text='200', color=MUNCHER_POINTS_COLOR),
+            image=render_line(font=self.popup_font, text='200', color=MUNCHER_POINTS_COLOR),
             centre=message_centre,
             layer=POPUP_LAYER,
             name='MuncherPoints',
@@ -461,7 +468,7 @@ class MrMuncherScene(Scene):
         )
         self.muncher_points.visible = 0
         self.bonus_points = Picture(
-            image=render_text(font=self.popup_font, text='100', color=BONUS_POINTS_COLOR),
+            image=render_line(font=self.popup_font, text='100', color=BONUS_POINTS_COLOR),
             centre=message_centre,
             layer=POPUP_LAYER,
             name='BonusPoints',
@@ -472,7 +479,7 @@ class MrMuncherScene(Scene):
         # The message's text and colour as last drawn (it is drawn again only when they change)
         self.message_shown: tuple[str, Color] = ('', MESSAGE_COLOR)
         self.message = Picture(
-            image=render_text(font=self.message_font, text=' ', color=MESSAGE_COLOR),
+            image=render_line(font=self.message_font, text=' ', color=MESSAGE_COLOR),
             centre=message_centre,
             layer=MESSAGE_LAYER,
             name='Message',
@@ -643,7 +650,7 @@ class MrMuncherScene(Scene):
         if (text, color) != self.message_shown:
             self.message_shown = (text, color)
             self.message.change_image(
-                image=render_text(font=self.message_font, text=text, color=color)
+                image=render_line(font=self.message_font, text=text, color=color)
             )
         self.message.visible = 1
 
@@ -812,7 +819,7 @@ class MrMuncherScene(Scene):
             self._add_points(self.settings.bonus_points)
             self.play_sound('eat_bonus')
             self.bonus_points.change_image(
-                image=render_text(
+                image=render_line(
                     font=self.popup_font,
                     text=str(self.settings.bonus_points),
                     color=BONUS_POINTS_COLOR,
@@ -885,7 +892,7 @@ class MrMuncherScene(Scene):
         self.player.hidden = True
         self.eaten_muncher = muncher
         self.muncher_points.change_image(
-            image=render_text(font=self.popup_font, text=str(points), color=MUNCHER_POINTS_COLOR)
+            image=render_line(font=self.popup_font, text=str(points), color=MUNCHER_POINTS_COLOR)
         )
         self.muncher_points.move_to(
             centre=self.geometry.pixel_centre(tile_x=muncher.tile_x, tile_y=muncher.tile_y)
@@ -896,10 +903,11 @@ class MrMuncherScene(Scene):
 
     def _resume_after_eating(self: Self) -> None:
         """The points have shown: the eaten muncher's eyes appear, and play goes on."""
-        assert self.eaten_muncher is not None  # Set by _eat_muncher, which began this phase
+        # Set by _eat_muncher, which began this phase
+        eaten_muncher = required(self.eaten_muncher, what='the eaten muncher')
         self.muncher_points.visible = 0
         self.player.hidden = False
-        self.eaten_muncher.hidden = False
+        eaten_muncher.hidden = False
         self.eaten_muncher = None
         self._change_phase(Phase.PLAYING)
 
@@ -1000,35 +1008,55 @@ class MrMuncherScene(Scene):
 
     # --- Saves ---
 
-    def _saved_high_scores(self: Self) -> list[dict[str, int]]:
+    def _high_score_table(self: Self) -> HighScoreTable[MrMuncherHighScore]:
+        """Return the game's high-score table (the engine's, with the level reached).
+
+        Returns:
+            The table.
+
+        """
+        return HighScoreTable(
+            saves=self.saves,
+            entry_type=MrMuncherHighScore,
+            settings=HighScoreTableSettings.from_options(
+                options=self.options,
+                slot_name=HIGH_SCORES_SAVE_NAME,
+                limit=HIGH_SCORE_ENTRIES,
+            ),
+        )
+
+    def _this_game(self: Self) -> MrMuncherHighScore:
+        """Return this game's high-score entry.
+
+        Returns:
+            The score and the level reached.
+
+        """
+        return MrMuncherHighScore(score=self.score, level=self.settings.level)
+
+    def _saved_high_scores(self: Self) -> list[dict[str, Any]]:
         """Return the saved high score table, best first (empty when there is none).
 
         Returns:
-            Entries with 'score' and 'level'.
+            Entries with 'score' and 'level' (this game alone when the saved table is refused:
+            --invalid-high-scores).
 
         """
-        try:
-            saved = self.saves.load(HIGH_SCORES_SAVE_NAME)
-        except SaveNotFoundError:
-            return []
-        return list(saved.get('scores', []))
+        entries = self._high_score_table().entries_or([self._this_game()])
+        return [entry.model_dump() for entry in entries]
 
     def _best_saved_score(self: Self) -> int:
-        """Return the best saved score (0 when there is none).
+        """Return the best saved score (0 when there is none, or when it is refused).
 
         Returns:
             The score.
 
         """
-        scores = self._saved_high_scores()
-        return scores[0].get('score', 0) if scores else 0
+        return self._high_score_table().best_or_zero()
 
     def _save_high_score(self: Self) -> None:
         """Add this game to the high score table (best HIGH_SCORE_ENTRIES kept)."""
-        scores = self._saved_high_scores()
-        scores.append({'score': self.score, 'level': self.settings.level})
-        scores.sort(key=lambda entry: entry.get('score', 0), reverse=True)
-        self.saves.save(HIGH_SCORES_SAVE_NAME, {'scores': scores[:HIGH_SCORE_ENTRIES]})
+        self._high_score_table().record_or_keep(self._this_game())
 
     # --- Sound ---
 
@@ -1117,7 +1145,7 @@ class MrMuncherScene(Scene):
         items: list[tuple[pygame.Surface, int]] = []
         top = tile_size
         for text in TITLE_LINES:
-            items.append((render_text(font=self.title_font, text=text, color=TITLE_COLOR), top))
+            items.append((render_line(font=self.title_font, text=text, color=TITLE_COLOR), top))
             top += self.title_font.get_linesize()
         top += tile_size
         for label, value in (
@@ -1125,10 +1153,10 @@ class MrMuncherScene(Scene):
             ('HIGH SCORE', self.high_score),
             ('REEL', self.settings.level),
         ):
-            items.append((render_text(font=self.label_font, text=label, color=LABEL_COLOR), top))
+            items.append((render_line(font=self.label_font, text=label, color=LABEL_COLOR), top))
             top += self.label_font.get_linesize()
             items.append((
-                render_text(font=self.value_font, text=str(value), color=VALUE_COLOR),
+                render_line(font=self.value_font, text=str(value), color=VALUE_COLOR),
                 top,
             ))
             top += self.value_font.get_linesize() + tile_size // 2
@@ -1149,28 +1177,28 @@ class MrMuncherScene(Scene):
         tile_size = self.geometry.tile_size
         items: list[tuple[pygame.Surface, int]] = []
         top = tile_size
-        items.append((render_text(font=self.label_font, text='LIVES', color=LABEL_COLOR), top))
+        items.append((render_line(font=self.label_font, text='LIVES', color=LABEL_COLOR), top))
         top += self.label_font.get_linesize() + 2
         if reserve_lives:
             items.append((self._life_icons(count=reserve_lives), top))
         top += tile_size * 2
-        items.append((render_text(font=self.label_font, text='BONUS', color=LABEL_COLOR), top))
+        items.append((render_line(font=self.label_font, text='BONUS', color=LABEL_COLOR), top))
         top += self.label_font.get_linesize() + 2
         reel_size = round(tile_size * 1.1)
         items.append((drawing.bonus_reel_picture(size=reel_size), top))
         top += reel_size + 2
         bonus_text = str(self.settings.bonus_points)
         items.append((
-            render_text(font=self.label_font, text=bonus_text, color=BONUS_POINTS_COLOR),
+            render_line(font=self.label_font, text=bonus_text, color=BONUS_POINTS_COLOR),
             top,
         ))
         hint_line = self.key_font.get_linesize() + self.hint_font.get_linesize()
         hint_top = self.screen_height - tile_size - hint_line * len(CONTROL_HINTS)
         for keys, meaning in CONTROL_HINTS:
-            items.append((render_text(font=self.key_font, text=keys, color=LABEL_COLOR), hint_top))
+            items.append((render_line(font=self.key_font, text=keys, color=LABEL_COLOR), hint_top))
             hint_top += self.key_font.get_linesize()
             items.append((
-                render_text(font=self.hint_font, text=meaning, color=HINT_COLOR),
+                render_line(font=self.hint_font, text=meaning, color=HINT_COLOR),
                 hint_top,
             ))
             hint_top += self.hint_font.get_linesize()

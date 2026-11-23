@@ -13,6 +13,7 @@ import pygame
 import pytest
 
 from glitchygames.events.base import HashableEvent
+from glitchygames.fonts import font_manager
 from glitchygames.sprites import AnimatedSprite
 from tests.input.stand_in_devices import STAND_IN_PAD
 from zombies_aint_my_neighbors.feature_card import CARD_SECONDS, FeatureCardScene
@@ -227,9 +228,8 @@ def test_replay_arguments_rebuild_the_card_with_the_same_roster_through_json():
 
 def test_the_card_renders_no_text_after_setup(mocker):
     """Every text image is made in setup() (decision 11)."""
-    text = importlib.import_module('zombies_aint_my_neighbors.text')
     card = card_for(JoinRoster.empty().join(device=KEYBOARD))
-    spy = mocker.spy(text, 'render_text')
+    spy = mocker.spy(font_manager, 'render_line')
 
     support.tick_to(card, seconds=1.0)
     support.rendered(card)

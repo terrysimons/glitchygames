@@ -2,6 +2,7 @@
 
 import contextlib
 import gc
+import re
 import weakref
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,7 @@ from glitchygames.backgrounds import (
     background_pattern_surface,
     set_active_default_background_pattern,
 )
+from glitchygames.checks import MissingValueError
 from glitchygames.color import BLUE, RED
 from glitchygames.engine_context import EngineContext
 from glitchygames.events import ALL_EVENTS, FPSEVENT
@@ -3220,11 +3222,8 @@ class TestSceneManagerPlayDeeperCoverage:
         manager.start.assert_called_once()
 
 
-# What a scene raises when a value its own code always sets is missing. Today these sites assert;
-# the assert sweep (fix/assert-sweep-engine-scenes) makes each one raise
-# glitchygames.checks.MissingValueError instead. TODO: switch this to MissingValueError, with the
-# "<what> is missing" message, once feat/checks-required (the shared helper) is on main.
-MISSING_VALUE_ERROR = AssertionError
+# What a scene raises when its display surface is missing (glitchygames.checks.required)
+NO_DISPLAY_SURFACE = "the scene's display surface is missing"
 
 
 class TestMissingDisplaySurfaceStopsTheScene:
@@ -3238,7 +3237,7 @@ class TestMissingDisplaySurfaceStopsTheScene:
         """Building a scene reads the display's size, so it needs a display surface."""
         mocker.patch('glitchygames.scenes.scene.display_surface', return_value=None)
 
-        with pytest.raises(MISSING_VALUE_ERROR):
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_DISPLAY_SURFACE)}$'):
             Scene()
 
     def test_a_scene_whose_display_goes_away_while_it_is_built_stops(self, mocker):
@@ -3251,7 +3250,7 @@ class TestMissingDisplaySurfaceStopsTheScene:
             side_effect=[pygame.display.get_surface(), None],
         )
 
-        with pytest.raises(MISSING_VALUE_ERROR):
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_DISPLAY_SURFACE)}$'):
             Scene()
 
     def test_a_screenshot_stops_without_a_display_surface(self):
@@ -3259,7 +3258,7 @@ class TestMissingDisplaySurfaceStopsTheScene:
         scene = Scene()
         scene.screen = None
 
-        with pytest.raises(MISSING_VALUE_ERROR):
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_DISPLAY_SURFACE)}$'):
             _ = scene.screenshot
 
     def test_a_background_color_stops_without_a_display_surface(self):
@@ -3267,7 +3266,7 @@ class TestMissingDisplaySurfaceStopsTheScene:
         scene = Scene()
         scene.screen = None
 
-        with pytest.raises(MISSING_VALUE_ERROR):
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_DISPLAY_SURFACE)}$'):
             scene.background_color = BLUE
 
     def test_a_background_pattern_stops_without_a_display_surface(self):
@@ -3275,5 +3274,5 @@ class TestMissingDisplaySurfaceStopsTheScene:
         scene = Scene()
         scene.screen = None
 
-        with pytest.raises(MISSING_VALUE_ERROR):
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_DISPLAY_SURFACE)}$'):
             scene.background_pattern = BackgroundPattern.CHANNEL_THREE
