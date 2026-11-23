@@ -19,6 +19,8 @@ from scripts.compare_driver_frames import main, parse_labelled_run, run
 from glitchygames.exit_codes import ExitCode
 from glitchygames.testing.frame_comparison import (
     DIFFERENCE_COLOR,
+    WINDOW_ANIMATION_FRAME_MILLISECONDS,
+    WINDOW_ANIMATION_HOLD_MILLISECONDS,
     FrameSequenceDifference,
     LabelledRun,
     compare_frame_images,
@@ -664,6 +666,29 @@ class TestImagesReport:
             assert animation.n_frames == 11
             animation.seek(5)
             assert animation.convert('RGB').getpixel((0, 0)) == DIFFERENCE_COLOR
+
+    def test_each_animation_holds_its_last_frame_before_it_loops(self, stopped_reruns, tmp_path):
+        """Every frame shows for the frame time; the last for the hold, a pause before the loop."""
+        dummy, cocoa = stopped_reruns
+        output = tmp_path / 'differences'
+        request = FrameImageRequest(
+            positions_by_test={NODE_A: tuple(range(11))}, stop_after_by_test={NODE_A: 10}
+        )
+
+        images_report(request=request, baseline=dummy, candidate=cocoa, output=output)
+
+        folder = output / images_folder_name(nodeid=NODE_A)
+        for name in ('dummy-window.apng', 'cocoa-window.apng', 'difference-window.apng'):
+            with Image.open(folder / name) as animation:
+                durations = []
+                for index in range(animation.n_frames):
+                    animation.seek(index)
+                    durations.append(animation.info['duration'])
+            assert durations == [WINDOW_ANIMATION_FRAME_MILLISECONDS] * 10 + [
+                WINDOW_ANIMATION_HOLD_MILLISECONDS
+            ], name
+        assert WINDOW_ANIMATION_FRAME_MILLISECONDS == 250
+        assert WINDOW_ANIMATION_HOLD_MILLISECONDS == 1000
 
     def test_frames_of_different_sizes_are_noted(self, reruns, tmp_path):
         """Both images saved, sizes differ: the note and both file names."""

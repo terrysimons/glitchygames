@@ -52,6 +52,8 @@ DIMMED_BRIGHTNESS = 0.3
 IMAGE_WINDOW_PRESENTS = 5
 # How long each frame of a window's animation shows: slow enough to see each frame change
 WINDOW_ANIMATION_FRAME_MILLISECONDS = 250
+# How long the last frame shows before the animation loops: a pause marks the restart
+WINDOW_ANIMATION_HOLD_MILLISECONDS = 1000
 # A window needs this many frames to be worth an animation
 WINDOW_ANIMATION_MINIMUM_FRAMES = 2
 
@@ -762,7 +764,9 @@ def write_window_animations(
 
     The frames are the presents compared as images of one size on both drivers, in order (the
     final frame is left out: it is not part of the window's sequence), each shown for
-    ``WINDOW_ANIMATION_FRAME_MILLISECONDS``, looping. Written with Pillow, an engine dependency.
+    ``WINDOW_ANIMATION_FRAME_MILLISECONDS``, the last held for
+    ``WINDOW_ANIMATION_HOLD_MILLISECONDS`` before it loops. Written with Pillow, an engine
+    dependency.
 
     Args:
         comparisons: The test's image comparisons.
@@ -806,7 +810,7 @@ def write_window_animations(
 
 
 def _write_animation(*, path: Path, images: Sequence[Path]) -> None:
-    """Write PNG images as one looping animated PNG.
+    """Write PNG images as one looping animated PNG, its last frame held before it loops.
 
     Args:
         path: The animation (``.apng``).
@@ -814,12 +818,13 @@ def _write_animation(*, path: Path, images: Sequence[Path]) -> None:
 
     """
     frames = [Image.open(image).convert('RGB') for image in images]
+    durations = [WINDOW_ANIMATION_FRAME_MILLISECONDS] * (len(frames) - 1)
     frames[0].save(
         path,
         format='PNG',
         save_all=True,
         append_images=frames[1:],
-        duration=WINDOW_ANIMATION_FRAME_MILLISECONDS,
+        duration=[*durations, WINDOW_ANIMATION_HOLD_MILLISECONDS],
         loop=0,
     )
 
