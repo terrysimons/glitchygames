@@ -549,6 +549,7 @@ def blended(*, new: tuple[int, int, int], old: tuple[int, int, int], percent: fl
     )
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize(
     ('alpha_arguments', 'percent'),
     [((), DEFAULT_COMPARE_ALPHA_PERCENT), (('--compare-alpha', '25'), 25.0)],
@@ -590,6 +591,7 @@ def test_one_blended_frame_has_the_expected_pixels(color_game, mocker, alpha_arg
         assert frame.label is None
 
 
+@pytest.mark.draws_frames
 def test_without_compare_trace_the_frame_is_new_alone(color_game, mocker):
     """The control: NEW's own picture is NEW's red (so the mix above is OLD's doing)."""
     run = watched_replay(
@@ -742,6 +744,7 @@ def frame_stream_listeners() -> Iterator[Callable[..., FrameStreamListener]]:
         listener.stop()
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize(
     ('pause_arguments', 'first_frame'),
     [((), 0), (('--replay-pause-at-frame', '4'), 3)],
@@ -777,6 +780,7 @@ def test_the_child_streams_one_frame_per_frame_in_order(  # ruff: ignore[too-man
     assert 'is ignored with --headless' not in caplog.text
 
 
+@pytest.mark.draws_frames
 def test_a_stream_nobody_reads_any_more_ends_the_replay(color_game, mocker, frame_stream_listeners):
     """When the parent is gone, the child stops replaying instead of running on unseen.
 
@@ -811,6 +815,7 @@ def test_a_stream_nobody_reads_any_more_ends_the_replay(color_game, mocker, fram
     assert replay.result.frames_replayed < color_game.old_frame_count
 
 
+@pytest.mark.draws_frames
 def test_a_shorter_old_holds_its_last_frame_with_the_label(color_game, mocker, tmp_path):
     """OLD's last frame stays over NEW's later ones, labelled with the frame it ended at."""
     short_old = tmp_path / 'short-old.jsonl.gz'
@@ -1057,9 +1062,9 @@ def raising_on_tick(*, scene_class: type[Scene], tick_number: int, error: BaseEx
 @pytest.mark.parametrize(
     ('ending', 'exit_code'),
     [
-        ('ends', ExitCode.SUCCESS),
+        pytest.param('ends', ExitCode.SUCCESS, marks=pytest.mark.draws_frames),
         ('fails-before-a-frame-is-shown', ExitCode.INTERNAL_ERROR),
-        ('interrupted', ExitCode.INTERRUPTED),
+        pytest.param('interrupted', ExitCode.INTERRUPTED, marks=pytest.mark.draws_frames),
     ],
 )
 def test_the_child_is_reaped_when_the_replay_ends_or_fails(color_game, mocker, ending, exit_code):
@@ -1101,6 +1106,7 @@ def test_the_child_is_reaped_when_the_replay_ends_or_fails(color_game, mocker, e
     assert onion_skin.is_stopped
 
 
+@pytest.mark.draws_frames
 def test_a_failing_stop_still_runs_the_rest_of_the_teardown(color_game, mocker, caplog):
     """The child is stopped, and the replay is still reported, though stopping it raised."""
     stop = OnionSkin.stop
@@ -1128,6 +1134,7 @@ def test_a_failing_stop_still_runs_the_rest_of_the_teardown(color_game, mocker, 
     assert run.onion_skin.process.returncode is not None
 
 
+@pytest.mark.draws_frames
 def test_a_step_back_restarts_the_child_at_the_same_frame(color_game, mocker):
     """A restart keeps --compare-trace; its child starts at the frame the restart pauses on."""
     restarted = restart_command(
@@ -2076,6 +2083,7 @@ def live_run_succeeded(*, run: LiveRun) -> bool:
     return run.exit_status in {None, ExitCode.SUCCESS}
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize(
     ('alpha_arguments', 'percent'),
     [((), DEFAULT_COMPARE_ALPHA_PERCENT), (('--compare-alpha', '25'), 25.0)],
@@ -2147,6 +2155,7 @@ LIVE_SEED_CASES = (
 )
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize('seed_case', LIVE_SEED_CASES, ids=[case.case for case in LIVE_SEED_CASES])
 def test_live_play_uses_olds_seed_unless_one_is_given(
     color_game, mocker, caplog, tmp_path, seed_case
@@ -2184,6 +2193,7 @@ def test_live_play_uses_olds_seed_unless_one_is_given(
         ), frame
 
 
+@pytest.mark.draws_frames
 def test_live_play_frame_numbers_match_a_recording_of_the_same_run(color_game, mocker, tmp_path):
     """Recorded live against OLD, then replayed against OLD: each frame is paired with the same OLD.
 
@@ -2229,6 +2239,7 @@ def test_live_play_frame_numbers_match_a_recording_of_the_same_run(color_game, m
         assert pair[0] == frame_index
 
 
+@pytest.mark.draws_frames
 def test_live_play_holds_olds_last_frame_with_the_label(color_game, mocker, tmp_path):
     """OLD shorter than the play: its last frame stays, labelled, and play goes on."""
     short_old = tmp_path / 'short-old.jsonl.gz'
@@ -2338,6 +2349,7 @@ def test_live_play_refusals(color_game, mocker, tmp_path, caplog, refusal):
     assert not new.exists()
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize(
     ('ending', 'exit_code'),
     [('quits', None), ('fails', ExitCode.INTERNAL_ERROR), ('interrupted', ExitCode.INTERRUPTED)],
@@ -2683,6 +2695,7 @@ def assert_old_follows_the_game_frames(*, pairs: dict[int, int | None]) -> None:
         assert old_frame_index == GAME_FRAME_OF_A_PAUSING_RUN[frame_index], frame_index
 
 
+@pytest.mark.draws_frames
 def test_pausing_freezes_old_in_live_play(color_game, mocker):
     """While the game is paused, OLD's frame stays; it moves on with the game's next frame."""
     run = live_play(
@@ -2722,6 +2735,7 @@ def record_a_pausing_run(*, color_game: ColorGame, path: Path) -> Path:
     return recording
 
 
+@pytest.mark.draws_frames
 def test_pausing_freezes_old_in_a_watched_replay(color_game, mocker, tmp_path):
     """A recorded pause holds OLD's frame in the replay as it did live."""
     new = record_a_pausing_run(color_game=color_game, path=tmp_path / 'new.jsonl.gz')
@@ -2744,6 +2758,7 @@ def test_pausing_freezes_old_in_a_watched_replay(color_game, mocker, tmp_path):
     assert_old_follows_the_game_frames(pairs=pairs)
 
 
+@pytest.mark.draws_frames
 def test_a_run_recorded_with_a_pause_pairs_the_same_on_replay(color_game, mocker, tmp_path):
     """Recorded live with a pause against OLD, then replayed against OLD: the same pairs."""
     new = tmp_path / 'new.jsonl.gz'
@@ -2781,6 +2796,7 @@ def test_a_run_recorded_with_a_pause_pairs_the_same_on_replay(color_game, mocker
     assert_old_follows_the_game_frames(pairs=live_pairs)
 
 
+@pytest.mark.draws_frames
 def test_a_step_back_across_a_pause_keeps_old_in_step(color_game, mocker, tmp_path):
     """A step back after the pause restarts OLD's child at the game frame shown, not the frame.
 
@@ -2845,6 +2861,7 @@ def test_a_step_back_across_a_pause_keeps_old_in_step(color_game, mocker, tmp_pa
     assert restarted.onion_skin.frames_received == len(set(pairs.values()))
 
 
+@pytest.mark.draws_frames
 def test_olds_own_pauses_are_skipped(color_game, mocker, tmp_path):
     """OLD paused where the live game did not: its pause screen's frames are never sent."""
     pausing_old = record_a_pausing_run(color_game=color_game, path=tmp_path / 'old.jsonl.gz')
@@ -2869,6 +2886,7 @@ def test_olds_own_pauses_are_skipped(color_game, mocker, tmp_path):
     assert run.onion_skin.frames_received == COLOR_GAME_FRAMES
 
 
+@pytest.mark.draws_frames
 def test_the_child_streams_only_game_frames(color_game, mocker, tmp_path, frame_stream_listeners):
     """A headless replay of a pausing run streams its game frames, numbered 0 to N - 1, only."""
     pausing = record_a_pausing_run(color_game=color_game, path=tmp_path / 'pausing.jsonl.gz')
