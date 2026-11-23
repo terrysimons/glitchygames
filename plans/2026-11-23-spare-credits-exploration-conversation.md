@@ -630,3 +630,38 @@ consistency.
 ## 71. User (2026-11-23)
 
 > Ok, go ahead.
+
+## 72. Claude
+
+Both character sheets came back, 34 animations each, checked by the engine's loader. Nixie (49
+colors): orange Nixie-tube eyes that show its mood as digits and symbols; reads less like an owl
+and sinks into dark backgrounds. Grimwire (34 colors): unmistakably an owl, with wire ear tufts,
+brass spectacles, the chest rune and spellbook wings; its spread wings are a flat fan. Both are
+weakest in flight. Recommended Grimwire as drawn, and keeping Nixie's mood-in-the-tubes idea.
+
+## 73. User (2026-11-23)
+
+> Ok, now take both of those contact sheets and make glitchygames sprites out of them.  Start a
+> demo in the demos folder for this one.
+
+## 74. Claude
+
+The two owls already are engine sprite files; built `mascot-demo` (`src/demos/mascot-demo/`)
+around them: one owl on screen, arrows or WASD to walk in eight directions, Shift to fly, 1-9
+and 0 for the ten emotes (each plays once, then idle), Tab to switch owls keeping position and
+facing. Registered in every place the member recipe lists, with tests and docs. Asked whether
+the demo belongs on this docs branch.
+
+## 75. User (2026-11-23)
+
+> Stack feature/mascot-demo on top of docs/spare-credits-exploration-plan
+
+## 76. User (2026-11-23)
+
+> Ok
+
+## 77. Claude
+
+Reviewed the demo and reran the checks (ruff, basedpyright and ty repo-wide, the member's tests
+and the workspace guards, its drawing tests on the native driver), then committed this record on
+the docs branch and the demo on `feature/mascot-demo`, stacked on it.
