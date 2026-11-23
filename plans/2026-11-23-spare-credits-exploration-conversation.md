@@ -125,3 +125,13 @@ primary sources. The ideas likely to matter whatever the game's shape:
 - **Open data and fonts:** dictionaries, kanji data, stroke-order data, example sentences and
   Japanese fonts are openly licensed, some with share-alike terms. Synthesized Japanese voices
   are the riskiest area for licensing.
+
+## 12. User (2026-11-23)
+
+> Ok, next part... RPG with a really amazing skill tree.  I'll explain the tree's contents a bit
+> later.  I just want you to come without pre-conceived notions until I'm ready to tell you.
+
+## 13. Claude
+
+Noted the skill tree as central, held off on any guesses or research about what it contains, and
+invited the next part.

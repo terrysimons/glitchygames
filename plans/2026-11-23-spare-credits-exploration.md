@@ -26,6 +26,8 @@ repository; this plan refers only to the ideas.
   feel.
 - **(user)** Gameplay starting point: the feel of 16-bit console RPGs such as Final Fantasy VI
   and Chrono Trigger, as a frame for the conversation, not a game to remake.
+- **(user)** An RPG with a really amazing skill tree. Its contents are the user's to explain
+  later; no assumptions about them until then.
 
 ## 2. Goals, non-goals, anti-goals
 
