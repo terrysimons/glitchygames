@@ -193,10 +193,12 @@ stateDiagram-v2
     [*] --> NOT_STARTED
     NOT_STARTED --> STARTING: start()
     STARTING --> NOT_ENOUGH_MEMORY: service start reports too little memory
-    STARTING --> UNAVAILABLE: service will not start or cannot be reached
-    STARTING --> CONNECTED: session open
+    STARTING --> UNAVAILABLE: service will not start
+    STARTING --> CONNECTED: welcome received
+    STARTING --> RECONNECTING: first connection fails or drops
+    STARTING --> REFUSED: service refuses the session
     CONNECTED --> RECONNECTING: connection lost
-    RECONNECTING --> CONNECTED: session reopened
+    RECONNECTING --> CONNECTED: welcome received
     CONNECTED --> REFUSED: service refuses the session
     RECONNECTING --> REFUSED: service refuses the session
     NOT_STARTED --> STOPPED: stop()
@@ -208,6 +210,11 @@ stateDiagram-v2
     REFUSED --> [*]
     STOPPED --> [*]
 ```
+
+Two facts from the code that matter for the participating mode: an unexpected error on the
+link's thread from any state lands in `UNAVAILABLE`; and a service that starts but never answers
+leaves the link in `RECONNECTING` indefinitely, retrying. So a participating game cannot wait for
+a final state at boot: it needs its own boot deadline (diagram 2).
 
 **2. A participating game's run** (draft). The loading scene covers booting and priming. Every
 failure ends at one failure scene and exit code 69 (`SERVICE_UNAVAILABLE`).
@@ -224,6 +231,7 @@ stateDiagram-v2
         Priming --> Ready: data primed
     }
     Booting --> Failed: NOT_ENOUGH_MEMORY, UNAVAILABLE or REFUSED
+    Booting --> Failed: no welcome before the boot deadline
     Priming --> Failed: priming fails or times out
     Ready --> Playing: game's first scene
     Playing --> Reconnecting: link RECONNECTING
@@ -236,7 +244,7 @@ stateDiagram-v2
     Finished --> [*]: exit 0
 ```
 
-Open in this draft: how long the grace period is (and what the player sees during it), and
+Open in this draft: how long the boot deadline and the grace period are (and what the player sees during it), and
 whether `--no-ai` on a participating game refuses with exit 64 (options refused) or 69.
 
 **3. The time loop** (draft, any language's arc). What carries over at the reset is deferred

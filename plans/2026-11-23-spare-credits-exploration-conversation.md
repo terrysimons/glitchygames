@@ -480,3 +480,10 @@ uses: Lucid Circuit's link as built (the passive mode); a participating game's r
 scene, failure scene, exit 69, replays served from recorded answers); the time loop; a sealed
 mound; a person's cloud of denial. Proposed that each machine be explicit in code, with tests of
 every allowed and refused transition. Named the open points in the participating-run draft.
+
+## 55. Claude
+
+Checked diagram 1 against `ai_link.py` and corrected it: a first connection that fails goes from
+STARTING to RECONNECTING (not UNAVAILABLE), and REFUSED can come before any welcome. Found that a
+service which starts but never answers leaves the link retrying in RECONNECTING indefinitely, so
+a participating game needs its own boot deadline; added it to diagram 2.
