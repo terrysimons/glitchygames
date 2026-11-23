@@ -448,9 +448,17 @@ class TestStopCommandEmptiesTheGroup:
     member present, ESRCH (ProcessLookupError) once no member is left, and on macOS EPERM
     (PermissionError) while every member left is ending. The grace is five looks long, and the
     looks do not sleep.
+
+    ``ps``, which names what is left, is a stand-in too, printing a canned listing in its
+    ``-o pid=,pgid=,stat=,command=`` format: Windows has no ``/bin/ps`` (these tests failed there
+    with WinError 2, #263), and a real listing could hold a real group 4242.
     """
 
     LOOKS_IN_A_GRACE = 5
+    # Processes of other groups only, as ps right-aligns its numbers: none is in group 4242
+    OTHER_GROUPS = (
+        '    1     1 Ss   /sbin/launchd\n  812   812 S+   /usr/bin/python3 -m http.server 8000\n'
+    )
 
     @pytest.fixture(autouse=True)
     def posix(self, mocker):
@@ -461,6 +469,24 @@ class TestStopCommandEmptiesTheGroup:
         mocker.patch.object(process, 'STOP_GRACE_SECONDS', 0.05)
         mocker.patch.object(process, 'GROUP_LOOK_SECONDS', 0.01)
         mocker.patch('glitchygames.clock.raw_sleep')
+        self._ps_lists(mocker, listing=self.OTHER_GROUPS)
+
+    @staticmethod
+    def _ps_lists(mocker, *, listing):
+        """Make ``ps`` print ``listing``, as ``_list_group`` runs it."""
+
+        def stand_in_ps(command, **options):
+            assert command == [
+                process.PROCESS_LISTER,
+                '-A',
+                '-ww',
+                '-o',
+                'pid=,pgid=,stat=,command=',
+            ]
+            assert options == {'capture_output': True, 'text': True, 'check': False}
+            return subprocess.CompletedProcess(args=command, returncode=0, stdout=listing)
+
+        mocker.patch.object(process.subprocess, 'run', side_effect=stand_in_ps)
 
     @staticmethod
     def _group_answering(answers):
@@ -533,6 +559,46 @@ class TestStopCommandEmptiesTheGroup:
             stop_command(process=child)
 
         assert calls[-self.LOOKS_IN_A_GRACE :] == [(4242, SIGKILL_NUMBER)] * self.LOOKS_IN_A_GRACE
+
+    def test_the_error_names_each_survivor_by_pid_and_command_line(self, mocker):
+        """What ps lists in the group is named, so the survivor can be found and stopped."""
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.return_value = 0
+        killpg, _ = self._group_answering([None] * (1 + 2 * self.LOOKS_IN_A_GRACE))
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=killpg)
+        self._ps_lists(
+            mocker,
+            listing=(
+                self.OTHER_GROUPS
+                + ' 4250  4242 S    /bin/sleep 60\n'
+                + ' 4251  4242 R+   /usr/bin/python3 worker.py --role audio\n'
+            ),
+        )
+
+        with pytest.raises(process.ProcessGroupSurvivedError) as survived:
+            stop_command(process=child)
+
+        assert str(survived.value) == (
+            'Process group 4242 still has processes a grace after SIGKILL: '
+            '4250 /bin/sleep 60; 4251 /usr/bin/python3 worker.py --role audio'
+        )
+
+    def test_a_group_ps_lists_only_zombies_of_is_not_a_survivor(self, mocker):
+        """Zombies run nothing: a group still answering with only zombies in it ends quietly.
+
+        The stand-in counterpart of the real-process zombie test, which cannot run on Windows.
+        """
+        child = mocker.Mock(pid=4242)
+        child.poll.return_value = None
+        child.wait.return_value = 0
+        killpg, calls = self._group_answering([None] * (1 + 2 * self.LOOKS_IN_A_GRACE))
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=killpg)
+        self._ps_lists(mocker, listing=self.OTHER_GROUPS + ' 4250  4242 Z+   (true)\n')
+
+        stop_command(process=child)
+
+        assert calls[-1] == (4242, SIGKILL_NUMBER)
 
     def test_a_group_of_ending_members_is_looked_at_until_it_is_gone(self, mocker):
         """A group whose members are all ending refuses signals on macOS: no error, look again."""
