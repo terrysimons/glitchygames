@@ -19,8 +19,9 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SUBPROCESS_TIMEOUT_SECONDS = 120.0
 
-# A test that quits pygame (as tests/test_logging.py does), then a test whose wide fixture reads
-# the display, as Zombies' module-scoped demo_plan does when it builds its scene
+# A test that stops pygame (as tests/test_logging.py does) or only its display, then a test whose
+# wide fixture reads the display, as Zombies' module-scoped demo_plan does when it builds its
+# scene
 QUIT_THEN_WIDE_FIXTURE_TESTS = """
 import pygame
 import pytest
@@ -28,8 +29,8 @@ import pytest
 from tests.display_canvas import canvas_color_at
 
 
-def test_a_test_that_quits_pygame():
-    pygame.quit()
+def test_a_test_that_stops_the_display():
+    {stop}
 
 
 @pytest.fixture(scope='{scope}')
@@ -83,15 +84,21 @@ def _run_inner_tests(*, pytester: pytest.Pytester, arguments: Sequence[str]) -> 
     )
 
 
+@pytest.mark.parametrize('stop', ['pygame.quit()', 'pygame.display.quit()'])
 @pytest.mark.parametrize('scope', ['module', 'session'])
-def test_a_wide_fixture_after_a_test_that_quit_pygame_has_the_test_display(
-    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, scope: str
+def test_a_wide_fixture_after_a_test_that_stopped_the_display_has_the_test_display(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, scope: str, stop: str
 ) -> None:
-    """The fixture is made after the quitting test's teardown, and finds the 800x600 display."""
+    """The fixture is made after the stopping test's teardown, and finds the 800x600 display.
+
+    Stopping pygame and stopping only its display (pygame still running) both leave no display.
+    """
     monkeypatch.setenv('PYTHONPATH', str(PROJECT_ROOT))
     monkeypatch.setenv('SDL_VIDEODRIVER', 'dummy')
     monkeypatch.setenv('SDL_AUDIODRIVER', 'dummy')
-    path = pytester.makepyfile(test_inner=QUIT_THEN_WIDE_FIXTURE_TESTS.format(scope=scope))
+    path = pytester.makepyfile(
+        test_inner=QUIT_THEN_WIDE_FIXTURE_TESTS.format(scope=scope, stop=stop)
+    )
 
     result = _run_inner_tests(pytester=pytester, arguments=[str(path)])
 
