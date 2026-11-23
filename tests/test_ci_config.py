@@ -3422,23 +3422,44 @@ def circleci_job_definition(*, name: str) -> str:
     return match['body']
 
 
+# The website's AWS infrastructure tests' job (nox -s infra-test: the CDK stacks, the publisher,
+# the deploy settings and the CloudFront redirect function, none reaching AWS). Was test-infra,
+# which read as the project's test infrastructure (the owner, 2026-11-23)
+WEBSITE_INFRASTRUCTURE_JOB = 'test-website-aws-infrastructure'
+
+
+def test_no_ci_file_names_the_job_by_its_old_name():
+    """The rename is whole: a requires or workflow entry left on test-infra would never run."""
+    leftovers = [
+        f'{path.relative_to(PROJECT_ROOT)}:{number}'
+        for path in sorted((PROJECT_ROOT / '.circleci').rglob('*'))
+        if path.is_file()
+        for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), start=1)
+        if re.search(r'(?<![\w-])test-infra(?![\w-])', line)
+    ]
+
+    assert leftovers == []
+    assert WEBSITE_INFRASTRUCTURE_JOB in circleci_job_texts()
+
+
 def test_the_infra_tests_run_on_every_branch():
     """The website's CDK app and publisher are tested on every branch, like the engine.
 
-    The workflow lists the job bare (``- test-infra``, no requires or filters).
+    The workflow lists the job bare (``- test-website-aws-infrastructure``, no requires or filters).
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     workflow = configuration[configuration.index('\nworkflows:') :]
 
-    assert re.search(r'^      - test-infra\n', workflow, flags=re.MULTILINE)
-    assert 'nox -s infra-test' in circleci_job_definition(name='test-infra')
+    assert re.search(rf'^      - {WEBSITE_INFRASTRUCTURE_JOB}\n', workflow, flags=re.MULTILINE)
+    assert 'nox -s infra-test' in circleci_job_definition(name=WEBSITE_INFRASTRUCTURE_JOB)
 
 
 def test_the_infra_sessions_node_tests_name_their_files_never_a_folder():
     """``nox -s infra-test`` hands ``node --test`` files or globs that match every test file.
 
     Node 26 searches a folder named after ``--test``, but Node 24 (CircleCI's ``-node`` image)
-    loads it as one module and fails with "Cannot find module" (every ``test-infra`` run from
+    loads it as one module and fails with "Cannot find module" (every
+    ``test-website-aws-infrastructure`` run from
     2026-10-28 to 2026-11-20 failed so, while local runs on Node 26 passed). A glob works on
     Node 22, 24 and 26.
     """
@@ -3465,15 +3486,18 @@ def test_the_infra_sessions_node_tests_name_their_files_never_a_folder():
 
 
 def test_the_site_deploys_from_main_once_the_infra_tests_pass():
-    """play.glitchy.games is published from main only, once test-infra passes, beside the docs.
+    """play.glitchy.games publishes from main alone, once its infrastructure tests pass.
+
+    It publishes beside the docs, not after them.
 
     The owner, 2026-11-20: "essentially would like docs and site publish to happen in parallel"
     (it was "after docs publish", 2026-10-28). The site publishes ``src/website``, not the docs'
-    output, so it needs nothing from deploy-docs; test-infra still tests the code that publishes.
+    output, so it needs nothing from deploy-docs; test-website-aws-infrastructure still tests the
+    code that publishes.
     """
     entry = circleci_workflow_job(name='deploy-site')
 
-    assert 'requires:\n            - test-infra\n          filters:' in entry
+    assert f'requires:\n            - {WEBSITE_INFRASTRUCTURE_JOB}\n          filters:' in entry
     assert 'branches:\n              only: main\n' in entry
     assert SITE_DEPLOY_LOCK in entry
     assert 'nox -s site-publish' in circleci_job_definition(name='deploy-site')
@@ -3622,7 +3646,8 @@ def test_the_docs_deploy_shares_the_on_main_check():
 def test_the_site_deploy_publishes_mains_latest_commit():
     """The deploy moves to main's tip before publishing, so an older pipeline cannot win.
 
-    With its own lock and only test-infra to wait for (the owner, 2026-11-20), a site deploy
+    With its own lock and only test-website-aws-infrastructure to wait for (the owner,
+    2026-11-20), a site deploy
     from an older pipeline could otherwise finish after a newer one and put the older site back.
     """
     definition = circleci_job_definition(name='deploy-site')

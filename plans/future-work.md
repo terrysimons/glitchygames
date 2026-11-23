@@ -694,8 +694,9 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   - The redirect regroups repeated query keys and drops `=` on empty values (harmless today).
   - Weak cross-stack references: after replacing the site's bucket or distribution, deploy
     `GlitchyGamesSiteDeployRole` with `--force` or its role keeps the old ARNs.
-  - CircleCI: give `test-infra`/`deploy-site` a uv cache key with `infra/uv.lock`; a missing
-    `CIRCLE_OIDC_TOKEN_V2` should fail with a clear message, not "unbound variable".
+  - CircleCI: give `test-website-aws-infrastructure`/`deploy-site` a uv cache key with
+    `infra/uv.lock`; a missing `CIRCLE_OIDC_TOKEN_V2` should fail with a clear message, not
+    "unbound variable".
   - The `glitchygames.ai` redirect distribution sends no HSTS (found at go-live, 2026-11-20:
     the `glitchy.games` hosts' 301s carry `strict-transport-security`, the `.ai` ones don't), so
     a browser's first `http://glitchygames.ai` request isn't upgraded by the browser itself.
@@ -706,7 +707,7 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   publishes still running in parallel inside it: for example two background steps, or the docs
   build and the S3 upload started together. Keep what the two jobs guarantee today:
   - the docs deploy waits for no test job;
-  - the site publish waits for `test-infra`;
+  - the site publish waits for `test-website-aws-infrastructure`;
   - two back-to-back merges cannot race gh-pages;
   - a deploy whose main is already published stops.
 - **The site deploy stops when main is already live** (2026-11-20, the follow-up to

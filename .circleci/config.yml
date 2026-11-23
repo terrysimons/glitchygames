@@ -964,9 +964,11 @@ jobs:
             - third_party/pygame-ce/dist-pyodide
       - save-uv-cache-posix
 
-  # Tests the website's CDK app, publisher and CloudFront Function (infra/; nox -s infra-test).
+  # Tests the website's AWS infrastructure (infra/; nox -s infra-test): the CDK app's stacks,
+  # the publisher, the deploy settings and the CloudFront redirect function, none reaching AWS.
+  # Renamed from a name that read as the project's test infrastructure (the owner, 2026-11-23).
   # The -node image: the CDK's Python library runs on Node, and the function's tests use node
-  test-infra:
+  test-website-aws-infrastructure:
     docker:
       - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>-node
     resource_class: small
@@ -1002,7 +1004,7 @@ jobs:
     steps:
       - checkout
       # Publish what main is now, not only the commit this deploy was started for: with its own
-      # lock and only test-infra to wait for, an older pipeline's deploy could otherwise finish
+      # lock and only test-website-aws-infrastructure to wait for, an older pipeline's deploy could otherwise finish
       # after a newer one and put the older site back (nox -s site-publish also refuses a
       # checkout off main)
       - run:
@@ -1076,7 +1078,7 @@ workflows:
           # race gh-pages (a deploy that waited finds main published and stops); the site's
           # deploy holds another, so the two run side by side
           serial-group: << pipeline.project.slug >>/deploy-docs
-      - test-infra
+      - test-website-aws-infrastructure
       # After a merge to main, once the infra tests pass, beside the docs deploy (the owner,
       # 2026-11-20: "essentially would like docs and site publish to happen in parallel"; it
       # waited for the docs from 2026-10-28). It publishes src/website, nothing the docs build
@@ -1085,7 +1087,7 @@ workflows:
       # skips running it elsewhere
       - deploy-site:
           requires:
-            - test-infra
+            - test-website-aws-infrastructure
           filters:
             branches:
               only: main
