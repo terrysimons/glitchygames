@@ -57,6 +57,10 @@ The game, as the user has described it so far:
   imperial army with its barracks, and a commander with a cruel, zealous villain's attitude that
   evokes Cromwell. Never referenced directly; evoked through stand-ins, the way the film Kneecap
   evokes real people and movements.
+- **(user)** Tone: tongue-in-cheek, nudge-nudge-wink-wink stand-ins, while being super respectful
+  and mindful of the real tragedy. The Troubles are in view as well.
+- **(my call, proposed)** How to hold both: the humor aims at power (the empire, its pompous
+  commander, its bureaucracy), never at the people who suffered; the grief is played straight.
 - **(user)** The point is acquisition through immersion in a simulated environment, rather than
   something chunky and static (which is how Slime Forest Adventure feels, though it is super
   useful and the user sees why it was made that way).

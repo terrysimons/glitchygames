@@ -358,3 +358,27 @@ a cruel commander with the vibe of Cromwell, never named, the way Kneecap evokes
 through stand-ins. Started a fourth research agent on the history of conquest and occupation,
 including how Wolfwalkers (which has a Cromwell-like Lord Protector) and Kneecap handle
 stand-ins, so this game stays distinct.
+
+## 39. Claude (research update)
+
+The Great Hunger research came back. Historians agree the blight was natural but the scale of
+death was not inevitable: policy made it far worse (relief cut in 1847, relief refused to anyone
+holding more than a quarter acre, food leaving the country), and state relief was a sliver of
+what the Crimean War cost. They are split on intent, which is what "genocide" or "massacre"
+claims; most academic historians reject the genocide label, while writers such as Tim Pat Coogan
+argue for it. Claude recommended letting the fiction's stand-in empire be openly cruel, and
+proposed that the word "famine" itself be the corrupted outsider version, with An Gorta Mór
+(the Great Hunger) and An Drochshaol (the bad times) as the truth the player recovers.
+
+## 40. User (2026-11-23)
+
+> Sort of tongue in cheek nudge nudge wink wink - and also trying to be super respectful and
+> mindful of the real tragedy nature of what happened, and then considering, for instance, The
+> Troubles.
+
+## 41. Claude
+
+Recorded the tone: tongue-in-cheek, nudge-nudge-wink-wink stand-ins, together with real respect
+for the tragedy, with the Troubles in view as well. Proposed a rule for holding both: the jokes
+aim at power (the empire, its pompous commander, its bureaucracy), never at the people who
+suffered.
