@@ -1235,6 +1235,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-draws_frames-marker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The draws_frames marker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#on-demand-nox-s-compare-drivers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2916,6 +2927,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-draws_frames-marker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The draws_frames marker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#on-demand-nox-s-compare-drivers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3072,7 +3094,8 @@ Clockwork Keep's elevator ride (BUGS.md #189), neither visible on <code>dummy</c
 <ol>
 <li>on <code>dummy</code>, in the pytest process and its xdist workers, with coverage and the 99% gate as
    always;</li>
-<li>on the native driver, as a child pytest run with the same arguments. The usual workers are
+<li>on the native driver, as a child pytest run with the same arguments, running only the tests
+   marked <code>draws_frames</code> (the others have no frame to compare; see below). The usual workers are
    split between the two runs (the native run gets two thirds: it is slower per test), so the
    machine is no busier than for one run.</li>
 </ol>
@@ -3110,6 +3133,31 @@ these are a session recorded through the real frame loop (each frame moves by it
 time), watched replays of a live session (the overlay shows the live window's mouse focus, which
 <code>dummy</code> always reports and a background window does not have) and a test that switches the
 display back to the run's driver part way through.</p>
+<h2 id="the-draws_frames-marker">The <code>draws_frames</code> marker<a class="headerlink" href="#the-draws_frames-marker" title="Permanent link">#</a></h2>
+<p>A test <strong>draws</strong> when, from the start of its setup to the end of its body, it presents a frame
+(<code>pygame.display.flip</code> or <code>update</code>), or it leaves the display showing a picture other than the
+canvas at the display's size (every test starts on the canvas: <code>tests/display_canvas.py</code>). Those
+are the two things a comparison compares, so only those tests have frames that can differ. Each
+carries <code>@pytest.mark.draws_frames</code>; in a parametrized test whose cases differ, each drawing case
+carries it through <code>pytest.param(..., marks=pytest.mark.draws_frames)</code>. A test whose frames vary
+and that draws carries both markers. The comparison's runs pass the frame fingerprints plugin's
+<code>--draws-frames-only</code>, which runs only the marked tests (after any <code>-m</code> of yours): about 850 of
+the suite's 30,900.</p>
+<p>The marker cannot go stale: every run (<abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> too, every driver) checks each test whose body passed,
+and fails it when the marker disagrees with what it did:</p>
+<ul>
+<li><code>... draws without the draws_frames marker (presented 3 frame(s)): add @pytest.mark.draws_frames</code>
+  (or "left a picture other than the blank screen");</li>
+<li><code>... is marked draws_frames but draws nothing (no present, and it leaves the blank screen):
+  remove the marker</code>.</li>
+</ul>
+<p>Each run also lists its disagreements in <code>test-results/frame-markers.txt</code>. To mark many tests at
+once, run the suite with <code>--frame-markers-report-only</code> (it lists without failing), then <code>uv run
+python -m scripts.mark_drawing_tests</code>, which adds the markers the list asks for (and names
+markers to remove by hand), and <code>ruff format</code> the changed files. A pytest that a test starts
+(pytester, a tool's run) is not checked. The check costs about 0.4 ms per test that presents
+nothing. The contract is <code>src/glitchygames/testing/frame_fingerprints.py</code>'s docstring; the
+decisions are in <code>plans/2026-11-22-compare-drivers-only-drawing-tests.md</code>.</p>
 <h2 id="on-demand-nox-s-compare-drivers">On demand: <code>nox -s compare-drivers</code><a class="headerlink" href="#on-demand-nox-s-compare-drivers" title="Permanent link">#</a></h2>
 <p>The session compares every driver configuration available on this machine with every other, an
 N-way matrix (<code>scripts/driver_configurations.py</code> lists them and finds which run here):</p>
@@ -3144,8 +3192,8 @@ N-way matrix (<code>scripts/driver_configurations.py</code> lists them and finds
 </tr>
 </tbody>
 </table>
-<p>The runs go one after another with four workers each (the container's too), so the machine stays
-usable; <code>-- --workers N</code> sets another count, and <code>-- --workers auto</code> uses every core. The pre-push
+<p>Every run runs only the tests marked <code>draws_frames</code> (above). The runs go one after another with
+four workers each (the container's too), so the machine stays usable; <code>-- --workers N</code> sets another count, and <code>-- --workers auto</code> uses every core. The pre-push
 hook passes <code>--workers auto</code>: a push is waited for, and on a 16-core Mac its three runs took 10
 minutes instead of 19, with every configuration agreeing and nothing more varying between the dummy
 runs (measured 2026-11-13). It also passes <code>--skip-when-frames-cannot-change</code>: a push that changes
@@ -3302,7 +3350,7 @@ Apple silicon. Made on macOS; on a Linux host the results are made writable for 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 21, 2026 12:28:18 UTC">November 21, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 06:53:09 UTC">November 23, 2026</span>
   </span>
 
     

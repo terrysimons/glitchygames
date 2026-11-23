@@ -3242,7 +3242,7 @@ adds layers 1 and 2, the Bitmappy box layer 3, and argparse's <code>ArgumentPars
     loop for each of the 12
         ENGINE-&gt;&gt;MANAGERS: manager.args(parser)
     end
-    Note over MANAGERS: Layer 2, in this order&lt;br/&gt;App, Audio, Controller (1), Drop,&lt;br/&gt;Font (7), Game (3), Joystick, Keyboard,&lt;br/&gt;Midi, Mouse, Touch, Window&lt;br/&gt;(the 9 without a count add empty groups)
+    Note over MANAGERS: Layer 2, in this order&lt;br/&gt;App, Audio, Controller (1), Drop,&lt;br/&gt;Font (7), Game (4), Joystick, Keyboard,&lt;br/&gt;Midi, Mouse, Touch, Window&lt;br/&gt;(the 9 without a count add empty groups)
     INIT-&gt;&gt;PARSER: add_argument_group("Bitmappy v1.0 Options")
     INIT-&gt;&gt;GAME: BitmapEditorScene.args(group)
     Note over GAME: Layer 3&lt;br/&gt;-v, -s
@@ -3473,6 +3473,10 @@ from <code>--help</code>: the watched replay's restart internals.</p>
 <li><code>-l, --log-level {debug,info,warning,error,critical}</code> (<code>choice</code>, default <code>warning</code>): set the logging level (default: warning; a bug report asks for info)</li>
 <li><code>--no-unhandled-events</code> (<code>store_true</code>, default <code>False</code>): fail on unhandled events</li>
 <li><code>-p, --profile</code> (<code>store_true</code>, default <code>False</code>): enable profiling</li>
+<li><code>--invalid-high-scores {refuse,drop}</code> (<code>choice</code>, default <code>refuse</code>): what a high-score table
+  (<code>glitchygames.state.high_scores</code>) does with a saved entry it cannot read: refuse it (keep the
+  file as it is, save nothing; the game-over screen still shows the run's score) or drop it with
+  a warning</li>
 </ul>
 <h4 id="reserved-groups-empty-no-arguments-yet">Reserved groups (empty, no arguments yet)<a class="headerlink" href="#reserved-groups-empty-no-arguments-yet" title="Permanent link">#</a></h4>
 <p>These event managers create their group as an extension point but add no options, so <code>--help</code>
@@ -3679,7 +3683,7 @@ the <code>--help</code> output, separate from all engine-level flags.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 22:10:50 UTC">November 20, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 02:01:02 UTC">November 23, 2026</span>
   </span>
 
     
