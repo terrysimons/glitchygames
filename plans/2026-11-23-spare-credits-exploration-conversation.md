@@ -221,3 +221,13 @@ mechanics and emergent properties, asking clarifying questions, testing possibil
 while the game is being made, while it is being played, or both. Flagged that the engine today
 turns the AI service off in replays and the browser, and that replays need exact repeats, so AI
 during play would have its answers recorded like any other input.
+
+## 24. User (2026-11-23)
+
+> Likely both - it's part of what we'll need to research, consider, test, brainstorm.
+
+## 25. Claude
+
+Recorded it: AI likely plays a part both while the game is made and while it is played, and
+where exactly is an open area to research, consider, test and brainstorm. Invited the user to
+continue.

@@ -47,6 +47,8 @@ The game, as the user has described it so far:
   organically, as it would in a real, truly immersive situation.
 - **(user)** AI helps steer things, design the skill tree's mechanics and emergent properties,
   ask clarifying questions, test possibilities, and so on.
+- **(user)** AI likely plays a part both while the game is made and while it is played; where
+  exactly is an area to research, consider, test and brainstorm.
 - **(user)** The user is explaining the mechanics first, then what they are going for. Claude
   listens and holds guesses until both are told.
 - **(user)** Research notes stay outside the repository; this plan refers only to the ideas.
@@ -67,6 +69,12 @@ Asked 2026-11-23; status as the user gave it.
 | 10 | What would make it a failure even if it technically works? | The user is thinking about it |
 | 11 | Where does it live: inside glitchygames or its own project? | Not sure yet |
 | 12 | Does it have a name? | Not yet |
+
+Areas to research, consider, test and brainstorm (named by the user):
+
+- Where AI acts at design time and where at play time. Constraint to weigh: today the engine
+  turns the AI service off in replays and the browser, and replays must repeat exactly, so AI at
+  play time needs its answers recorded and served back on replay.
 
 Questions 5 (which parts of Japanese) and 6 (how the player answers) were struck by the user.
 
