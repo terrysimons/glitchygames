@@ -177,14 +177,20 @@ one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs
 - It is on only when `GLITCHYGAMES_TEST_SPLIT` is `circleci`; the split jobs set it, and any
   other value stops the run. It needs CircleCI's `CIRCLE_NODE_TOTAL`, `CIRCLE_NODE_INDEX` and
   `circleci` command, so it is never set locally (`nox -s test-linux-ci` leaves it out).
-- Before collection, every test file pytest would collect, golden replays included, is listed
-  without importing any and goes to `circleci tests split --split-by=timings`. Only the files it
-  returns are collected; the rest are skipped before pytest imports them, which saves each
-  machine about 150 MiB over collecting everything and deselecting half. A test collected from a
-  file the listing missed stops the run, naming it. The share is written to
+- The share is chosen test by test, not file by file (the owner, 2026-11-23): whole files once
+  put all 42 heavy inner-game replay cases on one machine (#285's Windows job 5051: 1,914 s
+  against 1,312 and 1,297), concentrating the most taxing tests where load, timeouts and races
+  bite. Every machine collects the whole suite (about 150 MiB more than collecting its own files,
+  and a module-scoped fixture is set up on each machine that runs one of its tests: costs the
+  owner accepted), then keeps its share.
+- Tests marked `heavy_replay(reason=...)` are dealt first, round-robin in node-id order, so the
+  machines' counts differ by at most one from their first run. Every other test, named as its
+  JUnit report names it (`classname.name`, `junit_family=xunit1`, which the test session adds for
+  a split job), goes sorted to `circleci tests split --split-by=timings --timings-type=testname`.
+  Every collected test runs on exactly one machine. CircleCI's docs do not say which JUnit
+  attributes `testname` matches: when none match, the splitter weighs the tests by name and says
+  so in `test-results/test-split-messages-<pid>.txt`. The share is written to
   `test-results/test-split.txt`.
-- CircleCI's timings come from the JUnit reports, which name each test's file
-  (`junit_family=xunit1`, which the test session adds for a split job).
 - No share reaches the 100% coverage rule alone, so the test session turns it off for a share;
   each machine keeps its `.coverage` in `coverage-data/<job>/`, and a `coverage-combine-*` job
   combines them on the job's Python and applies the rule (`nox -s coverage-combine-3.15`).
@@ -212,8 +218,8 @@ drivers, the owner's Mac). Every ordinary run keeps the files' order (`-p no:ran
   or a rerun (its workflow ID differs from its workspace ID), and again after a failure, with the
   command that replays it. The same goes to `test-results/test-order.txt` (in the job's
   artifacts, uploaded even when the tests fail). A split machine shuffled only its share: name
-  the files in its `test-results/test-split.txt` to replay its order; a rerun may give a machine
-  slightly different files if CircleCI's timings changed in between.
+  the tests kept in its `test-results/test-split.txt` to replay its order; a rerun may give a
+  machine slightly different tests if CircleCI's timings changed in between.
 - A shuffle only reorders (`--randomly-dont-reset-seed`, as `nox -s test-random`), so coverage,
   the driver comparison and each test's own randomness are unchanged.
 

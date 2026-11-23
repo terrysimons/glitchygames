@@ -12,16 +12,20 @@ import importlib.metadata
 import importlib.util
 import itertools
 import json
+import os
 import re
+import sys
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
 from scripts.git_checkout import run_git
 from scripts.workspace_packages import WorkspaceMember, workspace_members
 
 from glitchygames.engine import GameEngine
 from glitchygames.fonts import FontManager
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.read_only_views import ViewBase
 from glitchygames.scenes import SceneManager
 from glitchygames.sprites import Sprite
@@ -45,6 +49,8 @@ TESTS_ROOT = PROJECT_ROOT / 'tests'
 PYTEST_SETTINGS = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))[
     'tool'
 ]['pytest']['ini_options']
+# Collecting the whole suite in a child takes about 5 s on a laptop; a slow CI machine, longer
+COLLECTION_TIMEOUT_SECONDS = 300.0
 # Files that legitimately hold no collectable tests even though they may define test-like names
 NON_TEST_MODULE_NAMES = {'conftest.py', '__init__.py'}
 
@@ -167,38 +173,54 @@ def _python_files_patterns() -> list[str]:
     return python_files_patterns
 
 
-def test_the_test_split_lists_every_file_that_defines_tests_and_every_golden_replay():
-    """A split CI machine collects only the listed files it keeps, so none may be unlisted.
+@pytest.mark.skipif(
+    bool(os.environ.get('GLITCHYGAMES_TEST_SPLIT')),
+    reason=(
+        'a second whole-suite collection in the same 2 GB container: +314 MiB tripped the '
+        "1400 MiB memory guard on #286's Linux job 5098; the split plugin checks the names on "
+        'every CI machine anyway (tests/circleci_test_split.py)'
+    ),
+)
+def test_every_test_in_the_suite_has_its_own_junit_name(tmp_path):
+    """A split CI machine names each test as its JUnit report does; no two may share a name.
 
-    tests/circleci_test_split.py lists the test files before collection and skips the other
-    machine's; a test file it failed to list would run nowhere, or (collected anyway) stop the
-    run. Listed files that define no test (a ``test_*`` helper module) only cost nothing.
+    tests/circleci_test_split.py gives the timing splitter every test's xunit1 name
+    (``classname.name``) and stops the run when two tests share one: their timings could not
+    be told apart. So such a pair would stop every split CI job. The whole suite is collected
+    in a child pytest, as a CI machine collects it. Locally and in the pre-push gate only: in a
+    split CI job the child's collection costs too much memory beside the machine's own, and the
+    plugin's runtime check covers it there (the detection itself: ``repeated_junit_names``'
+    tests in tests/test_circleci_test_split.py).
     """
-    from tests.circleci_test_split import candidate_test_files
+    from tests.circleci_test_split import repeated_junit_names
+    from tests.list_collected_tests import OUTPUT_VARIABLE
 
-    roots = collected_test_roots()
-    listed = {
-        Path(name).as_posix()
-        for name in candidate_test_files(
-            start_paths=[PROJECT_ROOT / path for path in PYTEST_SETTINGS['testpaths']],
-            root=PROJECT_ROOT,
-            python_files=_python_files_patterns(),
-            norecursedirs=PYTEST_SETTINGS.get('norecursedirs', []),
-        )
-    }
-    defining_tests = {
-        test_file.relative_to(PROJECT_ROOT).as_posix()
-        for _root, test_file in _test_defining_files(roots=roots)
-    }
-    golden_replays = {
-        replay.relative_to(PROJECT_ROOT).as_posix()
-        for root in roots
-        for replay in root.glob('fixtures/replays/**/*.jsonl.gz')
-    }
+    output = tmp_path / 'node-ids.txt'
+    result = run_command(
+        command=[
+            sys.executable,
+            '-m',
+            'pytest',
+            '-o',
+            'addopts=',
+            '--import-mode=importlib',
+            '-p',
+            'no:randomly',
+            '-p',
+            'tests.list_collected_tests',
+            '--collect-only',
+            '-q',
+        ],
+        environment={**os.environ, OUTPUT_VARIABLE: str(output)},
+        timeout_seconds=COLLECTION_TIMEOUT_SECONDS,
+        capture_output=OutputCapture.TOGETHER,
+        working_directory=PROJECT_ROOT,
+    )
+    assert result.returncode == 0, result.stdout
+    node_ids = output.read_text(encoding='utf-8').splitlines()
 
-    assert defining_tests - listed == set()
-    assert golden_replays - listed == set()
-    assert golden_replays
+    assert len(node_ids) > 1000
+    assert repeated_junit_names(node_ids=node_ids) == []
 
 
 def test_every_test_file_matches_python_files():

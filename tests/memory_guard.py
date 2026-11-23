@@ -60,6 +60,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Mapping
 
 LIMIT_VARIABLE = 'GLITCHYGAMES_TEST_RSS_LIMIT_MB'
+# pytest sets this while a test runs: a pytest that configures with it set was started by a test
+CURRENT_TEST_VARIABLE = 'PYTEST_CURRENT_TEST'
 SAMPLE_INTERVAL_SECONDS = 0.25
 # /proc/self/statm: sizes in pages; the second field is the resident set
 STATM_PATH = Path('/proc/self/statm')
@@ -512,10 +514,13 @@ def pytest_configure(config: pytest.Config) -> None:
     """Start the guard when ``GLITCHYGAMES_TEST_RSS_LIMIT_MB`` is set and the memory is readable.
 
     Never in a pytest-xdist worker (``workerinput``): each would hold the whole limit for itself.
-    The stop is bound now, with the original standard error, so nothing patched later changes
-    what a tripped guard does.
+    Never in a run a test started (``PYTEST_CURRENT_TEST`` set as it configures: pytester, in
+    process or as a child, or a tool's pytest): the outer run's guard already watches the same
+    memory, and a second one's stop (``os._exit``) would kill the outer run naming the inner
+    test (the split plugin's and the draws_frames check's rule). The stop is bound now, with the
+    original standard error, so nothing patched later changes what a tripped guard does.
     """
-    if hasattr(config, 'workerinput'):
+    if hasattr(config, 'workerinput') or os.environ.get(CURRENT_TEST_VARIABLE):
         return
     reader = memory_reader(
         cgroup_directory=CGROUP_DIRECTORY, statm_path=STATM_PATH, page_bytes=system_page_bytes
