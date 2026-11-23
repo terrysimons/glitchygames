@@ -157,3 +157,20 @@ Listed the open questions (none about the skill tree's contents):
 10. What would make it a failure even if it technically works?
 11. Where does it live: a game inside glitchygames, or its own project?
 12. Does it have a name yet?
+
+## 16. User (2026-11-23)
+
+> 1. I'll answer this after we get the framework sorted to my liking.  2. It's not going to be
+> about Japanese at all.  I'll explain later.  3. I'll explain later.  4. This is a good
+> question, and one that I'm still considering.  5. Strike this question altogether.  6. Strike
+> this question altgoether. 7. Let me think about this one.  8. Let me think about this one.  9.
+> I have an answer for this, but I want to explain things in my own way before I answer this.
+> 10. Let me think about this.  11. I'm not sure yet.  12. Not yet.  Let me finish my
+> explanation for you of the sort of mechanistic parts, and then I'll describe what I'm sort of
+> going for.
+
+## 17. Claude
+
+Rewrote the plan's intent: the game is not about Japanese; Slime Forest Adventure stays only as
+the opening reference. Added a table of the open questions with the user's status for each,
+struck 5 and 6, and invited the user to continue with the mechanics.
