@@ -318,3 +318,12 @@ Then waited for the user's specific idea.
 
 Confirmed the general idea in a few lines, treated the color idea as this session's one to
 explore among many, and asked for the specific idea.
+
+## 34. User (2026-11-23)
+
+> Ok great.  Now that I've set the mechanic, you'll quickly see why I've been so deliberate to be
+> vague.  Actually, this could in theory work for any language, including Japanese - but the
+> actual language I want to play with is Irish Gaelic.  The potato famine wasn't a famine - it
+> was a massacre.  Take that whole bit of history - do some reserach and write up a plot for this
+> game into a new document that follows this template, but could be applied to any language.
+> Starting with Gaeilge (ga).  Propose a filename for this game arc.
