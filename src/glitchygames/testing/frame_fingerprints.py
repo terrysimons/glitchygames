@@ -57,7 +57,11 @@ two things a comparison compares; plans/2026-11-22-compare-drivers-only-drawing-
 test that draws carries ``@pytest.mark.draws_frames``; a parametrized case marks itself with
 ``pytest.param(..., marks=pytest.mark.draws_frames)``. ``--draws-frames-only`` runs only the
 marked tests (the others are deselected, after any ``-m``): the driver comparison's runs
-(``nox -s compare-drivers``, tests/driver_comparison.py's native run) pass it.
+(``nox -s compare-drivers``, tests/driver_comparison.py's native run) pass it. A run left with
+none is pytest's "no tests ran", which a targeted local run may well be; compare-drivers refuses a
+run that recorded no test where it compares. ``--frame-fingerprints-drawing-only`` (or
+GLITCHYGAMES_FRAME_FINGERPRINTS_DRAWING_ONLY=1, for the run OWNER names) runs every test but
+records only the marked ones: a local comparison's dummy side, so both sides hold the same tests.
 
 The marker cannot go stale: in every run, recording or not, the plugin's check
 (``DrawsFramesCheck``) counts each test's presents and compares the display its body left with
@@ -101,10 +105,14 @@ if TYPE_CHECKING:
 FINGERPRINTS_OPTION = '--frame-fingerprints'
 IMAGES_REQUEST_OPTION = '--frame-images-request'
 SEED_OPTION = '--frame-fingerprints-seed'
+# Records only the tests marked draws_frames: the others are not fingerprinted or written (a
+# local comparison's dummy side, whose native side runs only those tests)
+DRAWING_ONLY_OPTION = '--frame-fingerprints-drawing-only'
 # The options' environment variables: a run started with them set (each xdist worker inherits
 # its controller's environment) records as if given the options; an option given wins
 FINGERPRINTS_VARIABLE = 'GLITCHYGAMES_FRAME_FINGERPRINTS'
 SEED_VARIABLE = 'GLITCHYGAMES_FRAME_FINGERPRINTS_SEED'
+DRAWING_ONLY_VARIABLE = 'GLITCHYGAMES_FRAME_FINGERPRINTS_DRAWING_ONLY'
 # The process id of the pytest run the variables are for: they apply in that process and its
 # xdist workers (its direct children), never in a pytest a test starts (pytester, replays)
 OWNER_VARIABLE = 'GLITCHYGAMES_FRAME_FINGERPRINTS_OWNER'
@@ -383,6 +391,7 @@ class FrameFingerprintRecorder:
         directory: Path,
         image_request: FrameImageRequest | None,
         seed: int | None = None,
+        drawing_only: bool = False,
     ) -> None:
         """Prepare to record into a directory.
 
@@ -391,10 +400,12 @@ class FrameFingerprintRecorder:
             image_request: The frames to save as PNG files, or None for none.
             seed: Seeds each test's unseeded engine runs (``seeded_master_seed_draws``), or
                 None to leave them drawing from ``secrets``.
+            drawing_only: Record only the tests marked draws_frames.
 
         """
         self.directory = directory
         self.seed = seed
+        self.drawing_only = drawing_only
         self.run_driver = os.environ.get(SDL_VIDEO_DRIVER_VARIABLE)
         # The driver of the display the current test's body left (None without a display)
         self.final_driver: str | None = None
@@ -516,7 +527,10 @@ class FrameFingerprintRecorder:
             To the setup.
 
         """
-        self.current_nodeid = item.nodeid
+        # A test left unrecorded (drawing only, unmarked) keeps no node id: its presents pass
+        # through unfingerprinted and it writes no record
+        records_it = not self.drawing_only or item.get_closest_marker(DRAWS_FRAMES_MARKER)
+        self.current_nodeid = item.nodeid if records_it else None
         self.presented = []
         self.final = None
         self.final_driver = None
@@ -540,9 +554,12 @@ class FrameFingerprintRecorder:
         try:
             return (yield)
         finally:
-            self.final = fingerprint_display()
-            self.final_driver = display_driver()
-            self.record_frame(nodeid=item.nodeid, shown=self.final, position=len(self.presented))
+            if self.current_nodeid == item.nodeid:
+                self.final = fingerprint_display()
+                self.final_driver = display_driver()
+                self.record_frame(
+                    nodeid=item.nodeid, shown=self.final, position=len(self.presented)
+                )
 
     @pytest.hookimpl(wrapper=True)
     def pytest_runtest_makereport(
@@ -562,7 +579,7 @@ class FrameFingerprintRecorder:
 
         """
         report = yield
-        if call.when == 'call':
+        if call.when == 'call' and self.current_nodeid == item.nodeid:
             frames_vary = item.get_closest_marker(FRAMES_VARY_MARKER)
             record = RecordedFrames(
                 nodeid=item.nodeid,
@@ -860,6 +877,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         ),
     )
     group.addoption(
+        DRAWING_ONLY_OPTION,
+        action='store_true',
+        default=False,
+        help=f'record only the tests marked {DRAWS_FRAMES_MARKER} (every test still runs)',
+    )
+    group.addoption(
         DRAWS_FRAMES_ONLY_OPTION,
         action='store_true',
         default=False,
@@ -942,11 +965,13 @@ def pytest_configure(config: pytest.Config) -> None:
         config.pluginmanager.register(check, name=CHECK_PLUGIN_NAME)
     directory: Path | None = config.getoption(FINGERPRINTS_OPTION)
     seed: int | None = config.getoption(SEED_OPTION)
+    drawing_only = bool(config.getoption(DRAWING_ONLY_OPTION))
     if environment_applies():
         if directory is None and os.environ.get(FINGERPRINTS_VARIABLE):
             directory = Path(os.environ[FINGERPRINTS_VARIABLE])
         if seed is None and os.environ.get(SEED_VARIABLE):
             seed = int(os.environ[SEED_VARIABLE])
+        drawing_only = drawing_only or os.environ.get(DRAWING_ONLY_VARIABLE) == '1'
     request_path: Path | None = config.getoption(IMAGES_REQUEST_OPTION)
     if directory is None:
         if request_path is not None:
@@ -967,6 +992,7 @@ def pytest_configure(config: pytest.Config) -> None:
         directory=config.invocation_params.dir / directory,
         image_request=image_request,
         seed=seed,
+        drawing_only=drawing_only,
     )
     recorder.install()
     config.pluginmanager.register(recorder, name=RECORDER_PLUGIN_NAME)
@@ -976,28 +1002,19 @@ def pytest_configure(config: pytest.Config) -> None:
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Deselect every test not marked draws_frames, given ``--draws-frames-only``.
 
-    It runs last, after the caller's ``-m`` and ``-k`` have selected.
-
-    A run that collected tests none of which is marked stops: its comparison would compare
-    nothing and agree (a lost or misapplied marker would make the driver comparison a no-op).
+    It runs last, after the caller's ``-m`` and ``-k`` have selected. A run left with none is
+    pytest's "no tests ran" (a targeted run may draw nothing); a driver comparison that ran none
+    is refused where it compares (a run that recorded no test: scripts/driver_frame_matrix.py,
+    BUGS.md #192), so a lost marker cannot make it agree silently.
 
     Args:
         config: pytest's configuration.
         items: The collected tests (kept in place: the drawing ones).
 
-    Raises:
-        pytest.UsageError: If tests were collected and none is marked draws_frames.
-
     """
     if not config.getoption(DRAWS_FRAMES_ONLY_OPTION):
         return
     drawing = [item for item in items if item.get_closest_marker(DRAWS_FRAMES_MARKER)]
-    if items and not drawing:
-        message = (
-            f'{DRAWS_FRAMES_ONLY_OPTION}: none of the {len(items)} collected test(s) is marked '
-            f'{DRAWS_FRAMES_MARKER}, so there is nothing to compare'
-        )
-        raise pytest.UsageError(message)
     others = [item for item in items if not item.get_closest_marker(DRAWS_FRAMES_MARKER)]
     if others:
         config.hook.pytest_deselected(items=others)

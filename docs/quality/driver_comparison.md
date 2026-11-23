@@ -66,7 +66,10 @@ carries `@pytest.mark.draws_frames`; in a parametrized test whose cases differ, 
 carries it through `pytest.param(..., marks=pytest.mark.draws_frames)`. A test whose frames vary
 and that draws carries both markers. The comparison's runs pass the frame fingerprints plugin's
 `--draws-frames-only`, which runs only the marked tests (after any `-m` of yours): about 850 of
-the suite's 30,900.
+the suite's 30,900. In a local run the dummy side records only those tests too
+(`--frame-fingerprints-drawing-only`), so the summary lists no test as recorded on one driver
+only for drawing nothing; a run of files with no drawing tests says "no drawing tests selected:
+nothing to compare" and passes.
 
 The marker cannot go stale: every run (CI too, every driver) checks each test whose body passed,
 and fails it when the marker disagrees with what it did:

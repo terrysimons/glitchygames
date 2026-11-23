@@ -63,6 +63,7 @@ from glitchygames.testing.frame_comparison import (
     images_report,
 )
 from glitchygames.testing.frame_fingerprints import (
+    DRAWING_ONLY_VARIABLE,
     DRAWS_FRAMES_ONLY_OPTION,
     FINGERPRINTS_OPTION,
     FINGERPRINTS_VARIABLE,
@@ -318,7 +319,7 @@ def driver_environment(*, environment: Mapping[str, str], drivers: NativeDrivers
     child_environment = {
         name: value
         for name, value in environment.items()
-        if name not in {FINGERPRINTS_VARIABLE, SEED_VARIABLE, OWNER_VARIABLE}
+        if name not in {FINGERPRINTS_VARIABLE, SEED_VARIABLE, OWNER_VARIABLE, DRAWING_ONLY_VARIABLE}
     }
     child_environment.update({
         'SDL_VIDEODRIVER': drivers.video,
@@ -462,6 +463,11 @@ class DriverComparison:
                 f'({self.native_workers} workers); its output: {log_path}'
             )
         ]
+        if returncode == pytest.ExitCode.NO_TESTS_COLLECTED:
+            lines.append(
+                f'{self.native_label}: no drawing tests selected: nothing to compare (only tests '
+                'marked draws_frames run on it)'
+            )
         if returncode not in NATIVE_RUN_SUCCESS_CODES:
             self.failed = True
             failures = failure_summary_lines(log_text=log_path.read_text(encoding='utf-8'))
@@ -653,6 +659,9 @@ def pytest_configure(config: pytest.Config) -> None:
     # This run (and its workers) record the dummy frames; everything started from here on
     # runs its own driver only
     os.environ[FINGERPRINTS_VARIABLE] = str(comparison.dummy_directory)
+    # Only the tests that draw: the native run runs only those, so both sides record the same
+    # tests (and the others' frames are not fingerprinted for nothing)
+    os.environ[DRAWING_ONLY_VARIABLE] = '1'
     os.environ[SEED_VARIABLE] = str(COMPARISON_SEED)
     os.environ[OWNER_VARIABLE] = str(os.getpid())
     os.environ[COMPARISON_ACTIVE_VARIABLE] = '1'
