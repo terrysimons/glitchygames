@@ -29,3 +29,22 @@ agents go explore and where the work lives.
 Fetched `origin` again: `origin/main` is still `d5ae3fff`, the commit the branch started from,
 so the branch already has the latest main. The shared `glitchygames/` checkout was left alone;
 the work stays in this branch's own worktree.
+
+## 5. User (2026-11-23)
+
+> I have the beginnings of an idea for a video game that I want to make that would be similar to
+> "Slime Forest Adventure" in concept - that is a game that helps someone learn Japanese.  You
+> can research it, but none of your research can be committed, so put it in ~/Documents or
+> something - and don't reference the local path in the repoistory documentation, just refer to
+> the ideas in general when collaborating with me on the ideas.  https://lrnj.com/
+
+## 6. Claude
+
+Started three research agents in parallel, with their notes kept outside the repository: one on
+how Slime Forest Adventure weaves kana and kanji practice into RPG combat (and what players
+praise and miss) plus a survey of other Japanese-learning games; one on the learning science
+(spaced repetition, recall vs. recognition, kanji learning order, motivation in learning games)
+and on openly licensed Japanese data, fonts and voices; and one on what the glitchygames engine
+already offers for such a game (Japanese text rendering, text input, RPG building blocks, saves).
+Noted that the goal is an original game that shares the concept, not a remake of that one.
+Asked what drew the user to the idea and who the game is for.

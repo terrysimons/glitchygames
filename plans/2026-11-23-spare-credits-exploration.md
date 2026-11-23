@@ -18,7 +18,9 @@ default the builder may revisit; unmarked text explains or connects them.
 - **(user)** Work happens on a new branch (`docs/spare-credits-exploration-plan`); this plan and
   the conversation record live side by side in `plans/`.
 
-What "the space" is has not been named yet: to be filled in from the brainstorm.
+**(user)** The game: an original video game that helps someone learn Japanese, similar in concept
+to Slime Forest Adventure (learning woven into RPG play). Research notes stay outside the
+repository; this plan refers only to the ideas.
 
 ## 2. Goals, non-goals, anti-goals
 
