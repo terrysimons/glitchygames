@@ -687,11 +687,10 @@ class DrawsFramesCheck:
         """Tell whether the display shows a picture other than the blank screen at its size.
 
         Returns:
-            False without a readable display or a known blank screen at its size.
+            False without a readable display (pygame stopped, no display mode set, an OpenGL
+            display) or a known blank screen at its size.
 
         """
-        if not pygame.get_init():
-            return False
         try:
             display_surface = _REAL_DISPLAY_GET_SURFACE()
             if not isinstance(display_surface, pygame.Surface):

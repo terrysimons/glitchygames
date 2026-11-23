@@ -13,7 +13,8 @@ import hashlib
 import json
 import os
 import textwrap
-from typing import TYPE_CHECKING
+import types
+from typing import TYPE_CHECKING, cast
 
 import pygame
 import pytest
@@ -1036,3 +1037,78 @@ class TestDrawsFramesOnly:
     def test_without_the_option_every_test_runs(self, inner_selection_tests):
         """The option is off by default."""
         inner_selection_tests.runpytest_inprocess('-p', PLUGIN_MODULE).assert_outcomes(passed=3)
+
+
+def stand_in_check_config(*, root: Path, worker: bool) -> pytest.Config:
+    """Return the parts of pytest's configuration the draws_frames check reads, at a root.
+
+    Built from what the check reads (``rootpath``; an xdist worker's ``workerinput``, which
+    xdist sets on each worker's configuration), so a test can drive the worker path in a run
+    with no workers, as Linux CI's serial machines are.
+
+    Returns:
+        The stand-in, typed as the configuration it stands in for.
+
+    """
+    attributes: dict[str, object] = {'rootpath': root}
+    if worker:
+        attributes['workerinput'] = {'workerid': 'gw0'}
+    return cast('pytest.Config', types.SimpleNamespace(**attributes))
+
+
+class TestTheDrawsFramesCheckDirectly:
+    """Branches a whole run reaches only in some shapes or orders, driven on their own."""
+
+    def test_an_xdist_workers_session_start_leaves_the_report_alone(self, tmp_path):
+        """Only the controller empties the report: a worker neither empties nor creates it."""
+        report_path = tmp_path / frame_fingerprints.MARKERS_REPORT_PATH
+        worker_check = frame_fingerprints.DrawsFramesCheck(
+            config=stand_in_check_config(root=tmp_path, worker=True), report_only=False
+        )
+
+        worker_check.pytest_sessionstart()
+        assert not report_path.exists()
+
+        report_path.parent.mkdir(parents=True)
+        report_path.write_text('tests/a.py::t\tkept\n', encoding='utf-8')
+        worker_check.pytest_sessionstart()
+        assert report_path.read_text(encoding='utf-8') == 'tests/a.py::t\tkept\n'
+
+    def test_the_controllers_session_start_empties_the_report(self, tmp_path):
+        """The same report, the controller's start: empty, so the run lists only its own."""
+        report_path = tmp_path / frame_fingerprints.MARKERS_REPORT_PATH
+        report_path.parent.mkdir(parents=True)
+        report_path.write_text('tests/a.py::t\tstale\n', encoding='utf-8')
+
+        frame_fingerprints.DrawsFramesCheck(
+            config=stand_in_check_config(root=tmp_path, worker=False), report_only=False
+        ).pytest_sessionstart()
+
+        assert not report_path.read_text(encoding='utf-8')
+
+    def test_pygame_running_with_no_display_mode_shows_no_picture(self, tmp_path):
+        """No display surface to read: nothing other than the blank screen is shown."""
+        check = frame_fingerprints.DrawsFramesCheck(
+            config=stand_in_check_config(root=tmp_path, worker=False), report_only=False
+        )
+        pygame.display.quit()
+        pygame.display.init()
+        try:
+            assert pygame.get_init()
+            assert pygame.display.get_surface() is None
+            assert not check.display_differs_from_the_blank_screen()
+        finally:
+            show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+    def test_pygame_not_running_shows_no_picture(self, tmp_path):
+        """With pygame stopped there is no display to read: no picture."""
+        check = frame_fingerprints.DrawsFramesCheck(
+            config=stand_in_check_config(root=tmp_path, worker=False), report_only=False
+        )
+        pygame.quit()
+        try:
+            assert not pygame.get_init()
+            assert not check.display_differs_from_the_blank_screen()
+        finally:
+            pygame.init()
+            show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
