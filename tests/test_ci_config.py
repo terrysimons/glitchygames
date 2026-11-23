@@ -38,6 +38,8 @@ WINDOWS_EXECUTOR_MARKER = 'name: win/default'
 # A job that runs a test session runs one of these commands
 TEST_SESSION_COMMANDS = ('      - nox-test:\n', '      - nox-test-windows:\n')
 LOCK_PATH = PROJECT_ROOT / 'uv.lock'
+# The highest TCP port; bind() refuses anything above it
+HIGHEST_PORT = 65535
 
 
 def pipeline_parameter_default(*, name: str) -> str:
@@ -697,20 +699,36 @@ def expected_holder(*, listing: str, command: str) -> str:
     ],
     ids=['named-by-its-command-line', 'named-by-lsof', 'unnamed'],
 )
-def test_docs_serve_refuses_a_taken_address_before_building(listing, command):
+@pytest.mark.parametrize('held', ['port-the-os-hands-out', 'highest-port'])
+def test_docs_serve_refuses_a_taken_address_before_building(listing, command, held, mocker):
     """A taken address stops the session at once, naming who holds it and a free one.
 
     mkdocs binds its address only after the whole build (about five minutes), so it failed late
     (2026-11-13: ports 8000-8002 all held by Python servers). ``lsof`` finds the listener and
     ``ps`` its command line (``lsof``'s short name was ``python3.14`` for all three); without
     ``lsof``, or when it finds none, the message names only the address.
+
+    The highest port, 65535, is pinned rather than left to the OS, which hands it out about once
+    in 16,000 binds: the suggestion search probed 65536 and crashed (2026-11-22, seed 872572785;
+    bugs/2026-11-22-free-port-search-leaves-the-port-range.md).
     """
     import noxfile
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        listener.bind(('127.0.0.1', 0))
-        listener.listen()
-        port = listener.getsockname()[1]
+        if held == 'highest-port':
+            port = HIGHEST_PORT
+            really_in_use = noxfile._address_in_use
+            mocker.patch.object(
+                noxfile,
+                '_address_in_use',
+                side_effect=lambda *, host, port: (
+                    port == HIGHEST_PORT or really_in_use(host=host, port=port)
+                ),
+            )
+        else:
+            listener.bind(('127.0.0.1', 0))
+            listener.listen()
+            port = listener.getsockname()[1]
         session = RecordingSession(
             posargs=['--dev-addr', f'127.0.0.1:{port}'],
             outputs={'lsof': listing, 'ps': f'{command}\n'},
@@ -722,7 +740,9 @@ def test_docs_serve_refuses_a_taken_address_before_building(listing, command):
     message = str(refusal.value)
     holder = expected_holder(listing=listing, command=command)
     assert message.startswith(f'127.0.0.1:{port} is in use{holder}: ')
-    assert re.search(r'nox -s docs-serve -- --dev-addr 127\.0\.0\.1:\d+$', message)
+    suggestion = re.search(r'nox -s docs-serve -- --dev-addr 127\.0\.0\.1:(\d+)$', message)
+    assert suggestion is not None
+    assert 1 <= int(suggestion.group(1)) <= HIGHEST_PORT
     assert not any('mkdocs' in command for command in session.commands)
 
 
@@ -735,11 +755,103 @@ def test_docs_serve_suggests_an_address_that_is_free():
         listener.listen()
         port = listener.getsockname()[1]
 
-        suggested = noxfile._free_port_after(host='127.0.0.1', port=port)
+        suggested = noxfile._free_port_near(host='127.0.0.1', port=port)
 
+        assert suggested is not None
         assert suggested > port
         assert not noxfile._address_in_use(host='127.0.0.1', port=suggested)
         assert noxfile._address_in_use(host='127.0.0.1', port=port)
+
+
+def test_docs_serve_suggests_a_port_below_the_highest_when_it_is_taken():
+    """With 65535 held, the suggestion is a free port below it, not 65536 (which crashed).
+
+    No listener is needed on 65535: the search starts past it, and probing 65536 raised
+    ``OverflowError`` before any bind.
+    """
+    import noxfile
+
+    suggested = noxfile._free_port_near(host='127.0.0.1', port=HIGHEST_PORT)
+
+    assert suggested is not None
+    assert 1 <= suggested < HIGHEST_PORT
+    assert not noxfile._address_in_use(host='127.0.0.1', port=suggested)
+
+
+@pytest.mark.parametrize('port', [1, 1024, 65515, HIGHEST_PORT])
+@pytest.mark.parametrize('others_taken', [False, True], ids=['others-free', 'all-taken'])
+def test_docs_serve_searches_only_ports_from_1_to_65535(port, others_taken, mocker):
+    """Every port probed, and every port suggested, is 1-65535; none free suggests none.
+
+    The invariant for the whole search, at the ports where it meets either end of the range
+    (65515 is the last one whose 20 ports above it all exist). ``bind()`` refuses a port outside
+    0-65535 with ``OverflowError``, and port 0 means "any port", so neither may be probed.
+    """
+    import noxfile
+
+    probed: list[int] = []
+    held_port = port
+
+    def address_in_use(*, host: str, port: int) -> bool:
+        del host
+        probed.append(port)
+        return others_taken or port == held_port
+
+    mocker.patch.object(noxfile, '_address_in_use', side_effect=address_in_use)
+
+    suggested = noxfile._free_port_near(host='127.0.0.1', port=port)
+
+    assert probed
+    assert all(1 <= probe <= HIGHEST_PORT for probe in probed)
+    assert port not in probed
+    if others_taken:
+        assert suggested is None
+    else:
+        assert suggested is not None
+        assert 1 <= suggested <= HIGHEST_PORT
+        assert suggested != port
+
+
+def test_docs_serve_names_no_port_when_none_nearby_is_free(mocker):
+    """With every nearby port taken, the refusal says so and names no address to use.
+
+    The old fallback named the port 21 past the taken one, unchecked, which past 65514 is not a
+    port at all.
+    """
+    import noxfile
+
+    mocker.patch.object(noxfile, '_address_in_use', return_value=True)
+    mocker.patch.object(noxfile, '_listening_process', return_value=None)
+    session = RecordingSession(posargs=['--dev-addr', f'127.0.0.1:{HIGHEST_PORT}'])
+
+    with pytest.raises(RuntimeError) as refusal:
+        noxfile.docs_serve(session)
+
+    message = str(refusal.value)
+    assert message.startswith(f'127.0.0.1:{HIGHEST_PORT} is in use: ')
+    assert '--dev-addr' not in message
+    assert 'no free port within 20 of 65535' in message
+    assert not any('mkdocs' in command for command in session.commands)
+
+
+@pytest.mark.parametrize('port_text', ['0', '65536', '70000', 'http'])
+def test_docs_serve_refuses_an_address_whose_port_is_not_1_to_65535(port_text):
+    """A ``--dev-addr`` port outside 1-65535 is refused by name, before any probe or build.
+
+    Probing 65536 or more raised ``OverflowError``; 0 probed "any port", found it free, and went
+    on to the five-minute build.
+    """
+    import noxfile
+
+    session = RecordingSession(posargs=['--dev-addr', f'127.0.0.1:{port_text}'])
+
+    with pytest.raises(RuntimeError) as refusal:
+        noxfile.docs_serve(session)
+
+    assert str(refusal.value) == (
+        f'--dev-addr 127.0.0.1:{port_text}: the port must be a number from 1 to 65535'
+    )
+    assert session.commands == []
 
 
 def circleci_workflow_job(*, name: str) -> str:
@@ -2549,7 +2661,31 @@ def test_the_pre_push_hooks_run_the_shuffled_suite():
     """Every push shuffles the suite once (the hook, not CI: CI keeps the files' order)."""
     hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
 
-    assert 'entry: uv run --extra dev nox -s test-random' in hooks
+    assert 'entry: uv run --all-extras --all-groups --all-packages nox -s test-random' in hooks
+
+
+def test_every_hook_installs_every_extra_group_and_package():
+    """Whichever hook runs first in a new worktree fills its .venv with all uv.lock pins.
+
+    basedpyright reads the repository's .venv whatever environment nox gives it, so a .venv
+    with only the dev extra failed static-analysis on mkdocs and cookiecutter imports
+    (bugs/2026-11-14-pre-push-fails-in-worktree-synced-with-dev-extra-only.md).
+    """
+    configuration = yaml.safe_load(
+        (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+    )
+    entries = {
+        hook['id']: shlex.split(hook['entry'])
+        for repository in configuration['repos']
+        for hook in repository['hooks']
+    }
+    uv_runs = {name: words for name, words in entries.items() if words[:2] == ['uv', 'run']}
+    every = {'--all-extras', '--all-groups', '--all-packages'}
+
+    assert uv_runs
+    missing = {name: every - set(words) for name, words in uv_runs.items()}
+    assert {name: flags for name, flags in missing.items() if flags} == {}
+    assert [name for name, words in uv_runs.items() if '--extra' in words] == []
 
 
 @pytest.mark.parametrize(
@@ -2641,7 +2777,8 @@ def test_the_pre_push_comparison_runs_on_every_core():
     hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
 
     assert (
-        'entry: uv run --extra dev nox -s compare-drivers -- --drivers native '
+        'entry: uv run --all-extras --all-groups --all-packages nox -s compare-drivers -- '
+        '--drivers native '
         '--fail-on-difference --workers auto --skip-when-frames-cannot-change'
     ) in hooks
 
@@ -2821,8 +2958,8 @@ def test_the_pre_push_hooks_compare_the_native_driver_with_dummy():
     hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
 
     assert (
-        'entry: uv run --extra dev nox -s compare-drivers -- --drivers native --fail-on-difference'
-        in hooks
+        'entry: uv run --all-extras --all-groups --all-packages nox -s compare-drivers -- '
+        '--drivers native --fail-on-difference' in hooks
     )
 
 

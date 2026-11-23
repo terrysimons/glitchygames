@@ -806,6 +806,27 @@ def _start_pygame_and_the_test_display() -> None:
 
 
 @pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Start an item that is not a test function on the canvas, as every test function starts.
+
+    The canvas comes from ``ensure_pygame_graceful_quit``, an autouse fixture, and autouse
+    fixtures reach only test functions: an item a collector makes (the golden replays'
+    ``ReplayItem``, glitchygames/testing/replays.py) started on whatever the previous test
+    left. A golden replay draws nothing on the display, so on a shuffled Windows CI worker it
+    ended on the previous test's picture and the draws_frames check failed it as drawing
+    unmarked (#283, job 5039; tests/test_harness_every_item_starts_on_the_canvas.py).
+
+    Args:
+        item: The test about to be set up.
+
+    """
+    if isinstance(item, pytest.Function):
+        return
+    _start_pygame_and_the_test_display()
+    show_canvas()
+
+
+@pytest.hookimpl(tryfirst=True)
 def pytest_fixture_setup(fixturedef: pytest.FixtureDef[object]) -> None:
     """Start pygame and the test display before any fixture wider than one test is made.
 
