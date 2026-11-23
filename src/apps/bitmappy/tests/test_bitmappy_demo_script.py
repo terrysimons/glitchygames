@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
 from scripts.demo_inputs import (
     BITMAPPY_DEMO_COLOR_PICKS,
     BITMAPPY_DEMO_FACE_COLOR,
@@ -110,6 +111,7 @@ def expected_canvas() -> dict[tuple[int, int], tuple[int, int, int]]:
     return painted
 
 
+@pytest.mark.draws_frames
 def test_the_demo_script_draws_its_two_colour_smiley(mocker: MockerFixture):
     """Run through the engine at the recorder's resolution, the script paints exactly its smiley.
 

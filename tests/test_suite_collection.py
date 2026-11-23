@@ -1299,12 +1299,14 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_build_info.py': ('scripts/write_build_stamp.py',),
     'tests/test_build_sdl_x11.py': ('scripts/build_sdl_x11.py',),
     'tests/test_check_licenses.py': ('scripts/check_licenses.py', 'scripts/workspace_packages.py'),
+    'tests/test_mark_drawing_tests.py': ('scripts/mark_drawing_tests.py',),
     'tests/test_compare_driver_frames.py': ('scripts/compare_driver_frames.py',),
     'tests/test_create.py': ('scripts/create.py',),
     'tests/test_complexity_report.py': ('scripts/complexity_report.py',),
     'tests/test_docs_claims.py': ('scripts/docs_claims.py', 'scripts/git_checkout.py'),
     'tests/test_driver_configurations.py': ('scripts/driver_configurations.py',),
     'tests/test_driver_frame_matrix.py': ('scripts/driver_frame_matrix.py',),
+    'tests/test_frame_phase_probe.py': ('scripts/frame_phase_probe.py',),
     'tests/test_gen_ref_pages.py': ('scripts/gen_ref_pages.py',),
     'tests/test_generate_sbom.py': ('scripts/generate_sbom.py',),
     'tests/test_generate_complexity_graphs.py': (
@@ -1320,6 +1322,11 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/instrument_audit_pages_manifest.py',
     ),
     'tests/test_instrument_audit_quote_check.py': ('scripts/instrument_audit_quote_check.py',),
+    'tests/test_measure_browser_frames.py': (
+        'scripts/measure_browser_frames.py',
+        'scripts/frame_phase_probe.py',
+        'scripts/build_browser_bundle.py',
+    ),
     'tests/test_measure_on_raspberry_pi.py': ('scripts/measure_on_raspberry_pi.py',),
     'tests/test_measure_staged_replays.py': ('scripts/measure_staged_replays.py',),
     'tests/test_microphone_capture_check.py': ('scripts/microphone_capture_check.py',),
@@ -1908,7 +1915,7 @@ FORMER_EXAMPLES_SCANNED_SUFFIXES = frozenset({
 # Tracked directories that are history, not code, configuration or living documentation: finished
 # plans (the living ones are scanned below through living_documentation_lines) and the replay
 # ledger's rows, which record the recordings' paths as they were measured
-FORMER_EXAMPLES_HISTORY_DIRECTORIES = ('plans', 'quality', '.superpowers')
+FORMER_EXAMPLES_HISTORY_DIRECTORIES = ('plans', 'quality')
 # The only files that may still name the deleted package, each for a reason that is history on
 # purpose. A path is listed (never a pattern), so a new reference anywhere else is found.
 FORMER_EXAMPLES_EXEMPT_PATHS: dict[str, str] = {

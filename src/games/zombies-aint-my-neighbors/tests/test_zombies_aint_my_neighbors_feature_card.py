@@ -13,6 +13,7 @@ import pygame
 import pytest
 
 from glitchygames.events.base import HashableEvent
+from glitchygames.fonts import font_manager
 from glitchygames.sprites import AnimatedSprite
 from tests.input.stand_in_devices import STAND_IN_PAD
 from zombies_aint_my_neighbors.feature_card import CARD_SECONDS, FeatureCardScene
@@ -75,6 +76,7 @@ def test_a_pads_second_start_on_the_joystick_layer_begins_the_feature_too():
     assert isinstance(title.next_scene, FeatureCardScene)
 
 
+@pytest.mark.draws_frames
 def test_the_card_shows_each_joined_player_in_their_colour():
     """Joined players' colours are on the card; the free slots' colours are not."""
     roster = JoinRoster.empty().join(device=KEYBOARD).join(device=gamepad(3))
@@ -167,6 +169,7 @@ def test_an_unjoined_devices_start_on_the_card_does_nothing():
     assert card.next_scene is None
 
 
+@pytest.mark.draws_frames
 def test_unplugging_a_player_on_the_card_drops_them():
     """A joined pad unplugged on the card leaves the roster (Review Focus 3)."""
     with support.running_game(scene_class=FeatureCardScene, plugged_in_at_start=False) as (
@@ -184,6 +187,7 @@ def test_unplugging_a_player_on_the_card_drops_them():
         assert card.next_scene is None
 
 
+@pytest.mark.draws_frames
 def test_unplugging_the_last_player_on_the_card_returns_to_the_title():
     """With nobody left, the card goes back to the title (Review Focus 3)."""
     with support.running_game(scene_class=FeatureCardScene, plugged_in_at_start=False) as (
@@ -201,6 +205,7 @@ def test_unplugging_the_last_player_on_the_card_returns_to_the_title():
         assert card.next_scene.roster == JoinRoster.empty()
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize('input_mode', ['auto', 'joystick'])
 def test_the_card_handles_raw_device_events(input_mode):
     """Plugging, remapping and unplugging a pad on the card raises nothing."""
@@ -225,11 +230,11 @@ def test_replay_arguments_rebuild_the_card_with_the_same_roster_through_json():
     assert rebuilt.roster == roster
 
 
+@pytest.mark.draws_frames
 def test_the_card_renders_no_text_after_setup(mocker):
     """Every text image is made in setup() (decision 11)."""
-    text = importlib.import_module('zombies_aint_my_neighbors.text')
     card = card_for(JoinRoster.empty().join(device=KEYBOARD))
-    spy = mocker.spy(text, 'render_text')
+    spy = mocker.spy(font_manager, 'render_line')
 
     support.tick_to(card, seconds=1.0)
     support.rendered(card)
@@ -265,6 +270,7 @@ def test_a_given_sprite_group_is_used():
     assert card.all_sprites is group
 
 
+@pytest.mark.draws_frames
 def test_the_card_returns_to_the_title_when_its_last_pad_left_during_a_pause():
     """Resuming the card after its only player's pad was unplugged on the pause screen."""
     # The engine's PauseScene leaves the unplug unhandled (Engine wishlist #10)

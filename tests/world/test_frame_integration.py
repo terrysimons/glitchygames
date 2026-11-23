@@ -597,6 +597,7 @@ def active_following_scene(manager: GoldenTraceSceneManager) -> FollowingScene:
 class TestPositioningInTheFrame:
     """World sprites are aimed at and placed by the engine before every render."""
 
+    @pytest.mark.draws_frames
     def test_world_sprite_is_positioned_before_render(self):
         """At render time the player's rect is where screen_position_for puts it."""
         with running_scene(FollowingScene) as manager:
@@ -611,6 +612,7 @@ class TestPositioningInTheFrame:
             last_camera = scene.render_samples[-1]['camera']
             assert last_camera[0] > first_camera[0]
 
+    @pytest.mark.draws_frames
     def test_sprite_spawned_during_dt_tick_is_positioned_on_its_first_frame(self):
         """A sprite added in dt_tick is drawn at its place on its very first frame."""
         with running_scene(FollowingScene) as manager:
@@ -624,6 +626,7 @@ class TestPositioningInTheFrame:
             assert first_spawned_sample['drawn'][1] == first_spawned_sample['expected'][1]
             assert first_spawned_sample['drawn'][1] != (0, 0)
 
+    @pytest.mark.draws_frames
     def test_screen_space_sprite_is_never_moved(self):
         """The HUD sprite stays at its screen position while the camera scrolls."""
         with running_scene(FollowingScene) as manager:
@@ -632,6 +635,7 @@ class TestPositioningInTheFrame:
 
             assert {sample['hud'] for sample in scene.render_samples} == {SCREEN_SPRITE_TOPLEFT}
 
+    @pytest.mark.draws_frames
     def test_manual_update_flag_is_cleared_at_the_start_of_each_frame(self):
         """begin_frame() runs before dt_tick: last frame's manual update() does not carry over."""
         with running_scene(ManualCameraScene) as manager:
@@ -645,6 +649,7 @@ class TestPositioningInTheFrame:
 class TestSnapModeActivation:
     """Activating a scene makes its PIXEL_SNAP_MODE the active default snap mode."""
 
+    @pytest.mark.draws_frames
     def test_activation_sets_the_scene_snap_mode_before_setup(self):
         """The FLOOR scene's setup() and frames already run with FLOOR."""
         FloorSnappingScene.mode_during_setup = None
@@ -653,6 +658,7 @@ class TestSnapModeActivation:
             step(manager)
             assert active_default_snap_mode() is PixelSnapMode.FLOOR
 
+    @pytest.mark.draws_frames
     def test_transition_to_a_default_scene_restores_nearest_half_up(self):
         """Leaving the FLOOR scene for a default scene switches the active mode back."""
         with running_scene(FloorSnappingScene) as manager:
@@ -688,6 +694,7 @@ def color_pixel_count(surface: pygame.Surface, color: tuple[int, int, int]) -> i
 class TestFrameWithoutDisplay:
     """Without a display surface the camera is still aimed; positioning is skipped."""
 
+    @pytest.mark.draws_frames
     def test_no_screen_aims_the_camera_but_skips_positioning(self, mocker: MockerFixture):
         """With no surface to place sprites on, rects stay put while the camera moves."""
         with running_scene(FollowingScene) as manager:
@@ -761,6 +768,7 @@ class TestWindowCaption:
 class TestSceneRedraw:
     """Scene.update() forces its sprites to redraw only while the scene itself is dirty."""
 
+    @pytest.mark.draws_frames
     def test_a_clean_scene_leaves_clean_sprites_clean(self):
         with running_scene(CameraFreeScene) as manager:
             step(manager)
@@ -773,6 +781,7 @@ class TestSceneRedraw:
 
             assert scene.world_sprite.dirty == 0
 
+    @pytest.mark.draws_frames
     def test_a_dirty_scene_marks_clean_sprites_dirty(self):
         with running_scene(CameraFreeScene) as manager:
             step(manager)
@@ -794,6 +803,7 @@ class TestSceneWithAnIdentityCamera:
     but move nothing.
     """
 
+    @pytest.mark.draws_frames
     def test_frame_runs_on_the_identity_camera(self):
         """begin_frame, aim and positioning run, and the world sprite stays where it is drawn."""
         with running_scene(CameraFreeScene) as manager:
@@ -813,6 +823,7 @@ class TestSceneWithAnIdentityCamera:
 class TestResumeAfterPause:
     """Resuming a game from PauseScene restores its snap mode and positions its sprites."""
 
+    @pytest.mark.draws_frames
     def test_resume_restores_snap_mode_and_positions_world_sprites(self):
         """The first frame after resume snaps with FLOOR and draws sprites in place."""
         with running_scene(FloorFollowingScene) as manager:
@@ -837,6 +848,7 @@ class TestResumeAfterPause:
             assert first_resumed_sample['snap_mode'] is PixelSnapMode.FLOOR
             assert first_resumed_sample['drawn'][0] == first_resumed_sample['expected'][0]
 
+    @pytest.mark.draws_frames
     def test_camera_waits_for_the_resumed_scene_logic(self):
         """A scene switched to during a frame's events is not aimed until its first dt_tick.
 
@@ -885,6 +897,7 @@ class GameTimeScene(CameraFreeScene):
 class TestGameTime:
     """Scene.game_time sums the scene's (capped) dt and stops while the scene is not running."""
 
+    @pytest.mark.draws_frames
     def test_game_time_sums_the_scene_dt_even_without_super(self):
         """A dt_tick override that skips super() still advances game time."""
         with running_scene(GameTimeScene) as manager:
@@ -892,6 +905,7 @@ class TestGameTime:
             assert manager.active_scene is not None
             assert manager.active_scene.game_time == pytest.approx(4 * FRAME_SECONDS)
 
+    @pytest.mark.draws_frames
     def test_game_time_uses_the_capped_dt(self):
         """A long frame advances game time by MAX_FRAME_SECONDS only."""
         with running_scene(GameTimeScene) as manager:
@@ -900,6 +914,7 @@ class TestGameTime:
             assert manager.active_scene is not None
             assert manager.active_scene.game_time == pytest.approx(GameTimeScene.MAX_FRAME_SECONDS)
 
+    @pytest.mark.draws_frames
     def test_game_time_stops_while_paused(self):
         """While the pause scene runs, the paused game's time stands still."""
         with running_scene(StillCameraScene) as manager:
@@ -1027,6 +1042,7 @@ class TestSceneStart:
             progress = start.saves[START_CAPTURE_SAVE_NAMESPACE]['progress']
             assert progress['data'] == {'level': 7}
 
+    @pytest.mark.draws_frames
     def test_the_first_logic_frame_is_captured_at_its_top(self, mocker):
         """The start is completed as the first frame running the scene's logic begins."""
         mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
@@ -1048,6 +1064,7 @@ class TestSceneStart:
             step(manager)
             assert manager.active_scene_start is completed
 
+    @pytest.mark.draws_frames
     def test_rebuilt_scene_draws_the_same_randomness(self, mocker):
         """A rebuild restores the streams and frame clock the original began with."""
         mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
@@ -1153,6 +1170,7 @@ class TestSceneStartCaptureScope:
         assert PauseScene.CAPTURES_SCENE_START is False
         assert scene_start_capture_enabled(scene_class=PauseScene) is False
 
+    @pytest.mark.draws_frames
     def test_resume_from_pause_keeps_the_first_capture(self, mocker):
         """Resuming runs the scene's setup again but keeps the start of its first setup."""
         mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
@@ -1191,6 +1209,7 @@ class TestSceneStartCaptureScope:
 class TestTransitionCapture:
     """The arriving scene's transition screenshot shows its world sprites in place."""
 
+    @pytest.mark.draws_frames
     def test_arriving_scene_world_sprites_are_positioned_for_the_capture(self):
         """After a transition starts, the new scene's player sits where the camera puts it."""
         with running_scene(FloorSnappingScene) as manager:
@@ -1206,6 +1225,7 @@ class TestTransitionCapture:
             )
             assert arriving_scene.player.rect.topleft != (0, 0)
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('capture_index', [0, 1], ids=['outgoing', 'arriving'])
     def test_world_space_player_is_hidden_in_both_captures(
         self, mocker: MockerFixture, capture_index: int
@@ -1236,6 +1256,7 @@ class TestTransitionCapture:
             assert departing_scene.player.visible
             assert arriving_scene.player.visible
 
+    @pytest.mark.draws_frames
     def test_arriving_capture_snaps_only_the_followed_axes(self):
         """An X-only follow scene entered through a transition keeps its camera's y.
 
@@ -1260,6 +1281,7 @@ class TestTransitionCapture:
             assert camera.world_x == arriving_scene.player.world_x - camera.lead_x
             assert camera.world_y == X_FOLLOW_CAMERA_Y
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         'scene_class', [OffScreenPlayerScene, HiddenOffScreenPlayerScene], ids=['shown', 'hidden']
     )
@@ -1284,6 +1306,7 @@ class TestTransitionCapture:
                 assert not scene.player.visible
                 assert scene.player.hidden is scene_class.start_hidden
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('capture_index', [0, 1], ids=['outgoing', 'arriving'])
     def test_screen_space_player_is_hidden_in_both_captures(
         self, mocker: MockerFixture, capture_index: int
@@ -1314,6 +1337,7 @@ class TestTransitionCapture:
             # The engine never moves a screen-space player
             assert arriving_scene.player.rect.topleft == SCREEN_SPRITE_TOPLEFT
 
+    @pytest.mark.draws_frames
     def test_an_invisible_screen_space_player_stays_invisible_after_the_capture(self):
         """The arriving capture gives a screen-space player back the visible it had."""
         with running_scene(ScreenPlayerScene) as manager:
@@ -1335,6 +1359,7 @@ class TestTransitionCapture:
 class TestWorldBallsInTheFrame:
     """A PaddleSlap-like scene's world-space balls are drawn where its logic left them."""
 
+    @pytest.mark.draws_frames
     def test_paddle_hit_and_spawned_ball_are_drawn_at_their_world_positions(self):
         """A paddle bounce and the ball it spawns are both placed before that frame's render.
 
@@ -1375,6 +1400,7 @@ class TestWorldShakeOnAStillCamera:
     displaced and the rumble stayed on.
     """
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         'scene_class', [StillCameraScene, StoppedFollowScene], ids=['no-target', 'target-none']
     )
@@ -1402,6 +1428,7 @@ class TestWorldShakeOnAStillCamera:
             # Nothing moved the camera itself
             assert (scene.camera.world_x, scene.camera.world_y) == (0.0, 0.0)
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         'scene_class',
         [
@@ -1436,6 +1463,7 @@ class TestWorldShakeOnAStillCamera:
 class TestInputSnapshotInTheFrame:
     """The snapshot is taken once per frame, right after the pump, and stays fixed."""
 
+    @pytest.mark.draws_frames
     def test_snapshot_taken_after_the_pump_is_the_frames_input(self, mocker: MockerFixture):
         """Each frame pumps, then captures one snapshot, which becomes the engine's input."""
         order: list[str] = []
@@ -1488,6 +1516,7 @@ class OrderRecordingSupervisor:
 class TestSupervisorHook:
     """Supervisors run once per frame at their slot, after events and before frame services."""
 
+    @pytest.mark.draws_frames
     def test_supervisors_run_once_per_frame_after_events(self, mocker: MockerFixture) -> None:
         with running_scene(CameraFreeScene) as manager:
             supervisor = OrderRecordingSupervisor()
@@ -1510,6 +1539,7 @@ class TestSupervisorHook:
         assert order == ['events', 'supervisor', 'services'] * 2
         assert supervisor.calls == [(0, 'CameraFreeScene'), (1, 'CameraFreeScene')]
 
+    @pytest.mark.draws_frames
     def test_supervisors_run_in_transition_frames(self, mocker: MockerFixture) -> None:
         with running_scene(CameraFreeScene) as manager:
             supervisor = OrderRecordingSupervisor()
@@ -1536,6 +1566,7 @@ class TestSupervisorHook:
         assert order == ['transition events', 'supervisor', 'services']
         assert supervisor.calls == [(0, 'CameraFreeScene')]
 
+    @pytest.mark.draws_frames
     def test_removed_supervisor_is_not_called(self) -> None:
         with running_scene(CameraFreeScene) as manager:
             supervisor = OrderRecordingSupervisor()
@@ -1544,6 +1575,7 @@ class TestSupervisorHook:
             step(manager, frames=1)
         assert supervisor.calls == []
 
+    @pytest.mark.draws_frames
     def test_a_supervisor_the_scope_removed_and_the_live_game_re_added_outlives_the_scope(
         self,
     ) -> None:
@@ -1577,6 +1609,7 @@ class TestSupervisorHook:
 class TestControlEvents:
     """Control events reach their handlers and the doors' end_frame, live or scheduled."""
 
+    @pytest.mark.draws_frames
     def test_recorded_control_events_reach_handlers_and_end_frame(
         self, mocker: MockerFixture
     ) -> None:
@@ -1592,6 +1625,7 @@ class TestControlEvents:
         # Each frame's list holds that frame's control events only
         assert second_frame_call.kwargs['control_events'] == []
 
+    @pytest.mark.draws_frames
     def test_scheduled_control_events_are_applied_at_the_slot(self, mocker: MockerFixture) -> None:
         scheduled = ControlEvent(kind=BREAKPOINT_KIND, data={'label': 'from recording'})
         handled: list[ControlEvent] = []
@@ -1605,6 +1639,7 @@ class TestControlEvents:
             step(manager, frames=3)
         assert handled == [scheduled]
 
+    @pytest.mark.draws_frames
     def test_a_failing_handler_still_lets_the_others_run_then_fails_loudly(
         self, mocker: MockerFixture
     ) -> None:
@@ -1630,6 +1665,7 @@ class TestControlEvents:
         assert handled == [recorded]
         assert end_frame.call_args.kwargs['control_events'] == [recorded]
 
+    @pytest.mark.draws_frames
     def test_recorded_data_is_a_read_only_copy(self, mocker: MockerFixture) -> None:
         data: dict[str, Any] = {'label': 'here', 'path': {'steps': [1, 2]}}
         with running_scene(CameraFreeScene) as manager:
@@ -1679,6 +1715,7 @@ def ghost_square(_sample: GhostSample) -> pygame.Surface:
 class TestGhostsInTheFrame:
     """Ghosts are recorded at the supervisor slot and positioned by the engine like any sprite."""
 
+    @pytest.mark.draws_frames
     def test_recorder_samples_once_per_frame_and_stops_on_finish(self):
         with running_scene(FollowingScene) as manager:
             scene = active_following_scene(manager)
@@ -1695,6 +1732,7 @@ class TestGhostsInTheFrame:
             PLAYER_START[0] + PLAYER_STEP_X * index for index in range(1, 5)
         ])
 
+    @pytest.mark.draws_frames
     def test_recorder_skips_the_frames_its_scene_is_paused(self):
         """Behind the pause screen the scene's game time stands still: nothing is sampled."""
         with running_scene(FollowingScene) as manager:
@@ -1717,6 +1755,7 @@ class TestGhostsInTheFrame:
         # the resume frame ran none, the two after it did
         assert len(track.samples) == 5
 
+    @pytest.mark.draws_frames
     def test_a_ghost_lines_up_with_a_live_run_of_the_same_scene(self):
         """Drawn where the player is, each frame: the ghost lags no frame behind."""
         with running_scene(FollowingScene) as manager:
@@ -1737,6 +1776,7 @@ class TestGhostsInTheFrame:
         assert ghost.visible
         assert ghost.hidden is False
 
+    @pytest.mark.draws_frames
     def test_ghost_is_culled_like_any_world_sprite(self):
         far_away = GhostTrack(
             samples=(
@@ -1755,6 +1795,7 @@ class TestGhostsInTheFrame:
         assert ghost.visible == 0  # outside the screen plus CULL_MARGIN_PIXELS
         assert ghost.hidden is False  # culled by the engine, not hidden by the track
 
+    @pytest.mark.draws_frames
     def test_a_ghost_with_nothing_to_show_is_culled_by_the_engine(self):
         """Before its first sample its image is empty, which the engine's culling hides."""
         later = GhostTrack(
