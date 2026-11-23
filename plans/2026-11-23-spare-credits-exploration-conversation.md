@@ -104,3 +104,24 @@ Japanese"), not a source of mechanics; the game gets its own look and feel, and 
 game starts from the 16-bit console RPG era (story, party, exploration, menu-driven battles),
 in its own world rather than a remake of any one game. Asked the user to describe their actual
 idea in their own words.
+
+## 11. Claude (research update)
+
+The learning-science pass came back. It was written from the agent's own knowledge without live
+lookups, so Claude started a second agent to check its license and citation claims against
+primary sources. The ideas likely to matter whatever the game's shape:
+
+- **Scheduling reviews:** use a modern spaced-repetition scheduler (FSRS). It estimates how
+  likely the player is to remember each item right now, so reviews can happen whenever play
+  brings them up, not on a daily deck.
+- **Grading:** the game grades the player's answers itself (wrong, needed a hint, correct, fast
+  and correct); the player never rates their own recall.
+- **What counts as a strong review:** typed or spoken recall builds memory more than picking from
+  choices; always show the answer after a miss; mix look-alike characters only once each has
+  been learned on its own.
+- **Motivation:** learning works best when it is the core action of the game, not a quiz for
+  rewards. Aim for about 80-90% success. No time pressure on new items. Failing costs the game
+  something (health, items), never learning progress.
+- **Open data and fonts:** dictionaries, kanji data, stroke-order data, example sentences and
+  Japanese fonts are openly licensed, some with share-alike terms. Synthesized Japanese voices
+  are the riskiest area for licensing.
