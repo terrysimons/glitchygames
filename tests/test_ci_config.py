@@ -3177,6 +3177,41 @@ def test_the_checks_run_on_a_large_linux_container_beside_the_tests():
     assert re.search(rf'^      - {CHECKS_JOB}$', configuration, flags=re.MULTILINE)
 
 
+def test_the_format_check_changes_no_file(mocker):
+    """The format-check session fails on a formatting difference and rewrites nothing.
+
+    CI's "Format check" ran nox -s format, which formats in place and so always passed (found
+    2026-11-23): a check never runs a fixer.
+    """
+    import noxfile
+
+    mocker.patch.object(noxfile, '_taplo_has_no_wheel', return_value=False)
+    session = RecordingSession(posargs=[])
+
+    noxfile.format_check(session)
+
+    ruff_formats = [command for command in session.commands if command[:2] == ('ruff', 'format')]
+    import_sorts = [command for command in session.commands if command[:2] == ('ruff', 'check')]
+    assert ruff_formats
+    assert import_sorts
+    for command in ruff_formats:
+        assert '--check' in command, command
+    for command in import_sorts:
+        assert command[2:4] == ('--select', 'I'), command
+        assert '--fix' not in command, command
+    assert ('taplo', 'format', '--check') in session.commands
+    assert {command[-1] for command in ruff_formats} == set(noxfile._CODE_DIRS)
+
+
+def test_ci_checks_the_formatting_without_rewriting_it():
+    """CI's format step runs the check session, never the formatter."""
+    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
+    step = configuration.split('\n  nox-format:\n', 1)[1].split('\n\n', 1)[0]
+
+    assert step.rstrip().endswith('\n            nox -s format-check')
+    assert re.search(r'nox -s format$', configuration, flags=re.MULTILINE) is None
+
+
 def test_ci_builds_the_docs_once_outside_their_deploy():
     """One strict docs build per pipeline: lint's (job 5021 built them twice, 553 s and 124 s).
 

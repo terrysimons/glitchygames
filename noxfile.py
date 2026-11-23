@@ -140,6 +140,14 @@ def _format_code(session: nox.Session) -> None:
         session.run('ruff', 'format', target)
 
 
+def _check_code_format(session: nox.Session) -> None:
+    """Check the code's import order and formatting with ruff, failing on a difference."""
+    for target in _CODE_DIRS:
+        session.run('ruff', 'check', '--select', 'I', target)
+    for target in _CODE_DIRS:
+        session.run('ruff', 'format', '--check', target)
+
+
 def _taplo_has_no_wheel() -> bool:
     """Whether this is Linux on ARM, where pyproject.toml's marker leaves taplo uninstalled.
 
@@ -156,6 +164,14 @@ def _format_toml(session: nox.Session) -> None:
         session.log('taplo has no Linux ARM wheel; skipping TOML formatting.')
         return
     session.run('taplo', 'format', external=True)
+
+
+def _check_toml_format(session: nox.Session) -> None:
+    """Check the TOML files' formatting with taplo, failing on a difference."""
+    if _taplo_has_no_wheel():
+        session.log('taplo has no Linux ARM wheel; skipping the TOML format check.')
+        return
+    session.run('taplo', 'format', '--check', external=True)
 
 
 def _lint_code(session: nox.Session) -> None:
@@ -235,6 +251,15 @@ def format_all(session: nox.Session) -> None:
     _install_from_lockfile(session)
     _format_code(session)
     _format_toml(session)
+
+
+# CI's format step: nox -s format formats in place, so it always passed there (2026-11-23)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='format-check', default=False)
+def format_check(session: nox.Session) -> None:
+    """Check the code's and the TOML files' formatting, changing nothing; fails on a difference."""
+    _install_from_lockfile(session)
+    _check_code_format(session)
+    _check_toml_format(session)
 
 
 @nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint')
