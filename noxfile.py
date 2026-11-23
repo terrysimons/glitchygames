@@ -2592,8 +2592,9 @@ def compare_drivers(session: nox.Session) -> None:
     the pre-push hook's); scripts/driver_frame_matrix.py compares every pair. With
     `--skip-when-frames-cannot-change` (the pre-push hook's) a push changing only paths that cannot
     change a frame (`_path_cannot_change_frames`) is not compared. The
-    differing tests are re-run on every configuration saving PNGs of their differing frames,
-    and each differing pair gets a difference image (differing pixels magenta) under
+    differing tests are re-run on every configuration saving PNGs of the frames around their
+    first difference (each re-run stops once it has saved them, unless they reach the test's
+    final frame), and each differing pair gets a difference image (differing pixels magenta) under
     test-results/driver-comparison/nox/differences/<first>-vs-<second>/. The report,
     test-results/driver-comparison/nox/matrix.md, has each run's time, a summary per pair, the
     patterns of agreement and a table per test (first differing frame, differing pixels,

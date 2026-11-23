@@ -29,9 +29,21 @@ every frame each test presents (`src/glitchygames/testing/frame_fingerprints.py`
 finished, the frames are compared (`src/glitchygames/testing/frame_comparison.py`; its command line
 is `scripts/compare_driver_frames.py`). Any difference, or a
 failure in the native run, fails the run; the differing tests are re-run on both drivers to save
-the differing frames as PNG files with a difference image (the baseline dimmed to grey, differing
-pixels magenta) under `test-results/driver-comparison/pytest/`. The terminal summary names every
-file and the native run's log.
+the frames around each first difference (five before and five after) as PNG files with a
+difference image of each (the baseline dimmed to grey, differing pixels magenta) under
+`test-results/driver-comparison/pytest/`. The window is also one side-by-side animation, native |
+dummy | difference in each frame, so the two drivers stay in step:
+`window-side-by-side-game-speed.apng` (each gap the dummy run's served frame time to the next
+present, at least 17 ms: in a test whose clock never moves, every gap) and
+`window-side-by-side-250ms.apng`, both holding the
+last frame for a second before they loop. Above the frames, a title bar names the test (and the
+seed of a shuffled run), and each panel's caption states what that run recorded: driver, refresh
+rate ("n/a" on dummy), configured FPS ("uncapped" for 0, "n/a" without an engine) and resolution.
+Each panel is stamped with its present and served game time, and the first differing frame has a
+red border; the saved PNGs stay as recorded. A re-run stops its test once those frames are saved, as
+a skip (a test cannot skip ahead to its difference, but need not play on past it); only a window
+that reaches the test's final frame runs the test to its end, saving the final frames too. The
+terminal summary names every file and the native run's log.
 
 The comparison is off, and the summary says why, in CI (`CI=true`), with `--dummy-only` (fast
 iteration), when `SDL_VIDEODRIVER` or `SDL_AUDIODRIVER` is set (that driver runs alone), and on a
@@ -107,8 +119,8 @@ any other path, a new directory included, is compared; outside a push it always 
 `nox -s compare-drivers -- --drivers dummy,cocoa,x11-macos` chooses configurations
 (`dummy` is always added: it is the baseline; one that cannot run here is refused with the
 reason), and other arguments select tests (`-- tests/scenes`). The tests that differ anywhere are
-re-run on every configuration saving their differing frames, and every differing pair gets both
-PNG files and a difference image under
+re-run on every configuration saving the frames around their first difference (stopping once
+they are saved, as above), and every differing pair gets both PNG files and a difference image under
 `test-results/driver-comparison/nox/differences/<first>-vs-<second>/`.
 
 The report, `test-results/driver-comparison/nox/matrix.md` (and `matrix.json`), holds each

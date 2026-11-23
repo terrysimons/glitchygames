@@ -38,7 +38,12 @@ recorded.
 A frame's position is its index in ``RecordedFrames.frames``: the presents, then the final
 frame. ``--frame-images-request FILE`` (a ``FrameImageRequest``, written by
 glitchygames/testing/frame_comparison.py) also saves the named positions of the named tests as PNG
-files, at ``frame_image_path(directory=DIRECTORY, nodeid=..., position=...)``.
+files, at ``frame_image_path(directory=DIRECTORY, nodeid=..., position=...)``. When it names where
+a test may stop (``stop_after_by_test``, a present), the recorder ends that test right after that
+present with ``pytest.skip``: its frames are saved, and the rest of the test would only cost time
+(a 900-frame test differing at present 20 re-ran in 2.5 s instead of 9.2 s, 2026-11-23). An
+outcome exception passes the engine's ``except Exception``, and a skip fails no run; the record
+has ``stopped_after`` set and no final frame (its body did not finish).
 
 ``--frame-fingerprints-seed SEED`` makes the master seed an engine draws when it is given no
 ``--random-seed`` depend on SEED and the test's node id alone (``SeededDraws``), so tests that
@@ -89,9 +94,9 @@ from typing import TYPE_CHECKING
 
 import pygame
 import pytest
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from glitchygames import randomness
+from glitchygames import clock, randomness
 from glitchygames.opacity import shown_rgb_bytes
 
 if TYPE_CHECKING:
@@ -178,6 +183,18 @@ class RecordedFrames(BaseModel):
     # The test's frames_vary marker reason: its frames are not expected to match between runs
     # or drivers, so a comparison lists it instead of comparing it
     frames_vary_reason: str | None = None
+    # The present a re-run stopped the test after (FrameImageRequest.stop_after_by_test): its
+    # body did not finish, so it has no final frame and its outcome is 'skipped'
+    stopped_after: int | None = None
+    # Noted at each present an image request names (a re-run's), for the window's animation:
+    # the frame clock there (the served game time, clock.frame_clock_seconds), the display's
+    # refresh rate as pygame reported it (0 on the dummy driver: none), the running engine's
+    # configured FPS (its resolved target, 0 uncapped; None without an engine), and the
+    # run's shuffle seed (None in a run in file order)
+    frame_clock_at: dict[int, float] = Field(default_factory=dict)
+    refresh_rate_hz: int | None = None
+    configured_fps: float | None = None
+    test_order_seed: int | None = None
 
     @property
     def final_on_run_driver(self) -> bool:
@@ -204,11 +221,17 @@ class RecordedFrames(BaseModel):
 
 
 class FrameImageRequest(BaseModel):
-    """The frames to save as PNG files: positions (in ``RecordedFrames.frames``) by node id."""
+    """The frames to save as PNG files: positions (in ``RecordedFrames.frames``) by node id.
+
+    ``stop_after_by_test`` names, for some tests, the present after which the re-run may end
+    the test (as a skip): every frame it saves is a present at or before that one, so the rest
+    of the test would only cost time.
+    """
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     positions_by_test: dict[str, tuple[int, ...]]
+    stop_after_by_test: dict[str, int] = Field(default_factory=dict)
 
 
 def frame_position_name(*, position: int, frame_count: int) -> str:
@@ -306,6 +329,40 @@ def fingerprint_display() -> tuple[FrameFingerprint, bytes] | None:
     return FrameFingerprint(width=width, height=height, digest=digest), rgb_bytes
 
 
+def configured_fps() -> float | None:
+    """Return the running engine's configured FPS: its resolved target (0 uncapped).
+
+    Returns:
+        ``options['target_fps']`` of the engine running in this context (``--target-fps``, else
+        its scene's ``TARGET_FPS``, else the default), or None when none is running.
+
+    """
+    # Imported here: the plugin loads before any test, and the engine imports a great deal
+    from glitchygames.engine import game_engine
+
+    try:
+        engine = game_engine.current_engine()
+    except game_engine.NoRunningEngineError:
+        return None
+    return float(engine.options['target_fps'])
+
+
+def display_refresh_rate() -> int | None:
+    """Return the refresh rate of the display the window is on, as pygame reports it.
+
+    Returns:
+        ``pygame.display.get_current_refresh_rate()``; None when the display is not running, or
+        on the dummy driver, whose 60 Hz is SDL's stand-in for a display that does not exist.
+
+    """
+    try:
+        if pygame.display.get_driver() == 'dummy':
+            return None
+        return pygame.display.get_current_refresh_rate()
+    except pygame.error:
+        return None
+
+
 def display_driver() -> str | None:
     """Return the video driver of the running display, if any.
 
@@ -383,6 +440,7 @@ class FrameFingerprintRecorder:
         directory: Path,
         image_request: FrameImageRequest | None,
         seed: int | None = None,
+        test_order_seed: int | None = None,
     ) -> None:
         """Prepare to record into a directory.
 
@@ -391,10 +449,12 @@ class FrameFingerprintRecorder:
             image_request: The frames to save as PNG files, or None for none.
             seed: Seeds each test's unseeded engine runs (``seeded_master_seed_draws``), or
                 None to leave them drawing from ``secrets``.
+            test_order_seed: The run's shuffle seed (pytest-randomly's), or None.
 
         """
         self.directory = directory
         self.seed = seed
+        self.test_order_seed = test_order_seed
         self.run_driver = os.environ.get(SDL_VIDEO_DRIVER_VARIABLE)
         # The driver of the display the current test's body left (None without a display)
         self.final_driver: str | None = None
@@ -408,6 +468,13 @@ class FrameFingerprintRecorder:
         self.presented: list[FrameFingerprint | None] = []
         # The display as the current test's body left it (fingerprint and RGB bytes)
         self.final: tuple[FrameFingerprint, bytes] | None = None
+        # The present the current test was stopped after (the request's stop), or None
+        self.stopped_after: int | None = None
+        # The run facts noted at the current test's requested presents
+        self.frame_clock_at: dict[int, float] = {}
+        self.refresh_rate_hz: int | None = None
+        self.configured_fps: float | None = None
+        self.run_facts_noted = False
         # Replaces the display's present functions, and puts them back (pytest's own patcher)
         self.display_patches = pytest.MonkeyPatch()
         directory.mkdir(parents=True, exist_ok=True)
@@ -468,15 +535,37 @@ class FrameFingerprintRecorder:
             *args: PresentParameters.args, **kwargs: PresentParameters.kwargs
         ) -> None:
             nodeid = self.current_nodeid
-            if nodeid is None:
+            if nodeid is None or self.stopped_after is not None:
                 present(*args, **kwargs)
                 return
             shown = fingerprint_display()
             present(*args, **kwargs)
-            self.record_frame(nodeid=nodeid, shown=shown, position=len(self.presented))
+            position = len(self.presented)
+            if position in self.image_request.positions_by_test.get(nodeid, ()):
+                self.note_run_facts(position=position)
+            self.record_frame(nodeid=nodeid, shown=shown, position=position)
             self.presented.append(None if shown is None else shown[0])
+            if self.image_request.stop_after_by_test.get(nodeid) == position:
+                self.stopped_after = position
+                # A skip, not an error: pytest's outcome exceptions are BaseExceptions, so the
+                # engine's (and a test's) except Exception lets it through, and a skipped test
+                # fails no run
+                pytest.skip(f'its requested frames were saved by present {position}')
 
         return present_and_record
+
+    def note_run_facts(self, *, position: int) -> None:
+        """Note the frame clock at a requested present, and the run's display and FPS once.
+
+        Args:
+            position: The present's position in the test's frames.
+
+        """
+        self.frame_clock_at[position] = clock.frame_clock_seconds()
+        if not self.run_facts_noted:
+            self.run_facts_noted = True
+            self.refresh_rate_hz = display_refresh_rate()
+            self.configured_fps = configured_fps()
 
     def record_frame(
         self, *, nodeid: str, shown: tuple[FrameFingerprint, bytes] | None, position: int
@@ -520,6 +609,11 @@ class FrameFingerprintRecorder:
         self.presented = []
         self.final = None
         self.final_driver = None
+        self.stopped_after = None
+        self.frame_clock_at = {}
+        self.refresh_rate_hz = None
+        self.configured_fps = None
+        self.run_facts_noted = False
         self.seed_master_seed_draws(nodeid=item.nodeid)
         return (yield)
 
@@ -540,9 +634,13 @@ class FrameFingerprintRecorder:
         try:
             return (yield)
         finally:
-            self.final = fingerprint_display()
-            self.final_driver = display_driver()
-            self.record_frame(nodeid=item.nodeid, shown=self.final, position=len(self.presented))
+            # A stopped test's body did not finish: what it shows is not its final frame
+            if self.stopped_after is None:
+                self.final = fingerprint_display()
+                self.final_driver = display_driver()
+                self.record_frame(
+                    nodeid=item.nodeid, shown=self.final, position=len(self.presented)
+                )
 
     @pytest.hookimpl(wrapper=True)
     def pytest_runtest_makereport(
@@ -574,6 +672,11 @@ class FrameFingerprintRecorder:
                 frames_vary_reason=(
                     None if frames_vary is None else str(frames_vary.kwargs.get('reason', ''))
                 ),
+                stopped_after=self.stopped_after,
+                frame_clock_at=self.frame_clock_at,
+                refresh_rate_hz=self.refresh_rate_hz,
+                configured_fps=self.configured_fps,
+                test_order_seed=self.test_order_seed,
             )
             with self.records_path.open('a', encoding='utf-8') as records_file:
                 records_file.write(record.model_dump_json() + '\n')
@@ -967,6 +1070,9 @@ def pytest_configure(config: pytest.Config) -> None:
         directory=config.invocation_params.dir / directory,
         image_request=image_request,
         seed=seed,
+        # pytest-randomly's seed, when it shuffles this run (its option is missing when the
+        # plugin is blocked, as the project's addopts do)
+        test_order_seed=config.getoption('randomly_seed', default=None),
     )
     recorder.install()
     config.pluginmanager.register(recorder, name=RECORDER_PLUGIN_NAME)

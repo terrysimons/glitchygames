@@ -16,9 +16,10 @@ driver dependence (BUGS.md #142, #189). Outside CI, a pytest run therefore:
    slower per test, and the two together never use more workers than one run would. Its
    output is in ``test-results/driver-comparison/pytest/native/pytest.log``;
 3. at the session's end compares the two runs' frames (glitchygames/testing/frame_comparison.py),
-   re-runs any differing tests on both drivers saving PNG files of the differing frames and a
-   difference image, and reports them in the terminal summary. A driver difference, or a failure
-   in the native run, fails this run.
+   re-runs any differing tests on both drivers saving PNG files of the frames around each
+   first difference and a difference image of each (a re-run stops once it has saved them,
+   unless they reach the test's final frame), and reports them in the terminal summary. A
+   driver difference, or a failure in the native run, fails this run.
 
 Tests marked ``@pytest.mark.frames_vary(reason=...)`` are listed, not compared: their frames are
 not expected to match between runs or drivers (they hold measured frame times, or the live
