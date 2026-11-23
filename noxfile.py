@@ -28,6 +28,12 @@ if TYPE_CHECKING:
 # managed by uv, without touching the project's .venv.
 nox.options.default_venv_backend = 'uv'
 
+# uv installs to ~/.local/bin on Linux/macOS; prepend it so nox can find the binary when
+# the caller did not export PATH (e.g. a bare `nox` in a fresh CircleCI shell).
+_local_bin = Path.home() / '.local' / 'bin'
+if _local_bin.is_dir() and str(_local_bin) not in os.environ.get('PATH', '').split(os.pathsep):
+    os.environ['PATH'] = str(_local_bin) + os.pathsep + os.environ.get('PATH', '')
+
 # The docs site's configuration, named on every mkdocs command line: mkdocs.yml is a link to it,
 # which Windows may check out as a one-line text file (tests/test_workspace_config.py)
 _DOCS_CONFIGURATION = 'zensical.yml'
