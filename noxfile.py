@@ -2209,13 +2209,16 @@ _NATIVE_CONFIGURATION_NAMES = ('cocoa', 'windows', 'wayland', 'x11')
 # Native runs only, never CI or a plain pytest: on 2026-11-20 a hung
 # pygame.mixer.init (SDL's audio thread crashed and pygame-ce's parachute handler spun on it,
 # #252) held the native run until it was killed by hand. A crash now fails at once; this limit
-# still catches a hang that is not a crash. The slowest healthy test
-# takes about 30 s, so 120 s is four times that. The thread method ends the worker process (xdist
-# reports the crash and replaces the worker) where the signal method would not interrupt a call
-# stuck inside a C library. Caveat: `os._exit` runs no fixture teardown, so a hung test's
-# children (in sessions of their own) may outlive the worker (not tested; the bug record
+# still catches a hang that is not a crash. It is longer than any test's own wait on a child
+# (300 s at most; tests/test_per_test_limit.py checks it), so under load a test's own timeout,
+# which stops and reaps its child, fires first: at 120 s, at a load average of 176, the limit
+# ended a test waiting on its Mr. Muncher replay (bugs/2026-11-20-process-stop-tests-failed-
+# under-load.md). The thread method ends the worker process (xdist reports the crash and
+# replaces the worker) where the signal method would not interrupt a call stuck inside a C
+# library. `os._exit` runs no fixture teardown, so tests/per_test_limit.py kills and reaps the
+# test's children first (it left them running: reproduced 2026-11-22; the bug record
 # bugs/2026-11-20-native-run-burned-two-hours-on-a-broken-coreaudio.md)
-_NATIVE_RUN_TIMEOUT_SECONDS = 120
+_NATIVE_RUN_TIMEOUT_SECONDS = 360
 # Ten seconds before that, faulthandler (pytest's faulthandler_timeout) writes every thread's
 # stack to the worker's real stderr. pytest-timeout's own stack dump goes through the terminal
 # writer, which an xdist worker does not forward (measured: nothing is shown), so without this
