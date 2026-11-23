@@ -1085,6 +1085,21 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 
 ## Performance and pacing
 
+- **Give the replay-ledger rows a home outside git** (the owner, 2026-11-22: "We're pushing too
+  many large-ish files up, and I really don't want to use lfs - we'll push them to s3 or
+  something"). By then `quality/replay-ledger/` held 7,368 row files (17.6 MB, about 2.4 KB each)
+  and grew by about 19 per commit plus each Pi push's, so the `replay-metrics` pre-commit and
+  `raspberry-pi-replay-metrics` pre-push hooks were removed; `nox -s measure-staged` and
+  `measure-on-raspberry-pi` still measure by hand and stage rows, which stay uncommitted.
+  - Design first (brainstorm): an S3 bucket beside the site's (infra/, CDK), uploaded by whom
+    (a session by hand, the Pis, or a CircleCI job; CI never measures, its machines vary),
+    keyed by code tree and machine as the row files are now; the docs build
+    (`scripts/generate_performance_graphs.py`, `scripts/mkdocs_hooks.py`) reading the bucket
+    instead of the directory, and how a landed row is still told from an unlanded one (today:
+    the commit that added the row's file).
+  - Then: move the 7,368 rows (or leave them as frozen history), point the measuring scripts at
+    the new home instead of staging, and rewrite their docstrings, which still speak of "the
+    hook".
 - **Re-measure the requirements page** (the owner, 2026-11-09). `docs/requirements.md` gives each
   measured machine's verdict per game from runs of November 5 to 9, 2026 (Raspberry Pi 4,
   Raspberry Pi 5, Apple M4 Max). The owner expects the numbers to improve once the in-flight work
