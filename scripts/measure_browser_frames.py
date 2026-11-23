@@ -590,22 +590,21 @@ def run_chrome(*, run: ChromeRun) -> dict[str, Any]:
         RuntimeError: When Chrome starts without a standard error pipe.
 
     """
-    # Chrome, with the arguments built here (no shell), leading a session of its own so
-    # stop_command ends its helper processes with it; its standard error, where it prints its
-    # DevTools address, is piped, and its standard output discarded. Leaving the process's
-    # context closes that pipe, after stop_command has reaped Chrome.
     with (
         tempfile.TemporaryDirectory(prefix='measure-browser-chrome-') as profile,
         Path(os.devnull).open('w', encoding='utf-8') as discarded,
-        start_command(
+    ):
+        # Chrome, with the arguments built here (no shell), leading a session of its own so
+        # stop_command ends its helper processes with it, and closes the pipe of its standard
+        # error (where it prints its DevTools address) once it is reaped
+        chrome_process = start_command(
             command=chrome_command(
                 chrome=run.chrome, profile_directory=Path(profile), headed=run.headed
             ),
             environment=os.environ,
             output=discarded,
             errors=ErrorOutput.PIPED,
-        ) as chrome_process,
-    ):
+        )
         try:
             if chrome_process.stderr is None:  # pragma: no cover - errors=PIPED always gives one
                 message = 'Chrome was started without a standard error pipe'

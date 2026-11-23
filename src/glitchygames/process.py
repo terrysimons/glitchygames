@@ -19,6 +19,7 @@ plugin can import it at configuration time.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import signal
@@ -500,6 +501,44 @@ def stop_command(*, process: subprocess.Popen[str], first_signal: int = signal.S
     stop what the test started. SIGTERM, which pytest does not handle, kills a worker at once,
     and a test's child in a session of its own is then left running (BUGS.md #275). A game
     keeps the default: its engine turns SIGTERM into its own teardown.
+
+    Once the child is reaped, its pipes (``stdin``, ``stdout``, ``stderr``, whichever it has)
+    are closed, however this returns or raises: so no caller leaks one (Chrome's standard error
+    did, 2026-11-22), and output the child left unread cannot be read after the stop. Read what
+    is needed before stopping it. A child still running when this raises keeps its pipes.
+
+    Args:
+        process: The child.
+        first_signal: The first signal for the group (POSIX).
+
+    """
+    try:
+        _stop_the_child(process=process, first_signal=first_signal)
+    except BaseException:
+        # Reaped before the error (a group that outlived the kill): its pipes go too
+        if process.returncode is not None:
+            _close_the_pipes(process=process)
+        raise
+    # Every return from the stop has reaped the child
+    _close_the_pipes(process=process)
+
+
+def _close_the_pipes(*, process: subprocess.Popen[str]) -> None:
+    """Close a reaped child's pipes, as leaving ``with Popen(...)`` does.
+
+    Its standard input is closed last and may flush to a child that is gone: that broken pipe
+    is nothing to report.
+    """
+    for stream in (process.stdout, process.stderr):
+        if stream is not None:
+            stream.close()
+    if process.stdin is not None:
+        with contextlib.suppress(BrokenPipeError):
+            process.stdin.close()
+
+
+def _stop_the_child(*, process: subprocess.Popen[str], first_signal: int) -> None:
+    """Stop and reap the child, and empty its group on POSIX (``stop_command``'s whole stop).
 
     Args:
         process: The child.

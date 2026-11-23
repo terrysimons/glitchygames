@@ -187,9 +187,8 @@ class TestStartCommand:
         started like any other, so it is stopped and reaped like any other.
         """
         output_path = tmp_path / 'output.txt'
-        with (
-            output_path.open('w', encoding='utf-8') as output,
-            start_command(
+        with output_path.open('w', encoding='utf-8') as output:
+            child = start_command(
                 command=[
                     sys.executable,
                     '-c',
@@ -198,8 +197,7 @@ class TestStartCommand:
                 environment=os.environ,
                 output=output,
                 errors=ErrorOutput.PIPED,
-            ) as child,
-        ):
+            )
             try:
                 assert child.stderr is not None
                 errors = child.stderr.read()
@@ -208,6 +206,32 @@ class TestStartCommand:
 
         assert errors == 'err\n'
         assert output_path.read_text(encoding='utf-8') == 'out\n'
+
+    @pytest.mark.parametrize(
+        'source', ['import time; time.sleep(60)', 'pass'], ids=['running', 'ended-first']
+    )
+    def test_stop_command_closes_the_childs_pipes_once_it_is_reaped(self, tmp_path, source):
+        """No pipe outlives the stop: the caller cannot leak it, and cannot read past the stop.
+
+        ``stop_command`` reaped a child but left its pipes for the garbage collector (Chrome's
+        standard error in measure_browser_frames, 2026-11-22). An ended child is stopped by an
+        early return, so it is checked too.
+        """
+        with (tmp_path / 'output.txt').open('w', encoding='utf-8') as output:
+            child = start_command(
+                command=[sys.executable, '-c', source],
+                environment=os.environ,
+                output=output,
+                errors=ErrorOutput.PIPED,
+            )
+            if source == 'pass':
+                child.wait(timeout=WAIT_SECONDS)
+
+            stop_command(process=child)
+
+        assert child.returncode is not None
+        assert child.stderr is not None
+        assert child.stderr.closed
 
     def test_the_child_gets_the_given_environment(self, tmp_path):
         """The environment is the child's whole environment."""
@@ -468,6 +492,20 @@ class TestStopCommandRacingTheChildsEnd:
 
         with pytest.raises(PermissionError):
             stop_command(process=child)
+
+    def test_a_child_still_running_when_the_stop_raises_keeps_its_pipes(self, mocker):
+        """Only a reaped child's pipes are closed: one still running may yet be read or stopped."""
+        child = mocker.Mock(pid=4242, returncode=None)
+        child.poll.return_value = None
+        child.wait.side_effect = process.TimeoutExpired(cmd='game', timeout=1.0)
+        mocker.patch.object(process.os, 'killpg', create=True, side_effect=PermissionError)
+
+        with pytest.raises(PermissionError):
+            stop_command(process=child)
+
+        child.stdout.close.assert_not_called()
+        child.stderr.close.assert_not_called()
+        child.stdin.close.assert_not_called()
 
 
 class TestStopCommandEmptiesTheGroup:
