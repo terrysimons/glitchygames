@@ -584,3 +584,17 @@ same name; proposed renames: the firefly Flicker (the drone keeps Glim), the gli
 (the solder slime keeps Blip), the living sigil Runa (the fiber fox keeps Lumen). The sprites,
 generators and sheets stay outside the repository until the user picks a mascot and where it
 lands.
+
+## 67. User (2026-11-23)
+
+> Keep that sheet in the branch with the docs.  I like the owl.  We need a clever name for him.
+> What are the sizes we're dealing with there?
+
+## 68. Claude
+
+Copied the contact sheet into the branch at
+`plans/data/lucid-circuit-mascots/2026-11-23-contact-sheet-16-bit-plus.png` and added a mascot
+section to `plans/lucid-circuit-modes.md` (the mascot belongs to Lucid Circuit, not the game).
+Gave the owl's sizes and proposed names, recommending **Nixie**: a Nixie tube is a glowing
+vacuum tube, and a nixie is a water spirit of folklore, so the name is science and magic at
+once, like the owl.

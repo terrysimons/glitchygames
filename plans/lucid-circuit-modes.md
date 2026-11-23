@@ -124,7 +124,23 @@ stateDiagram-v2
 Not yet rendered, so the Mermaid syntax is unchecked. The transitions that cross the loading
 scene's boundary may draw awkwardly.
 
-## 4. Open questions
+## 4. The mascot (brainstorm)
+
+**(user)** Lucid Circuit gets a small, cute, animated mascot, for example on the participating
+mode's loading scene.
+
+- Eighteen candidates were drawn in five clusters (machines, lab elementals, arcane-tech
+  familiars, living signals, neon light). Each is a 32x32 sprite at the `16-bit+` profile, with
+  two looping animations: `idle`, and `thinking` for the loading scene. The contact sheet:
+  [data/lucid-circuit-mascots/2026-11-23-contact-sheet-16-bit-plus.png](data/lucid-circuit-mascots/2026-11-23-contact-sheet-16-bit-plus.png).
+- **(user)** The owner likes the owl (candidate 7): an arcane-tech familiar with circuit-board
+  feathers, vacuum-tube eyes and a rune on its chest that lights up while the AI thinks. Its
+  name is still to choose. Its working name, "Valve", is also a game company's name, so it is
+  not a candidate.
+- The sprite files are not in the repository yet; where the chosen mascot lands is the owner's
+  call.
+
+## 5. Open questions
 
 - How a game opts in (a class attribute on the game, a `[tool.glitchygames]` setting, or
   something else).
