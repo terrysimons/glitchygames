@@ -202,6 +202,7 @@ class TestLayout:
             maze_geometry(maze=build_maze(), screen_size=(100, 50)).tile_size == MINIMUM_TILE_SIZE
         )
 
+    @pytest.mark.draws_frames
     def test_the_first_frame(self, scene, played):
         scene.setup()
         screen = _rendered(scene)
@@ -361,6 +362,7 @@ class TestInput:
         _press(scene, key)
         assert isinstance(scene.next_scene, PauseScene)
 
+    @pytest.mark.draws_frames
     def test_q_quits(self):
         """Q (by its position) ends the run through the engine's frame loop."""
         with golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager:
@@ -472,6 +474,7 @@ class TestInput:
 class TestEating:
     """Sprockets, snacks, the bonus, extra lives and clearing the level."""
 
+    @pytest.mark.draws_frames
     def test_the_player_eats_the_sprockets_it_passes(self, playing, played):
         _clear_the_way(playing)
         _tick(playing, seconds=0.38)
@@ -541,6 +544,7 @@ class TestEating:
         _tick(playing, seconds=BONUS_SECONDS + 0.1)
         assert not playing.bonus.visible
 
+    @pytest.mark.draws_frames
     def test_ten_thousand_points_give_one_extra_life(self, playing, played):
         playing.score = EXTRA_LIFE_SCORE - 10
         playing._add_points(10)
@@ -571,6 +575,7 @@ class TestEating:
         _tick(playing, seconds=FRAME_SECONDS)
         assert playing.next_scene is next_level  # Asked for once
 
+    @pytest.mark.draws_frames
     def test_the_cleared_maze_flashes(self, playing):
         _eat_all_but(playing, (12, 18))
         _tick(playing, seconds=0.2)
@@ -795,6 +800,7 @@ class TestGameOverScreen:
             headlines[final_score] = headline.rect.width
         assert headlines[900] > headlines[500]  # NEW HIGH SCORE! is the longer line
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('handler', 'event_type'),
         [
@@ -833,6 +839,7 @@ class TestWholeGames:
                     pygame.event.post(event)
             manager.run_frame()
 
+    @pytest.mark.draws_frames
     def test_a_cleared_level_leads_to_the_next(self):
         with golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager:
             first = manager.active_scene
@@ -846,6 +853,7 @@ class TestWholeGames:
             assert second.score == first.score
             assert second.message_shown[0] == 'REEL 2'
 
+    @pytest.mark.draws_frames
     def test_a_game_over_leads_to_a_new_game(self):
         with golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager:
             last_life = MrMuncherScene(options=manager.OPTIONS, progress=GameProgress(lives=1))
@@ -880,6 +888,7 @@ def test_the_package_runs_the_games_main():
     assert mr_muncher.main is mr_muncher_game.main
 
 
+@pytest.mark.draws_frames
 def test_main_runs_the_game_through_the_engine(mocker, capsys):
     """main() starts Mr. Muncher in the engine: here a headless replay of the golden run.
 

@@ -147,6 +147,7 @@ def scene() -> dt_demo.Game:
     return dt_demo.Game(options={})
 
 
+@pytest.mark.draws_frames
 def test_before_space_the_square_waits_at_the_left_edge(scene: dt_demo.Game) -> None:
     """Time passes but nothing moves until Space: the clock shows 0 and the square is at x 0."""
     scene.dt_tick(0.5)
@@ -158,6 +159,7 @@ def test_before_space_the_square_waits_at_the_left_edge(scene: dt_demo.Game) -> 
     assert _rgb(scene.screen, (SQUARE_SIZE * 2, _square_center_y(scene))) == BLACK_RGB
 
 
+@pytest.mark.draws_frames
 def test_space_starts_the_square_moving_frame_rate_independently(scene: dt_demo.Game) -> None:
     """After Space the square moves 300 pixels a second and the clock counts the seconds."""
     _hold_keys(pygame.K_SPACE)
@@ -177,6 +179,7 @@ def test_space_starts_the_square_moving_frame_rate_independently(scene: dt_demo.
     assert _rgb(scene.screen, (SQUARE_SIZE // 2, _square_center_y(scene))) == BLACK_RGB
 
 
+@pytest.mark.draws_frames
 def test_other_keys_do_not_start_it(scene: dt_demo.Game) -> None:
     """A key down while Space is not held leaves the square where it is."""
     _hold_keys(pygame.K_a)
@@ -190,6 +193,7 @@ def test_other_keys_do_not_start_it(scene: dt_demo.Game) -> None:
     assert _rgb(scene.screen, (SQUARE_SIZE // 2, _square_center_y(scene))) == WHITE[:3]
 
 
+@pytest.mark.draws_frames
 def test_crossing_the_screen_shows_the_time_it_took(scene: dt_demo.Game) -> None:
     """When the square has left the screen, the time it took is shown, and kept."""
     assert scene.screen is not None
@@ -213,6 +217,7 @@ def test_crossing_the_screen_shows_the_time_it_took(scene: dt_demo.Game) -> None
     )
 
 
+@pytest.mark.draws_frames
 def test_the_square_is_a_sprite_that_follows_its_position(scene: dt_demo.Game) -> None:
     """The square is a sprite of the scene's group, at the whole pixel of its position."""
     _start_the_square(scene)
@@ -228,6 +233,7 @@ def test_the_square_is_a_sprite_that_follows_its_position(scene: dt_demo.Game) -
     assert scene.square.rect.size == (SQUARE_SIZE, SQUARE_SIZE)
 
 
+@pytest.mark.draws_frames
 def test_the_record_line_is_hidden_until_the_square_crosses(scene: dt_demo.Game) -> None:
     """The crossing time is a text sprite, hidden until the square has left the screen."""
     assert isinstance(scene.record_line, TextSprite)
@@ -251,6 +257,7 @@ def test_the_lines_are_text_sprites(scene: dt_demo.Game) -> None:
     assert {scene.time_line, scene.fps_line} <= set(scene.all_sprites)
 
 
+@pytest.mark.draws_frames
 def test_the_fps_line_keeps_one_rect_whatever_the_fps(scene: dt_demo.Game) -> None:
     """The FPS line's rect is the same for very different FPS values (Ruling R14).
 
@@ -270,6 +277,7 @@ def test_the_fps_line_keeps_one_rect_whatever_the_fps(scene: dt_demo.Game) -> No
 
 
 # Each narrower than the line's widest text, so some of the line is right of the text
+@pytest.mark.draws_frames
 @pytest.mark.parametrize('frames_per_second', [0.0, 60.01, 9876.5])
 def test_the_fps_line_shows_its_text_at_its_left(
     scene: dt_demo.Game, frames_per_second: float
@@ -294,6 +302,7 @@ def test_the_fps_line_shows_its_text_at_its_left(
     )
 
 
+@pytest.mark.draws_frames
 def test_update_draws_only_sprites(scene: dt_demo.Game) -> None:
     """update() draws nothing on the screen: everything shown is the sprite group's."""
     assert scene.screen is not None
@@ -356,6 +365,7 @@ def test_version_flag_prints_the_version_and_exits(
     assert capsys.readouterr().out == 'Delta Time Demo 1.0\n'
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run')
 def test_main_runs_the_demo_until_it_quits(mocker: MockerFixture) -> None:
     """``python -m dt_demo`` (and ``dt-demo``) runs the demo, which draws its first frames."""

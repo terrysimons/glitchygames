@@ -212,6 +212,7 @@ class TestAHostedStart:
 class TestTheDefaultContextsStart:
     """The default context's start() is unchanged: it runs the replay to its end and exits."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.frames_vary(
         reason=(
             'it replays the stand-in recording made fresh each run (record_stand_in_game_once), '
