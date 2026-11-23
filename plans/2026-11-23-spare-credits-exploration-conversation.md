@@ -246,3 +246,22 @@ Listed the new questions:
 16. Is the language spoken, written, or both?
 17. Is the gray world literal on screen?
 18. One player, or more?
+
+## 28. User (2026-11-23)
+
+> 13.  It's real.  I'll tell you at the end.  14. The point of the game is to help with
+> acquisition through immersion in a simulated environment, rather than something particularly
+> chunky and static - which is sort of how lrnj feels - but the game is still super useful and I
+> see why they did it that way - I want something a bit more of an immersion situation, but very
+> fun - or rather even addictive feeling.  There will need to be the right amount of
+> tension/frustration and success/exhilaration.  15. Remember this for later - make sure you've
+> recorded all of the deferrals and re-ask me when I signal you to later on.  16. Both.  Yes.  17.
+> I think we should play around with it, but it need not be the only idea.  This is meant to be a
+> creative brainstorming session where we'll make a bunch of small demos and feel things out.
+> 18. Single player, but give some thought to situations where multi-player could improve
+> playability and addictiveness.
+
+## 29. Claude
+
+Recorded the answers in the plan, gathered every deferred question into one table to re-ask when
+the user signals, and noted small demos as the way to feel things out.

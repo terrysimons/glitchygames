@@ -49,18 +49,30 @@ The game, as the user has described it so far:
   ask clarifying questions, test possibilities, and so on.
 - **(user)** AI likely plays a part both while the game is made and while it is played; where
   exactly is an area to research, consider, test and brainstorm.
+- **(user)** The dying language is a real language. The user names it at the end.
+- **(user)** The point is acquisition through immersion in a simulated environment, rather than
+  something chunky and static (which is how Slime Forest Adventure feels, though it is super
+  useful and the user sees why it was made that way).
+- **(user)** Very fun, even addictive-feeling, with the right amount of tension and frustration
+  against success and exhilaration.
+- **(user)** The language is both spoken and written, and it has its own script.
+- **(user)** Single player. Give some thought to situations where multiplayer could improve
+  playability and addictiveness.
+- **(user)** This is a creative brainstorming session: we make a bunch of small demos and feel
+  things out. The grayscale world is one idea to play around with, not the only one.
 - **(user)** The user is explaining the mechanics first, then what they are going for. Claude
   listens and holds guesses until both are told.
 - **(user)** Research notes stay outside the repository; this plan refers only to the ideas.
 
-### Open questions
+### Deferred questions: re-ask when the user signals
 
-Asked 2026-11-23; status as the user gave it.
+**(user)** Record every deferral and re-ask these when the user signals, later on. Asked
+2026-11-23; status as the user gave it.
 
 | # | Question | Status |
 |---|----------|--------|
 | 1 | Why this game, and who is it for? | After the framework is sorted to the user's liking |
-| 2 | Where does a player start, and how far does it take them? | Not about Japanese at all; the user explains later |
+| 2 | Where does a player start, and how far does it take them? | Not about Japanese; the user explains later |
 | 3 | What is the story or situation? | The user explains later |
 | 4 | Where does the learning happen in play? | The user is still considering it |
 | 7 | Where does it run, and with what controls? | The user is thinking about it |
@@ -69,14 +81,22 @@ Asked 2026-11-23; status as the user gave it.
 | 10 | What would make it a failure even if it technically works? | The user is thinking about it |
 | 11 | Where does it live: inside glitchygames or its own project? | Not sure yet |
 | 12 | Does it have a name? | Not yet |
+| 13 | Which real language is it? | Real; the user names it at the end |
+| 15 | What carries over from one loop to the next (the player's memory only, or also the skill tree, notes, items)? | Deferred: re-ask later |
 
 Areas to research, consider, test and brainstorm (named by the user):
 
 - Where AI acts at design time and where at play time. Constraint to weigh: today the engine
   turns the AI service off in replays and the browser, and replays must repeat exactly, so AI at
   play time needs its answers recorded and served back on replay.
+- The grayscale world, literal or metaphorical, as one idea among others.
+- Situations where multiplayer could improve playability and addictiveness (the game stays single
+  player).
+- Small demos to feel things out.
 
-Questions 5 (which parts of Japanese) and 6 (how the player answers) were struck by the user.
+Answered: 13 (real language, named later), 14 (immersion; fun, even addictive), 16 (spoken and
+written, own script), 17 (play with it, not the only idea), 18 (single player). Struck by the
+user: 5 (which parts of Japanese) and 6 (how the player answers).
 
 ## 2. Goals, non-goals, anti-goals
 
