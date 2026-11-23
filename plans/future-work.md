@@ -1499,19 +1499,27 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
       `glitchygames.audio.listening`, the scripts are gone.
     - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
       clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
-- **Make the driver comparison's image re-run stop at the frames it needs** (the owner,
-  2026-11-22). When frames differ, the differing tests are run again on both drivers to save PNGs
-  (`tests/driver_comparison.py`'s `save_difference_images`, `nox -s compare-drivers`' images
-  run; the request is `frame_comparison.image_request_for`'s `FrameImageRequest`). It saves only
-  a few frames already (the first differing frame and both final frames), but each re-run plays
-  its test to the end, a minute or two when anything differs. A test cannot skip to frame N, so:
-  - stop each re-run once its last requested frame is presented (the recorder knows the
-    positions; ending the test there must not count as a failure of the run);
-  - save a small window around the first difference (a few frames before and after) instead of
-    only that frame, so the images show the context;
-  - for golden replays, measure whether a replay could start from a recorded keyframe just
-    before the difference rather than from frame 0 (depends on what the replay format restores).
-  Measure the re-run's time before and after on a real difference.
+- ~~**Make the driver comparison's image re-run stop at the frames it needs**~~ **Done**
+  2026-11-23 (the owner, 2026-11-22; branch `perf/image-rerun-stops-at-needed-frames`). The image
+  request (`frame_comparison.image_request_for`) now names a window of `IMAGE_WINDOW_PRESENTS`
+  (2) frames on each side of each test's first difference, and, when every frame of the window
+  is a present on both drivers, where the re-run may stop (`FrameImageRequest.stop_after_by_test`).
+  The recorder ends that test right after that present with `pytest.skip` (a skip fails no run,
+  and passes `except Exception`); its record has `stopped_after` and no final frame. The images
+  report compares the first difference, then the window's other frames. A window reaching the
+  final frame runs the test to its end, as before. Measured on a 900-frame test differing at
+  present 20 (dummy against cocoa, the local run): the re-run took 9.2 s before, 1.9 s after.
+  Left:
+  - **A golden replay's re-run starting near its difference: not possible as things stand**
+    (measured 2026-11-23). A trace keyframe holds sprite rects only, not the game's state
+    (logic, random streams, timers), so no replay can start from one; a replay starts mid-way
+    only at a scene start (`ReplayOptions.start_frame`, the playback scope of driver rule 18,
+    which applies no recorded options or seed), and a step back rebuilds from frame 0
+    unpresented (rule 15). The re-run also replays pytest tests, not recordings. It would need
+    the game's state saved at keyframes first.
+  - **Fingerprints before the window** (small): the re-run still fingerprints every present
+    before its window (about 0.75 ms each at 800x600), which it uses to confirm the difference
+    reproduced; skipping them would need another way to tell.
 - ~~**Move the games onto the new sound library (sound engine M2's migration), in
   `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache**~~ **Done**
   2026-11-15 (plans/2026-11-14-sound-migration.md, steps 1-9, and its two measurements: ten
