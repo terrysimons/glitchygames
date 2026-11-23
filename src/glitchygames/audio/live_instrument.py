@@ -576,6 +576,9 @@ class LiveSoundHandle:
     def stop(self, *, fade: float = DEFAULT_STOP_FADE_SECONDS) -> bool:
         """End the sound sooner: a fade of ``fade`` seconds (the library's stop fade).
 
+        The fade is heard up to about two chunks late: the chunk playing and the one queued
+        play out first (``LiveStream.stop`` in glitchygames/audio/live.py).
+
         Returns:
             Whether it began stopping.
         """

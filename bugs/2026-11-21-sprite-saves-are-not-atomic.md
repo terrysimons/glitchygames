@@ -1,0 +1,35 @@
+# Sprite Saves Are Not Atomic
+
+- **Description**: Four writers of a user's own file write it in place: they truncate the file, then write it. If Ctrl-C, a crash, a kill or a power cut stops the write part way, the file is left truncated, and the earlier version is gone with it. Found by the sweep of every file write in `src/` and `scripts/` for bugs/2026-11-20-ledger-row-writes-are-not-atomic.md (2026-11-21), by reading the code. Not observed or reproduced.
+  - `AnimatedSprite.save` (`src/glitchygames/sprites/animated.py:2025`, `Path.write_text`): Bitmappy saves an animated sprite through it (`animated_canvas.py`, `canvas_interfaces.py`).
+  - `BitmappySprite.save`, the static save (`src/glitchygames/sprites/bitmappy_sprite.py:465`): `open('wb')`, then `tomli_w.dump`, so a stop inside the dump leaves part of the TOML.
+  - Bitmappy's TOML saved from a PNG (`src/apps/bitmappy/src/bitmappy/file_io.py:388`, `Path.write_text`).
+  - Bitmappy's error-handling config (`src/apps/bitmappy/src/bitmappy/controllers/error_handling.py:376`, `open('w')` then `json.dump`): a truncated config no longer loads.
+- **Status**: Open (queued by the coordinating session as its own branch, 2026-11-21)
+- **Priority**: High. Each one destroys a person's work or settings, and no copy is kept.
+- **Root Cause**: a file the user keeps is written in place instead of whole or nothing.
+- **Test gap**: no test stops a save part way. The save tests write only to completion, and nothing holds a save to the whole-or-nothing rule.
+- **Already whole or nothing** (the pattern to follow):
+  - `sprites/saved_sprites.py` (the AI console's `/sprite`) and Bitmappy's AI save (`ai_manager.py`, which wraps `canvas_sprite.save` in `write_aside_then_replace`).
+  - `state/manager.py` (saves), `audio/disk_cache.py`, `audio/offline.py`, `replay/rebuild.py`, `replay/tools/sound_tools.py` and `ai_console.py`.
+  - Since 2026-11-21, the replay ledgers.
+- **Fix** (proposed):
+  - Write each one through `glitchygames.output_files`: `write_text_whole(destination=..., text=...)` for text, which syncs to the disk before the replace, or `write_aside_then_replace` with a writer for `tomli_w.dump`.
+  - Test with `tests/interrupted_writes.py`'s `cut_writes_short`: a save stopped at any character leaves the earlier file unchanged and no partial file behind. That is the invariant `tests/test_output_files.py` and `tests/test_recording_metrics.py` already hold for the ledgers.
+  - Extend `tests/test_ledger_write_source_guard.py`'s rule, or a sibling of it, to the sprite-saving modules.
+- **Related**:
+  - `state/manager.DiskSaveManager._atomic_write` is a third copy of `output_files.write_aside_then_replace` (`NamedTemporaryFile` plus `replace`). Fold it into the shared helper, keeping its `newline='\n'` (a save has the same bytes on every OS).
+  - `tests/test_ledger_write_source_guard.py` does not scan `scripts/measure_on_raspberry_pi.py`, because engine tests never reach `scripts/`. That script writes no ledger itself, but its local `tarfile.extractall` of a Pi's row files is not whole or nothing: a cut extraction leaves a truncated, untracked row that readers skip and the next push overwrites. Low risk.
+  - Lower risk, also found by the sweep:
+    - `testing/frame_fingerprints.py`'s records append (a test diagnostic, with no guard against a cut last line);
+    - `api/client.py` and `api/sprite_requests.py` (new AI sprite files, written in place);
+    - `tracing.py`'s recording file, which is written over the whole run by design.
+- **Known remaining gap** (the class is partly covered, not closed): whole-or-nothing holds against a stop (Ctrl-C, a crash, a kill), but not fully against a power loss.
+  - Only `output_files.write_text_whole` syncs its file before the replace. Its callers are the replay ledgers: `recording_metrics.write_ledger_file`, and `append_ledger_rows`, which syncs its own append.
+  - No writer syncs the directory after the replace. On some file systems, a power cut just after it can still show the old file.
+  - `write_aside_then_replace` stays unsynced, so after a power loss its destination can come back empty or partial on some file systems. Its callers are `ai_console.py` (the `/sprite` save path), `audio/offline.py` (two renders), `sprites/saved_sprites.py`, `replay/rebuild.py` (the restart handoff), `replay/tools/sound_tools.py` and `replay/driver.py` (a bookmarked copy), plus Bitmappy's `ai_manager.py`.
+  - `state/manager.DiskSaveManager._atomic_write` and `audio/disk_cache.py` also replace without syncing.
+  - The replay outputs and bookmarks can be made again. A user's save (`saved_sprites`, the state saves, Bitmappy's AI save, and this record's four once fixed) should use `write_text_whole` or a synced equivalent.
+- **Reporter**: Claude
+- **Date Reported**: 2026-11-21
+- **Files**: `src/glitchygames/sprites/animated.py`, `src/glitchygames/sprites/bitmappy_sprite.py`, `src/apps/bitmappy/src/bitmappy/file_io.py`, `src/apps/bitmappy/src/bitmappy/controllers/error_handling.py`, `src/glitchygames/state/manager.py`
