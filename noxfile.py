@@ -1994,6 +1994,10 @@ _WORKERS_OPTION = '--workers'
 _EVERY_CORE = 'auto'
 _COMPARE_DRIVERS_SEED = 20261023
 _FRAME_FINGERPRINTS_PLUGIN = 'glitchygames.testing.frame_fingerprints'
+# The plugin's option that runs only the tests marked draws_frames: the others present nothing
+# and leave the canvas, so they have no frame to compare (the plugin fails a test whose marker
+# is wrong; plans/2026-11-22-compare-drivers-only-drawing-tests.md)
+_DRAWS_FRAMES_ONLY_OPTION = '--draws-frames-only'
 # pytest's exit codes the comparison continues after: all passed, or some tests failed (a
 # failure on one configuration is a finding, reported with the frames)
 _PYTEST_FINISHED_CODES = [0, 1]
@@ -2257,7 +2261,9 @@ def _run_fingerprinted_tests(
 ) -> None:
     """Run tests on one driver configuration with the frame fingerprints plugin.
 
-    Coverage is off (it would only slow the runs); the live log shows warnings only.
+    Coverage is off (it would only slow the runs); the live log shows warnings only. Only the
+    tests marked ``draws_frames`` run (``--draws-frames-only``): no other test has frames to
+    compare.
 
     Args:
         session: The nox session.
@@ -2280,6 +2286,7 @@ def _run_fingerprinted_tests(
         _FRAME_FINGERPRINTS_PLUGIN,
         f'--frame-fingerprints={directory}',
         f'--frame-fingerprints-seed={_COMPARE_DRIVERS_SEED}',
+        _DRAWS_FRAMES_ONLY_OPTION,
         *(
             _NATIVE_RUN_TIMEOUT_ARGUMENTS
             if configuration['name'] in _NATIVE_CONFIGURATION_NAMES

@@ -619,6 +619,7 @@ def event_records(*, frames: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
 class TestTheJournal:
     """What an opted-in scene keeps, and for how long."""
 
+    @pytest.mark.draws_frames
     def test_journal_records_every_frame_of_an_opted_in_scene(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=JOURNALED_FRAMES)
@@ -633,11 +634,13 @@ class TestTheJournal:
             assert start is not None
             assert recording.frames[recording.start_frame][SCENE_START_FIELD] == start.to_json()
 
+    @pytest.mark.draws_frames
     def test_scenes_without_the_attribute_keep_no_journal(self):
         with running_scene(CountingScene) as manager:
             step(manager, frames=JOURNALED_FRAMES)
             assert manager.instant_replay_journal is None
 
+    @pytest.mark.draws_frames
     def test_budget(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=BUDGET_FRAMES)
@@ -649,6 +652,7 @@ class TestTheJournal:
         assert Scene.INSTANT_REPLAY_SECONDS is None
         assert Scene.MAX_INSTANT_REPLAY_FAST_FORWARD_SECONDS == DEFAULT_FAST_FORWARD_BUDGET_SECONDS
 
+    @pytest.mark.draws_frames
     def test_journal_memory_per_minute_stays_bounded(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=FRAMES_PER_MINUTE)
@@ -656,6 +660,7 @@ class TestTheJournal:
             assert journal.frame_count == FRAMES_PER_MINUTE
             assert journal.memory_bytes() < JOURNAL_BYTES_PER_MINUTE_LIMIT
 
+    @pytest.mark.draws_frames
     def test_the_journal_ends_past_its_fast_forward_budget(self, mocker: MockerFixture):
         """No instant replay can be shown once game time passes the budget: nothing is kept."""
         mocker.patch.object(
@@ -669,6 +674,7 @@ class TestTheJournal:
             step(manager)
             assert manager.instant_replay_journal is None
 
+    @pytest.mark.draws_frames
     def test_leaving_the_scene_drops_its_journal(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=2)
@@ -677,6 +683,7 @@ class TestTheJournal:
             step(manager)
             assert manager.instant_replay_journal is None
 
+    @pytest.mark.draws_frames
     def test_a_scene_switched_to_mid_run_journals_from_its_first_logic_frame(self):
         with running_scene(CameraFreeScene) as manager:
             step(manager, frames=SWITCH_FRAME)
@@ -686,6 +693,7 @@ class TestTheJournal:
             step(manager, frames=JOURNALED_FRAMES)
             assert journal_of(manager).frame_count == JOURNALED_FRAMES
 
+    @pytest.mark.draws_frames
     def test_a_scene_set_up_again_before_its_first_logic_frame_keeps_its_journal(self):
         """Switched away and back before it ran: the journal its first setup made is kept."""
         with running_scene(CameraFreeScene) as manager:
@@ -702,6 +710,7 @@ class TestTheJournal:
             assert journal_of(manager) is first_journal
             assert first_journal.frame_count == JOURNALED_FRAMES
 
+    @pytest.mark.draws_frames
     def test_posts_are_tracked_in_plain_live_play(self):
         """An SDL-type event the scene posts is recorded as internal, as a recording would."""
         with running_scene(InstantExposingScene) as manager:
@@ -719,6 +728,7 @@ class TestTheJournal:
 class TestPlayingTheJournalBack:
     """A journal's recording plays back through the playback scope with no divergence."""
 
+    @pytest.mark.draws_frames
     def test_the_journal_plays_back_exactly(self):
         with running_scene(InstantKeyReleaseScene) as manager:
             step(manager, frames=2)
@@ -729,6 +739,7 @@ class TestPlayingTheJournalBack:
                 manager=manager, recording=journal_of(manager).as_recording(), then=live_scene
             )
 
+    @pytest.mark.draws_frames
     def test_the_journals_posts_play_back_exactly(self):
         with running_scene(InstantExposingScene) as manager:
             step(manager, frames=JOURNALED_FRAMES)
@@ -737,6 +748,7 @@ class TestPlayingTheJournalBack:
                 manager=manager, recording=journal_of(manager).as_recording(), then=live_scene
             )
 
+    @pytest.mark.draws_frames
     def test_a_save_store_first_opened_in_the_scene_plays_back(self):
         with running_scene(InstantSavingScene) as manager:
             step(manager, frames=JOURNALED_FRAMES)
@@ -747,6 +759,7 @@ class TestPlayingTheJournalBack:
             )
             play_journal(manager=manager, recording=recording, then=active_counting_scene(manager))
 
+    @pytest.mark.draws_frames
     def test_a_save_store_first_opened_in_setup_plays_back(self):
         """setup() opens it after the start is complete: the lead-in frame holds its snapshot."""
         with running_scene(CameraFreeScene) as manager:
@@ -761,6 +774,7 @@ class TestPlayingTheJournalBack:
             assert SETUP_SAVE_NAMESPACE in recording.frames[0][SAVES_OPENED_FIELD]
             play_journal(manager=manager, recording=recording, then=live_scene)
 
+    @pytest.mark.draws_frames
     def test_the_input_held_as_the_scene_began_plays_back(self, mocker: MockerFixture):
         """The first logic frame's dt_tick polls the input from before it, not idle input."""
         with running_scene(CameraFreeScene) as manager:
@@ -775,6 +789,7 @@ class TestPlayingTheJournalBack:
             recording = journal_of(manager).as_recording()
             play_journal(manager=manager, recording=recording, then=live_scene)
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('switch_tick', 'earlier_event_count'), [(SWITCH_FRAME, 0), (SWITCH_FRAME + 1, 1)]
     )
@@ -821,6 +836,7 @@ class TestPlayingTheJournalBack:
 class TestThePauseScreen:
     """A paused stretch is kept: the pause screen's frames, recorded as its own."""
 
+    @pytest.mark.draws_frames
     def test_pause_and_resume_keep_the_journal(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=JOURNALED_FRAMES)
@@ -841,6 +857,7 @@ class TestThePauseScreen:
             assert scene_names[-1] == 'InstantCountingScene'
             assert journal.game_seconds == pytest.approx(game_seconds_before_pause + FRAME_SECONDS)
 
+    @pytest.mark.draws_frames
     def test_a_journal_with_a_paused_stretch_plays_back_exactly(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=2)
@@ -853,6 +870,7 @@ class TestThePauseScreen:
                 manager=manager, recording=journal_of(manager).as_recording(), then=live_scene
             )
 
+    @pytest.mark.draws_frames
     def test_the_paused_games_voice_survives_an_instant_replay_from_the_pause_screen(self):
         """The paused game waits behind the scope too, when its playback switches scenes."""
         with running_scene(InstantCountingScene) as manager:
@@ -885,6 +903,7 @@ class TestThePauseScreen:
 class TestPlaybackScopesAndTheJournal:
     """A playback scope suspends the live scene's journal, which bridges the gap afterwards."""
 
+    @pytest.mark.draws_frames
     def test_an_instant_replay_sees_the_live_devices_then_gives_them_back(self):
         """The journal records the live devices; the scope adopts them (BUGS.md #184.3)."""
         with running_scene(InstantCountingScene) as manager:
@@ -909,6 +928,7 @@ class TestPlaybackScopesAndTheJournal:
             step_until_the_scope_ends(manager=manager, stepper=step)
             assert engine.input_devices is live_devices
 
+    @pytest.mark.draws_frames
     def test_a_scope_suspends_the_journal_and_its_scene_keeps_none(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=2)
@@ -934,6 +954,7 @@ class TestPlaybackScopesAndTheJournal:
             # The scope's frames are not the scene's: the journal goes on after them
             assert journal.frame_count == frames_before + 2
 
+    @pytest.mark.draws_frames
     def test_two_instant_replays_in_a_row_the_second_across_the_first(self, mocker):
         """The second replays the first's request, its gap and the release held during it.
 
@@ -985,6 +1006,7 @@ class TestPlaybackScopesAndTheJournal:
             assert outcome is not None
             assert outcome.reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_a_screen_shake_running_at_the_replay_is_cleared_in_the_journals_playback(self):
         """The scope's end stops the SCREEN shake; so does the playback at the resumed frame.
 
@@ -1015,6 +1037,7 @@ class TestPlaybackScopesAndTheJournal:
             assert result.divergence is None, result.report()
             assert result.end_reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_a_request_inside_a_playback_of_the_journal_requests_nothing(self):
         with running_scene(InstantSelfReplayingScene) as manager:
             live_scene = active_counting_scene(manager)
@@ -1031,6 +1054,7 @@ class TestPlaybackScopesAndTheJournal:
             assert result is not None
             assert result.divergence is None, result.report()
 
+    @pytest.mark.draws_frames
     def test_a_demo_played_from_an_opted_in_scene_keeps_its_journal(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=JOURNALED_FRAMES)
         with running_scene(InstantKeyReleaseScene) as manager:
@@ -1047,6 +1071,7 @@ class TestPlaybackScopesAndTheJournal:
             assert manager.instant_replay_journal is journal
             play_journal(manager=manager, recording=journal.as_recording(), then=live_scene)
 
+    @pytest.mark.draws_frames
     def test_a_demo_that_returns_to_another_scene_ends_the_journal(self, tmp_path):
         """The journal's scene is not shown after the scope: it is not resumed, and it ends."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=JOURNALED_FRAMES)
@@ -1076,6 +1101,7 @@ KEY_RELEASE_DURING_SCOPE = pygame.event.Event(
 class TestTheBudget:
     """The journal is bounded by the frame time it holds, paused frames included."""
 
+    @pytest.mark.draws_frames
     def test_a_long_pause_passes_the_budget_and_drops_the_journal(self, mocker: MockerFixture):
         mocker.patch.object(
             InstantCountingScene,
@@ -1097,6 +1123,7 @@ class TestTheBudget:
 class TestPostsBeforeTheScene:
     """Code-posted events are tracked for the whole run, not only from the scene's setup."""
 
+    @pytest.mark.draws_frames
     def test_a_post_of_the_scene_left_plays_back(self):
         with running_scene(PostingInUpdateScene) as manager:
             step(manager, frames=SWITCH_FRAME + JOURNALED_FRAMES)
@@ -1109,6 +1136,7 @@ class TestPostsBeforeTheScene:
 class TestDevices:
     """The journal carries the device answers and descriptors a recording carries."""
 
+    @pytest.mark.draws_frames
     def test_joysticks_counted_and_opened_at_construction_and_mid_scene_play_back(
         self, mocker: MockerFixture, caplog
     ):
@@ -1149,6 +1177,7 @@ class TestDevices:
 class TestWatchedReplayOrigins:
     """Over a replay the journal takes each event's origin from the replay's merge."""
 
+    @pytest.mark.draws_frames
     def test_the_journal_uses_the_replays_batch_origins(self, tmp_path, mocker: MockerFixture):
         session_path = tmp_path / 'session.jsonl.gz'
         with running_scene(InstantPostingScene) as manager:
@@ -1172,6 +1201,7 @@ class TestWatchedReplayOrigins:
 class TestReplayingTheSession:
     """Replaying a recorded session builds the same journal as the live session did."""
 
+    @pytest.mark.draws_frames
     def test_the_replayed_journal_is_the_live_one(self, tmp_path):
         session_path = tmp_path / 'session.jsonl.gz'
         with running_scene(InstantPostingScene) as manager:
@@ -1251,6 +1281,7 @@ def scope_frames(*, manager: SceneManager) -> Iterator[PlaybackSources]:
 class TestInstantReplay:
     """SceneManager.instant_replay(): fast-forward, show the last seconds, return."""
 
+    @pytest.mark.draws_frames
     def test_instant_replay_shows_the_last_seconds_and_returns(self, mocker: MockerFixture):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=INSTANT_LIVE_FRAMES)
@@ -1274,6 +1305,7 @@ class TestInstantReplay:
             assert outcome.reason == 'end_of_recording'
             assert outcome.frames_played == INSTANT_LIVE_FRAMES
 
+    @pytest.mark.draws_frames
     def test_instant_replay_refused_past_the_budget(self, mocker: MockerFixture):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=INSTANT_LIVE_FRAMES)
@@ -1288,6 +1320,7 @@ class TestInstantReplay:
             step(manager)
             assert manager.playback_session is None
 
+    @pytest.mark.draws_frames
     def test_instant_replay_refused_once_the_scene_turns_it_off(self, caplog):
         """A scene that sets INSTANT_REPLAY_SECONDS to None mid-run offers no instant replay."""
         with running_scene(InstantCountingScene) as manager:
@@ -1303,6 +1336,7 @@ class TestInstantReplay:
             caplog.text
         )
 
+    @pytest.mark.draws_frames
     def test_instant_replay_refused_without_a_journal(self):
         with running_scene(CountingScene) as manager:
             step(manager, frames=JOURNALED_FRAMES)
@@ -1310,6 +1344,7 @@ class TestInstantReplay:
             step(manager)
             assert manager.playback_session is None
 
+    @pytest.mark.draws_frames
     def test_instant_replay_matches_the_live_frames(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=MATCHED_LIVE_FRAMES)
@@ -1319,6 +1354,7 @@ class TestInstantReplay:
             assert result is not None
             assert result.divergence is None, result.report()
 
+    @pytest.mark.draws_frames
     def test_fast_forward_frames_are_unpresented_unpaced_and_silent(self, mocker: MockerFixture):
         silenced = mocker.spy(FrameSilencer, 'silence_frame')
         finished = mocker.spy(FrameSilencer, 'finish')
@@ -1345,6 +1381,7 @@ class TestInstantReplay:
             # Once after the last fast-forwarded frame, once more (a no-op) as the scope ended
             assert finished.call_count == FINISHES_PER_FAST_FORWARDING_SCOPE
 
+    @pytest.mark.draws_frames
     def test_the_first_shown_frame_updates_the_whole_display(self, mocker: MockerFixture):
         """The display still shows the live scene: dirty rects alone would leave it there."""
         with running_scene(InstantCountingScene) as manager:
@@ -1360,6 +1397,7 @@ class TestInstantReplay:
             step(manager)
             assert_whole_display_update(updates=updates, flips=flips)
 
+    @pytest.mark.draws_frames
     def test_the_first_live_frame_after_a_scope_updates_the_whole_display(
         self, mocker: MockerFixture
     ):
@@ -1377,6 +1415,7 @@ class TestInstantReplay:
             step(manager)
             assert updates.call_args_list[-1].args
 
+    @pytest.mark.draws_frames
     def test_the_played_scenes_own_end_playback_is_ignored(self):
         """Its recorded call did nothing live (no scope), so it does nothing in the replay."""
         with running_scene(InstantEndingScene) as manager:
@@ -1393,6 +1432,7 @@ class TestInstantReplay:
             assert outcome is not None
             assert outcome.reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_the_players_input_during_a_scope(self):
         with running_scene(InstantCountingScene) as manager:
             assert manager.playback_player_input is None
@@ -1403,6 +1443,7 @@ class TestInstantReplay:
             assert session is not None
             assert manager.playback_player_input is session.sources.last_base_snapshot
 
+    @pytest.mark.draws_frames
     def test_a_real_press_does_not_end_an_instant_replay(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=JOURNALED_FRAMES)
@@ -1415,6 +1456,7 @@ class TestInstantReplay:
             assert outcome is not None
             assert outcome.reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_the_game_ends_an_instant_replay_between_frames(self):
         with running_scene(InstantCountingScene) as manager:
             live_scene = active_counting_scene(manager)
@@ -1433,6 +1475,7 @@ class TestInstantReplay:
             manager.end_playback()
             assert manager.last_playback_outcome is outcome
 
+    @pytest.mark.draws_frames
     def test_a_scope_ended_while_fast_forwarding_ends_the_silence(self, mocker: MockerFixture):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=INSTANT_LIVE_FRAMES)
@@ -1448,6 +1491,7 @@ class TestInstantReplay:
             manager.end_playback()
             assert finished.call_count == 1
 
+    @pytest.mark.draws_frames
     def test_the_game_ends_an_instant_replay_inside_a_frame_at_its_end(self):
         """Called during a frame (a supervisor, say), the scope ends once the frame ended."""
         with running_scene(InstantCountingScene) as manager:
@@ -1471,6 +1515,7 @@ class TestInstantReplay:
             assert result is not None
             assert result.divergence is None
 
+    @pytest.mark.draws_frames
     def test_a_replay_the_game_asked_for_plays_back_across_in_a_later_one(
         self, mocker: MockerFixture
     ):
@@ -1501,6 +1546,7 @@ class TestInstantReplay:
             assert result.divergence is None, result.report()
             assert result.end_reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('viewing_arguments', [['--headless'], []], ids=['headless', 'watched'])
     def test_a_replayed_session_with_instant_replays_matches(
         self, tmp_path, mocker: MockerFixture, viewing_arguments: list[str]
@@ -1542,6 +1588,7 @@ class TestInstantReplay:
 class TestSupervisorsInAScope:
     """Supervisors added while a playback scope plays belong to it and end with it."""
 
+    @pytest.mark.draws_frames
     def test_a_supervisor_added_during_a_scope_is_removed_when_it_ends(self):
         live_supervisor = FrameCountingSupervisor()
         scope_supervisor = FrameCountingSupervisor()
@@ -1561,6 +1608,7 @@ class TestSupervisorsInAScope:
         assert scope_supervisor.frames_seen == scope_frames_seen
         assert live_supervisor.frames_seen == live_frames_before + 2
 
+    @pytest.mark.draws_frames
     def test_a_ghost_recorder_made_by_the_rebuilt_scene_ends_with_the_scope(self, mocker):
         mocker.patch.object(GhostRecordingScene, 'recorders', [])
         with running_scene(GhostRecordingScene) as manager:
@@ -1587,6 +1635,7 @@ class TestSupervisorsInAScope:
         # Every live frame but none of the scope's
         assert len(live_track.samples) == INSTANT_LIVE_FRAMES + 2
 
+    @pytest.mark.draws_frames
     def test_a_supervisor_a_live_supervisor_adds_during_a_scope_stays(self):
         """Only the scope's code owns what it adds: a live supervisor's additions are live."""
         added = FrameCountingSupervisor()
@@ -1606,6 +1655,7 @@ class TestSupervisorsInAScope:
         assert frames_seen_in_the_scope > 0
         assert added.frames_seen == frames_seen_in_the_scope + 2
 
+    @pytest.mark.draws_frames
     def test_a_control_event_handler_the_rebuilt_scene_adds_ends_with_the_scope(self, mocker):
         mocker.patch.object(HandlerAddingScene, 'breakpoints_seen', [])
         with running_scene(HandlerAddingScene) as manager:
@@ -1621,6 +1671,7 @@ class TestSupervisorsInAScope:
         # Only the live scene's handler is left to see it
         assert HandlerAddingScene.breakpoints_seen == [live_scene]
 
+    @pytest.mark.draws_frames
     def test_a_supervisor_the_playback_scenes_cleanup_adds_ends_with_the_scope(
         self, tmp_path, mocker
     ):
@@ -1645,6 +1696,7 @@ class TestSupervisorsInAScope:
 class TestControlEventsAcrossAScope:
     """Inside a scope the installed doors' re-applied control events apply, not the recording's."""
 
+    @pytest.mark.draws_frames
     def test_a_journaled_breakpoint_is_not_applied_again_in_the_instant_replay(self):
         breakpoints_seen: list[object] = []
         with running_scene(InstantCountingScene) as manager:
@@ -1662,6 +1714,7 @@ class TestControlEventsAcrossAScope:
             assert result.divergence is None
         assert len(breakpoints_seen) == 1
 
+    @pytest.mark.draws_frames
     def test_a_session_breakpoint_on_a_scope_frame_applies_in_its_replay(self, tmp_path):
         """A replay of the session pauses at a bookmark on a frame a demo was playing in."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=JOURNALED_FRAMES)
@@ -1711,6 +1764,7 @@ class TestControlEventsAcrossAScope:
 class TestScopePostsAndTheJournal:
     """A playback scene's posts still queued as its scope ends never reach the live scene."""
 
+    @pytest.mark.draws_frames
     def test_a_goal_posted_in_update_asks_for_one_instant_replay(self, mocker):
         mocker.patch.object(GoalInUpdateScene, 'requests', [])
         with running_scene(GoalInUpdateScene) as manager:
@@ -1721,6 +1775,7 @@ class TestScopePostsAndTheJournal:
         ]
         assert live_requests == [True]
 
+    @pytest.mark.draws_frames
     def test_a_later_replay_across_a_scope_with_dropped_posts_matches(self, mocker):
         """The journal resumes after the scope as if the dropped posts had never been made.
 
@@ -1745,6 +1800,7 @@ class TestScopePostsAndTheJournal:
             assert result.divergence is None, result.report()
             assert result.end_reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('poster', [post_event, post_input_event])
     @pytest.mark.parametrize('ends_the_scope', [True, False])
     def test_a_later_replay_across_a_scope_with_a_live_supervisors_post_matches(
@@ -1778,6 +1834,7 @@ class TestScopePostsAndTheJournal:
 class TestInputPostsAndTheJournal:
     """post_input_event is input: an instant replay serves it, whoever posted it (BUGS.md #84)."""
 
+    @pytest.mark.draws_frames
     def test_a_live_supervisors_input_post_is_served_by_a_later_instant_replay(self):
         """The journal holds it as input, so the played scene gets it without the supervisor."""
         with running_scene(InstantUserEventScene) as manager:
@@ -1800,6 +1857,7 @@ class TestInputPostsAndTheJournal:
             )
             assert supervisor.posts == 1
 
+    @pytest.mark.draws_frames
     def test_a_scene_added_supervisors_input_post_arrives_once_in_an_instant_replay(self):
         """The played scene adds it again; its copy is dropped and the journaled one served."""
         InputSupervisingScene.posts_by_supervisors = 0
@@ -1817,6 +1875,7 @@ class TestInputPostsAndTheJournal:
 class TestInputPostsAtASceneStart:
     """An input post pending as a scene's logic begins is not one of its earlier posts."""
 
+    @pytest.mark.draws_frames
     def test_an_input_post_queued_for_the_first_logic_frame_is_not_counted(self):
         """Counted, the replay would serve the scene's own first post and then see it again."""
         with running_scene(SwitchingToInstantPostingScene) as manager:
