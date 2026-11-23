@@ -107,6 +107,7 @@ import pygame
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.route import AUDIO_ROUTE_SLOT
+from glitchygames.checks import required
 from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames.render_target import is_inner_context
 
@@ -1647,8 +1648,7 @@ class VoiceTable:
         Returns:
             The channel.
         """
-        index = self._mixer_channel(slot)
-        assert index is not None  # a table reaching the mixer holds its heard set
+        index = required(self._mixer_channel(slot), what="the voice slot's mixer channel")
         return pygame.mixer.Channel(index)
 
     def _shown_index(self, slot: _Slot) -> int:
