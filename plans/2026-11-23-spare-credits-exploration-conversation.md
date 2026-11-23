@@ -135,3 +135,25 @@ primary sources. The ideas likely to matter whatever the game's shape:
 
 Noted the skill tree as central, held off on any guesses or research about what it contains, and
 invited the next part.
+
+## 14. User (2026-11-23)
+
+> And I see you're trying to ask me questions.  Can you give me the current list and I'll answer
+> each.
+
+## 15. Claude
+
+Listed the open questions (none about the skill tree's contents):
+
+1. Why this game, and who is it for?
+2. Where does a player start in Japanese, and how far should the game take them?
+3. What is the story or situation?
+4. Where does the learning happen in play?
+5. Which parts of Japanese are in scope?
+6. How does the player answer?
+7. Where does it run, and with what controls?
+8. What should it look and sound like?
+9. How big is the first version, and what does success look like?
+10. What would make it a failure even if it technically works?
+11. Where does it live: a game inside glitchygames, or its own project?
+12. Does it have a name yet?
