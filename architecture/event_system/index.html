@@ -4148,9 +4148,10 @@ Code inside the <code>glitchygames</code> package must always do so (<code>tests
   per-subtype callbacks. A fourth, <code>SPRITE_SPAWN_EVENT</code>, is the engine's alone (see
   <a href="#the-sprite-spawn-event">The sprite spawn event</a>).</li>
 <li><strong>An unhandled event safety net</strong> — every <code>on_*_event()</code> has a default stub
-  that reports the event as unhandled (a warning once per type, or an
-  <code>UnhandledEventError</code> under <code>--no-unhandled-events</code>), and the engine counts
-  every unhandled event type and logs the table at teardown.</li>
+  that reports the event as unhandled (an <code>UnhandledEventError</code> under
+  <code>--no-unhandled-events</code>, a warning once per type under <code>--debug-events</code>, nothing
+  otherwise), and the engine counts every unhandled event type and logs the table at
+  teardown.</li>
 </ul>
 <p>Events flow from <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> through pygame, into specialized event managers that track
 state and synthesize higher-level events, through the scene manager, and finally
@@ -4168,8 +4169,8 @@ flowchart TB
         PATH_PUMP --&gt; PATH_PROCESS["GameEngine.process_events()"]
         PATH_PROCESS --&gt; PATH_WRAP["HashableEvent.from_pygame()"]
         PATH_WRAP --&gt; PATH_LOOKUP{"event_handlers[event.type]"}
-        PATH_LOOKUP --&gt;|"no entry, or not handled"| PATH_UNHANDLED["process_unimplemented_event()&lt;br/&gt;counted in unhandled_events"]
-        PATH_LOOKUP --&gt; PATH_FAMILY["GameEngine.process_family_event()&lt;br/&gt;(one per event family, table below)"]
+        PATH_LOOKUP --&gt;|"no entry, or the method returns False"| PATH_UNHANDLED["process_unimplemented_event()&lt;br/&gt;counted in unhandled_events"]
+        PATH_LOOKUP --&gt; PATH_FAMILY["the family's GameEngine.process_*_event()&lt;br/&gt;(table below)"]
         PATH_FAMILY --&gt; PATH_MANAGER["the family's event manager"]
         PATH_MANAGER --&gt; PATH_PROXY["its proxy: keeps state, synthesizes events&lt;br/&gt;(one proxy per device for joysticks and controllers)"]
         PATH_PROXY --&gt; PATH_SCENE_MANAGER["SceneManager on_*_event()"]
@@ -4216,7 +4217,7 @@ flowchart TB
 <td><code>MouseEventManager</code></td>
 </tr>
 <tr>
-<td><code>FINGERDOWN</code>, <code>FINGERMOTION</code>, <code>FINGERUP</code>, <code>MULTIGESTURE</code></td>
+<td><code>FINGERDOWN</code>, <code>FINGERMOTION</code>, <code>FINGERUP</code> (<code>MULTIGESTURE</code> is unhandled)</td>
 <td><code>process_touch_event()</code></td>
 <td><code>TouchEventManager</code></td>
 </tr>
@@ -4226,19 +4227,19 @@ flowchart TB
 <td><code>DropEventManager</code></td>
 </tr>
 <tr>
-<td><code>WINDOWEVENT</code>, <code>WINDOW*</code></td>
+<td><code>WINDOW*</code> (<code>WINDOWDISPLAYCHANGED</code> and <code>WINDOWICCPROFCHANGED</code> are unhandled)</td>
 <td><code>process_window_event()</code></td>
 <td><code>WindowEventManager</code></td>
 </tr>
 <tr>
-<td><code>FPSEVENT</code>, <code>GAMEEVENT</code>, <code>MENUEVENT</code>, <code>QUIT</code>, <code>USEREVENT</code>, <code>ACTIVEEVENT</code>, <code>VIDEO*</code>, <code>SYSWMEVENT</code></td>
+<td><code>FPSEVENT</code>, <code>GAMEEVENT</code>, <code>MENUEVENT</code>, <code>QUIT</code>, <code>USEREVENT</code>, <code>ACTIVEEVENT</code>, <code>VIDEORESIZE</code>, <code>VIDEOEXPOSE</code>, <code>SYSWMEVENT</code> (every other type in <code>GAME_EVENTS</code>, such as <code>CLIPBOARDUPDATE</code>, is unhandled)</td>
 <td><code>process_game_event()</code></td>
 <td><code>GameEventManager</code></td>
 </tr>
 <tr>
 <td><code>MIDIIN</code>, <code>MIDIOUT</code></td>
 <td><code>process_midi_event()</code></td>
-<td><code>MidiEventManager</code></td>
+<td>none: passed to <code>SceneManager.handle_event()</code>, which ignores them (see <a href="#midievents-mideventstubs">MidiEvents</a>)</td>
 </tr>
 <tr>
 <td><code>APP_*</code></td>
@@ -4256,8 +4257,9 @@ flowchart TB
 <p>Every manager is a <code>ResourceManager</code> that passes calls on to a proxy. The proxy implements the
 family's interface (<code>MouseEvents</code> for the mouse), keeps the family's state, synthesizes
 higher-level events (drag, drop and focus for the mouse; chords for the keyboard) and calls the
-same handler on its <code>game</code>, which is the <code>SceneManager</code>. The <code>SceneManager</code> hands every
-<code>on_*_event()</code> to the active scene (<code>__getattr__</code>). The mouse, as an example:</p>
+same handler on its <code>game</code>, which is the <code>SceneManager</code>. The <code>SceneManager</code> hands an
+<code>on_*_event()</code> it does not define itself to the active scene (<code>__getattr__</code>; see
+<a href="#scene-manager-event-forwarding">Scene Manager Event Forwarding</a>). The mouse, as an example:</p>
 <pre class="mermaid"><code>%%{init: {"flowchart": {"wrappingWidth": 400}}}%%
 flowchart LR
     subgraph ENGINE_MOUSE["Engine"]
@@ -4358,10 +4360,12 @@ module is imported before any game code runs, so they are usually <code>USEREVEN
 each is registered by name (<code>NAMED_CUSTOM_EVENT_TYPES</code>): a recording's header names the ids
 it was made with (<code>custom_event_types</code>), and a replay moves the recorded events to its own
 process's ids (BUGS.md #211.1).</p>
-<p>These constants are defined in <code>src/glitchygames/events/base.py</code> (exported by <code>glitchygames.events</code>):</p>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">FPSEVENT</span> <span class="o">=</span> <span class="n">named_custom_event_type</span><span class="p">(</span><span class="s1">'FPSEVENT'</span><span class="p">)</span>  <span class="c1"># FPS counter updates (usually USEREVENT + 1)</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">GAMEEVENT</span> <span class="o">=</span> <span class="n">named_custom_event_type</span><span class="p">(</span><span class="s1">'GAMEEVENT'</span><span class="p">)</span>  <span class="c1"># Game-specific events, via subtypes (+ 2)</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">MENUEVENT</span> <span class="o">=</span> <span class="n">named_custom_event_type</span><span class="p">(</span><span class="s1">'MENUEVENT'</span><span class="p">)</span>  <span class="c1"># Menu item selections (+ 3)</span>
+<p>These constants are defined in <code>src/glitchygames/events/base.py</code> (exported by <code>glitchygames.events</code>):
+<code>FPSEVENT</code> (the <abbr title="Frames per second">FPS</abbr> counter's updates, usually <code>USEREVENT + 1</code>), <code>GAMEEVENT</code> (game-specific
+events, told apart by subtype, usually <code>+ 2</code>) and <code>MENUEVENT</code> (menu item selections, usually <code>+ 3</code>).</p>
+<div class="language-py highlight"><span class="filename">src/glitchygames/events/base.py</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">FPSEVENT</span> <span class="o">=</span> <span class="n">named_custom_event_type</span><span class="p">(</span><span class="s1">'FPSEVENT'</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">GAMEEVENT</span> <span class="o">=</span> <span class="n">named_custom_event_type</span><span class="p">(</span><span class="s1">'GAMEEVENT'</span><span class="p">)</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">MENUEVENT</span> <span class="o">=</span> <span class="n">named_custom_event_type</span><span class="p">(</span><span class="s1">'MENUEVENT'</span><span class="p">)</span>
 </span></code></pre></div>
 <p>A game that needs its own event type should allocate it the same way, at import:
 <code>LEVEL_UP = named_custom_event_type('MY_GAME_LEVEL_UP')</code>. A name is registered once (a second
@@ -4371,8 +4375,8 @@ replay in a shifted process cannot move it. It can also collide: <code>pygame.qu
 pygame's allocation at <code>USEREVENT + 1</code>, so the first raw <code>custom_type()</code> after a quit returns
 FPSEVENT's id. <code>named_custom_event_type</code> skips every id a name already holds.</p>
 <h3 id="the-sprite-spawn-event">The sprite spawn event<a class="headerlink" href="#the-sprite-spawn-event" title="Permanent link">#</a></h3>
-<p><code>SPRITE_SPAWN_EVENT</code> (<code>glitchygames.sprite_spawn</code>, in <code>src/glitchygames/events/sprite_spawn.py</code>)
-carries a sprite's file text and a world point. The <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> console's <code>/sprite DESCRIPTION</code> posts one
+<p><code>SPRITE_SPAWN_EVENT</code> (registered under the name <code>glitchygames.sprite_spawn</code>, in
+<code>src/glitchygames/events/sprite_spawn.py</code>) carries a sprite's file text and a world point. The <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> console's <code>/sprite DESCRIPTION</code> posts one
 with <code>recording.post_input_event</code> once a generated sprite is ready, so a recording keeps it,
 text and all, and a replay adds the same sprite at the same frame and place with no <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> and no
 saved file. <code>GameEngine.process_events</code> handles it itself, before anything else sees the event:
@@ -4394,7 +4398,7 @@ event bus without consuming additional pygame event IDs.</p>
 
     subgraph Producers["Producers"]
         subgraph ENGINE_PRODUCERS["Engine"]
-            SM_FPS["SceneManager\nposts every fps_log_interval_ms"]
+            SM_FPS["SceneManager\nposts every half of fps_log_interval_ms"]
             MENU_ITEM["MenuItem sprites\npost on click"]
         end
         subgraph GAME_PRODUCERS["Your game"]
@@ -4404,7 +4408,7 @@ event bus without consuming additional pygame event IDs.</p>
 
     subgraph Consumers["Consumers (e.g. Your game.)"]
         FPS_H["on_fps_event()"]
-        GAME_H["on_game_event()\n+ registered subtype callbacks"]
+        GAME_H["registered subtype callbacks\n(SceneManager.on_game_event())"]
         MENU_H["on_menu_item_event()"]
     end
 
@@ -4445,7 +4449,7 @@ power-up system:</p>
 </span></code></pre></div>
 <p>Any code in the game can fire these events:</p>
 <div class="language-py highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># From a collision handler, enemy class, pickup sprite, etc.</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># (SceneManager is a singleton: SceneManager().game_engine works anywhere)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="c1"># (SceneManager() returns this engine context's manager, so SceneManager().game_engine works anywhere)</span>
 </span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="bp">self</span><span class="o">.</span><span class="n">scene_manager</span><span class="o">.</span><span class="n">game_engine</span><span class="o">.</span><span class="n">post_game_event</span><span class="p">(</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">event_subtype</span><span class="o">=</span><span class="n">SCORE_CHANGED</span><span class="p">,</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">event_data</span><span class="o">=</span><span class="p">{</span><span class="s1">'score'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">score</span><span class="p">},</span>
@@ -4469,9 +4473,9 @@ while consuming only one pygame event ID.</p>
 (focus, exposure, property and configure notifications), on Windows each window message
 (<code>hwnd</code>, <code>msg</code>, <code>wparam</code>, <code>lparam</code>). <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> leaves the type disabled, and so does the engine:
 <code>GameEngine</code> allows every event type through <code>allow_every_event_type()</code>
-(<code>src/glitchygames/events/base.py</code>), which keeps <code>SYSWMEVENT</code> blocked. Before, a plain
-<code>pygame.event.set_allowed(None)</code> turned it on, so on a real X server the queue, every
-<code>--record-trace</code> recording and every instant-replay journal filled with messages no game read.</p>
+(<code>src/glitchygames/events/base.py</code>), which keeps <code>SYSWMEVENT</code> blocked. A plain
+<code>pygame.event.set_allowed(None)</code> would turn it on, and on a real X server the queue, every
+<code>--record-trace</code> recording and every instant-replay journal would fill with messages no game reads.</p>
 <p>A game that wants them opts in on its scene class (the one given to <code>GameEngine</code>), like
 <code>TARGET_FPS</code>:</p>
 <div class="language-py highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyGame</span><span class="p">(</span><span class="n">Scene</span><span class="p">):</span>
@@ -4596,6 +4600,8 @@ and forwards calls to the game object.</p>
         +on_video_expose_event()
         +on_clipboard_update_event()
         +on_locale_changed_event()
+        +on_render_device_reset_event()
+        +on_render_targets_reset_event()
     }
 
     class DropEventManager {
@@ -4773,7 +4779,7 @@ the joystick and controller managers, the game):</p>
 </tr>
 <tr>
 <td><code>MidiEventManager</code></td>
-<td><code>[self.game, pygame.midi]</code></td>
+<td><code>[self.game, pygame.midi]</code> (<code>[self.game]</code> when this pygame build has no PortMidi)</td>
 <td><code>get_count()</code>, <code>get_device_info()</code>, etc.</td>
 </tr>
 </tbody>
@@ -4915,8 +4921,8 @@ real handler.</p>
 <li>with <code>no_unhandled_events</code> (<code>--no-unhandled-events</code>, and every test) raises
   <code>UnhandledEventError</code>;</li>
 <li>with <code>debug_events</code> (<code>--debug-events</code>), logs <code>Unhandled Event: &lt;name&gt; &lt;event&gt;</code> at WARNING the first
-  time it sees each event type (a module-level set of seen types), and nothing
-  after;</li>
+  time it sees each event type (the set of seen types belongs to the engine context, so a
+  second game in the process logs its own), and nothing after;</li>
 <li>otherwise does nothing.</li>
 </ul>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Frame 1:  WARNING: Unhandled Event: JoyAxisMotion ...   ← first occurrence, logged
@@ -5151,7 +5157,7 @@ chord events, enabling multi-key shortcut detection.</p>
 <p>The <code>ControllerEventManager</code> maintains per-controller state via inner proxy
 objects. Each physical controller gets its own proxy identified by <code>instance_id</code>.</p>
 <pre class="mermaid"><code>flowchart TD
-    subgraph ControllerEventManager["ControllerEventManager (singleton)"]
+    subgraph ControllerEventManager["ControllerEventManager (one per engine context)"]
         CONTROLLERS["controllers dict\ninstance_id -&gt; ControllerEventProxy"]
     end
 
@@ -5398,7 +5404,7 @@ signatures).</p>
 </details>
 <h3 id="mouseevents-mouseeventstubs">MouseEvents → MouseEventStubs<a class="headerlink" href="#mouseevents-mouseeventstubs" title="Permanent link">#</a></h3>
 <details class="note">
-<summary>Its 20 handlers: each diagram, then the handler's signature</summary>
+<summary>Its 22 handlers: each diagram, then the handler's signature</summary>
 <pre class="mermaid"><code>flowchart LR
     M1["MOUSEMOTION"] --&gt; MH1["on_mouse_motion_event"]
     click M1 "https://pyga.me/docs/ref/mouse.html" _blank</code></pre>
@@ -5523,33 +5529,34 @@ signatures).</p>
 </span><span id="__span-28-21"><a id="__codelineno-28-21" name="__codelineno-28-21" href="#__codelineno-28-21"></a>    <span class="o">...</span>
 </span></code></pre></div>
 <pre class="mermaid"><code>flowchart LR
-    M1["MOUSEMOTION"] -.-&gt;|"button held + motion"| MS9("on_left_mouse_drag_event"):::synthesized
+    M1["MOUSEMOTION"] -.-&gt;|"button held + motion"| MS9a("on_mouse_drag_event"):::synthesized
+    M1 -.-&gt;|"button held + motion"| MS9("on_left_mouse_drag_event"):::synthesized
     M1 -.-&gt;|"button held + motion"| MS9b("on_middle_mouse_drag_event"):::synthesized
     M1 -.-&gt;|"button held + motion"| MS9c("on_right_mouse_drag_event"):::synthesized
     classDef synthesized stroke-dasharray: 5 5
     click M1 "https://pyga.me/docs/ref/mouse.html" _blank</code></pre>
 <div class="language-py highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Synthesized — drag events (motion while button held)</span>
-</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_left_mouse_drag_event</span><span class="p">(</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_mouse_drag_event</span><span class="p">(</span>
 </span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEMOTION</span> <span class="p">{</span>
 </span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'rel'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'buttons'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 </span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>    <span class="p">}),</span>
 </span><span id="__span-29-6"><a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONDOWN</span> <span class="p">{</span>
 </span><span id="__span-29-7"><a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-29-8"><a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>    <span class="p">}),</span>  <span class="c1"># the original button-down</span>
+</span><span id="__span-29-8"><a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>    <span class="p">}),</span>  <span class="c1"># the original button-down; called first, for any button</span>
 </span><span id="__span-29-9"><a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="p">):</span>
 </span><span id="__span-29-10"><a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>    <span class="o">...</span>
 </span><span id="__span-29-11"><a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>
-</span><span id="__span-29-12"><a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_middle_mouse_drag_event</span><span class="p">(</span>
+</span><span id="__span-29-12"><a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_left_mouse_drag_event</span><span class="p">(</span>
 </span><span id="__span-29-13"><a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEMOTION</span> <span class="p">{</span>
 </span><span id="__span-29-14"><a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'rel'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'buttons'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 </span><span id="__span-29-15"><a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>    <span class="p">}),</span>
 </span><span id="__span-29-16"><a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONDOWN</span> <span class="p">{</span>
 </span><span id="__span-29-17"><a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-29-18"><a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a>    <span class="p">}),</span>
+</span><span id="__span-29-18"><a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a>    <span class="p">}),</span>  <span class="c1"># the original button-down</span>
 </span><span id="__span-29-19"><a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a><span class="p">):</span>
 </span><span id="__span-29-20"><a id="__codelineno-29-20" name="__codelineno-29-20" href="#__codelineno-29-20"></a>    <span class="o">...</span>
 </span><span id="__span-29-21"><a id="__codelineno-29-21" name="__codelineno-29-21" href="#__codelineno-29-21"></a>
-</span><span id="__span-29-22"><a id="__codelineno-29-22" name="__codelineno-29-22" href="#__codelineno-29-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_right_mouse_drag_event</span><span class="p">(</span>
+</span><span id="__span-29-22"><a id="__codelineno-29-22" name="__codelineno-29-22" href="#__codelineno-29-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_middle_mouse_drag_event</span><span class="p">(</span>
 </span><span id="__span-29-23"><a id="__codelineno-29-23" name="__codelineno-29-23" href="#__codelineno-29-23"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEMOTION</span> <span class="p">{</span>
 </span><span id="__span-29-24"><a id="__codelineno-29-24" name="__codelineno-29-24" href="#__codelineno-29-24"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'rel'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'buttons'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 </span><span id="__span-29-25"><a id="__codelineno-29-25" name="__codelineno-29-25" href="#__codelineno-29-25"></a>    <span class="p">}),</span>
@@ -5558,38 +5565,49 @@ signatures).</p>
 </span><span id="__span-29-28"><a id="__codelineno-29-28" name="__codelineno-29-28" href="#__codelineno-29-28"></a>    <span class="p">}),</span>
 </span><span id="__span-29-29"><a id="__codelineno-29-29" name="__codelineno-29-29" href="#__codelineno-29-29"></a><span class="p">):</span>
 </span><span id="__span-29-30"><a id="__codelineno-29-30" name="__codelineno-29-30" href="#__codelineno-29-30"></a>    <span class="o">...</span>
+</span><span id="__span-29-31"><a id="__codelineno-29-31" name="__codelineno-29-31" href="#__codelineno-29-31"></a>
+</span><span id="__span-29-32"><a id="__codelineno-29-32" name="__codelineno-29-32" href="#__codelineno-29-32"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_right_mouse_drag_event</span><span class="p">(</span>
+</span><span id="__span-29-33"><a id="__codelineno-29-33" name="__codelineno-29-33" href="#__codelineno-29-33"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEMOTION</span> <span class="p">{</span>
+</span><span id="__span-29-34"><a id="__codelineno-29-34" name="__codelineno-29-34" href="#__codelineno-29-34"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'rel'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'buttons'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-29-35"><a id="__codelineno-29-35" name="__codelineno-29-35" href="#__codelineno-29-35"></a>    <span class="p">}),</span>
+</span><span id="__span-29-36"><a id="__codelineno-29-36" name="__codelineno-29-36" href="#__codelineno-29-36"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONDOWN</span> <span class="p">{</span>
+</span><span id="__span-29-37"><a id="__codelineno-29-37" name="__codelineno-29-37" href="#__codelineno-29-37"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-29-38"><a id="__codelineno-29-38" name="__codelineno-29-38" href="#__codelineno-29-38"></a>    <span class="p">}),</span>
+</span><span id="__span-29-39"><a id="__codelineno-29-39" name="__codelineno-29-39" href="#__codelineno-29-39"></a><span class="p">):</span>
+</span><span id="__span-29-40"><a id="__codelineno-29-40" name="__codelineno-29-40" href="#__codelineno-29-40"></a>    <span class="o">...</span>
 </span></code></pre></div>
 <p>A release after a drag arrives as <code>on_mouse_drop_event(event, trigger)</code> and then as the
 released button's drop handler below, both arguments the <code>MOUSEBUTTONUP</code> (see Mouse Event
 Synthesis).</p>
 <pre class="mermaid"><code>flowchart LR
-    M3["MOUSEBUTTONUP"] -.-&gt;|"released after drag"| MS10("on_left_mouse_drop_event"):::synthesized
+    M3["MOUSEBUTTONUP"] -.-&gt;|"released after drag"| MS10a("on_mouse_drop_event"):::synthesized
+    M3 -.-&gt;|"released after drag"| MS10("on_left_mouse_drop_event"):::synthesized
     M3 -.-&gt;|"released after drag"| MS10b("on_middle_mouse_drop_event"):::synthesized
     M3 -.-&gt;|"released after drag"| MS10c("on_right_mouse_drop_event"):::synthesized
     classDef synthesized stroke-dasharray: 5 5
     click M3 "https://pyga.me/docs/ref/mouse.html" _blank</code></pre>
 <div class="language-py highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Synthesized — drop events (button released after drag)</span>
-</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_left_mouse_drop_event</span><span class="p">(</span>
+</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_mouse_drop_event</span><span class="p">(</span>
 </span><span id="__span-30-3"><a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 </span><span id="__span-30-4"><a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 </span><span id="__span-30-5"><a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>    <span class="p">}),</span>
 </span><span id="__span-30-6"><a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 </span><span id="__span-30-7"><a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-30-8"><a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="p">}),</span>  <span class="c1"># the release itself, as for on_mouse_drop_event</span>
+</span><span id="__span-30-8"><a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="p">}),</span>  <span class="c1"># the release itself; called first, for any button</span>
 </span><span id="__span-30-9"><a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="p">):</span>
 </span><span id="__span-30-10"><a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>    <span class="o">...</span>
 </span><span id="__span-30-11"><a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>
-</span><span id="__span-30-12"><a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_middle_mouse_drop_event</span><span class="p">(</span>
+</span><span id="__span-30-12"><a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_left_mouse_drop_event</span><span class="p">(</span>
 </span><span id="__span-30-13"><a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 </span><span id="__span-30-14"><a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 </span><span id="__span-30-15"><a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>    <span class="p">}),</span>
 </span><span id="__span-30-16"><a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 </span><span id="__span-30-17"><a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-30-18"><a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>    <span class="p">}),</span>
+</span><span id="__span-30-18"><a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>    <span class="p">}),</span>  <span class="c1"># the release itself, as for on_mouse_drop_event</span>
 </span><span id="__span-30-19"><a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a><span class="p">):</span>
 </span><span id="__span-30-20"><a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a>    <span class="o">...</span>
 </span><span id="__span-30-21"><a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a>
-</span><span id="__span-30-22"><a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_right_mouse_drop_event</span><span class="p">(</span>
+</span><span id="__span-30-22"><a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_middle_mouse_drop_event</span><span class="p">(</span>
 </span><span id="__span-30-23"><a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
 </span><span id="__span-30-24"><a id="__codelineno-30-24" name="__codelineno-30-24" href="#__codelineno-30-24"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 </span><span id="__span-30-25"><a id="__codelineno-30-25" name="__codelineno-30-25" href="#__codelineno-30-25"></a>    <span class="p">}),</span>
@@ -5598,6 +5616,16 @@ Synthesis).</p>
 </span><span id="__span-30-28"><a id="__codelineno-30-28" name="__codelineno-30-28" href="#__codelineno-30-28"></a>    <span class="p">}),</span>
 </span><span id="__span-30-29"><a id="__codelineno-30-29" name="__codelineno-30-29" href="#__codelineno-30-29"></a><span class="p">):</span>
 </span><span id="__span-30-30"><a id="__codelineno-30-30" name="__codelineno-30-30" href="#__codelineno-30-30"></a>    <span class="o">...</span>
+</span><span id="__span-30-31"><a id="__codelineno-30-31" name="__codelineno-30-31" href="#__codelineno-30-31"></a>
+</span><span id="__span-30-32"><a id="__codelineno-30-32" name="__codelineno-30-32" href="#__codelineno-30-32"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_right_mouse_drop_event</span><span class="p">(</span>
+</span><span id="__span-30-33"><a id="__codelineno-30-33" name="__codelineno-30-33" href="#__codelineno-30-33"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
+</span><span id="__span-30-34"><a id="__codelineno-30-34" name="__codelineno-30-34" href="#__codelineno-30-34"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-30-35"><a id="__codelineno-30-35" name="__codelineno-30-35" href="#__codelineno-30-35"></a>    <span class="p">}),</span>
+</span><span id="__span-30-36"><a id="__codelineno-30-36" name="__codelineno-30-36" href="#__codelineno-30-36"></a>    <span class="n">trigger</span><span class="p">:</span> <span class="n">HashableEvent</span><span class="p">(</span><span class="n">MOUSEBUTTONUP</span> <span class="p">{</span>
+</span><span id="__span-30-37"><a id="__codelineno-30-37" name="__codelineno-30-37" href="#__codelineno-30-37"></a>        <span class="s1">'pos'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'button'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span> <span class="s1">'touch'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-30-38"><a id="__codelineno-30-38" name="__codelineno-30-38" href="#__codelineno-30-38"></a>    <span class="p">}),</span>
+</span><span id="__span-30-39"><a id="__codelineno-30-39" name="__codelineno-30-39" href="#__codelineno-30-39"></a><span class="p">):</span>
+</span><span id="__span-30-40"><a id="__codelineno-30-40" name="__codelineno-30-40" href="#__codelineno-30-40"></a>    <span class="o">...</span>
 </span></code></pre></div>
 <pre class="mermaid"><code>flowchart LR
     M1["MOUSEMOTION"] -.-&gt;|"sprite collision change"| MS11("on_mouse_focus_event"):::synthesized
@@ -5856,7 +5884,7 @@ WINDOWICCPROFCHANGED reach no handler (they are counted as unhandled).</p>
 </details>
 <h3 id="touchevents-toucheventstubs">TouchEvents → TouchEventStubs<a class="headerlink" href="#touchevents-toucheventstubs" title="Permanent link">#</a></h3>
 <details class="note">
-<summary>Its 4 handlers: each diagram, then the handler's signature</summary>
+<summary>Its 3 routed handlers: each diagram, then the handler's signature</summary>
 <pre class="mermaid"><code>flowchart LR
     T1["FINGERDOWN"] --&gt; TH1["on_touch_down_event"]
     click T1 "https://pyga.me/docs/ref/touch.html" _blank</code></pre>
@@ -5927,7 +5955,7 @@ as unhandled.</p>
 </details>
 <h3 id="gameevents-gameeventstubs">GameEvents → GameEventStubs<a class="headerlink" href="#gameevents-gameeventstubs" title="Permanent link">#</a></h3>
 <details class="note">
-<summary>Its 8 handlers: each diagram, then the handler's signature</summary>
+<summary>Its 8 always-routed handlers: each diagram, then the handler's signature</summary>
 <pre class="mermaid"><code>flowchart LR
     G1["FPSEVENT"] --&gt; GH1["on_fps_event"]
     click G1 "https://pyga.me/docs/ref/event.html" _blank</code></pre>
@@ -6014,10 +6042,10 @@ as unhandled.</p>
 </span></code></pre></div>
 <p><code>SYSWMEVENT</code> reaches <code>on_sys_wm_event</code> only when the game opts in (see Native window
 messages). <code>GameEventManager</code> and the stubs also define <code>on_clipboard_update_event</code>,
-<code>on_locale_changed_event</code>, <code>on_render_device_reset_event</code>,
-<code>on_render_targets_reset_event</code> and <code>on_font_changed_event</code>, but
-<code>GameEngine.process_game_event</code> does not route <code>CLIPBOARDUPDATE</code>, <code>LOCALECHANGED</code> or the
-<code>RENDER_*</code> types today: they are counted as unhandled.</p>
+<code>on_locale_changed_event</code>, <code>on_render_device_reset_event</code> and
+<code>on_render_targets_reset_event</code>, but <code>GameEngine.process_game_event</code> does not route
+<code>CLIPBOARDUPDATE</code>, <code>LOCALECHANGED</code> or the <code>RENDER_*</code> types today: they are counted as
+unhandled. <code>FontEventStubs</code> defines <code>on_font_changed_event</code>, which no event type reaches.</p>
 </details>
 <h3 id="appevents-appeventstubs">AppEvents → AppEventStubs<a class="headerlink" href="#appevents-appeventstubs" title="Permanent link">#</a></h3>
 <p>All app lifecycle events carry no parameters.</p>
@@ -6090,6 +6118,13 @@ which hands them to the active scene's handlers below (<code>Scene</code>'s log 
 </span></code></pre></div>
 </details>
 <h3 id="midievents-midieventstubs">MidiEvents → MidiEventStubs<a class="headerlink" href="#midievents-midieventstubs" title="Permanent link">#</a></h3>
+<div class="admonition warning">
+<p class="admonition-title"><abbr title="Musical Instrument Digital Interface">MIDI</abbr> events never reach these handlers today</p>
+<p><code>GameEngine.process_midi_event</code> passes <code>MIDIIN</code> and <code>MIDIOUT</code> to <code>SceneManager.handle_event()</code>
+and reports them handled. That method acts only on <code>QUIT</code>, and the engine's
+<code>MidiEventManager</code> is never called, so a scene's <code>on_midi_in_event</code> and <code>on_midi_out_event</code>
+do not run (<code>src/glitchygames/engine/game_engine.py</code>).</p>
+</div>
 <details class="note">
 <summary>Its 2 handlers: each diagram, then the handler's signature</summary>
 <pre class="mermaid"><code>flowchart LR
@@ -6192,7 +6227,7 @@ Device events (added, removed, remapped) always pass; a scene is also told of ea
 <code>on_input_device_added(device=...)</code> / <code>on_input_device_removed(device=...)</code> once the registry
 has it (a mapped pad, which arrives and leaves on both layers, once each way).</p>
 <p><code>--input-mode</code> filters what the game sees: <code>auto</code> (the default) every device as above,
-<code>joystick</code> every device on its joystick layer only (<abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> blocks controller events), <code>controller</code>
+<code>joystick</code> every device on its joystick layer only (<abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> blocks controller events, and the engine makes no <code>ControllerEventManager</code>), <code>controller</code>
 mapped pads only (other devices are hidden and their events dropped). <code>ActionMap</code> binds the
 same families: <code>auto</code> binds a <code>controller_button</code> to both. The joystick demo
 (<code>src/demos/joystick-demo/src/joystick_demo/__init__.py</code>) lists every device with its event layer's live
@@ -6213,7 +6248,7 @@ unblocked: the engine already drops a mapped pad's joystick-layer input events
 </div>
 <h3 id="joystickeventmanager-architecture">JoystickEventManager architecture<a class="headerlink" href="#joystickeventmanager-architecture" title="Permanent link">#</a></h3>
 <p>Unlike other event managers, <code>JoystickEventManager</code> manages <strong>multiple proxy
-objects</strong> — one per connected joystick. The outer manager is still a singleton,
+objects</strong> — one per connected joystick. The outer manager is still one shared instance per engine context,
 but it maintains a <code>self.joysticks</code> dict keyed by <code>instance_id</code>, and routes each
 event to the correct proxy based on the event's joystick identity.</p>
 <p>This is necessary because:</p>
@@ -6241,7 +6276,7 @@ metadata queries slowly):</p>
 the cached <code>_name</code> only when that fails; the others return the cached values.</p>
 <h4 id="event-routing">Event routing<a class="headerlink" href="#event-routing" title="Permanent link">#</a></h4>
 <pre class="mermaid"><code>flowchart TD
-    EVT["SDL Joystick Event\n(JOYAXISMOTION, etc.)"] --&gt; MGR["JoystickEventManager\n(singleton)"]
+    EVT["SDL Joystick Event\n(JOYAXISMOTION, etc.)"] --&gt; MGR["JoystickEventManager\n(one per engine context)"]
     MGR --&gt; RESOLVE{"Resolve joystick\ninstance_id from event"}
     RESOLVE --&gt;|"event.instance_id\nor fallback event.joy"| LOOKUP["self.joysticks[instance_id]"]
     LOOKUP --&gt; PROXY["JoystickEventProxy #N"]
@@ -6249,7 +6284,7 @@ the cached <code>_name</code> only when that fails; the others return the cached
     STATE --&gt; GAME["Forward to self.game\non_joy_*_event()"]
 
     ADD["JOYDEVICEADDED"] --&gt; MGR2["JoystickEventManager"]
-    MGR2 --&gt; CREATE["Create new JoystickEventProxy\n(init joystick, cache properties)"]
+    MGR2 --&gt; CREATE["Create new JoystickEventProxy unless the instance id is tracked\n(open it, cache properties)"]
     CREATE --&gt; DICT["self.joysticks[instance_id] = proxy"]
     DICT --&gt; NOTIFY["proxy.on_joy_device_added_event()"]
 
@@ -6282,17 +6317,17 @@ the cached <code>_name</code> only when that fails; the others return the cached
 </ol>
 <h4 id="event-routing_1">Event routing<a class="headerlink" href="#event-routing_1" title="Permanent link">#</a></h4>
 <pre class="mermaid"><code>flowchart TD
-    EVT["SDL Controller Event\n(CONTROLLERBUTTONDOWN, etc.)"] --&gt; MGR["ControllerEventManager\n(singleton)"]
+    EVT["SDL Controller Event\n(CONTROLLERBUTTONDOWN, etc.)"] --&gt; MGR["ControllerEventManager\n(one per engine context)"]
     MGR --&gt; LOOKUP["self.controllers[event.instance_id]"]
     LOOKUP --&gt; PROXY["ControllerEventProxy #N"]
     PROXY --&gt; STATE["Update state\n(_axes, _buttons)"]
     STATE --&gt; GAME["Forward to self.game\non_controller_*_event()"]
 
     ADD["CONTROLLERDEVICEADDED"] --&gt; MGR2["ControllerEventManager"]
-    MGR2 --&gt; CHECK{"is_controller(device_index)?"}
-    CHECK --&gt;|"Yes"| CREATE["Create ControllerEventProxy\n(init SDL GameController)"]
-    CHECK --&gt;|"No"| SKIP["Log warning, skip"]
-    CREATE --&gt; DICT["self.controllers[proxy.instance_id] = proxy"]
+    MGR2 --&gt; CHECK{"open a ControllerEventProxy\nat event.device_index\n(init SDL GameController)"}
+    CHECK --&gt;|"unplugged again\n(pygame.error)"| SKIP["Log warning, skip"]
+    CHECK --&gt;|"instance id already tracked"| KEEP["Keep the tracked proxy\n(a pad connected at startup is reported twice)"]
+    CHECK --&gt;|"opened"| DICT["self.controllers[proxy.instance_id] = proxy"]
 
     REM["CONTROLLERDEVICEREMOVED"] --&gt; MGR3["ControllerEventManager"]
     MGR3 --&gt; CLEANUP["Notify proxy, then\ndel self.controllers[instance_id]"]</code></pre>
@@ -6304,7 +6339,9 @@ hardware, and events update them. To poll a device, prefer <code>InputDevices</c
 which reads the snapshot.</p>
 <h4 id="button-state">Button state<a class="headerlink" href="#button-state" title="Permanent link">#</a></h4>
 <p>Buttons are tracked as a <code>list[bool]</code>. The list grows dynamically if a device
-reports a button index beyond the initially detected count.</p>
+reports a button index beyond the initially detected count (the axis, hat and trackball
+lists grow the same way). An event with a negative index is ignored: the proxy neither stores
+it nor forwards it. The snippets below are the state updates, simplified.</p>
 <pre class="mermaid"><code>stateDiagram-v2
     [*] --&gt; Released : init#58; snapshot.button#40;i#41;
     Released --&gt; Pressed : JOYBUTTONDOWN
@@ -6436,9 +6473,20 @@ A replay keeps its own <code>--debug-events</code>, never the recording's (<code
 (<code>unhandled_event_report()</code>: e.g. <code>JOYDEVICEADDED (1541) x1, first at 0.3 s,
 attributes: device_index, guid</code>).</p>
 <h2 id="scene-manager-event-forwarding">Scene Manager Event Forwarding<a class="headerlink" href="#scene-manager-event-forwarding" title="Permanent link">#</a></h2>
-<p>The <code>SceneManager</code> implements every event handler method and forwards to the
+<p>The <code>SceneManager</code> is the <code>game</code> every manager's proxy calls, and it forwards to the
 <code>active_scene</code>. This provides the indirection layer that enables scene switching
-without rewiring event handlers.</p>
+without rewiring event handlers. Most handlers are not defined on the <code>SceneManager</code> at all:
+its <code>__getattr__</code> answers any <code>on_*_event</code> name with the active scene's handler, or, when the
+scene has none (or there is no active scene), with the game engine's, which logs the call once and
+suppresses it (<code>src/glitchygames/scenes/scene.py</code>). Four it defines itself:</p>
+<ul>
+<li><code>on_key_down_event</code> takes F3 and F4 for the debug overlay (unless a sprite has keyboard focus),
+  and forwards every other key to the active scene.</li>
+<li><code>on_fps_event</code> forwards to the active scene.</li>
+<li><code>on_game_event</code> is not forwarded: it calls the callback registered for the event's subtype
+  (see <a href="#extending-gameevent-in-your-game">Extending GAMEEVENT</a>).</li>
+<li><code>on_quit_event</code> sets <code>quit_requested</code> and does not forward.</li>
+</ul>
 <pre class="mermaid"><code>flowchart LR
     subgraph ENGINE_FORWARDING["Engine"]
     subgraph Managers["Event Managers"]
@@ -6451,10 +6499,11 @@ without rewiring event handlers.</p>
         GM["GameEventManager"]
         DM["DropEventManager"]
         TM["TouchEventManager"]
+        APM["AppEventManager"]
     end
 
-    subgraph SM["SceneManager (singleton)"]
-        FWD["Forwards all on_*_event()\ncalls to active_scene"]
+    subgraph SM["SceneManager (one per engine context)"]
+        FWD["Forwards on_*_event()\ncalls to active_scene"]
         AS["active_scene reference"]
     end
     end
@@ -6463,7 +6512,7 @@ without rewiring event handlers.</p>
         SCENE["Active Scene\non_*_event()"]
     end
 
-    AM &amp; CM &amp; KM &amp; MM &amp; JM &amp; WM &amp; GM &amp; DM &amp; TM --&gt; FWD
+    AM &amp; CM &amp; KM &amp; MM &amp; JM &amp; WM &amp; GM &amp; DM &amp; TM &amp; APM --&gt; FWD
     FWD --&gt; AS
     AS --&gt; SCENE</code></pre>
 <h3 id="scene-transitions-in-bitmappy">Scene transitions in Bitmappy<a class="headerlink" href="#scene-transitions-in-bitmappy" title="Permanent link">#</a></h3>
@@ -6510,7 +6559,7 @@ in the Bitmappy pixel art editor. The editor is Bitmappy's; the dialogs are the 
     BitmapEditorScene --&gt; [*] : User closes window (QUIT), or releases Q/Escape with nothing focused</code></pre>
 <p>Every transition goes through <code>SceneManager.switch_to_scene()</code>. Dialog scenes
 (<code>src/glitchygames/ui/dialogs.py</code>) store a reference to <code>previous_scene</code> so they can
-return to the editor when the user confirms or cancels. The SceneManager itself is a singleton (one per engine context) — there is only
+return to the editor when the user confirms or cancels. The SceneManager itself is one per engine context — there is only
 one <code>active_scene</code> at a time, and only that scene receives events.</p>
 <h2 id="event_handlers-dict-construction">EVENT_HANDLERS Dict Construction<a class="headerlink" href="#event_handlers-dict-construction" title="Permanent link">#</a></h2>
 <p>Each engine's own <code>event_handlers</code> dict (<code>engine.event_handlers</code>; <code>GameEngine.EVENT_HANDLERS</code> is
@@ -6637,7 +6686,7 @@ the type and returns whether it handled it.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 16:16:37 UTC">November 19, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
   </span>
 
     

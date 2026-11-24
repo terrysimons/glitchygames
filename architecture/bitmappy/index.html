@@ -3130,24 +3130,29 @@
 <p>Bitmappy is GlitchyGames' pixel art editor. These diagrams show how it is wired up
 through the engine, from bootstrap to rendering.</p>
 <h2 id="its-package">Its package<a class="headerlink" href="#its-package" title="Permanent link">#</a></h2>
-<p>Bitmappy is an app, not part of the engine: the first member of the apps layer of the
+<p>Bitmappy is an app, not part of the engine: the only member of the apps layer of the
 <a href="../game_packages/">uv workspace</a>, at <code>src/apps/bitmappy/</code>. The distribution, the import package
 and the console script are all <code>bitmappy</code> (<code>uv run bitmappy</code>), and its scene's logical name, the
-one a recording holds, is <code>apps.bitmappy.editor:BitmapEditorScene</code>. A recording made when the scene
-lived in the engine (<code>glitchygames.bitmappy.editor:BitmapEditorScene</code>) is refused by a plain
-replay, which names the remedy; <code>--replay-trace OLD --rebaseline NEW --headless</code> converts it
+one a recording holds, is <code>apps.bitmappy.editor:BitmapEditorScene</code>. It depends on the engine,
+numpy, pydantic, pygame-ce and tenacity (<code>src/apps/bitmappy/pyproject.toml</code>).</p>
+<div class="admonition note">
+<p class="admonition-title">Recordings made before the move</p>
+<p>A recording made when the scene lived in the engine
+(<code>glitchygames.bitmappy.editor:BitmapEditorScene</code>) is refused by a plain replay, which names
+the remedy; <code>--replay-trace OLD --rebaseline NEW --headless</code> converts it
 (<a href="../gameplay_replay/">gameplay replay</a>).</p>
+</div>
 <ul>
 <li><strong>Its code</strong> is <code>src/apps/bitmappy/src/bitmappy/</code>. The engine never imports it, and Bitmappy uses
   the engine's public <abbr title="Application programming interface">API</abbr> (sprite file-format detection, for one, is the engine's
   <code>src/glitchygames/sprites/file_format.py</code>).</li>
-<li><strong>Its sprite library</strong> is 71 sprites in <code>src/apps/bitmappy/src/bitmappy/resources/sprites/</code>,
+<li><strong>Its sprite library</strong> is 71 <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> sprite files in <code>src/apps/bitmappy/src/bitmappy/resources/sprites/</code>,
   shipped as package data and found through <code>bitmappy.SPRITE_CONFIG_DIR</code>. They are also the <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr>'s
   training data (<code>load_ai_training_data()</code> below), so they stay in the package.</li>
 <li><strong>Its other resources</strong> (the window icon and <code>bitmappy.cfg</code>) are beside them, in
   <code>src/apps/bitmappy/src/bitmappy/resources/</code>.</li>
-<li><strong>Its tests</strong> are in <code>src/apps/bitmappy/tests/</code>, rootless, every file named
-  <code>test_bitmappy_*.py</code>.</li>
+<li><strong>Its tests</strong> are in <code>src/apps/bitmappy/tests/</code>, with no <code>__init__.py</code>. Every test module is
+  named <code>test_bitmappy*.py</code>; <code>conftest.py</code> and the helper <code>film_strip_support.py</code> sit beside them.</li>
 <li><strong>The Load and Save dialogs</strong> (the engine's <code>glitchygames.ui</code> dialog scenes) treat every file the
   same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
   library is opened by its path. The <code>example:</code> prefix they once understood is gone, and Save
@@ -3339,16 +3344,20 @@ which overrides handlers like <code>on_key_down_event()</code>,
 <code>on_left_mouse_button_down_event()</code>, <code>on_left_mouse_drag_event()</code>, and
 <code>on_controller_button_down_event()</code>. Events it doesn't override hit the stubs, which call
 <code>unhandled_event()</code>: it does nothing by default, logs each event type once when <code>debug_events</code>
-is on (the <code>--debug-events</code> flag, off by default), and raises <code>UnhandledEventError</code> under <code>--no-unhandled-events</code> (as the tests
-run).</p>
+is on (the <code>--debug-events</code> flag, off by default), and raises <code>UnhandledEventError</code> under
+<code>--no-unhandled-events</code> (as the tests run).</p>
 <h3 id="sprite-hierarchy-renderable-objects">Sprite hierarchy (renderable objects)<a class="headerlink" href="#sprite-hierarchy-renderable-objects" title="Permanent link">#</a></h3>
 <p><code>DirtySprite</code> is pygame's base for all sprites that support dirty-rect
 rendering. GlitchyGames extends it through <code>RootSprite</code> → <code>Sprite</code> → <code>BitmappySprite</code> to add
 mouse and keyboard events, non-optional <code>image</code>/<code>rect</code>, named parent tracking and <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr>
 load/save. <code>AnimatedSprite</code> stands on <code>RootSprite</code> too, so it has every mouse and keyboard
-handler (silent by default; before 2026-11-15 it derived from <code>DirtySprite</code> directly and had
-none, and the pointer over one ended the game). <code>DirtySprite</code> is pygame's, outside both boxes;
-the Bitmappy box holds the editor's own sprites.</p>
+handler (silent by default). <code>DirtySprite</code> is pygame's, outside both boxes; the Bitmappy box
+holds the editor's own sprites.</p>
+<div class="admonition note">
+<p class="admonition-title">History</p>
+<p>Before 2026-11-15 <code>AnimatedSprite</code> derived from <code>DirtySprite</code> directly and had no mouse
+handlers, so the pointer over one ended the game.</p>
+</div>
 <pre class="mermaid"><code>flowchart TD
     DS["DirtySprite\ndirty, image, rect"]
     subgraph ENGINE_SPRITE_HIERARCHY["Engine"]
@@ -3605,14 +3614,19 @@ which reads and writes the file; drag and drop is all the editor's (<code>FileIO
 <p>Up to 4 color-coded controllers can operate simultaneously. Each controller
 independently switches between film strip, canvas and slider (A, R, G, B) modes using the
 triggers: L2 steps forward, R2 steps back (R2 does nothing in film strip mode). B undoes
-and X redoes in film strip and canvas modes.</p>
+and X redoes in film strip and canvas modes. A controller is assigned on its first button press
+and takes the next color (Red, Green, Blue, Yellow, in activation order) when its Start button
+activates it, so pressing Start again re-colors it. The full button list, known issues and
+workarounds are in <code>CONTROLLER_CONTROLS_README.md</code> at the repository root; the code is
+<code>src/apps/bitmappy/src/bitmappy/controllers/</code>.</p>
 <pre class="mermaid"><code>flowchart TD
     subgraph Assignment["Controller Assignment"]
         CONNECT["Controller connected"] --&gt; FIRST["First button press\nMultiControllerManager.assign_controller()"]
-        FIRST --&gt; RED["Red - controller 0"]
-        FIRST --&gt; GREEN["Green - controller 1"]
-        FIRST --&gt; BLUE["Blue - controller 2"]
-        FIRST --&gt; YELLOW["Yellow - controller 3"]
+        FIRST --&gt; START["Start in film strip mode:\nactivate and take the next color"]
+        START --&gt; RED["1st activation: Red"]
+        START --&gt; GREEN["2nd: Green"]
+        START --&gt; BLUE["3rd: Blue"]
+        START --&gt; YELLOW["4th: Yellow"]
     end
 
     subgraph Modes["Mode Switching per Controller (ModeSwitcher)"]
@@ -3670,7 +3684,7 @@ and X redoes in film strip and canvas modes.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 19, 2026 15:06:59 UTC">November 19, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
   </span>
 
     

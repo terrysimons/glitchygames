@@ -3596,9 +3596,10 @@ This page shows how it is put together, from its scenes down to one frame.</p>
 </table>
 <p>The paddle and pause keys are bound by <strong>scancode</strong> (a physical key position, the same place on
 every layout: AZERTY players press <code>Z</code>/<code>S</code>). The quit keys and the pause and game-over screens'
-<code>Space</code> and <code>Esc</code> are the engine's built-in scenes' <strong>key codes</strong>. Gamepads only move paddles: the
-pause and game-over screens answer the keyboard only (a button press on the game-over screen just
-restarts its idle wait).</p>
+<code>Space</code> and <code>Esc</code> are the engine's built-in scenes' <strong>key codes</strong>. During play a gamepad only
+moves a paddle: it has no pause button. On the pause and game-over screens a gamepad's Start or A
+and B or Back do what <code>Space</code> and <code>Esc</code> do (<code>gamepad_choice.py</code> in the built-in scenes), and on the
+game-over screen any button press also restarts the idle wait.</p>
 <h2 id="scenes">Scenes<a class="headerlink" href="#scenes" title="Permanent link">#</a></h2>
 <p>PaddleSlap has two scenes of its own and one built in.</p>
 <table>
@@ -3652,17 +3653,20 @@ scope the demo runs in); the PaddleSlap box holds the game's own scenes.</p>
     Game --&gt; [*] : Q or Esc
     PauseScene --&gt; [*] : Q or Esc
     GameOver --&gt; [*] : Q, Esc, B or Back</code></pre>
+<div class="admonition note">
+<p class="admonition-title">Pause and game over switch at the end of the frame</p>
+<p>Both set <code>next_scene</code> instead of switching at once, so the scene manager switches after the
+frame renders. Pausing during event processing would otherwise freeze the previous frame's
+picture (the comment on <code>Scene.pause()</code>). <code>PauseScene</code> shows <code>previous_scene.screenshot</code>;
+<code>resume()</code> switches back to the same <code>Game</code> object, so the rally goes on where it was.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">A new game is always a <code>Game</code></p>
+<p><code>GameOverScene.resume()</code> restarts the type of the scene manager's <code>previous_scene</code>, which a
+playback scope could change (BUGS.md #81, resolved: the scope now restores it), so
+<code>PaddleSlapGameOverScene.resume()</code> names <code>Game</code> explicitly.</p>
+</div>
 <dl>
-<dt>Pause and game over switch at the end of the frame</dt>
-<dd>Both set <code>next_scene</code> instead of
-switching at once, so the scene manager switches after the frame renders. Pausing during event
-processing would otherwise freeze the previous frame's picture (the comment on <code>Scene.pause()</code>).
-<code>PauseScene</code> shows <code>previous_scene.screenshot</code>; <code>resume()</code> switches back to the same <code>Game</code>
-object, so the rally goes on where it was.</dd>
-<dt>A new game is always a <code>Game</code></dt>
-<dd><code>GameOverScene.resume()</code> restarts the type of the scene
-manager's <code>previous_scene</code>, which a playback scope can change (BUGS.md #81), so
-<code>PaddleSlapGameOverScene.resume()</code> names <code>Game</code> explicitly.</dd>
 <dt>Rebuilding the game-over screen</dt>
 <dd><code>PaddleSlapGameOverScene.replay_arguments()</code> returns
 <code>final_score</code> and a copy of <code>high_scores</code>, so a recording that starts on this screen can rebuild
@@ -3772,7 +3776,7 @@ dotted arrows are how the game uses an engine class.</p>
 <p><code>Game</code> never names <code>PauseScene</code>: its pause action calls <code>Scene.pause()</code>, which it inherits, and
 that requests the engine's <code>PauseScene</code> for the end of the frame. PaddleSlap's game-over screen
 extends the engine's, adding the attract-mode demo after an idle wait and always restarting a new
-<code>Game</code> (the engine's <code>resume()</code> restarts whatever scene came before, BUGS.md #81).</p>
+<code>Game</code> (the engine's <code>resume()</code> restarts whatever scene came before, which depends on how the screen was reached: BUGS.md #81).</p>
 <h3 id="sprites">Sprites<a class="headerlink" href="#sprites" title="Permanent link">#</a></h3>
 <pre class="mermaid"><code>classDiagram
     direction TB
@@ -3848,9 +3852,15 @@ in <code>Game.dt_tick</code>. <code>HorizontalPaddle</code> is not used by Paddl
 <dd><code>Game</code> sets no follow target and no <code>camera_target()</code>, so the
 camera stays at the origin: world and screen coordinates are the same and the balls are drawn
 exactly where their logic left them (<code>TestWorldBallsInTheFrame</code> in
-<code>tests/world/test_frame_integration.py</code>). The balls are world sprites anyway, so the engine is
-the only writer of their <code>rect</code>: game logic reads <code>world_x</code>/<code>world_y</code>, <code>drawn_center()</code> or the
-collision rect, never <code>rect</code> (which holds where the ball was last drawn).</dd>
+<code>tests/world/test_frame_integration.py</code>).</dd>
+</dl>
+<div class="admonition warning">
+<p class="admonition-title">Game logic never reads a ball's <code>rect</code></p>
+<p>The balls are world sprites, so the engine is the only writer of their <code>rect</code>: game logic
+reads <code>world_x</code>/<code>world_y</code>, <code>drawn_center()</code> or the collision rect, never <code>rect</code> (which holds
+where the ball was last drawn).</p>
+</div>
+<dl>
 <dt>Pixel snapping</dt>
 <dd>The ball's own <code>pixel_snap_mode</code> (default <code>NEAREST_HALF_UP</code>, the scene's
 default too) rounds its sub-pixel position for drawing and for collision alike.</dd>
@@ -3858,8 +3868,9 @@ default too) rounds its sub-pixel position for drawing and for collision alike.<
 <dd>The court is <code>BLACK</code>, named on purpose: a scene that sets no background shows
 the engine's test pattern.</dd>
 <dt>Dirty rendering</dt>
-<dd>All sprites live in one <code>pygame.sprite.LayeredDirty</code> (<code>all_sprites</code>). The
-ball sets <code>dirty = 2</code> (always redrawn); paddles set <code>dirty = 1</code> every tick.</dd>
+<dd>All sprites live in one <code>pygame.sprite.LayeredDirty</code> (<code>all_sprites</code>). The ball and the
+paddles set <code>dirty = 1</code> in every <code>dt_tick</code>, so they are redrawn every frame (the ball's
+constructor also sets <code>dirty = 2</code>, which its first tick replaces).</dd>
 <dt>Pose</dt>
 <dd>Neither sprite changes its image with its state (a ball's image changes only when its
 colour is set), so the pose rule has nothing to order here. Collision resolution, the other half
@@ -3875,7 +3886,7 @@ draws them). Hitboxes are the default visible-pixel trim (<code>src/glitchygames
 <li>A paddle's hitbox is its whole 20×100 rectangle.</li>
 </ul>
 <h2 id="one-frame">One frame<a class="headerlink" href="#one-frame" title="Permanent link">#</a></h2>
-<p>The engine's frame order is in the <a href="../../architecture/bitmappy/#bootstrap-main-loop">Bitmappy page</a>
+<p>The engine's frame order is in <a href="../../architecture/playback/how-a-frame-runs/">How a frame runs</a>
 and <code>CLAUDE.md</code>. What PaddleSlap does inside it (the PaddleSlap box is the game's one scene class;
 the Engine box is the engine's scene manager, game objects and collision manager):</p>
 <pre class="mermaid"><code>sequenceDiagram
@@ -3896,6 +3907,7 @@ the Engine box is the engine's scene manager, game objects and collision manager
     G-&gt;&gt;B: dt_tick(dt)
     B-&gt;&gt;B: move, wall bounce, kill() past an edge
     G-&gt;&gt;G: _resolve_collisions()
+    G-&gt;&gt;G: swept pass: pairs that met within the frame
     G-&gt;&gt;CM: check_overlap('balls', 'paddles')
     CM-&gt;&gt;G: _on_ball_paddle_collision(ball, paddle)
     G-&gt;&gt;B: handle_paddle_collision(paddle)
@@ -3949,8 +3961,19 @@ calls <code>on_wall_bounce</code>. <code>_keep_inside_playfield</code> then mirr
    spawn a ball.</li>
 </ol>
 <h3 id="ball-versus-ball">Ball versus ball<a class="headerlink" href="#ball-versus-ball" title="Permanent link">#</a></h3>
-<p><code>_handle_ball_collisions</code> ticks the per-pair cooldowns, then asks the collision manager for
-overlapping <code>balls</code>/<code>balls</code> pairs. <code>_on_ball_ball_collision</code> handles each pair:</p>
+<p><code>_handle_ball_collisions</code> ticks the per-pair cooldowns, then runs a swept pass, then asks the
+collision manager for overlapping <code>balls</code>/<code>balls</code> pairs. <code>_on_ball_ball_collision</code> handles each
+pair:</p>
+<div class="admonition note">
+<p class="admonition-title">Fast balls cannot pass through each other (BUGS.md #174, fixed)</p>
+<p>The end-of-frame check alone samples the balls where the frame left them, so a closing pair
+could go from apart to crossed unseen. <code>_collide_balls_that_met_within_the_frame</code> first follows
+each pair's path from <code>frame_start_world_position</code> (recorded by <code>BallSprite.dt_tick</code>) to its
+end position with <code>first_contact_fraction</code>. A pair that first touched within the frame and
+ended apart, on the same centre or crossed is put back where it touched and collided there
+(steps 4 to 7); every other pair is left to the end-of-frame check, so play in which no pair
+crosses is unchanged.</p>
+</div>
 <table>
 <thead>
 <tr>
@@ -4183,10 +4206,14 @@ the PaddleSlap box is what <code>Game</code>'s handlers and <code>dt_tick</code>
 controller events and any other device's joystick events, each press once) and its
 <code>--axis-deadzone</code> (<code>ActionMap.from_engine_options</code>). PaddleSlap handles both families, so a pad
 works in every mode.</dd>
-<dt>Instance ids, not player slots</dt>
-<dd><abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> numbers devices in the order they appear, so the first
-pad connected drives the left paddle; a pad that is unplugged and plugged back in gets a new
-instance id and no longer matches its binding.</dd>
+</dl>
+<div class="admonition warning">
+<p class="admonition-title">Instance ids, not player slots</p>
+<p><abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> numbers devices in the order they appear, so the first pad connected drives the left
+paddle; a pad that is unplugged and plugged back in gets a new instance id and no longer
+matches its binding.</p>
+</div>
+<dl>
 <dt>Key repeat</dt>
 <dd>PaddleSlap leaves <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s key repeat off: movement reads held state and pause
 acts on the release, so nothing needs repeated key-downs (they would only fill event batches
@@ -4227,9 +4254,12 @@ caches it.</p>
 <ul>
 <li><code>rally_count</code> counts paddle hits by any ball; it is the game's only score, shared by both
   players. <code>_spawn_new_ball_with_speed_check</code> counts the hit whatever the spawn mode.</li>
-<li>At game over, <code>_save_high_score</code> loads the <code>high_scores</code> slot of the <code>paddleslap</code> save store
-  (<code>open_saves(app_name='paddleslap')</code>), appends the rally, keeps the ten best (best first) and
-  saves it. Live, that is <code>high_scores.json</code> in the platform's save directory
+<li>At game over, <code>_save_high_score</code> records the rally in a <code>HighScoreTable</code>
+  (<code>glitchygames.state.high_scores</code>) over the <code>paddleslap</code> save store
+  (<code>open_saves(app_name='paddleslap')</code>): it loads the <code>high_scores</code> slot, adds the rally, keeps the
+  ten best (best first) and saves it. A saved table the game cannot read is left as it is under
+  <code>--invalid-high-scores refuse</code> (the default): the error is logged and the game-over screen shows
+  this rally as a table of one. Live, that is <code>high_scores.json</code> in the platform's save directory
   (<code>~/Library/Application Support/paddleslap/</code> on macOS, <code>~/.local/share/paddleslap/</code> on Linux,
   <code>%APPDATA%\paddleslap\</code> on Windows). The game-over screen shows the final score and the top
   five.</li>
@@ -4316,8 +4346,12 @@ toward it, with a 12 px dead zone. It pauses with <code>Space</code> at frame 45
 The golden replay then adds the controls tail (<code>paddleslap_controls</code>): <code>Q</code> and <code>Esc</code> pressed and
 released, so the recording ends on the game's own <code>QUIT</code> and a replay in which either key no longer
 quits diverges.</p>
-<p>Re-record only deliberately, after finding out why a replay diverged (the commands are in the
-docstring of <code>scripts/record_scripted_session.py</code>). Replay performance for both recordings is in
+<div class="admonition warning">
+<p class="admonition-title">Re-record only deliberately</p>
+<p>Find out why a replay diverged first (the commands are in the docstring of
+<code>scripts/record_scripted_session.py</code>).</p>
+</div>
+<p>Replay performance for both recordings is in
 <a href="../../quality/performance/">Replay Performance</a>.</p>
 <h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
 <table>
@@ -4445,7 +4479,7 @@ docstring of <code>scripts/record_scripted_session.py</code>). Replay performanc
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
   </span>
 
     

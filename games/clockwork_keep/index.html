@@ -3531,7 +3531,7 @@ platform, collect cogs for points, and ride the elevator at the top of a floor t
 The last floor has no elevator: standing on its top platform, under the victory cog, wins the
 game.</p>
 <p>Everything is drawn from pygame primitives (no image files), every sound is synthesized, and the
-game is small enough to read in one sitting (about 2,700 lines in
+game is small enough to read in one sitting (about 2,800 lines in
 <code>src/games/clockwork-keep/src/clockwork_keep/</code>). It is also one of the engine's reference games: its
 golden trace and golden replay pin world space, transitions, pausing and replay, so the page
 below shows both how the game works and which engine features it leans on.</p>
@@ -3594,6 +3594,10 @@ below shows both how the game works and which engine features it leans on.</p>
 <td><code>--target-fps</code></td>
 <td>The game sets no <code>TARGET_FPS</code>, so the engine default (60.01) applies</td>
 </tr>
+<tr>
+<td><code>--invalid-high-scores {refuse,drop}</code></td>
+<td>What the high-score table does with a saved entry it cannot read (engine default <code>refuse</code>; see <a href="#state-score-lives-and-saves">State, score, lives and saves</a>)</td>
+</tr>
 </tbody>
 </table>
 <h3 id="controls">Controls<a class="headerlink" href="#controls" title="Permanent link">#</a></h3>
@@ -3652,6 +3656,14 @@ or a gamepad's Start or A (on its release, after a press there) resumes, and Esc
 B or Back (on the press) quits; on the game-over and victory screens the same buttons restart
 and quit. The engine's screens answer both gamepad event layers (controller and joystick).
 Losing window focus pauses the game too.</p>
+<div class="admonition warning">
+<p class="admonition-title">Esc pauses a floor, but Esc on the pause screen quits</p>
+<p>The pause, game-over and victory screens are the engine's, and on each of them Esc (or a
+gamepad's B or Back) ends the run. Resume with Space, or Start or A.</p>
+</div>
+<p>In the browser build, on-screen touch buttons send the same keys: left and right arrows, Use
+(W), Jump (Space), Run (Left Shift) and pause (Esc), as listed in <code>TOUCH_LAYOUTS</code> in
+<code>scripts/build_browser_bundle.py</code>.</p>
 <h2 id="scenes-and-how-they-switch">Scenes and how they switch<a class="headerlink" href="#scenes-and-how-they-switch" title="Permanent link">#</a></h2>
 <p>Each floor is its own <code>ClockworkKeepScene</code> instance. The engine builds the first one from options
 alone (<code>floor_index=None</code>, which takes <code>--floor</code>); the elevator builds the next one with the
@@ -3735,14 +3747,19 @@ the Engine box holds the engine's built-in scenes it switches to.</p>
 </tr>
 </tbody>
 </table>
-<p>The floor never sets <code>next_scene = None</code> to quit: the scene manager reads that as "no switch
-pending", so <code>quit</code> goes through <code>scene_manager.quit()</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Never quit with <code>next_scene = None</code></p>
+<p>The scene manager reads <code>next_scene = None</code> as "no switch pending", so <code>quit</code> goes through
+<code>scene_manager.quit()</code>.</p>
+</div>
 <h3 id="replay_arguments-rebuilding-a-floor">replay_arguments: rebuilding a floor<a class="headerlink" href="#replay_arguments-rebuilding-a-floor" title="Permanent link">#</a></h3>
 <p><code>replay_arguments()</code> returns the constructor arguments the floor was built with, besides
 <code>options</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span><span class="s1">'floor_index'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">floor_index</span><span class="p">,</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a> <span class="s1">'player_score'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">starting_player_score</span><span class="p">,</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a> <span class="s1">'player_lives'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">starting_player_lives</span><span class="p">}</span>
+<div class="language-python highlight"><span class="filename">src/games/clockwork-keep/src/clockwork_keep/game.py</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">return</span> <span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="s1">'floor_index'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">floor_index</span><span class="p">,</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="s1">'player_score'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">starting_player_score</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="s1">'player_lives'</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">starting_player_lives</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="p">}</span>
 </span></code></pre></div>
 <p>The engine's default is <code>{}</code>, which rebuilds a scene from options alone. That works for the first
 floor but not for the others: a floor the elevator built would be rebuilt as the <code>--floor</code> floor
@@ -3764,7 +3781,8 @@ installed, tested and built, and how a game is moved into one, is in
 engine's trace tests (<code>tests/world/golden/clockwork_keep.jsonl.gz</code>), and its browser bundle ships
 <code>clockwork_keep.zip</code>.</p>
 <h2 id="classes">Classes<a class="headerlink" href="#classes" title="Permanent link">#</a></h2>
-<p>Clockwork Keep's own code is the scene, five sprite classes and the floor data, all in
+<p>Clockwork Keep's own code is the floor scene, its victory screen, the high-score entry
+(<code>ClockworkHighScore</code>, not in the diagram), five sprite classes and the floor data, all in
 <code>src/games/clockwork-keep/src/clockwork_keep/</code>. The rest comes from the engine: <code>Scene</code> and the built-in
 <code>PauseScene</code> and <code>GameOverScene</code> (<code>glitchygames.scenes</code>), <code>Sprite</code> (<code>glitchygames.sprites</code>) and
 <code>PhysicsBody</code> (<code>glitchygames.physics</code>). In the diagram, the Engine box is what every game gets; the
@@ -3916,11 +3934,15 @@ added, so the order is part of the picture. Each class sets <code>_layer</code> 
 <p>Every gameplay sprite (<code>Tinker</code>, <code>Platform</code>, <code>Elevator</code>, <code>MovingGear</code>, <code>CogCollectible</code>) declares
 <code>COORDINATE_SPACE = CoordinateSpace.WORLD</code> and keeps float <code>world_x</code> / <code>world_y</code>. The game never
 writes their <code>rect</code>: each frame the engine sets it from the camera, culls sprites more than 32 px
-off screen, and marks moved sprites dirty. The game reads positions from <code>world_x</code> / <code>world_y</code> and
-from collision rects, never from <code>rect</code> (except <code>rect.width</code>, which does not move). A cog bobs by
-moving its <code>world_y</code>, not by shifting pixels in its image.</p>
+off screen, and marks moved sprites dirty. A cog bobs by moving its <code>world_y</code>, not by shifting
+pixels in its image.</p>
+<div class="admonition warning">
+<p class="admonition-title">Never read a world sprite's <code>rect</code> in game logic</p>
+<p>It is where the sprite was last drawn. The game reads positions from <code>world_x</code> / <code>world_y</code>
+and from collision rects (except <code>rect.width</code>, which does not move).</p>
+</div>
 <p>The <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr> is not a sprite: <code>render()</code> draws the score (top left), lives (top right) and floor name
-(top centre) straight onto the screen after the sprites, with a 1 px shadow. Its font is loaded in
+(top center) straight onto the screen after the sprites, with a 1 px shadow. Its font is loaded in
 <code>setup()</code>, so a floor rendered before setup draws no <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr>.</p>
 <h3 id="camera">Camera<a class="headerlink" href="#camera" title="Permanent link">#</a></h3>
 <table>
@@ -3982,13 +4004,13 @@ over.</p>
 <tr>
 <th>Sprite</th>
 <th>Image</th>
-<th>Behaviour</th>
+<th>Behavior</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>Platform</code></td>
-<td>12 px tall metal bar in the floor's theme colours, drawn once</td>
+<td>12 px tall metal bar in the floor's theme colors, drawn once</td>
 <td>One-way support: the Tinker jumps up through it and lands on top of it</td>
 </tr>
 <tr>
@@ -3999,7 +4021,7 @@ over.</p>
 <tr>
 <td><code>MovingGear</code></td>
 <td><code>size</code> x <code>size/4</code> bar with teeth along its top, <code>dirty = 2</code></td>
-<td>Moves on <code>centre + range * sin(timer * speed)</code> each <code>dt_tick</code> and records <code>moved_x</code> / <code>moved_y</code></td>
+<td>Moves on <code>center + range * sin(timer * speed)</code> each <code>dt_tick</code> and records <code>moved_x</code> / <code>moved_y</code></td>
 </tr>
 <tr>
 <td><code>CogCollectible</code></td>
@@ -4009,7 +4031,7 @@ over.</p>
 </tbody>
 </table>
 <p>The Clock Face's one moving gear (<code>MovingGearData</code>: 64 px wide, ±150 px horizontally, speed 1.2,
-a 5.2 s round trip) is the only way up its final approach: the centre step is 180 px below the
+a 5.2 s round trip) is the only way up its final approach: the center step is 180 px below the
 last step, beyond a running jump's ~140 px, so the climber hops onto the gear (90 px up), rides
 it right, and hops off at the end of its sweep, where it pauses. <code>test_the_route_is_within_a_walking_jump</code>
 and <code>test_climbing_the_final_approach_on_the_gear</code> pin the route.</p>
@@ -4046,7 +4068,7 @@ and <code>test_climbing_the_final_approach_on_the_gear</code> pin the route.</p>
 </tr>
 </tbody>
 </table>
-<p><code>move_left</code> / <code>move_right</code> / <code>stop_horizontal</code> only set the acceleration behaviour's target
+<p><code>move_left</code> / <code>move_right</code> / <code>stop_horizontal</code> only set the acceleration behavior's target
 velocity; the body accelerates toward it. <code>jump()</code> sets <code>velocity_y</code> only when <code>on_ground</code>, so an
 airborne Tinker never jumps again.</p>
 <p>An <code>AnimationStateMachine</code> picks the pose from the body's animation context: <code>idle</code>, <code>running</code>
@@ -4203,7 +4225,7 @@ are the game's (Clockwork Keep box).</p>
     SM-&gt;&gt;New: the ride ends, Floor N+1 is active</code></pre>
 <p>The ride is <code>src/glitchygames/transitions/elevator.py</code>: a tall composite of the old floor, a shaft and
 the new floor scrolls up while the car and the Tinker (a copy of its image) stay pinned at the
-screen's centre. <code>ease_in_sine</code> arrives at full speed, so the stop reads as a slam. The car's
+screen's center. <code>ease_in_sine</code> arrives at full speed, so the stop reads as a slam. The car's
 speed is the easing's slope (<code>transition.eased_velocity_at(progress)</code>), divided by its peak
 (sampled over 101 points when the ride starts), so motor pitch, motor volume and rumble all follow
 the car.</p>
@@ -4249,7 +4271,9 @@ dropping through it.</p>
 tremolo), <code>EFFECTS</code>. Each floor asks the engine's sound library for all of them when it is built
 (<code>self.sounds</code>, by name; <code>play_sound(name)</code> plays one): the library compiles each once per engine
 context and caches it (on disk too, under <code>--sound-cache disk</code>), so no sound compiles mid-frame
-(the clank would otherwise compile on the slam frame). Each plays at its own volume.</p>
+(the clank would otherwise compile on the slam frame). <code>ClockworkKeepScene.SOUNDS</code> lists all
+of them (the motor included), so the engine also compiles them while the game starts. Each plays
+at its own volume.</p>
 <table>
 <thead>
 <tr>
@@ -4290,11 +4314,16 @@ context and caches it (on disk too, under <code>--sound-cache disk</code>), so n
 </table>
 <p>The elevator's motor is not an effect but a live instrument, <code>sounds.ELEVATOR_MOTOR</code>: a
 low-passed saw with a tremolo chug, whose <code>speed</code> parameter routes to its pitch (45 to 110 Hz) and
-level (0.15 to 0.6 as heard: the route's ends are raised by √2, because a centred sound is 3 dB
-down on each side by the constant-power pan law every sound pans by). The ride starts it with <code>start(owner=transition)</code>, so it plays on behind the
-next floor until the ride ends, sets <code>speed</code> every frame, and cuts it with <code>cancel()</code> as the car
-lands (a fade would sound after the clank). Without a free live voice or an audio device the ride
-is silent.</p>
+level (0.15 to 0.6 as heard). The ride starts it with <code>start(owner=transition)</code>, so it plays on
+behind the next floor until the ride ends, sets <code>speed</code> every frame, and cuts it with <code>cancel()</code>
+as the car lands (a fade would sound after the clank). Without a free live voice or an audio
+device the ride is silent.</p>
+<div class="admonition note">
+<p class="admonition-title">Why the level route's ends are raised by √2</p>
+<p>A centered sound is 3 dB down on each side by the constant-power pan law every sound pans by,
+so the route's ends are raised by √2 (<code>CENTRE_PAN_COMPENSATION</code>) to keep the motor as loud as
+it was before live sounds took a pan.</p>
+</div>
 <h2 id="state-score-lives-and-saves">State, score, lives and saves<a class="headerlink" href="#state-score-lives-and-saves" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -4332,11 +4361,15 @@ is silent.</p>
 </tr>
 </tbody>
 </table>
-<p>The game starts with 3 lives (<code>STARTING_LIVES</code>). At game over and at victory <code>_save_high_score</code> appends
-<code>{'score': ..., 'floor': ...}</code> to the saved <code>scores</code> list, keeps the 10 best (best first) and
-saves it; <code>GameOverScene</code> shows the list. A missing save loads as an empty list. In a replay the
-saves are a <code>MemorySaveManager</code> seeded from the recording, so a replayed game over never touches
-real high scores.</p>
+<p>The game starts with 3 lives (<code>STARTING_LIVES</code>). Its high scores are the engine's
+<code>HighScoreTable</code> (<code>glitchygames.state.high_scores</code>) over the <code>high_scores</code> save slot, with
+<code>ClockworkHighScore</code> (a score and the floor reached) as its entry. At game over and at victory
+<code>_save_high_score</code> calls <code>record_or_keep</code>, which adds this climb's entry, keeps the 10 best (best
+first) and saves <code>{'scores': [...]}</code>; <code>GameOverScene</code> shows the list. A missing save loads as an
+empty list. A saved entry that fails validation is refused (the file stays as it is, and the
+screen shows this climb alone) or dropped with a warning, as <code>--invalid-high-scores</code> says. In a
+replay the saves are a <code>MemorySaveManager</code> seeded from the recording, so a replayed game over
+never touches real high scores.</p>
 <h2 id="engine-features-it-uses">Engine features it uses<a class="headerlink" href="#engine-features-it-uses" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -4383,8 +4416,8 @@ real high scores.</p>
 <td>Seven effects and one live instrument</td>
 </tr>
 <tr>
-<td>Saves</td>
-<td><code>open_saves</code>, <code>SaveManager.load</code> / <code>save</code></td>
+<td>Saves and high scores</td>
+<td><code>open_saves</code>, and <code>HighScoreTable</code> over the <code>high_scores</code> slot</td>
 </tr>
 <tr>
 <td>Built-in scenes</td>
@@ -4408,8 +4441,11 @@ real high scores.</p>
 </tr>
 </tbody>
 </table>
-<p>The game does not set <code>INSTANT_REPLAY_SECONDS</code>, ships no bundled demo, and sets no
-<code>PIXEL_SNAP_MODE</code> (the default, <code>NEAREST_HALF_UP</code>).</p>
+<p>The game does not set <code>INSTANT_REPLAY_SECONDS</code> and sets no <code>PIXEL_SNAP_MODE</code> (the default,
+<code>NEAREST_HALF_UP</code>). It ships one bundled demo, <code>climb</code>
+(<code>src/games/clockwork-keep/src/clockwork_keep/demos/climb.jsonl.gz</code>): the golden script's first
+330 frames, recorded by the <code>clockwork_keep_climb</code> recipe in <code>scripts/record_bundled_demos.py</code>.
+The game itself does not play it; see <a href="../../architecture/gameplay_replay/#demos">Demos</a>.</p>
 <h3 id="golden-trace-and-golden-replay">Golden trace and golden replay<a class="headerlink" href="#golden-trace-and-golden-replay" title="Permanent link">#</a></h3>
 <p>Clockwork Keep has both of the engine's golden checks:</p>
 <ul>
@@ -4429,11 +4465,15 @@ real high scores.</p>
   --frames 330</code>. The replay plugin replays it in a child process
   (<code>clockwork-keep --replay-trace ... --headless</code>) and fails unless it exits <code>SUCCESS</code>.
   <code>tests/replay/test_golden_replays.py</code> also checks that the golden replays exercise every
-  control the game binds (<code>ClockworkKeepScene._create_action_map</code>); the gamepad bindings are
-  listed as unexercised, because the dummy driver has no gamepad.</li>
+  control the game binds (<code>ClockworkKeepScene._create_action_map</code>, listed in
+  <code>tests/replay/golden_replay_controls.py</code>); the gamepad bindings are listed as unexercised,
+  because the dummy driver has no gamepad.</li>
 </ul>
+<div class="admonition warning">
+<p class="admonition-title">Never re-record either baseline to make a change pass</p>
 <p>Both harnesses drop the focus-lost event <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s dummy driver posts at startup, which would
-otherwise auto-pause the game. Never re-record either baseline to make a change pass.</p>
+otherwise auto-pause the game.</p>
+</div>
 <h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -4456,8 +4496,12 @@ otherwise auto-pause the game. Never re-record either baseline to make a change 
 <td>The 900-frame golden trace (above)</td>
 </tr>
 <tr>
+<td><code>src/games/clockwork-keep/tests/test_clockwork_keep_touch_controls.py</code></td>
+<td>Every browser touch button presses a key the game reads</td>
+</tr>
+<tr>
 <td><code>tests/world/test_gameplay_recording.py</code></td>
-<td>Recording the 900-frame script gives the golden harness's own sprite frames, including the ride and the pause</td>
+<td>Recording a stand-in tower session (after this game's golden script) gives the golden harness's own sprite frames, including a ride and a pause</td>
 </tr>
 <tr>
 <td><code>tests/world/test_transition_input.py</code></td>
@@ -4477,8 +4521,11 @@ otherwise auto-pause the game. Never re-record either baseline to make a change 
 </tr>
 </tbody>
 </table>
-<p>Run them with <code>uv run pytest src/games/clockwork-keep/tests/test_clockwork_keep.py</code> (add <code>--dummy-only</code> to skip
-the native-driver comparison while iterating).</p>
+<div class="admonition tip">
+<p class="admonition-title">Running the game's tests alone</p>
+<p><code>uv run pytest --no-cov src/games/clockwork-keep/tests</code> (<code>--no-cov</code>: only the whole run meets
+the coverage gate; add <code>--dummy-only</code> to skip the native-driver comparison while iterating).</p>
+</div>
 <h2 id="where-things-live">Where things live<a class="headerlink" href="#where-things-live" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -4490,11 +4537,11 @@ the native-driver comparison while iterating).</p>
 <tbody>
 <tr>
 <td><code>src/games/clockwork-keep/src/clockwork_keep/__init__.py</code></td>
-<td><code>main</code> (the <code>clockwork-keep</code> console script in the member's <code>pyproject.toml</code>)</td>
+<td><code>main</code> (re-exported from <code>game.py</code>; the <code>clockwork-keep</code> console script in the member's <code>pyproject.toml</code>)</td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/src/clockwork_keep/game.py</code></td>
-<td><code>ClockworkKeepScene</code> (floors, input, collision, elevator, death, saves, <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr>), <code>CogCollectible</code>, the arrival shakes, <code>main()</code></td>
+<td><code>ClockworkKeepScene</code> (floors, input, collision, elevator, death, saves, <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr>), <code>ClockworkKeepVictoryScene</code>, <code>ClockworkHighScore</code>, <code>CogCollectible</code>, the arrival shakes, <code>main()</code></td>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/src/clockwork_keep/player.py</code></td>
@@ -4518,7 +4565,11 @@ the native-driver comparison while iterating).</p>
 </tr>
 <tr>
 <td><code>src/games/clockwork-keep/src/clockwork_keep/constants.py</code></td>
-<td>Screen, physics, layers, gameplay, colours, elevator ride feel, the clock</td>
+<td>Screen, physics, layers, gameplay, colors, elevator ride feel, the clock</td>
+</tr>
+<tr>
+<td><code>src/games/clockwork-keep/src/clockwork_keep/demos/climb.jsonl.gz</code></td>
+<td>The bundled demo</td>
 </tr>
 <tr>
 <td><code>src/glitchygames/transitions/elevator.py</code></td>
@@ -4535,6 +4586,10 @@ the native-driver comparison while iterating).</p>
 <tr>
 <td><code>scripts/record_scripted_session.py</code></td>
 <td>Records the golden replay (<code>clockwork_keep_controls</code>, in <code>scripts/golden_inputs.py</code>, is its tail)</td>
+</tr>
+<tr>
+<td><code>scripts/record_bundled_demos.py</code></td>
+<td>Records the bundled demo (recipe <code>clockwork_keep_climb</code>)</td>
 </tr>
 <tr>
 <td><code>tests/world/golden/clockwork_keep.jsonl.gz</code></td>
@@ -4574,7 +4629,7 @@ the native-driver comparison while iterating).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
   </span>
 
     

@@ -3550,7 +3550,7 @@ input, synthesized sounds, saves, recording and replay.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w">                  </span><span class="c1"># the title screen: choose Classic or Papyrus</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w"> </span>--game<span class="w"> </span>classic<span class="w">   </span><span class="c1"># Classic at once: every sprite drawn in code</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w"> </span>--game<span class="w"> </span>papyrus<span class="w">   </span><span class="c1"># Papyrus at once: the Egyptian edition, sprite-sheet art</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w"> </span>--game<span class="w"> </span>papyrus<span class="w">   </span><span class="c1"># Papyrus at once: the Egyptian edition, hand-drawn TOML pixel art</span>
 </span></code></pre></div>
 <p><code>brave-adventurer</code> is the project's one console script (<code>src/games/brave-adventurer/</code>, see
 <a href="#its-package">Its package</a>): the launcher, <code>brave_adventurer_modes.main()</code>. With <code>--game</code> it
@@ -3687,7 +3687,10 @@ place on every keyboard layout.</p>
 </tr>
 </tbody>
 </table>
-<p>The analog sticks move nothing: no axis is bound (<code>TestButtonsAndAxesHoldMovement</code> pins it).</p>
+<div class="admonition note">
+<p class="admonition-title">The analog sticks move nothing</p>
+<p>No axis is bound (<code>TestButtonsAndAxesHoldMovement</code> pins it).</p>
+</div>
 <h3 id="options">Options<a class="headerlink" href="#options" title="Permanent link">#</a></h3>
 <p>The launcher reads <code>--game</code>; each scene's <code>args()</code> adds <code>-v</code>; everything else is the engine's
 (see <a href="../../architecture/argument_system/">Argument System</a>).</p>
@@ -3734,6 +3737,11 @@ place on every keyboard layout.</p>
 <td><code>--target-fps</code></td>
 <td>engine</td>
 <td>The scene sets no <code>TARGET_FPS</code>, so the default 60.01 applies</td>
+</tr>
+<tr>
+<td><code>--invalid-high-scores {refuse,drop}</code></td>
+<td>engine</td>
+<td>What the high-score table does with a saved entry it cannot read (default <code>refuse</code>: keep the file and save nothing; <code>drop</code>: leave the entry out with a warning)</td>
 </tr>
 <tr>
 <td><code>--debug-overlay</code> (or F3, F4)</td>
@@ -3980,7 +3988,7 @@ pit; <code>render()</code> draws each one (<code>_draw_pits</code>) after the sp
 two segments either side, so the pit edges always meet the ground even at a half-pixel camera
 position. Every visible enemy that overlaps a pit (a scarab that rolled in) and then the
 player are blitted once more, so they show in front of the pit fill.
-Inside a pit the edges of the neighbouring segments act as walls, so the player cannot walk
+Inside a pit the edges of the neighboring segments act as walls, so the player cannot walk
 out; falling more than <code>PIT_DEATH_THRESHOLD</code> (100 px) below the screen costs a life.</p>
 <p><strong>Walls</strong> (<code>StoneWall</code>) are both platform and obstacle: a player whose feet land within 16 px
 of a wall's top stands on it; otherwise a player overlapping the wall's body is pushed out to
@@ -3990,7 +3998,7 @@ the side it came from (see <a href="#collision">Collision</a>).</p>
 <thead>
 <tr>
 <th>Sprite</th>
-<th>Behaviour (in <code>dt_tick</code>)</th>
+<th>Behavior (in <code>dt_tick</code>)</th>
 </tr>
 </thead>
 <tbody>
@@ -4057,11 +4065,15 @@ the pose from the body's animation context: idle, running, jumping or falling. R
 ledge turns to falling (<code>running</code> to <code>falling</code> when <code>velocity_y &gt; 10</code> and not on the ground),
 as idle and jumping do.</p>
 <h3 id="the-pose-rule">The pose rule<a class="headerlink" href="#the-pose-rule" title="Permanent link">#</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Draw the pose in <code>dt_tick</code>, never in <code>update()</code></p>
 <p>The player draws its pose, and so its hitbox, in <code>dt_tick</code>, after physics and the state
 machine and before the scene's collision runs. Its hitbox is the image's visible pixels
-(the engine trims transparent margins), so drawing the pose in <code>update()</code> would make collision
-use the previous frame's pose: a player turning toward a wall would sit inside it for a frame
-(BUGS.md, the pose fix). After drawing, the world-edge bound is refitted to the new hitbox and
+(the engine trims transparent margins), so drawing the pose in <code>update()</code> would make
+collision use the previous frame's pose: a player turning toward a wall would sit inside it
+for a frame (BUGS.md #64).</p>
+</div>
+<p>After drawing, the world-edge bound is refitted to the new hitbox and
 applied again. <code>update()</code> does visual work only: the respawn fade
 (<code>image.set_alpha(...)</code>).</p>
 <h3 id="collision">Collision<a class="headerlink" href="#collision" title="Permanent link">#</a></h3>
@@ -4094,7 +4106,7 @@ drawn size:</p>
 </tr>
 <tr>
 <td>Wall side</td>
-<td>Pushed out on the side the hitbox was on before this frame's move (<code>velocity_x × dt</code> back), so a dt hitch cannot carry a fast player through; if it already overlapped (a wider pose), the side of the wall's centre decides (<code>_entered_wall_from_left</code>)</td>
+<td>Pushed out on the side the hitbox was on before this frame's move (<code>velocity_x × dt</code> back), so a dt hitch cannot carry a fast player through; if it already overlapped (a wider pose), the side of the wall's center decides (<code>_entered_wall_from_left</code>)</td>
 </tr>
 <tr>
 <td>Snapping</td>
@@ -4220,18 +4232,25 @@ the Brave Adventurer box is the scene's code it calls:</p>
 </tr>
 </tbody>
 </table>
-<p>(Steps 4 and 8, shake and rumble and the still-camera shake, do nothing visible here: the game
-starts no shakes, and its rumble pulses run on their own.)</p>
+<div class="admonition note">
+<p class="admonition-title">Steps 4 and 8</p>
+<p>Shake and rumble (step 4) and the still-camera shake (step 8) do nothing visible here: the
+game starts no shakes, and its rumble pulses run on their own.</p>
+</div>
 <p>Two things follow from this order:</p>
 <ul>
 <li><code>dt_tick</code> runs before the frame's events, so movement uses the <code>ActionMap</code> state from the
   previous frame's events, and a jump pressed this frame takes effect in this frame's handler
   (its physics in the next <code>dt_tick</code>).</li>
 <li>Collision runs before the engine positions the sprites, so this frame's picture already
-  shows the resolved positions. Game logic never reads a world sprite's <code>rect</code> (it holds where
-  the sprite was last drawn); only <code>_draw_pits</code>, in the render phase, does.</li>
+  shows the resolved positions.</li>
 </ul>
-<p><code>render()</code> replaces <code>Scene.render</code>: it fills the sky colour, draws the <code>LayeredDirty</code> group,
+<div class="admonition warning">
+<p class="admonition-title">Game logic never reads a world sprite's <code>rect</code></p>
+<p>A world sprite's <code>rect</code> holds where the sprite was last drawn. Only <code>_draw_pits</code>, in the
+render phase, reads it.</p>
+</div>
+<p><code>render()</code> replaces <code>Scene.render</code>: it fills the sky color, draws the <code>LayeredDirty</code> group,
 draws the pits, then any enemy that overlaps a pit and the player on top, then the <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr> (score top left, lives top right, each with
 a 1 px shadow), and sets <code>self.rects = None</code> so the whole screen is presented.</p>
 <h2 id="input">Input<a class="headerlink" href="#input" title="Permanent link">#</a></h2>
@@ -4351,7 +4370,7 @@ still compiles them and a play is a silent no-op. The game has no live voices.</
 <tr>
 <td>High scores</td>
 <td><code>open_saves(app_name='brave-adventurer')</code> (Papyrus: <code>'brave-adventurer-papyrus'</code>), save <code>'high_scores'</code></td>
-<td><code>{'scores': [{'score': n}, ...]}</code>, the ten best, descending; written at game over and shown (top 5) on the game-over screen</td>
+<td><code>{'scores': [{'score': n}, ...]}</code>, the ten best, descending, kept by the engine's <code>HighScoreTable</code> (<code>glitchygames.state.high_scores</code>; a saved entry it cannot read follows <code>--invalid-high-scores</code>); written at game over and shown (top 5) on the game-over screen</td>
 </tr>
 </tbody>
 </table>
@@ -4399,8 +4418,8 @@ replay, so a replayed game over never touches real saves.</p>
 <td>Not needed: nothing in the game is random (the near-ground details are a hash of the world x)</td>
 </tr>
 <tr>
-<td>Saves</td>
-<td>High scores through <code>open_saves</code></td>
+<td>Saves and high scores</td>
+<td><code>open_saves</code>, and the engine's <code>HighScoreTable</code> on top of it (<code>--invalid-high-scores</code>)</td>
 </tr>
 <tr>
 <td>Built-in scenes</td>
@@ -4415,19 +4434,35 @@ replay, so a replayed game over never touches real saves.</p>
 <td>Every input comes through the engine's doors (ActionMap events, saves), so <code>--record-trace</code> and <code>--replay-trace</code> reproduce a session exactly</td>
 </tr>
 <tr>
-<td>Transitions, instant replay, demos</td>
+<td>Transitions, instant replay</td>
 <td>Not used</td>
+</tr>
+<tr>
+<td>Bundled demos</td>
+<td>One recording per edition, <code>classic.jsonl.gz</code> and <code>papyrus.jsonl.gz</code>, shipped in <code>brave_adventurer_modes/demos/</code> (recorded by <code>scripts/record_bundled_demos.py</code>); the game's own code does nothing for them</td>
 </tr>
 </tbody>
 </table>
 <h2 id="recording-replay-and-golden-tests">Recording, replay and golden tests<a class="headerlink" href="#recording-replay-and-golden-tests" title="Permanent link">#</a></h2>
 <p>Because the game takes input only from engine events, and has no randomness and no clock reads
 of its own, a recording replays it exactly:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Game</label><label for="__tabbed_1_2">glitchygames</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w"> </span>--record-trace<span class="w"> </span>/tmp/session.jsonl.gz
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w"> </span>--replay-trace<span class="w"> </span>/tmp/session.jsonl.gz<span class="w">            </span><span class="c1"># watch it</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>uv<span class="w"> </span>run<span class="w"> </span>brave-adventurer<span class="w"> </span>--replay-trace<span class="w"> </span>/tmp/session.jsonl.gz<span class="w"> </span>--headless<span class="w"> </span><span class="c1"># check it</span>
 </span></code></pre></div>
-<p>Two kinds of golden test pin the game's behaviour frame by frame:</p>
+</div>
+<div class="tabbed-block">
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>record-trace<span class="w"> </span>brave-adventurer<span class="w"> </span>/tmp/session.jsonl.gz
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>replay-trace<span class="w"> </span>/tmp/session.jsonl.gz<span class="w">            </span><span class="c1"># watch it</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>replay-trace<span class="w"> </span>/tmp/session.jsonl.gz<span class="w"> </span>--headless<span class="w"> </span><span class="c1"># check it</span>
+</span></code></pre></div>
+</div>
+</div>
+</div>
+<p>Two kinds of golden test pin the game's behavior frame by frame:</p>
 <table>
 <thead>
 <tr>
@@ -4441,7 +4476,7 @@ of its own, a recording replays it exactly:</p>
 <tr>
 <td>Golden replay</td>
 <td><code>src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz</code> (and <code>golden-papyrus.jsonl.gz</code>), both replayed through the launcher, <code>brave-adventurer</code>, which starts the game each header names</td>
-<td><code>scripts/record_scripted_session.py --game brave_adventurer --frames 400</code> through the real engine loop: the golden input script, then a controls tail (walk left, jump with Space, quit with Q): 472 frames</td>
+<td><code>scripts/record_scripted_session.py --game brave_adventurer --frames 400</code> through the real engine loop: the first 400 frames of the golden input script (screens 0 and 1, the pause and resume), then a controls tail (walk left, jump with Space, quit with Q): 472 frames</td>
 <td>Replayed in a child process with <code>--replay-trace PATH --headless</code> by the replay pytest plugin; any divergence fails. <code>tests/replay/test_golden_replays.py</code> also checks that every bound control is exercised, or listed with the reason it is not (no gamepad on the dummy driver)</td>
 </tr>
 <tr>
@@ -4453,10 +4488,15 @@ of its own, a recording replays it exactly:</p>
 </tbody>
 </table>
 <p>The golden script (<code>brave_adventurer_script()</code> in <code>scripts/golden_inputs.py</code>) runs right
-over screens 0 and 1 jumping for the higher scarabs, pauses and resumes, then places the
-player at x = 2400 (a 900-frame run cannot reach the first pit from the start) and jumps the
-two screen-3 walls and the screen-4 pit before walking back. Re-record either golden only
-deliberately, after finding out why it changed (the scripts' docstrings give the commands).</p>
+over screens 0 and 1 jumping for the higher scarabs, pauses and resumes (frames 0 to 399: all
+the golden replay plays of it), then places the player at x = 2400 at frame 400 (a 900-frame
+run cannot reach the first pit from the start) and jumps the two screen-3 walls and the
+screen-4 pit before walking back (the golden trace plays all 900 frames; the golden replay
+stops before the placement). </p>
+<div class="admonition warning">
+<p class="admonition-title">Re-record a golden only deliberately</p>
+<p>First find out why it changed (the scripts' docstrings give the commands).</p>
+</div>
 <h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -4545,7 +4585,7 @@ data, terrain, background drawing, sounds and constants with the classic edition
 <td>Animation state machines come from the <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> <code>[[transition]]</code> sections (the player's, the cobra's timed strike)</td>
 </tr>
 <tr>
-<td>Physics, camera, layer, parallax, scoring and colour constants (re-exported by its <code>constants.py</code>)</td>
+<td>Physics, camera, layer, parallax, scoring and color constants (re-exported by its <code>constants.py</code>)</td>
 <td>Its own save namespace (<code>brave-adventurer-papyrus</code>) and scene <code>NAME</code></td>
 </tr>
 <tr>
@@ -4648,41 +4688,46 @@ diagrams readable).</p>
     PrimitiveSprites &lt;.. SpritesLevelManager : builds
     TerrainSprites &lt;.. SpritesPapyrusLevelManager : builds
     PapyrusSprites &lt;.. SpritesPapyrusLevelManager : builds</code></pre>
-<ul>
-<li><strong><code>PapyrusLevelManager</code></strong> gives <code>_get_enemy_class_map()</code> (the Papyrus enemy classes) and
-  <code>_get_collectible_class()</code> (<code>PapyrusGoldScarab</code>); the shared <code>LevelManager._build()</code> builds
-  them, as <code>ClassicLevelManager</code>'s give <code>Cobra</code>, <code>Scarab</code>, <code>Scorpion</code> and <code>GoldScarab</code>.</li>
-<li><strong><code>BraveAdventurerSceneBase</code></strong> (<code>brave_adventurer_core/scene.py</code>) is the gameplay both
-  scenes play by: the camera and parallax, the level and player built in that order (recordings
-  number sprites by creation order), the controls, the <code>dt_tick</code> order, terrain, wall and enemy
-  collision, death, respawn and high scores, the input handlers, <code>render()</code>, the pits and the
-  <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr>. Each game's scene stays in its own <code>game.py</code> under its own name (recordings name a scene
-  by its module and class) and gives only what differs: <code>NAME</code>; <code>LEVEL_MANAGER_CLASS</code>,
-  <code>PLAYER_CLASS</code> and <code>PLAYER_START_WORLD_Y</code>; <code>SAVE_APP_NAME</code> (<code>brave-adventurer</code>,
-  <code>brave-adventurer-papyrus</code>); <code>_scarab_class()</code> (the enemy that follows the terrain); and the
-  foot line, <code>_player_top_and_foot_line()</code> and <code>_player_world_y_standing_on()</code>: the classic
-  edition's hitbox bottom (a <code>float</code> world y), Papyrus's <code>_snapped_player_top()</code> +
-  <code>PAPYRUS_PLAYER_HEIGHT</code> (an <code>int</code>). The classic edition adds the voice assistant: it is
-  discovered after the shared <code>__init__</code>, its mic button is bound after the shared controls,
-  and it fills the base's voice hooks, which Papyrus leaves empty.</li>
-<li><strong><code>PapyrusPlayer</code></strong> has the same <code>PhysicsBody</code> and move methods as <code>Player</code>. Each <code>dt_tick</code>
-  ticks physics, evaluates the <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> state machine, advances the <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> animation
-  (<code>AnimatedSprite.update(self, dt)</code>), starts image from a fresh copy of the drawn frame
-  (<code>refresh_drawn_image</code>), and
-  mirrors image and hitbox when facing left (<code>hitbox_flip_x</code>), then refits the world-edge
-  bound. That keeps the pose rule: the frame collision uses is the one drawn this frame.
-  <code>frame_anchor = FrameAnchor.BOTTOM</code> draws each frame lower by its <code>draw_offset</code>, so frames
-  whose feet end on rows 24 to 27 all stand on the 27-row foot line. Its standing support uses
-  the engine's <code>AnimatedSprite.common_hitbox_x_range()</code> (the x-span every frame's hitbox
-  shares) where the original measures its procedurally drawn poses.</li>
-<li><strong>The Papyrus enemies and gold scarab</strong> do the same, animating in <code>dt_tick</code>, and make
-  <code>update()</code> a no-op (<code>Scene.update()</code> would call it without a dt: BUGS.md #115).</li>
-<li><strong><code>sprite_utils.py</code></strong>: <code>prepare_papyrus_sprite()</code> converts every loaded frame from the
-  magenta colour key to per-pixel alpha and sets the engine's <code>AnimatedSprite.scale</code> to
-  <code>SPRITE_SCALE</code>, which draws every frame, rect, hitbox and <code>draw_offset</code> at 2x (BUGS.md #144);
-  <code>refresh_drawn_image()</code> copies the engine's drawn frame each tick, so the facing flip and the
-  respawn fade never stack or reach the engine's cached surface.</li>
-</ul>
+<dl>
+<dt><code>PapyrusLevelManager</code></dt>
+<dd>Gives <code>_get_enemy_class_map()</code> (the Papyrus enemy classes) and
+<code>_get_collectible_class()</code> (<code>PapyrusGoldScarab</code>); the shared <code>LevelManager._build()</code> builds
+them, as <code>ClassicLevelManager</code>'s give <code>Cobra</code>, <code>Scarab</code>, <code>Scorpion</code> and <code>GoldScarab</code>.</dd>
+<dt><code>BraveAdventurerSceneBase</code></dt>
+<dd>The gameplay both scenes play by (<code>brave_adventurer_core/scene.py</code>): the camera and parallax, the level and player built in that order (recordings
+number sprites by creation order), the controls, the <code>dt_tick</code> order, terrain, wall and enemy
+collision, death, respawn and high scores, the input handlers, <code>render()</code>, the pits and the
+<abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr>. Each game's scene stays in its own <code>game.py</code> under its own name (recordings name a scene
+by its module and class) and gives only what differs: <code>NAME</code>; <code>LEVEL_MANAGER_CLASS</code>,
+<code>PLAYER_CLASS</code> and <code>PLAYER_START_WORLD_Y</code>; <code>SAVE_APP_NAME</code> (<code>brave-adventurer</code>,
+<code>brave-adventurer-papyrus</code>); <code>_scarab_class()</code> (the enemy that follows the terrain); and the
+foot line, <code>_player_top_and_foot_line()</code> and <code>_player_world_y_standing_on()</code>: the classic
+edition's hitbox bottom (a <code>float</code> world y), Papyrus's <code>_snapped_player_top()</code> +
+<code>PAPYRUS_PLAYER_HEIGHT</code> (an <code>int</code>). The classic edition adds the voice assistant: it is
+discovered after the shared <code>__init__</code>, its mic button is bound after the shared controls,
+and it fills the base's voice hooks, which Papyrus leaves empty.</dd>
+<dt><code>PapyrusPlayer</code></dt>
+<dd>Has the same <code>PhysicsBody</code> and move methods as <code>Player</code>. Each <code>dt_tick</code>
+ticks physics, evaluates the <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> state machine, advances the <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> animation
+(<code>AnimatedSprite.update(self, dt)</code>), starts image from a fresh copy of the drawn frame
+(<code>refresh_drawn_image</code>), and
+mirrors image and hitbox when facing left (<code>hitbox_flip_x</code>), then refits the world-edge
+bound. That keeps the pose rule: the frame collision uses is the one drawn this frame.
+<code>frame_anchor = FrameAnchor.BOTTOM</code> draws each frame lower by its <code>draw_offset</code>, so frames
+whose feet end on rows 24 to 27 all stand on the 27-row foot line. Its standing support uses
+the engine's <code>AnimatedSprite.common_hitbox_x_range()</code> (the x-span every frame's hitbox
+shares) where the original measures its procedurally drawn poses.</dd>
+<dt>The Papyrus enemies and gold scarab</dt>
+<dd>Do the same, animating in <code>dt_tick</code>, and make <code>update()</code> a no-op that takes the dt
+(<code>Scene.update()</code> calls <code>update(dt)</code> on each dirty <code>AnimatedSprite</code>, so an <code>update()</code> that
+advanced the animation would advance it twice: BUGS.md #115, resolved).</dd>
+<dt><code>sprite_utils.py</code></dt>
+<dd><code>prepare_papyrus_sprite()</code> converts every loaded frame from the
+magenta color key to per-pixel alpha and sets the engine's <code>AnimatedSprite.scale</code> to
+<code>SPRITE_SCALE</code>, which draws every frame, rect, hitbox and <code>draw_offset</code> at 2x (BUGS.md #144);
+<code>refresh_drawn_image()</code> copies the engine's drawn frame each tick, so the facing flip and the
+respawn fade never stack or reach the engine's cached surface.</dd>
+</dl>
 <table>
 <thead>
 <tr>
@@ -4697,7 +4742,7 @@ diagrams readable).</p>
 <td><code>player.toml</code> (20 x 28)</td>
 <td>idle, running, jumping, falling</td>
 <td>per frame</td>
-<td>8 <code>[[transition]]</code>s on velocity and <code>on_ground</code> (falling last, mirroring <code>FALLING_VELOCITY_THRESHOLD</code>)</td>
+<td>9 <code>[[transition]]</code>s on velocity and <code>on_ground</code> (falling last, mirroring <code>FALLING_VELOCITY_THRESHOLD</code>)</td>
 </tr>
 <tr>
 <td><code>cobra.toml</code></td>
@@ -4764,7 +4809,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/src/brave_adventurer_core/constants.py</code></td>
-<td>Screen, physics, camera, parallax, layer, scoring, terrain and background colour, <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr>, lives and rumble constants both games share</td>
+<td>Screen, physics, camera, parallax, layer, scoring, terrain and background color, <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr>, lives and rumble constants both games share</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/src/brave_adventurer_core/terrain.py</code></td>
@@ -4816,7 +4861,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/src/brave_adventurer/constants.py</code></td>
-<td>The classic sprites' sizes and colours, the arm and leg swing</td>
+<td>The classic sprites' sizes and colors, the arm and leg swing</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py</code></td>
@@ -4840,7 +4885,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/sprite_utils.py</code></td>
-<td>Colour key to alpha, <code>scale</code> set to 2x, per-tick image refresh</td>
+<td>Color key to alpha, <code>scale</code> set to 2x, per-tick image refresh</td>
 </tr>
 <tr>
 <td><code>src/games/brave-adventurer/src/brave_adventurer_papyrus/constants.py</code></td>
@@ -4892,7 +4937,7 @@ names; and its one browser page, the title screen, ships all four archives, the 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 15, 2026 23:25:25 UTC">November 15, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
   </span>
 
     

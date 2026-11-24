@@ -3613,16 +3613,31 @@ turn dull blue and run away, and you can eat them. Each life is a <strong>take</
 game like it. Everything here comes from <code>src/games/mr-muncher/src/mr_muncher/</code>. The module
 docstrings there are the detailed reference.</p>
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w">                      </span><span class="c1"># the console script (pyproject.toml [project.scripts])</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w">                      </span><span class="c1"># the console script (src/games/mr-muncher/pyproject.toml [project.scripts])</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w"> </span>--debug-overlay<span class="w">      </span><span class="c1"># start with the debug overlay (F3 toggles it, F4 cycles panels)</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w"> </span>--record-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># record the session</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w"> </span>--replay-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># watch it again, exactly</span>
 </span></code></pre></div>
+<p>Recording and replay are the engine's tools, the same from either front end:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Game</label><label for="__tabbed_1_2">glitchygames</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w"> </span>--record-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># record the session</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w"> </span>--replay-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># watch it again, exactly</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>uv<span class="w"> </span>run<span class="w"> </span>mr-muncher<span class="w"> </span>--verify<span class="w">                      </span><span class="c1"># its golden and bundled demo, headless</span>
+</span></code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>record-trace<span class="w"> </span>mr-muncher<span class="w"> </span>run.jsonl.gz
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>replay-trace<span class="w"> </span>run.jsonl.gz
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>verify<span class="w"> </span>--game<span class="w"> </span>mr-muncher
+</span></code></pre></div>
+</div>
+</div>
+</div>
 <p><code>main()</code> (<code>game.py</code>) is just <code>GameEngine(game=MrMuncherScene).start()</code>. The scene does not
 define an <code>args()</code> class method, so the game adds no options of its own (the engine logs <code>Game
 does not implement arguments</code> at INFO, shown with <code>--log-level info</code>). All its options are the
-engine's. These are the ones that
-matter here:</p>
+engine's, described in <a href="../../architecture/argument_system/">Argument System</a>. These are the ones
+that matter here:</p>
 <table>
 <thead>
 <tr>
@@ -3662,6 +3677,10 @@ matter here:</p>
 <tr>
 <td><code>--live-voice-pool</code></td>
 <td>The projector sound needs one free live voice</td>
+</tr>
+<tr>
+<td><code>--invalid-high-scores {refuse,drop}</code> (default <code>refuse</code>)</td>
+<td>What the high-score table does with a saved entry it cannot read: refuse it (keep the file, save nothing) or drop it with a warning (see <a href="#scoring-the-bonus-reel-and-lives">Scoring</a>)</td>
 </tr>
 <tr>
 <td><code>--record-trace</code>, <code>--replay-trace</code>, <code>--headless</code></td>
@@ -3722,14 +3741,29 @@ tied to a key's physical position and works the same on every keyboard layout.</
 <td>The engine's <code>PauseScene</code> (both gamepad event layers)</td>
 </tr>
 <tr>
-<td>On the game-over screen: SPACE (release), gamepad A or Start / ESC or gamepad B or Back</td>
-<td>New game / quit</td>
-<td><code>MrMuncherGameOverScene</code> and <code>GameOverScene</code></td>
+<td>On the pause screen: the window regains focus</td>
+<td>Resume (ignored in the first 0.5 s)</td>
+<td>The engine's <code>PauseScene</code> (<code>on_window_focus_gained_event</code>)</td>
+</tr>
+<tr>
+<td>On the game-over screen: SPACE (on release) / gamepad A or Start (on the press)</td>
+<td>New game</td>
+<td><code>GameOverScene</code> (SPACE), <code>MrMuncherGameOverScene</code> (gamepad)</td>
+</tr>
+<tr>
+<td>On the game-over screen: ESC (on the press) / Q (on release)</td>
+<td>Quit</td>
+<td><code>GameOverScene</code> and <code>Scene</code></td>
 </tr>
 </tbody>
 </table>
-<p>Note that ESC pauses the game, but ESC on the pause screen quits. The pause and game-over
-screens are engine scenes and check key codes (<code>event.key</code>), not scancodes.</p>
+<div class="admonition warning">
+<p class="admonition-title">ESC pauses the game, but ESC on the pause screen quits</p>
+<p>The pause and game-over screens are engine scenes and check key codes (<code>event.key</code>), not
+scancodes. On the game-over screen gamepad B and Back do nothing: <code>MrMuncherGameOverScene</code>
+handles the gamepad buttons itself and does not pass them on to the engine's screen, which
+would quit on them.</p>
+</div>
 <h2 id="its-package">Its package<a class="headerlink" href="#its-package" title="Permanent link">#</a></h2>
 <p>Mr. Muncher is a package of its own beside the engine, <code>src/games/mr-muncher/</code> (distribution
 <code>mr-muncher</code>, import package <code>mr_muncher</code>), the first game moved out of the engine. How such a
@@ -3792,8 +3826,16 @@ package is laid out, installed, tested and built, and how a game is moved into o
 <td>The parts: maze, levels, actors, pictures, scenery, sounds, autopilot</td>
 </tr>
 <tr>
+<td><code>src/games/mr-muncher/tests/test_mr_muncher_install_location.py</code>, <code>test_mr_muncher_logical_names.py</code>, <code>test_mr_muncher_touch_controls.py</code></td>
+<td>Small checks: where the package is imported from, the logical names its recordings hold, the browser's touch buttons press keys the game reads</td>
+</tr>
+<tr>
 <td><code>src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>The golden replay (2,072 frames)</td>
+</tr>
+<tr>
+<td><code>src/games/mr-muncher/src/mr_muncher/demos/chase.jsonl.gz</code></td>
+<td>The bundled demo, 1,950 frames (see <a href="#the-autopilot">The autopilot</a>)</td>
 </tr>
 <tr>
 <td><code>scripts/golden_inputs.py</code></td>
@@ -3802,6 +3844,10 @@ package is laid out, installed, tested and built, and how a game is moved into o
 <tr>
 <td><code>scripts/record_scripted_session.py</code>, <code>scripts/golden_inputs.py</code></td>
 <td>The command that records the fixture (on the engine's scripted-session recorder, <code>src/glitchygames/replay/tools/scripted_sessions.py</code>); <code>mr_muncher_controls</code> (the golden replay's controls tail)</td>
+</tr>
+<tr>
+<td><code>scripts/record_bundled_demos.py</code>, <code>scripts/demo_inputs.py</code></td>
+<td>The recipe <code>mr_muncher_chase</code> that records the bundled demo, and <code>mr_muncher_demo_script</code></td>
 </tr>
 </tbody>
 </table>
@@ -3832,7 +3878,7 @@ holds the game's own scenes (<code>MrMuncherGameOverScene</code> extends the eng
     GameOver --&gt; NewGame : SPACE released, or A or Start&lt;br/&gt;switch_to_scene
     Reel --&gt; [*] : Q (scene_manager.quit())
     Pause --&gt; [*] : ESC, B, Back or Q
-    GameOver --&gt; [*] : ESC, B or Back</code></pre>
+    GameOver --&gt; [*] : ESC, or Q released</code></pre>
 <dl>
 <dt>Next reel</dt>
 <dd><code>_go_to_next_level</code> sets <code>next_scene</code> to a new <code>MrMuncherScene</code> with
@@ -3955,37 +4001,37 @@ the phase clocks run on game time, a paused game also pauses its countdowns.</p>
 </tr>
 </tbody>
 </table>
-<p>The message is drawn again only when its text or colour changes (<code>message_shown</code>), and each cue
+<p>The message is drawn again only when its text or color changes (<code>message_shown</code>), and each cue
 plays once, when its text first appears.</p>
 <h2 id="the-maze">The maze<a class="headerlink" href="#the-maze" title="Permanent link">#</a></h2>
 <h3 id="layout-as-text">Layout as text<a class="headerlink" href="#layout-as-text" title="Permanent link">#</a></h3>
 <p><code>MAZE_LAYOUT</code> is a tuple of strings, one per row of tiles: 27 columns by 24 rows. It is
 symmetric from left to right, every corridor is one tile wide, there are no dead ends, and every
 open tile can be reached from every other. The tests check all four properties.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>###########################
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>#o...........#...........o#
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>#.####.#####.#.#####.####.#
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>#.####.#####.#.#####.####.#
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>T.........................T
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>#.####.##.#######.##.####.#
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>#......##....#....##......#
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>#.####.#####.#.#####.####.#
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>#.#....##         ##....#.#
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>#.#.##.## ###-### ##.##.#.#
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>#...##.   #HHHHH#   .##...#
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>###.##.## #HHHHH# ##.##.###
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>#......## #HHHHH# ##......#
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>#.####.## ####### ##.####.#
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>#.#....##         ##....#.#
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>#.#.##.#####.#.#####.##.#.#
-</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>#...##.......#.......##...#
-</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>#.####.#####.#.#####.####.#
-</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>#o..##.......P.......##..o#
-</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>###.##.##.#######.##.##.###
-</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>#......##....#....##......#
-</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>#.##########.#.##########.#
-</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>T.........................T
-</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>###########################
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>###########################
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>#o...........#...........o#
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>#.####.#####.#.#####.####.#
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>#.####.#####.#.#####.####.#
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>T.........................T
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>#.####.##.#######.##.####.#
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>#......##....#....##......#
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>#.####.#####.#.#####.####.#
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>#.#....##         ##....#.#
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>#.#.##.## ###-### ##.##.#.#
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>#...##.   #HHHHH#   .##...#
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>###.##.## #HHHHH# ##.##.###
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>#......## #HHHHH# ##......#
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>#.####.## ####### ##.####.#
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>#.#....##         ##....#.#
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>#.#.##.#####.#.#####.##.#.#
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>#...##.......#.......##...#
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>#.####.#####.#.#####.####.#
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>#o..##.......P.......##..o#
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>###.##.##.#######.##.##.###
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>#......##....#....##......#
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>#.##########.#.##########.#
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>T.........................T
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>###########################
 </span></code></pre></div>
 <table>
 <thead>
@@ -4040,7 +4086,7 @@ open tile can be reached from every other. The tests check all four properties.<
 </table>
 <p><code>Maze</code> is a frozen pydantic model. Its validator rejects a layout that is not a rectangle or that
 does not have exactly one <code>P</code>. It knows nothing about pixels. Positions are in <strong>tile units</strong>:
-the centre of the tile in column <code>c</code>, row <code>r</code> is <code>(c, r)</code>, so an actor standing on a tile centre
+the center of the tile in column <code>c</code>, row <code>r</code> is <code>(c, r)</code>, so an actor standing on a tile center
 has whole-number coordinates.</p>
 <dl>
 <dt>Tunnels</dt>
@@ -4058,19 +4104,19 @@ size.</dd>
 </dl>
 <h3 id="grid-movement-and-turn-buffering">Grid movement and turn buffering<a class="headerlink" href="#grid-movement-and-turn-buffering" title="Permanent link">#</a></h3>
 <p>Both the player and the munchers are <code>MazeActor</code>s. They move only along corridors, and they
-choose a direction only when they stand exactly on a tile centre (<code>is_at_tile_centre</code>: both
+choose a direction only when they stand exactly on a tile center (<code>is_at_tile_centre</code>: both
 coordinates are whole numbers).</p>
-<p><code>MazeActor.advance(distance=..., choose_direction=...)</code> walks a distance from one tile centre to
-the next. Each time it reaches a centre, or starts on one, it calls <code>choose_direction</code> to decide
-the way on (<code>None</code> means stop). When a step reaches a centre, the coordinate is rounded so it
-lands exactly on it. Because the walk goes centre to centre, a long frame cannot skip past a
+<p><code>MazeActor.advance(distance=..., choose_direction=...)</code> walks a distance from one tile center to
+the next. Each time it reaches a center, or starts on one, it calls <code>choose_direction</code> to decide
+the way on (<code>None</code> means stop). When a step reaches a center, the coordinate is rounded so it
+lands exactly on it. Because the walk goes center to center, a long frame cannot skip past a
 turn.</p>
 <p>The player's turn buffering (<code>Player.travel</code> and <code>_choose_direction</code>):</p>
 <ol>
 <li><code>wanted_direction</code> is the way the player last asked for.</li>
-<li><strong>Reversing happens at once</strong>, even between centres. If the wanted direction is the opposite
+<li><strong>Reversing happens at once</strong>, even between centers. If the wanted direction is the opposite
    of the current one, the player turns round on the spot.</li>
-<li>On each tile centre the player takes the wanted direction if it is open. Otherwise it goes
+<li>On each tile center the player takes the wanted direction if it is open. Otherwise it goes
    straight on if it can, and stops against a wall if it cannot. The wanted direction stays
    remembered until a junction opens that way.</li>
 <li>A new life starts heading left with left wanted, as in the arcade game.</li>
@@ -4088,7 +4134,7 @@ flanker aims relative to it.</p>
 <thead>
 <tr>
 <th>Name</th>
-<th>Colour</th>
+<th>Color</th>
 <th><code>Personality</code></th>
 <th>Chase target</th>
 <th>Scatter corner</th>
@@ -4110,7 +4156,7 @@ flanker aims relative to it.</p>
 <td><code>AMBUSHER</code></td>
 <td>4 tiles ahead of where the player faces</td>
 <td>(2, -3), top left</td>
-<td>House centre</td>
+<td>House center</td>
 </tr>
 <tr>
 <td>Gnasher</td>
@@ -4133,13 +4179,13 @@ flanker aims relative to it.</p>
 <p>The scatter corners lie outside the maze, so a scattering muncher circles the block of walls
 nearest its corner.</p>
 <h3 id="choosing-a-turn">Choosing a turn<a class="headerlink" href="#choosing-a-turn" title="Permanent link">#</a></h3>
-<p>At each tile centre, a roaming muncher (<code>Muncher._choose_direction</code>):</p>
+<p>At each tile center, a roaming muncher (<code>Muncher._choose_direction</code>):</p>
 <ol>
 <li>Never turns back by itself. The way it came is removed from the options; it is used only at
    a dead end, and this maze has none.</li>
 <li>Considers only open corridor tiles (the same test as the player's, so roaming munchers never
    walk back into the house).</li>
-<li>If <strong>frightened</strong>, picks one of the options at random from the seeded stream
+<li>If <strong>frightened</strong> (and roaming: eyes never are), picks one of the options at random from the seeded stream
    <code>random_stream('mr_muncher.munchers')</code>, so a replay makes the same choices.</li>
 <li>Otherwise it takes the option whose next tile is closest in a straight line (<code>tile_distance</code>,
    tunnel-aware) to its <strong>target</strong>. On a tie the order is up, left, down, right
@@ -4159,7 +4205,7 @@ each step: the player's tile and facing, Chomper's tile, and whether the muncher
     WAITING : WAITING&lt;br/&gt;bobs on its seat
     LEAVING : LEAVING&lt;br/&gt;across, then up through the door
     EATEN : EATEN&lt;br/&gt;only eyes, through the corridors to the entrance
-    ENTERING : ENTERING&lt;br/&gt;eyes go down to the house centre
+    ENTERING : ENTERING&lt;br/&gt;eyes go down to the house center
     WAITING --&gt; LEAVING : life_seconds reaches its release time
     LEAVING --&gt; ROAMING : reaches the house entrance
     state ROAMING {
@@ -4176,7 +4222,7 @@ each step: the player's tile and facing, Chomper's tile, and whether the muncher
     }
     ROAMING --&gt; EATEN : player touches it while frightened
     EATEN --&gt; ENTERING : eyes reach the house entrance
-    ENTERING --&gt; LEAVING : reaches the house centre&lt;br/&gt;(no longer frightened)</code></pre>
+    ENTERING --&gt; LEAVING : reaches the house center&lt;br/&gt;(no longer frightened)</code></pre>
 <table>
 <thead>
 <tr>
@@ -4213,7 +4259,7 @@ each step: the player's tile and facing, Chomper's tile, and whether the muncher
 </tr>
 <tr>
 <td><code>ENTERING</code></td>
-<td><code>_walk_in</code>: down to the house centre</td>
+<td><code>_walk_in</code>: down to the house center</td>
 <td><code>eyes_speed</code></td>
 <td>No</td>
 </tr>
@@ -4221,7 +4267,7 @@ each step: the player's tile and facing, Chomper's tile, and whether the muncher
 </table>
 <p>A <strong>change of mode turns every roaming muncher round</strong>. When the schedule's phase changes, or a
 snack starts a fright, the scene sets <code>reverse_soon</code>, and the muncher reverses on its next step,
-even between tile centres. This is the only time a muncher reverses.</p>
+even between tile centers. This is the only time a muncher reverses.</p>
 <h3 id="scatter-chase-and-fright-timing">Scatter, chase and fright timing<a class="headerlink" href="#scatter-chase-and-fright-timing" title="Permanent link">#</a></h3>
 <p>The scene keeps three clocks per life, all in game time and all reset when a life starts
 (<code>_reset_actors</code>). <code>_advance_timers</code> advances them on every step:</p>
@@ -4334,18 +4380,21 @@ player is 1.1 times faster, and a hurrying Chomper is 1.08 times faster than the
 </tbody>
 </table>
 <ul>
-<li><strong>The bonus reel</strong> appears on the tile three rows below the house centre (<code>message_cell</code>,
+<li><strong>The bonus reel</strong> appears on the tile three rows below the house center (<code>message_cell</code>,
   where the messages show too) after the 70<sup>th</sup> and the 170<sup>th</sup> sprocket of a reel
-  (<code>BONUS_SPROCKET_COUNTS</code>), and stays 9.5 s unless eaten.</li>
+  (<code>BONUS_SPROCKET_COUNTS</code>; a snack counts as one), and stays 9.5 s (<code>BONUS_SECONDS</code>) unless eaten.</li>
 <li><strong>Extra life</strong>: one, the first time the score reaches 10,000 (<code>extra_life</code> sound). The game
   starts with 3 lives, counting the one in play.</li>
-<li><strong>Contact</strong>: a muncher touches the player when their centres are closer than 0.6 tiles
+<li><strong>Contact</strong>: a muncher touches the player when their centers are closer than 0.6 tiles
   (<code>CONTACT_DISTANCE_TILES</code>, tunnel-aware). Only munchers that are roaming or leaving the house
   count. The first muncher found touching settles the step: it is eaten if frightened,
   otherwise the player is caught.</li>
-<li><strong>High scores</strong> use the engine's saves: <code>open_saves(app_name='mr-muncher')</code>, save name
+<li><strong>High scores</strong> use the engine's saves and its <code>HighScoreTable</code>
+  (<code>glitchygames.state.high_scores</code>): <code>open_saves(app_name='mr-muncher')</code>, save name
   <code>high_scores</code>, stored as <code>{'scores': [{'score': ..., 'level': ...}, ...]}</code>, best first, the
-  best 10 kept. The game is added to the table when the last life is lost. The panel's HIGH
+  best 10 kept. The game is added to the table when the last life is lost. A saved entry the
+  table cannot read is refused (nothing is saved, the file stays as found) or dropped with a
+  warning, as <code>--invalid-high-scores</code> says. The panel's HIGH
   SCORE is the larger of the best saved score and the current score. In a replay the saves are
   an in-memory sandbox seeded from the recording, so a replay never touches real saves.</li>
 </ul>
@@ -4502,10 +4551,14 @@ inheritance, pointing at the base class.</p>
     Sprite &lt;|-- SidePanel</code></pre>
 <p>The actors are <strong>world-space sprites</strong> (<code>COORDINATE_SPACE = CoordinateSpace.WORLD</code>). They keep
 their positions in tiles, report <code>world_x</code>/<code>world_y</code> in pixels (the picture's top-left corner),
-and the engine places their rects every frame. Hiding one uses <code>hidden = True</code>, never
-<code>visible</code>, which the engine owns for world sprites. The camera never moves (the scene sets no
+and the engine places their rects every frame. The camera never moves (the scene sets no
 follow target), so world pixels are screen pixels. The still sprites are screen space and place
 their own rects.</p>
+<div class="admonition warning">
+<p class="admonition-title">Hide a world sprite with <code>hidden = True</code>, never <code>visible</code></p>
+<p>The engine owns <code>visible</code> for world sprites. The still sprites (screen space) are shown and
+hidden with <code>visible</code>.</p>
+</div>
 <p><code>render()</code> is overridden: it blits the whole background (the flash copy on alternate quarter
 seconds during the level-clear flash), clears the group with that same background, draws every
 sprite, and sets <code>self.rects = None</code> so the whole screen is presented.</p>
@@ -4513,8 +4566,11 @@ sprite, and sets <code>self.rects = None</code> so the whole screen is presented
 <p><code>drawing.py</code> draws every picture with pygame primitives. Shapes are drawn four times larger
 (<code>SUPERSAMPLE</code>) and smooth-scaled down, which smooths their edges. The maze is drawn twice as
 large (<code>MAZE_SUPERSAMPLE</code>) because its blur is the costly part. Every function is cached with
-<code>functools.cache</code>, because the game asks for the same few pictures every frame, so callers must
-not draw on the surfaces they get back.</p>
+<code>functools.cache</code>, because the game asks for the same few pictures every frame.</p>
+<div class="admonition warning">
+<p class="admonition-title">Never draw on a surface a <code>drawing</code> function returns</p>
+<p>The surface is the cached one, shared by every caller.</p>
+</div>
 <p>The maze picture: each open tile is drawn as a black square widened by 0.2 of a tile on each
 side, the wall shape is blurred, and it is cut at two thresholds. The first gives the gold trim
 with rounded corners, the second the velvet inside it. The door is a bar across its tile.</p>
@@ -4526,13 +4582,16 @@ with per-pixel alpha (macOS cocoa), a plain <code>pygame.Surface</code> takes th
 including its alpha channel. Alpha-blending a per-pixel-alpha picture such as the smooth-scaled
 maze onto it leaves alpha 0 in those pixels. Every sprite later blended over such a pixel would
 be copied unblended, and the window shows alpha 0 as black. Making the backgrounds opaque once,
-when the scene is built, keeps the sprites' blending correct. The engine also makes every
-presented frame opaque (<code>SceneManager._show_frame</code>), but that happens too late to fix blending
-inside the frame.</p>
+when the scene is built, keeps the sprites' blending correct.</p>
+<div class="admonition note">
+<p class="admonition-title">The engine's own opaque step comes too late</p>
+<p>The engine also makes every presented frame opaque (<code>SceneManager._show_frame</code>), but that
+happens after the frame is drawn, too late to fix blending inside it.</p>
+</div>
 <h3 id="layout-and-the-side-panels">Layout and the side panels<a class="headerlink" href="#layout-and-the-side-panels" title="Permanent link">#</a></h3>
 <p><code>maze_geometry</code> makes the tiles as large as the screen's height allows (<code>height // 24</code>), unless
 the side panels would then be narrower than 100 px (<code>(width - 200) // 27</code>). Tiles are never
-smaller than 8 px. The maze is centred. The two <code>SidePanel</code>s fill the space to its left and
+smaller than 8 px. The maze is centered. The two <code>SidePanel</code>s fill the space to its left and
 right, drawn as film-strip edges with sprocket holes. The left panel shows the title, SCORE,
 HIGH SCORE and REEL; the right one the spare lives (up to four bucket icons), this reel's BONUS,
 and the control hints. <code>fitted_font</code> chooses the largest bundled Bitstream Vera size (from the
@@ -4595,7 +4654,7 @@ volume.</p>
 </tbody>
 </table>
 <p>Behind play runs the <strong>projector</strong>, a live instrument (<code>sounds.PROJECTOR</code>, started with
-<code>start(owner=self, volume=PROJECTOR_VOLUME)</code>, 0.05 as heard: raised by √2 for the centred pan's
+<code>start(owner=self, volume=PROJECTOR_VOLUME)</code>, 0.05 as heard: raised by √2 for the centered pan's
 3 dB) of low-pass filtered noise with a tremolo, so it flutters like a
 projector's shutter. Its <code>cutoff</code> and <code>flutter</code> parameters route one to one to the filter and the
 tremolo rate. <code>_update_projector</code> sets them only when they change: brighter and
@@ -4621,7 +4680,7 @@ play a last life until game over (setting <code>wanted_direction</code> directly
 </dl>
 <p>How it decides:</p>
 <pre class="mermaid"><code>flowchart TB
-    A["decision_point()&lt;br/&gt;the next tile centre the player reaches&lt;br/&gt;(or the one after, if a key pressed now&lt;br/&gt;would arrive too late)"] --&gt; B["danger = corridor distances&lt;br/&gt;from every dangerous muncher"]
+    A["decision_point()&lt;br/&gt;the next tile center the player reaches&lt;br/&gt;(or the one after, if a key pressed now&lt;br/&gt;would arrive too late)"] --&gt; B["danger = corridor distances&lt;br/&gt;from every dangerous muncher"]
     B --&gt; C["for each way on: way_on()&lt;br/&gt;territory = tiles the player reaches&lt;br/&gt;at least 2 tiles before any muncher"]
     C --&gt; D{"seeking capture?"}
     D --&gt;|yes| X["shortest way to a dangerous muncher"]
@@ -4634,10 +4693,12 @@ play a last life until game over (setting <code>wanted_direction</code> directly
 pressed now changes the player's direction about two frames later, so the autopilot decides
 that far ahead. A frightened muncher is prey only if the player can reach it with at least
 0.75 s of the fright left.</p>
-<p>The game has no bundled attract-mode demo. The arcade showcase in
-<code>plans/2026-10-23-arcade-showcase.md</code> is a design draft. Because the golden script is steered
-by the autopilot, a demo could be recorded with
-<code>scripts/record_scripted_session.py --game mr_muncher --script-only --output PATH</code>.</p>
+<p>The game's bundled demo, <code>src/games/mr-muncher/src/mr_muncher/demos/chase.jsonl.gz</code> (1,950
+frames), is the golden script without its controls tail, so it is steered by the same autopilot.
+Its recipe is <code>mr_muncher_chase</code> in <code>scripts/record_bundled_demos.py</code>; its script,
+<code>mr_muncher_demo_script</code> in <code>scripts/demo_inputs.py</code>, lets go of the held arrow key on the last
+frame, so nothing is still pressed when a demo loops. <code>uv run mr-muncher --verify</code> replays it
+with the golden.</p>
 <h2 id="how-it-uses-the-engine">How it uses the engine<a class="headerlink" href="#how-it-uses-the-engine" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -4661,7 +4722,7 @@ by the autopilot, a demo could be recorded with
 </tr>
 <tr>
 <td>Saves</td>
-<td>High scores through <code>open_saves</code> (a sandbox in a replay)</td>
+<td>High scores through <code>open_saves</code> (a sandbox in a replay) and the engine's <code>HighScoreTable</code></td>
 </tr>
 <tr>
 <td><code>ActionMap</code></td>
@@ -4696,7 +4757,7 @@ by the autopilot, a demo could be recorded with
 <h3 id="debug-overlay">Debug overlay<a class="headerlink" href="#debug-overlay" title="Permanent link">#</a></h3>
 <p><code>MrMuncherScene.debug_draw(surface, camera)</code> adds the game's own annotation to the engine's
 debug overlay (<code>--debug-overlay</code> or F3). For every muncher that is roaming or leaving the house
-and has a target, it draws a cross in the muncher's colour on the target tile and a thin line
+and has a target, it draws a cross in the muncher's color on the target tile and a thin line
 from the muncher to it. This shows each personality's aim live: for example, Snapper's cross
 four tiles in front of the bucket, or Nibbles' cross jumping to its corner when it gets close.</p>
 <h3 id="recording-replay-and-the-golden-replay">Recording, replay and the golden replay<a class="headerlink" href="#recording-replay-and-the-golden-replay" title="Permanent link">#</a></h3>
@@ -4712,17 +4773,23 @@ does not use: it taps W, A, S and D (the autopilot steers with the arrows), paus
 resumes, and ends with the game's own Q. The recording's last frame holds the QUIT event that the
 game itself posted, so a replay in which Q no longer quits diverges. With the tail, the fixture
 holds 2,072 frames. <code>tests/replay/test_golden_replays.py</code> checks that every bound control is
-exercised. The gamepad controls (D-pad, stick, Start and the hat, listed as <code>steer</code>) are
-excused in <code>UNEXERCISED_CONTROLS</code>, because the scripted session runs on the dummy driver,
-which has no gamepad.</p>
+exercised. The gamepad controls (the D-pad, stick and Start, listed as the four <code>move_*</code> actions
+and <code>pause</code>; and the hat, listed as <code>steer</code>) are excused in <code>UNEXERCISED_CONTROLS</code>
+(<code>tests/replay/golden_replay_controls.py</code>), because the scripted session runs on the dummy
+driver, which has no gamepad.</p>
 <p>The pytest plugin <code>src/glitchygames/testing/replays.py</code> replays the fixture in a child process
-(<code>mr-muncher --replay-trace ... --headless</code>), and the test fails unless it exits <code>SUCCESS</code>.
-Re-record the fixture only deliberately (the commands are in the script's docstring), never just
-to make a failing replay pass.</p>
+(<code>mr-muncher --replay-trace ... --headless</code>), and the test fails unless it exits <code>SUCCESS</code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Re-record the golden replay only deliberately</p>
+<p>The commands are in <code>scripts/record_scripted_session.py</code>'s docstring. Never re-record just to
+make a failing replay pass.</p>
+</div>
 <h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">#</a></h2>
-<p>Both test files below (in the member, <code>src/games/mr-muncher/tests/</code>) use real pygame, the real 800x480 display and real files (saves go to
-<code>tmp_path</code>). What is drawn is checked by its pixels. The tests patch only sound playback, where
-a test is about which sound plays.</p>
+<p>The two test files below (in the member, <code>src/games/mr-muncher/tests/</code>) use real pygame, the
+real 800x480 display and real files (saves go to a temporary directory). What is drawn is checked
+by its pixels. They patch only sound playback, where a test is about which sound plays, and (for
+<code>main()</code>) the shutdown of pygame. The member's other test files are the small checks listed in
+<a href="#where-things-live">Where things live</a>.</p>
 <p><code>src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py</code> covers the parts:</p>
 <table>
 <thead>
@@ -4745,8 +4812,12 @@ a test is about which sound plays.</p>
 <td>Reel 1 values, the ramp, its end at reel 8 and the shortest fright, no reel 0, scatter then chase, the flash</td>
 </tr>
 <tr>
+<td><code>TestGeometryAndCells</code></td>
+<td>Tiles to pixels, and positions to tiles</td>
+</tr>
+<tr>
 <td><code>TestPlayerMovement</code></td>
-<td>Exact landing on tile centres, walls, buffered turns, immediate reversing, the tunnel, <code>next_cell_ahead</code>, <code>reset</code></td>
+<td>Exact landing on tile centers, walls, buffered turns, immediate reversing, the tunnel, <code>next_cell_ahead</code>, <code>reset</code></td>
 </tr>
 <tr>
 <td><code>TestChaseTargets</code></td>
@@ -4805,7 +4876,7 @@ generated for every workspace member's package (<code>scripts/gen_ref_pages.py</
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 02:01:18 UTC">November 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
   </span>
 
     

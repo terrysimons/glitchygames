@@ -1289,6 +1289,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#inside-the-package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inside the package
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inside the package">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-a-sound-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a sound flows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The modules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#outside-a-game" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3187,6 +3226,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#inside-the-package" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inside the package
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inside the package">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-a-sound-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a sound flows
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-modules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The modules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#outside-a-game" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3327,13 +3405,14 @@ compiles them when the game starts,
 in the <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> power-on's spare time, a slice a frame, and finishes them before the game is built (at
 once where the power-on is skipped). The game's own requests then find each one compiled. A game
 that declares none makes no audio engine for them. A sound first asked for during gameplay still
-compiles in that frame, and the engine counts it, logs it and shows it in the Audio panel as a
+compiles in that frame, and the engine counts it and lists it by name in the Audio panel as a
 gameplay compile, so you can add it to <code>SOUNDS</code>. A setup whose compiles take more than 50 ms logs
 one INFO line naming its slowest sounds.</p>
 <h2 id="short-names-and-paths">Short names and paths<a class="headerlink" href="#short-names-and-paths" title="Permanent link">#</a></h2>
 <p>A short name (<code>'coin'</code>) is looked up in the active scene's <code>SOUND_DIRECTORY</code> (a class attribute,
 <code>'sounds'</code> by default), relative to the scene's package directory. Every sound file there
-contributes its sounds by name; two files defining the same name are an error naming both. A
+contributes its <code>[sounds.*]</code> and <code>[effects.*]</code> tables by name (a version 0 file, its
+<code>[recipes.*]</code>); two files defining the same name are an error naming both. A
 recorded file is a short name too: <code>sounds/sfx_slap.wav</code> is <code>'sfx_slap'</code>.</p>
 <p>A path (<code>'sounds/pickups.toml#coin'</code>, <code>'sounds/sfx_slap.wav'</code>) is relative to the scene's package
 directory and always works, whatever the short-name index holds.</p>
@@ -3384,7 +3463,9 @@ renderer for music and live sounds. Both play through <code>audio.sound(...)</co
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">duration</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.1</span>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">envelope</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">attack</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.005</span><span class="p">,</span><span class="w"> </span><span class="n">decay</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.03</span><span class="p">,</span><span class="w"> </span><span class="n">sustain_level</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.6</span><span class="p">,</span><span class="w"> </span><span class="n">release</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">0.05</span><span class="w"> </span><span class="p">}</span>
 </span></code></pre></div>
-<p><code>audio.sounds.add_effects([...])</code> registers effects by name, looked up before the sound directory.
+<p>Like a <code>[sounds.*]</code> table, it is a short name (<code>'jump'</code>) as well as a path
+(<code>'sounds/jumps.toml#jump'</code>); one file may not use a name for both.
+<code>audio.sounds.add_effects([...])</code> registers effects by name, looked up before the sound directory.
 Each tone is oscillator, distortion, filters, tremolo, envelope, volume; the tones are mixed at
 their offsets and normalized to <code>peak</code>, or left exactly as summed with <code>normalize=False</code>.</p>
 <h2 id="mixes">Mixes<a class="headerlink" href="#mixes" title="Permanent link">#</a></h2>
@@ -3410,7 +3491,8 @@ for sample. A melody rendered alone can't loop in time: its length drops a trail
 the instrument's release tail. A looping mix keeps the rest as silence and adds every frame past
 its end back onto its start, as a tail would ring into the next pass. Without <code>loop_seconds</code> it is
 as long as its longest part, tail included.</p>
-<p>Its identity is a digest of its parts' own keys, their volumes, the loop and the mixer's rate, so
+<p>Its identity is a digest of its name, its parts' own keys, their volumes, the loop and the mixer's
+rate, so
 changing any part's notes or volume builds a new mix. Each part is seeded from
 <code>&lt;mix name&gt;-part-&lt;index&gt;</code>. A mix takes no <code>pitch</code>, <code>notes</code>, <code>chord</code>, <code>length</code> or <code>transpose</code>
 (its parts carry their notes), and a live instrument can't be a part. A mix may be declared in
@@ -3442,8 +3524,8 @@ the sound does:</p>
 </span></code></pre></div>
 <ul>
 <li><strong>Parameters</strong> clamp to their range (each clamp counted, <code>handle.clamp_count</code>) and glide to a
-  new value: one-pole over <code>smoothing_ms</code> (30 by default), or a straight line with
-  <code>glide='linear'</code>. Any number of <code>set</code> calls before a chunk count as the last one.</li>
+  new value: one-pole, with <code>smoothing_ms</code> (30 by default) as its time constant, or with
+  <code>glide='linear'</code> a straight line that arrives in <code>smoothing_ms</code>. Any number of <code>set</code> calls before a chunk count as the last one.</li>
 <li><strong>Routes</strong> (at most 8) map a parameter onto <code>pitch</code> (Hz), <code>level</code> (multiplied in),
   <code>filter.cutoff</code>, <code>tremolo.rate</code>, <code>tremolo.depth</code> or <code>sources.&lt;name&gt;.level</code>, by a curve:
   <code>linear</code>, <code>exponential</code>, <code>logarithmic</code>, <code>smoothstep</code> or <code>steps(n)</code>. Levels multiply; pitch,
@@ -3508,7 +3590,7 @@ mode):</p>
 </tr>
 <tr>
 <td><code>none</code></td>
-<td>Nothing is kept: every <code>play()</code> compiles in its frame. This is the switch that shows what compiling in gameplay costs. Getting a sound renders nothing, and a sound played 5 times compiles 5 times. What a game reads of a sound never depends on the cache (a replay may run under another mode): a synthesized sound's <code>length</code> is worked out without rendering, exactly as a compile would size it; whatever only a compile can tell (every <code>peak</code>, and a recorded file's <code>length</code> and rate) comes from one compile on its first read, counted like any compile, then kept. A play's compile gives them too, so a read after a play compiles nothing more.</td>
+<td>Nothing is kept: every <code>play()</code> compiles in its frame. This is the switch that shows what compiling in gameplay costs. Getting a sound renders nothing, and a sound played 5 times compiles 5 times. What a game reads of a sound never depends on the cache (a replay may run under another mode): a synthesized sound's <code>length</code> is worked out without rendering, exactly as a compile would size it; whatever only a compile can tell (every <code>peak</code>, and a recorded file's <code>length</code> and rate) comes from one compile (a recorded file's, a decode) on its first read, counted like any compile, then kept. A play's compile gives them too, so a read after a play compiles nothing more.</td>
 </tr>
 <tr>
 <td><code>disk</code> (default)</td>
@@ -3663,7 +3745,7 @@ heard games are switched quickly (the owner's listening check, <code>plans/futur
 <h2 id="accounting">Accounting<a class="headerlink" href="#accounting" title="Permanent link">#</a></h2>
 <p>Every compile, file decode and cache read is timed. Each frame's audio work goes to the
 recording doors as <code>audio_seconds</code> (the total) and <code>audio_work</code> (<code>(kind, name, microseconds)</code>
-entries, at most 32 a frame, the rest summed as <code>other</code>), so a recording holds what audio cost
+entries, at most 32 a frame: past that, the 32<sup>nd</sup> is <code>other</code>, the rest summed), so a recording holds what audio cost
 frame by frame; the times are measurements and never change what is drawn or played.</p>
 <p><code>audio.diagnostics()</code> returns the totals: voices playing and the voice limit; compiles and their
 milliseconds, split into setup and gameplay; the last 32 gameplay compiles with their frames;
@@ -3910,10 +3992,12 @@ and renders offline like any other:</p>
 <li><code>uv run glitchygames listening-instruments [--family FAMILY] [--only TEXT]</code> renders every
   instrument climbing its range (or four hits) to <code>instruments/&lt;family&gt;/&lt;name&gt;.wav</code> in the
   listening folder, with <code>instruments/index.txt</code> (every instrument, its family and range).</li>
-<li><code>uv run glitchygames listening-pipes [--only TEXT]</code> renders a Highland bagpipe and uilleann
-  pipes (chanter, drones and regulators) and <em>Sí Bheag, Sí Mhór</em> to <code>pipes/</code>, and plays the 20
-  public-domain tunes in <code>src/glitchygames/audio/listening/tunes/</code> (ABC notation, sources in its
-  <code>index.json</code>) on them, to <code>pipes/tunes/</code>.</li>
+<li><code>uv run glitchygames listening-pipes [--only TEXT]</code> renders the pipe demos to <code>pipes/</code>
+  (a Highland bagpipe, uilleann pipes with and without regulators, <em>Sí Bheag, Sí Mhór</em>, and a
+  chanter note of each), and plays the 20 public-domain tunes in
+  <code>src/glitchygames/audio/listening/tunes/</code> (ABC notation, sources in its <code>index.json</code>), each on
+  the pipes that suit it (a Scottish tune that fits on the Highland pipes, any other on the
+  uilleann pipes), to <code>pipes/tunes/</code>.</li>
 <li>The listening folder is <code>&lt;cache root&gt;/listening/&lt;render version&gt;/</code>, beside the games' sound
   folders (about 300 MB in all, so no size limit applies and nothing prunes it). Each tool
   renders only the files missing and prints every file's path (written or already there) on
@@ -3930,8 +4014,182 @@ chord. It starts with the Audio panel open; every sound is requested in <code>se
 key never compiles anything.</p>
 <h2 id="offline-rendering">Offline rendering<a class="headerlink" href="#offline-rendering" title="Permanent link">#</a></h2>
 <p><code>glitchygames.audio.render_to_file(sound, path, ...)</code> writes a sound to a <abbr title="Waveform Audio File Format">WAV</abbr> file with no audio
-device; <code>glitchygames sound-render SOURCE --sound-output PATH</code> does the same from the command
-line. A sound rendered alone is its compiled buffer, bit for bit.</p>
+device; <code>glitchygames sound-render SOURCE --sound-output PATH [--sample-format int16|float32]</code>
+does the same from the command line (16-bit PCM by default; it prints the frames, rate, peak and
+how many samples clipped). A sound rendered alone is its compiled buffer, bit for bit.</p>
+<h2 id="inside-the-package">Inside the package<a class="headerlink" href="#inside-the-package" title="Permanent link">#</a></h2>
+<p><code>src/glitchygames/audio/</code> is about thirty modules. A game reaches them through one object,
+<code>SceneManager.audio</code>, the current engine context's <code>AudioEngine</code>; the rest are what it is built
+from. Each module's docstring is its contract.</p>
+<h3 id="how-a-sound-flows">How a sound flows<a class="headerlink" href="#how-a-sound-flows" title="Permanent link">#</a></h3>
+<pre class="mermaid"><code>flowchart TD
+    request["audio.sound(source, ...)&lt;br/&gt;engine.py: AudioEngine"] --&gt; library["library.py: SoundLibrary&lt;br/&gt;resolves the source, keys the request"]
+    library --&gt;|short name or path| assets["assets.py&lt;br/&gt;sound files, the short-name index"]
+    library --&gt;|Instrument| build["instrument.py: build_spec&lt;br/&gt;pitch.py, waves.py"]
+    assets --&gt; build
+    build --&gt; spec["spec.py: SoundSpec"]
+    spec --&gt; cache{"compiled already?&lt;br/&gt;ENGINE_SOUND_CACHE, then disk_cache.py"}
+    library --&gt;|"Effect, Mix, a recorded file"| cache
+    cache --&gt;|"no: library.compile_sound"| compile["render.py: render_sound (a spec)&lt;br/&gt;effects.py (an effect), mix.py (a mix)&lt;br/&gt;or the file decoded"]
+    compile --&gt; sound["Sound: int16 samples and peak"]
+    cache --&gt;|yes| sound
+    sound --&gt;|"play()"| voices["voices.py: VoiceTable&lt;br/&gt;buses.py, route.py"]
+    sound --&gt;|"start(), live=True"| live["live_instrument.py: InstrumentVoice&lt;br/&gt;live.py, live_controls.py"]
+    voices --&gt; mixer["pygame mixer channels"]
+    live --&gt; mixer</code></pre>
+<ol>
+<li><strong>The request.</strong> <code>AudioEngine.sound(...)</code> (<code>engine.py</code>) hands what the sound is to its
+   <code>SoundLibrary</code> (<code>library.py</code>). A short name is looked up in the scene's sound directory and a
+   path is read; a sound file (<abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr>) is loaded by <code>assets.py</code> (its waves, instruments, sounds and
+   effects tables), and a recorded file (<abbr title="Waveform Audio File Format">WAV</abbr> or OGG) is a sound of its own. An <code>Instrument</code>,
+   given directly or from a file, becomes a <code>SoundSpec</code> through <code>instrument.build_spec</code>, which
+   resolves pitches (<code>pitch.py</code>) and waves (<code>waves.py</code>, through the context's wave registry).
+   Whatever the source, the request gets an identity key that names the sound.</li>
+<li><strong>The compile.</strong> The library looks the key up in the process-wide store
+   (<code>library.ENGINE_SOUND_CACHE</code>), then the disk layer (<code>disk_cache.py</code>; never for a recorded
+   file); only when neither has it does it compile. A spec renders through <code>render.py</code> (pure: the
+   same spec always gives the same samples), an effect through <code>effects.py</code>, a mix by rendering and
+   adding its parts (<code>mix.py</code>), and a recorded file is decoded. <code>library.compile_sound</code> is that one
+   compile path, also used by offline renders. Each compile, decode and cache read is timed by
+   <code>accounting.py</code>. (Under <code>--sound-cache none</code> nothing is kept: <a href="#cache-modes">Cache modes</a>.)</li>
+<li><strong>The play.</strong> <code>Sound.play()</code> gives the sound to the context's <code>VoiceTable</code> (<code>voices.py</code>), which
+   owns the library's mixer channels, steals, scene ownership and fades. A voice's gain is its
+   own volume times its bus's (<code>buses.py</code>), and <code>route.py</code> says whether this context is heard at
+   all. A live instrument's <code>Sound.start()</code> makes an <code>InstrumentVoice</code> (<code>live_instrument.py</code>) on
+   the scene's live pool (<code>live.py</code>), which renders it chunk by chunk with the parameters and routes
+   of <code>live_controls.py</code>.</li>
+</ol>
+<p>At start, <code>startup.py</code>'s <code>StartupSounds</code> requests the game's declared <code>SOUNDS</code> through the same
+<code>audio.sound</code>, in the <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> power-on's spare time (above, "One call").</p>
+<h3 id="the-modules">The modules<a class="headerlink" href="#the-modules" title="Permanent link">#</a></h3>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Its job</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>engine.py</code></td>
+<td><code>AudioEngine</code>: <code>sound</code>, <code>play</code>, <code>beep</code>, <code>stop_all</code>, <code>update</code>, <code>diagnostics</code>, <code>snapshot</code>; one per engine context (<code>AUDIO_ENGINE_SLOT</code>).</td>
+</tr>
+<tr>
+<td><code>startup.py</code></td>
+<td><code>StartupSounds</code>: a game's declared sounds, compiled in slices during the power-on, then the rest.</td>
+</tr>
+<tr>
+<td><code>library.py</code></td>
+<td><code>SoundLibrary</code> and <code>Sound</code>: requests, identities, the cache modes, the one compile path, <code>ENGINE_SOUND_CACHE</code>.</td>
+</tr>
+<tr>
+<td><code>assets.py</code></td>
+<td>Sound files: the version 1 schema, version 0 recipes, <code>load_sound_file</code> and the short-name index.</td>
+</tr>
+<tr>
+<td><code>instrument.py</code></td>
+<td><code>Instrument</code>, <code>Source</code>, <code>Noise</code>, <code>Filter</code>, <code>PitchCurve</code>, and <code>build_spec</code>, from the public <abbr title="Application programming interface">API</abbr> to a <code>SoundSpec</code>.</td>
+</tr>
+<tr>
+<td><code>spec.py</code></td>
+<td><code>SoundSpec</code> and its parts: frozen data that decides how a sound sounds; <code>identity_key</code>; <code>AUDIO_RENDER_VERSION</code>.</td>
+</tr>
+<tr>
+<td><code>pitch.py</code></td>
+<td><code>Note</code>, <code>Hz</code>, <code>Midi</code>, <code>Scale</code>, <code>Tuning</code>, and <code>resolve_pitch</code>, the one conversion to hertz.</td>
+</tr>
+<tr>
+<td><code>waves.py</code></td>
+<td><code>Wave</code>, <code>Harmonics</code>, <code>WavePoint</code>, the band-limited tables and the per-context wave registry.</td>
+</tr>
+<tr>
+<td><code>effects.py</code></td>
+<td><code>Effect</code> and <code>Tone</code>: synthetic sound effects, tones mixed straight.</td>
+</tr>
+<tr>
+<td><code>mix.py</code></td>
+<td><code>Mix</code> and <code>MixPart</code>: instrument parts compiled into one sound, optionally an exact loop.</td>
+</tr>
+<tr>
+<td><code>render.py</code></td>
+<td><code>render_sound</code>: a <code>SoundSpec</code> in, mono float64 samples out.</td>
+</tr>
+<tr>
+<td><code>synth.py</code></td>
+<td>The numpy toolkit under the renderers: oscillators (PolyBLEP for the built-in saw, square and pulses), envelopes, filters, mixing, <code>to_pcm16</code>.</td>
+</tr>
+<tr>
+<td><code>disk_cache.py</code></td>
+<td>The disk layer: one <abbr title="Waveform Audio File Format">WAV</abbr> per sound, its peak, the per-game folder and limit.</td>
+</tr>
+<tr>
+<td><code>cache_inventory.py</code></td>
+<td>The cache's operations (<code>inventory</code>, <code>clear</code>, <code>verify</code>, <code>fill</code>), the one <abbr title="Application programming interface">API</abbr> the tools and the tests call.</td>
+</tr>
+<tr>
+<td><code>accounting.py</code></td>
+<td><code>AudioAccountant</code>: each frame's audio work and the compile log, for the recording and the Audio panel.</td>
+</tr>
+<tr>
+<td><code>voices.py</code></td>
+<td>The mixer's channel partition and the <code>VoiceTable</code>: plays, steals, delayed plays, scene ownership, an inner game's channels.</td>
+</tr>
+<tr>
+<td><code>buses.py</code></td>
+<td>The bus tree under <code>master</code>: volume, mute, solo and channel reservations.</td>
+</tr>
+<tr>
+<td><code>route.py</code></td>
+<td>Whether a context's sound is heard (one context at a time; <a href="#inner-games">Inner games</a>).</td>
+</tr>
+<tr>
+<td><code>live.py</code></td>
+<td><code>LiveStream</code> (a live voice's channel, chunks and lifecycle), <code>FilterState</code>, and <code>LiveAudio</code>, a context's live pool.</td>
+</tr>
+<tr>
+<td><code>live_instrument.py</code></td>
+<td><code>InstrumentVoice</code>: a live instrument rendered chunk by chunk.</td>
+</tr>
+<tr>
+<td><code>live_controls.py</code></td>
+<td><code>Parameter</code> and <code>Route</code>: a live instrument's exposed parameters, their curves and smoothing.</td>
+</tr>
+<tr>
+<td><code>offline.py</code></td>
+<td><code>render_to_file</code>: sounds mixed at exact offsets into a <abbr title="Waveform Audio File Format">WAV</abbr> file, with no device.</td>
+</tr>
+<tr>
+<td><code>instruments/</code></td>
+<td><a href="#the-instrument-catalog">The instrument catalog</a>: one module per family and its sound-alikes, <code>catalog.py</code>, <code>registry.py</code>, <code>aliases.py</code>, <code>timbres.py</code>.</td>
+</tr>
+<tr>
+<td><code>listening/</code></td>
+<td>The listening WAVs (<code>listening-instruments</code>, <code>listening-pipes</code>): <code>files.py</code> (where they go), <code>renders.py</code>, <code>instrument_demos.py</code>, <code>pipes.py</code>, <code>pipe_tunes.py</code> and the <code>tunes/</code> folder.</td>
+</tr>
+<tr>
+<td><code>exceptions.py</code></td>
+<td><code>GlitchyGamesAudioError</code>, the base of every audio error.</td>
+</tr>
+<tr>
+<td><code>diagnostics.py</code></td>
+<td>Glitch analysis of rendered samples and the mixer thread's wait for the <abbr title="Global interpreter lock: lets one Python thread run at a time">GIL</abbr> (BUGS.md #27; <code>scripts/audio_glitch_probe.py</code>).</td>
+</tr>
+<tr>
+<td><code>controller_audio.py</code></td>
+<td>A DualSense controller's audio device: its speaker, microphone and audio-driven haptics.</td>
+</tr>
+<tr>
+<td><code>tts.py</code></td>
+<td>Text to speech (macOS <code>say</code> for now).</td>
+</tr>
+<tr>
+<td><code>voice_assistant.py</code></td>
+<td>A push-to-talk <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> voice assistant on a controller's microphone and speaker.</td>
+</tr>
+</tbody>
+</table>
+<p>The last three are apart from the sound engine: they play files on a controller's own audio
+device, not through the mixer's channels.</p>
 <h2 id="outside-a-game">Outside a game<a class="headerlink" href="#outside-a-game" title="Permanent link">#</a></h2>
 <p>A tool, test bench or script can have an audio engine of its own, without a <code>GameEngine</code> or
 scene manager: reserve the mixer's channels, make a live pool on the live ones, make the engine,
@@ -3977,7 +4235,7 @@ once per sound).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 08:36:15 UTC">November 20, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
   </span>
 
     

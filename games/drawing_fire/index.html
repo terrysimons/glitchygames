@@ -3249,15 +3249,14 @@
 <h1 id="drawing-fire-architecture">Drawing Fire Architecture<a class="headerlink" href="#drawing-fire-architecture" title="Permanent link">#</a></h1>
 <p>Drawing Fire is a stick-figure battle drawn in pencil on paper, the way a child draws a war,
 written as one of the engine's example games. Two armies face each other across a hilly field:
-the <strong>Pencil Platoon</strong> in pencil yellow on the left and the <strong>Graphite Brigade</strong> in graphite grey
+the <strong>Pencil Platoon</strong> in pencil yellow on the left and the <strong>Graphite Brigade</strong> in graphite gray
 on the right, both straight off a school pencil. The computer plays every soldier. When one army
 is wiped out the winner is announced on the paper (when both fall at once, nobody wins), and a
-new battle starts on its own. At any
-moment one or two local players can <strong>join</strong>: press START (Enter on the keyboard), choose a side
-and a soldier, and fight as him. A player whose soldier dies takes over another soldier of his
+new battle starts on its own. At any moment one or two local players can <strong>join</strong>: press START
+(Enter on the keyboard), choose a side and a soldier, and fight as him. A player whose soldier dies takes over another soldier of his
 side, and a player who has had enough holds Back (Escape) to leave.</p>
 <p>Every new GlitchyGames game proves a new mechanic for the engine. Drawing Fire proves
-<strong>swatches</strong>: recolouring a sprite by palette swap, so one soldier sprite wears both armies'
+<strong>swatches</strong>: recoloring a sprite by palette swap, so one soldier sprite wears both armies'
 liveries (see <a href="#swatches-the-mechanic-this-game-proves">Swatches</a>).</p>
 <p>This page explains how the game is built, for a developer who wants to understand it or write a
 game like it. Everything here comes from <code>src/games/drawing-fire/src/drawing_fire/</code>, and the module
@@ -3266,8 +3265,8 @@ decisions, is <code>plans/2026-10-25-drawing-fire-design.md</code>. What comes a
 <code>plans/future-features.md</code>.</p>
 <h2 id="the-game-as-it-is">The game as it is<a class="headerlink" href="#the-game-as-it-is" title="Permanent link">#</a></h2>
 <p>These are screenshots of the MVP.</p>
-<p>A battle the computer plays by itself. Each army's name, colour chip and soldier count are at the
-top. The ground is pencilled with hatching under it, and the sandbags are grey-washed bags:</p>
+<p>A battle the computer plays by itself. Each army's name, color chip and soldier count are at the
+top. The ground is penciled with hatching under it, and the sandbags are gray-washed bags:</p>
 <p><img alt="A computer battle: the Pencil Platoon and the Graphite Brigade meet on a hill" src="battle.png" /></p>
 <p>The winner, announced on the paper before the next battle starts:</p>
 <p><img alt="The victory banner" src="victory.png" /></p>
@@ -3285,8 +3284,11 @@ browser keeps from the game shows up missing while you hold it:</p>
 <p><img alt="The debug seats view" src="debug-seats.png" /></p>
 <h2 id="where-it-is-going-concept-art">Where it is going: concept art<a class="headerlink" href="#where-it-is-going-concept-art" title="Permanent link">#</a></h2>
 <p>These pictures are <strong>concept art</strong> from the brainstorm, not the game. They show the full vision:
-a battlefield wider than the screen, tunnels, planes and air drops, and bigger guns. None of this
-is in the MVP (see <code>plans/future-features.md</code>, entry 54).</p>
+a battlefield wider than the screen, tunnels, planes and air drops, and bigger guns.</p>
+<div class="admonition note">
+<p class="admonition-title">None of this is in the MVP</p>
+<p>See <code>plans/future-features.md</code>, entry 54.</p>
+</div>
 <p><img alt="Concept art: an army scene" src="army-scene.png" /></p>
 <p><img alt="Concept art: another army scene" src="army-scene-2.png" /></p>
 <p><img alt="Concept art: a third army scene" src="army-scene-3.png" /></p>
@@ -3296,13 +3298,28 @@ is in the MVP (see <code>plans/future-features.md</code>, entry 54).</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w">                      </span><span class="c1"># the console script (its member's pyproject.toml)</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--debug-overlay<span class="w">      </span><span class="c1"># start with the debug seats view (F3 toggles it)</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--random-seed<span class="w"> </span><span class="m">7</span><span class="w">      </span><span class="c1"># another battlefield and other battles</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--record-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># record the session</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--replay-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># watch it again, exactly</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scripts.simulate_drawing_fire<span class="w"> </span>--seeds<span class="w"> </span><span class="m">20</span><span class="w">   </span><span class="c1"># headless battles: lengths and winners</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>nox<span class="w"> </span>-s<span class="w"> </span>browser<span class="w"> </span>--<span class="w"> </span>drawing-fire<span class="w">           </span><span class="c1"># the browser build</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scripts.simulate_drawing_fire<span class="w"> </span>--seeds<span class="w"> </span><span class="m">20</span><span class="w">   </span><span class="c1"># headless battles: lengths and winners</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>nox<span class="w"> </span>-s<span class="w"> </span>browser<span class="w"> </span>--<span class="w"> </span>drawing-fire<span class="w">           </span><span class="c1"># the browser build</span>
 </span></code></pre></div>
+<p>Recording and replay are the engine's tools, the same from either front end:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Game</label><label for="__tabbed_1_2">glitchygames</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--record-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># record the session</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--replay-trace<span class="w"> </span>run.jsonl.gz<span class="w">   </span><span class="c1"># watch it again, exactly</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>uv<span class="w"> </span>run<span class="w"> </span>drawing-fire<span class="w"> </span>--verify<span class="w">                      </span><span class="c1"># its golden and bundled demo, headless</span>
+</span></code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>record-trace<span class="w"> </span>drawing-fire<span class="w"> </span>run.jsonl.gz
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>replay-trace<span class="w"> </span>run.jsonl.gz
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>verify<span class="w"> </span>--game<span class="w"> </span>drawing-fire
+</span></code></pre></div>
+</div>
+</div>
+</div>
 <p><code>main()</code> (<code>game.py</code>) is <code>GameEngine(game=DrawingFireScene).start()</code>. The scene adds no options of
-its own; all its options are the engine's. The battlefield fits the window (800x480 by default),
+its own; all its options are the engine's (<a href="../../architecture/argument_system/">Argument System</a>). The battlefield fits the window (800x480 by default),
 and <code>--random-seed</code> decides the terrain, the sandbags and every soldier's choices.</p>
 <h3 id="controls">Controls<a class="headerlink" href="#controls" title="Permanent link">#</a></h3>
 <p>The keyboard and mouse count as one device, and each game controller as another. Nothing is
@@ -3359,10 +3376,15 @@ bound in an <code>ActionMap</code>: <code>players.py</code> reads every control 
 </tr>
 </tbody>
 </table>
-<p>W and S do nothing in the MVP (there is no jump or crouch). Escape never quits: the base <code>Scene</code>
-quits on the release of Q or Escape, and <code>DrawingFireScene.on_key_up_event</code> ignores Escape's
-release, because Escape is the keyboard's Back. There is no pause. Battles never stop for
-anyone: players drop into and out of them, and the next one starts on its own.</p>
+<p>W and S do nothing in the MVP (there is no jump or crouch).</p>
+<div class="admonition warning">
+<p class="admonition-title">Escape never quits</p>
+<p>The base <code>Scene</code> quits on the release of Q or Escape, and
+<code>DrawingFireScene.on_key_up_event</code> ignores Escape's release, because Escape is the
+keyboard's Back.</p>
+</div>
+<p>There is no pause. Battles never stop for anyone: players drop into and out of them, and the
+next one starts on its own.</p>
 <h2 id="where-things-live">Where things live<a class="headerlink" href="#where-things-live" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -3422,19 +3444,23 @@ anyone: players drop into and out of them, and the next one starts on its own.</
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/</code></td>
-<td>The tests, one file per module, plus the simulation's and the move's (<code>test_drawing_fire_logical_names.py</code>, <code>_install_location.py</code>, <code>_recording_history.py</code>, <code>_wheel.py</code>)</td>
+<td>The tests, one file per module, plus the simulation's, the golden replay's, the benchmarks' and the move's (<code>test_drawing_fire_logical_names.py</code>, <code>_install_location.py</code>, <code>_recording_history.py</code>, <code>_wheel.py</code>)</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/fixtures/replays/golden.jsonl.gz</code></td>
 <td>The golden replay (1,614 frames)</td>
 </tr>
 <tr>
-<td><code>scripts/golden_inputs.py</code></td>
-<td><code>drawing_fire_script</code> and <code>DrawingFireMouse</code> (the golden replay's player)</td>
+<td><code>src/games/drawing-fire/src/drawing_fire/demos/battle.jsonl.gz</code></td>
+<td>The bundled demo, recorded by <code>scripts/record_bundled_demos.py</code> (<code>drawing_fire_battle</code>: the same player script, 1,600 frames)</td>
 </tr>
 <tr>
-<td><code>scripts/record_scripted_session.py</code>, <code>scripts/golden_inputs.py</code></td>
-<td>The command that records the fixture (on the engine's scripted-session recorder, <code>src/glitchygames/replay/tools/scripted_sessions.py</code>); <code>drawing_fire_controls</code> (the controls tail: Q)</td>
+<td><code>scripts/golden_inputs.py</code></td>
+<td><code>drawing_fire_script</code> and <code>DrawingFireMouse</code> (the golden replay's player), and <code>drawing_fire_controls</code> (the controls tail: Q)</td>
+</tr>
+<tr>
+<td><code>scripts/record_scripted_session.py</code></td>
+<td>The command that records the fixture (on the engine's scripted-session recorder, <code>src/glitchygames/replay/tools/scripted_sessions.py</code>)</td>
 </tr>
 </tbody>
 </table>
@@ -3464,7 +3490,7 @@ Its <code>dt_tick(dt)</code> does everything that decides what happens, in this 
    a soldier again. Seats treat a draw as they treat a win.</li>
 </ol>
 <p><code>render(screen)</code> draws it all from the model, straight onto the screen: the paper and ground (on
-the background, pencilled once per battle and blitted whole each frame), the sandbags, the fallen and then the standing soldiers,
+the background, penciled once per battle and blitted whole each frame), the sandbags, the fallen and then the standing soldiers,
 the bullets, the <abbr title="Heads-up display: what a game draws over its world (score, lives)">HUD</abbr>, the seats' note, cards and highlight, and the banner. The soldiers are not
 sprites in <code>all_sprites</code>.</p>
 <h2 id="the-battle">The battle<a class="headerlink" href="#the-battle" title="Permanent link">#</a></h2>
@@ -3571,30 +3597,30 @@ stream, <code>drawing_fire.seats</code>.</p>
   debug panel (<code>P1 START → PLATOON</code>, <code>P1 took soldier 7</code>, <code>P1 died → soldier 1</code>, <code>P1 left</code>).</li>
 </ul>
 <h2 id="swatches-the-mechanic-this-game-proves">Swatches: the mechanic this game proves<a class="headerlink" href="#swatches-the-mechanic-this-game-proves" title="Permanent link">#</a></h2>
-<p>The soldier sprite is drawn once, in the Pencil Platoon's livery. Its file lists the parts that can be
-recoloured, beside its palette:</p>
-<div class="language-toml highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">[swatches.livery.helmet]</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">colors</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"h"</span><span class="p">,</span><span class="w"> </span><span class="s2">"H"</span><span class="p">]</span><span class="w">      </span><span class="c1"># the base colour, then its shades</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">role</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"primary"</span>
+<p>The soldier sprite is drawn once, in the Pencil Platoon's livery. Its file lists the parts that
+can be recolored, beside its palette:</p>
+<div class="language-toml highlight"><span class="filename">src/games/drawing-fire/src/drawing_fire/sprites/soldier.toml</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">[swatches.livery.helmet]</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">colors</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"h"</span><span class="p">,</span><span class="w"> </span><span class="s2">"H"</span><span class="p">]</span><span class="w">      </span><span class="c1"># the base color, then its shades</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">role</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"primary"</span>
 </span></code></pre></div>
-<p><code>swatches.py</code> reads these sets (<code>load_swatch_sets</code>), and a <code>Scheme</code> gives colours to the parts
+<p><code>swatches.py</code> reads these sets (<code>load_swatch_sets</code>), and a <code>Scheme</code> gives colors to the parts
 by role (<code>primary</code>, <code>secondary</code>) or by name. <code>recolor_surface</code> swaps them in by exact RGB: a
-part's base colour becomes the scheme's colour, and each shade keeps its brightness relative to
-the base, so the helmet's shadow comes out a darker yellow for the Platoon and a darker grey for
+part's base color becomes the scheme's color, and each shade keeps its brightness relative to
+the base, so the helmet's shadow comes out a darker yellow for the Platoon and a darker gray for
 the Brigade. <code>RecoloredFrames</code> builds each scheme's frames once and keeps them. The sprite file
 never changes.</p>
 <p>In the game, <code>drawing.load_soldier_frames</code> loads the frames with the engine's <code>AnimatedSprite</code>
-loader, scales them up by whole pixels (so the exact colours survive), adds mirrored copies for
+loader, scales them up by whole pixels (so the exact colors survive), adds mirrored copies for
 a soldier facing left, and <code>draw_soldier</code> asks for his army's livery
 (<code>ARMY_LIVERIES[soldier.side]</code>). Nothing in <code>swatches.py</code> names the game: it is written to move
-into <code>src/glitchygames/sprites/</code>. What that would take is entry 55 in <code>plans/future-features.md</code>.</p>
+into <code>src/glitchygames/sprites/</code>. What that would take is entry 61 in <code>plans/future-features.md</code>.</p>
 <h2 id="the-pencil-look">The pencil look<a class="headerlink" href="#the-pencil-look" title="Permanent link">#</a></h2>
 <p>Everything is drawn with pygame primitives onto the surface it is given, from the model. A
 hand-drawn line wanders by <code>wobble(x, y, salt)</code>, a deterministic hash of where it is, never a
 random stream, so the same picture is drawn every frame and in every replay. Text is rendered
-once per content, fonts are made once. The colours are the paper (<code>PAPER_COLOR</code>), the pencil
-(<code>PENCIL_COLOR</code>), a light hatching under the ground, and the two armies' colours: pencil yellow
-<code>(242, 194, 48)</code> and graphite grey <code>(125, 127, 133)</code>.</p>
+once per content, fonts are made once. The colors are the paper (<code>PAPER_COLOR</code>), the pencil
+(<code>PENCIL_COLOR</code>), a light hatching under the ground, and the two armies' colors: pencil yellow
+<code>(242, 194, 48)</code> and graphite gray <code>(125, 127, 133)</code>.</p>
 <h2 id="how-it-uses-the-engine">How it uses the engine<a class="headerlink" href="#how-it-uses-the-engine" title="Permanent link">#</a></h2>
 <table>
 <thead>
@@ -3618,7 +3644,7 @@ once per content, fonts are made once. The colours are the paper (<code>PAPER_CO
 </tr>
 <tr>
 <td>Sprite loading</td>
-<td><code>AnimatedSprite</code> loads the soldier's frames; swatches recolour them</td>
+<td><code>AnimatedSprite</code> loads the soldier's frames; swatches recolor them</td>
 </tr>
 <tr>
 <td>Debug overlay</td>
@@ -3654,7 +3680,8 @@ frames.</p>
 <p>Because the game reads its controls from the polled input, which a posted event never changes in
 <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>, the recorder lays the input it posted over each live snapshot (<code>PostedPolledInput</code>), as a
 real keyboard and mouse would. It does so only for the games in <code>POLLED_INPUT_GAMES</code> (Drawing
-Fire alone), so every other game's re-recording keeps the snapshots it had. The replay serves the
+Fire and Zombies Ain't My Neighbors), so every other game's re-recording keeps the snapshots it
+had. The replay serves the
 recorded snapshots.</p>
 <p>The soldiers, bullets and sandbags are drawn, not sprites, so a replay's sprite comparison sees
 none of the battle. Instead the scene posts an internal <code>GAMEEVENT</code> (<code>post_event</code>) for every
@@ -3671,14 +3698,20 @@ keys by scancode, the mouse's motion and left button, and Q. The controller's co
 excused (<code>UNEXERCISED_CONTROLS</code>, <code>NO_GAMEPAD_IN_THE_SESSION</code>), because the scripted session runs
 on the dummy driver, which has no gamepad. Drawing Fire is in <code>GAMES_WITHOUT_A_PAUSE</code>, so its
 replay is checked never to reach the pause screen instead of pausing and resuming.</p>
-<p>One limit, noted in <code>plans/future-features.md</code> entry 54: the fixture is about 185 KB, over the
-100 KB the other games keep. The first frame holds every random stream's state (19 of them,
-twice), about 125 KB compressed on its own.</p>
+<div class="admonition note">
+<p class="admonition-title">The fixture is over the size the other games keep</p>
+<p>Noted in <code>plans/future-features.md</code> entry 54: the fixture is about 185 KB, over the 100 KB the
+other games keep. The first frame holds every random stream's state (19 of them, twice),
+about 125 KB compressed on its own.</p>
+</div>
 <p>The pytest plugin <code>src/glitchygames/testing/replays.py</code> replays the fixture in a child process
 (<code>drawing-fire --replay-trace ... --headless</code>), and the test fails unless it exits <code>SUCCESS</code>.
-Re-record the fixture only deliberately (the commands are in the script's docstring), never just
-to make a failing replay pass. A re-recording without the player's death and takeover fails the
-test above.</p>
+A re-recording without the player's death and takeover fails the test above.</p>
+<div class="admonition warning">
+<p class="admonition-title">Re-record the fixture only deliberately</p>
+<p>The commands are in the script's docstring. Never re-record just to make a failing replay
+pass.</p>
+</div>
 <h2 id="its-package">Its package<a class="headerlink" href="#its-package" title="Permanent link">#</a></h2>
 <p>Drawing Fire is a package of its own beside the engine, <code>src/games/drawing-fire/</code> (distribution
 <code>drawing-fire</code>, import package <code>drawing_fire</code>). Its soldier sprite ships inside the package as
@@ -3718,7 +3751,7 @@ out, installed, tested and built, and how a game is moved into one, is in
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/test_drawing_fire_swatches.py</code></td>
-<td>Reading swatch sets and their errors, schemes, shades, recolouring, the frame cache</td>
+<td>Reading swatch sets and their errors, schemes, shades, recoloring, the frame cache</td>
 </tr>
 <tr>
 <td><code>src/games/drawing-fire/tests/test_drawing_fire_drawing.py</code></td>
@@ -3754,7 +3787,7 @@ out, installed, tested and built, and how a game is moved into one, is in
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 28, 2026 20:36:28 UTC">October 28, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
   </span>
 
     

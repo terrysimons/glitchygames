@@ -3162,9 +3162,9 @@
 <p>Zombies Ain't My Neighbors is a late-night creature-feature run-and-gun for up to four players,
 on the keyboard or gamepads. Four kids at a sleepover put on their VR headsets, and the monsters
 of a cancelled horror show climb out of the TV and into the neighborhood. Every sprite, sound and
-note of music is to be written in the engine's own formats.</p>
-<p>It is being built feature by feature. So far: the title screen, four player slots each blinking
-PRESS START in its player's colour, joined from the keyboard or any of up to four pads; a TV
+note of music is written in the engine's own formats.</p>
+<p>It is built feature by feature. So far: the title screen, four player slots each blinking
+PRESS START in its player's color, joined from the keyboard or any of up to four pads; a TV
 title card, FEATURE PRESENTATION; and the neighborhood, a yard larger than the screen where each
 joined player walks their own kid (Dex, Marisol, Theo, June: 32x48 SNES-era sprites written by
 the game's own rig, <code>zombies_aint_my_neighbors/art/</code>) under one camera that keeps the group on
@@ -3174,7 +3174,7 @@ up and blinks, untouchable, for two seconds. The kids fight back with the Channe
 remote that fires zaps of static four times a second: one zap crumbles a zombie, and three zaps
 break a TV into its next stage (cracked, smashed and sparking, destroyed and smoking), each
 stage spawning half as often, until a destroyed one spawns nothing. Neighbors wait round the
-yard to be rescued: a kid's touch rescues one and a zombie's loses one. Each kid has 3 lives.
+yard to be rescued: a kid's touch rescues one and a zombie's loses one. Each kid has 3 lives (a kid out of lives returns with 1 in the next stage).
 When every neighbor is rescued or lost and at least one was rescued, a gate opens in the top
 hedge; a kid through it clears the stage, and the next stage brings back only the neighbors
 rescued. Every life lost, or a stage with nobody rescued, and the TV switches off: game over.
@@ -3189,9 +3189,21 @@ the engine wishlist are in the master plan, <code>plans/2026-11-14-zombies-aint-
 <h2 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">#</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>run<span class="w"> </span>zombies-aint-my-neighbors
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>zombies-aint-my-neighbors<span class="w"> </span>--input-mode<span class="w"> </span>joystick<span class="w">   </span><span class="c1"># read every pad on the joystick layer (see below)</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>uv<span class="w"> </span>run<span class="w"> </span>zombies-aint-my-neighbors<span class="w"> </span>--verify<span class="w">                </span><span class="c1"># replay its golden, headless</span>
 </span></code></pre></div>
-<p>The game adds no options of its own; the engine's are in
+<p>Replaying its goldens and bundled demo, headless, is the same tool from either front end:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Game</label><label for="__tabbed_1_2">glitchygames</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>run<span class="w"> </span>zombies-aint-my-neighbors<span class="w"> </span>--verify
+</span></code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uv<span class="w"> </span>run<span class="w"> </span>glitchygames<span class="w"> </span>verify<span class="w"> </span>--game<span class="w"> </span>zombies-aint-my-neighbors
+</span></code></pre></div>
+</div>
+</div>
+</div>
+<p>The game adds no options of its own (<code>TitleScene.args</code> adds none); the engine's are in
 <a href="../../architecture/argument_system/">Argument System</a>.</p>
 <h3 id="controls">Controls<a class="headerlink" href="#controls" title="Permanent link">#</a></h3>
 <table>
@@ -3244,7 +3256,7 @@ the engine wishlist are in the master plan, <code>plans/2026-11-14-zombies-aint-
 <td><code>A</code>, holding the laser pointer</td>
 </tr>
 <tr>
-<td>Pause (every screen)</td>
+<td>Pause (the title, the feature card and the neighborhood)</td>
 <td><code>P</code> position; <code>Enter</code> in the neighborhood</td>
 <td><code>START</code> in the neighborhood</td>
 </tr>
@@ -3260,14 +3272,21 @@ the engine wishlist are in the master plan, <code>plans/2026-11-14-zombies-aint-
 </tr>
 </tbody>
 </table>
-<p>In <code>--input-mode joystick</code>, START is read by its game-controller number on the raw joystick
-layer. Many pads number their buttons differently there (on Xbox-layout pads that number is
-often Back or View), so another button may join and START may do nothing; the engine's
-<code>ActionMap</code> documents the same caveat. Leave the input mode at <code>auto</code> to use the controller
-mapping. A per-device lookup of START's raw button is on the master plan's Engine wishlist.</p>
-<p>The keys are bound by position (scancodes), so they sit in the same place on every layout. The
-game never uses <code>Space</code> or <code>Esc</code> for its own actions: the engine's shared pause and game-over
-screens use them, in the browser too. <code>J</code> sits under a WASD hand and right <code>Shift</code> under an
+<div class="admonition warning">
+<p class="admonition-title">In <code>--input-mode joystick</code>, START may join nobody</p>
+<p>START is read by its game-controller number on the raw joystick layer. Many pads number
+their buttons differently there (on Xbox-layout pads that number is often Back or View), so
+another button may join and START may do nothing; the engine's <code>ActionMap</code> documents the
+same caveat. Leave the input mode at <code>auto</code> to use the controller mapping. A per-device
+lookup of START's raw button is on the master plan's Engine wishlist.</p>
+</div>
+<p>The keys are bound by position (scancodes), so they sit in the same place on every layout.</p>
+<div class="admonition note">
+<p class="admonition-title"><code>Space</code> and <code>Esc</code> are the engine's</p>
+<p>The game never uses <code>Space</code> or <code>Esc</code> for its own actions: the engine's shared pause and
+game-over screens use them, in the browser too.</p>
+</div>
+<p><code>J</code> sits under a WASD hand and right <code>Shift</code> under an
 arrows hand. In the browser on a touch screen, <strong>Start</strong> and <strong>Pause</strong> press <code>Enter</code> and <code>P</code>, a
 D-pad on the left presses the arrows, <strong>Fire</strong> holds <code>J</code> and <strong>Switch</strong> presses <code>K</code>. The D-pad walks four ways: each
 button presses one key, so a diagonal takes two fingers.</p>
@@ -3286,8 +3305,8 @@ button presses one key, so a diagonal takes two fingers.</p>
     Card -- "last player unplugged" --&gt; Title
     Title -- "P" --&gt; Pause["PauseScene&lt;br/&gt;(engine)"]
     Pause -- "Space" --&gt; Title</code></pre>
-<p>Both screens are <code>RosterScene</code>s (<code>roster_scene.py</code>): they keep the <strong>join roster</strong> and read the
-same controls (one <code>ActionMap</code>, <code>RosterScene._create_action_map</code>). Each says what a start press
+<p>The title, the feature card, the neighborhood and the game over are <code>RosterScene</code>s
+(<code>roster_scene.py</code>): they keep the <strong>join roster</strong> and read the same controls (one <code>ActionMap</code>, <code>RosterScene._create_action_map</code>). Each says what a start press
 means (<code>_press_start</code>) and what an unplugged pad means (<code>_device_left</code>). <code>RosterScene</code> is a
 <code>PadTolerantScene</code> (<code>pad_tolerant.py</code>), which deliberately ignores the pad events the screens
 don't use (sticks, hats, touchpads, sensors, raw device events), so <code>--no-unhandled-events</code>
@@ -3349,9 +3368,6 @@ the cheer, before the STAGE 2 card. The Arcade can play it on a tile like any bu
   shipped demo, replayed as the attract scene replays it, still shows every kid walking and
   zapping, a TV destroyed, a zombie zapped, neighbors saved and the clear with all four cheering.</li>
 </ul>
-<p>The title is the game's class for now, so its golden replay stays in one scene, as
-<code>tests/replay/test_golden_replays.py</code> requires. When gameplay arrives, the golden moves to the
-gameplay scene.</p>
 <h2 id="the-neighborhood">The neighborhood<a class="headerlink" href="#the-neighborhood" title="Permanent link">#</a></h2>
 <p><code>NeighborhoodScene</code> (<code>neighborhood.py</code>) gives each joined slot its kid (<code>kid.py</code>), an animated
 world sprite. Each player's direction comes from their own device (<code>controls.py</code>): the keyboard's
@@ -3400,14 +3416,21 @@ to load. Idle ones are out of every group; a spawn or a shot takes one, and one 
 given back. A test fails if any sprite file loads during twenty busy seconds.</p>
 <p>Built from options alone, as a recording's first scene is, the neighborhood has the keyboard as
 P1. The game has two golden replays: the title's (<code>golden.jsonl.gz</code>) and the neighborhood's
-(<code>golden-neighborhood.jsonl.gz</code>: walking every way, then firing with <code>J</code> and right <code>Shift</code>, a
-zombie zapped and the top-left TV destroyed); <code>main</code> (<code>launcher.py</code>) starts a replay on the scene its
-recording names, as Brave Adventurer's launcher does.</p>
+(<code>golden-neighborhood.jsonl.gz</code>: walking every way, firing with <code>J</code> and right <code>Shift</code>, the top-left TV
+destroyed, a neighbor rescued, the laser pointer luring a zombie, then the stage cleared through the gate
+into stage 2). A player's run starts on the title, but a golden's first scene is the gameplay
+scene (<code>tests/replay/test_golden_replays.py</code>), so <code>main</code> (<code>launcher.py</code>) starts a replay on the scene
+its recording names, as Brave Adventurer's launcher does.</p>
 <h2 id="sounds">Sounds<a class="headerlink" href="#sounds" title="Permanent link">#</a></h2>
-<p>Every sound is an effect in one sound file, <code>sounds/sounds.toml</code>, written by <code>sound_rig.py</code>. Do not
-edit the file by hand: change the rig and run
-<code>uv run python -m zombies_aint_my_neighbors.sound_rig</code>. The sounds are declared in <code>SOUNDS</code> on
-<code>RosterScene</code>, so the engine compiles them while the game starts.</p>
+<p>Every sound is an effect in one sound file, <code>sounds/sounds.toml</code>, written by <code>sound_rig.py</code>. The
+sounds are declared in <code>SOUNDS</code> on <code>RosterScene</code>, so the engine compiles them while the game
+starts.</p>
+<div class="admonition warning">
+<p class="admonition-title">Do not edit <code>sounds.toml</code> by hand</p>
+<p>Change the rig and regenerate the file:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>zombies_aint_my_neighbors.sound_rig
+</span></code></pre></div>
+</div>
 <ul>
 <li><strong>The remote's zap:</strong> warbly theremin radio waves. Six swoops of a sine between about 600 and
   700 Hz, 0.22 s (under the 0.25 s firing rhythm), with a faint hiss.</li>
@@ -3452,11 +3475,15 @@ sample, on one channel. Every cue plays on the <code>music</code> bus at priorit
 never steals it.</p>
 <p>The score's mixes (<code>music.SCORE</code>) are declared with the effects in <code>SOUNDS</code>, so the engine builds
 them while the game starts, during the <abbr title="Cathode-ray tube: the old television the power-on sequence imitates">CRT</abbr> power-on; the stage and the game over then find them
-built. Measured 2026-11-18 on the development Mac: the stage loop builds in 188 ms (on the first
-launch, holding back one frame of the power-on; later launches read it from the disk cache, and
-where the power-on is skipped it is built before the first scene), the stings in 21 and 43 ms;
-the score holds about 15 MB (9.9 MB of it the loop: float and int16 samples and the mixer's
-stereo copy), and its loudest peak is 0.79, so nothing clips.</p>
+built.</p>
+<div class="admonition info">
+<p class="admonition-title">Measured 2026-11-18 on the development Mac</p>
+<p>The stage loop builds in 188 ms (on the first launch, holding back one frame of the
+power-on; later launches read it from the disk cache, and where the power-on is skipped it is
+built before the first scene), the stings in 21 and 43 ms; the score holds about 15 MB (9.9 MB
+of it the loop: float and int16 samples and the mixer's stereo copy), and its loudest peak is
+0.79, so nothing clips.</p>
+</div>
 <h2 id="the-join-roster">The join roster<a class="headerlink" href="#the-join-roster" title="Permanent link">#</a></h2>
 <p><code>JoinRoster</code> (<code>roster.py</code>) is a frozen pydantic model: four slots, each free or held by one
 device, the keyboard or a pad by its <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> instance id. <code>join</code> puts a device in the lowest free
@@ -3464,7 +3491,7 @@ slot; a device never holds two slots, and a fifth device is ignored; <code>leave
 title and the card pass the roster between them as a constructor argument, and give it to a
 replay as <abbr title="JavaScript Object Notation">JSON</abbr> (<code>replay_arguments</code>).</p>
 <p>Pads already plugged in when the game starts are never announced to a scene (the engine
-synchronises them before any scene exists), so joining reads only the press's instance id.</p>
+synchronizes them before any scene exists), so joining reads only the press's instance id.</p>
 <p>The engine tells only the active scene that a device left, so a pad unplugged on the pause
 screen is caught when the title or the card resumes: setting a screen up again drops every
 joined pad the engine no longer sees (<code>RosterScene.setup</code>).</p>
@@ -3478,7 +3505,7 @@ recording did.</p>
 <thead>
 <tr>
 <th>Player</th>
-<th>Colour</th>
+<th>Color</th>
 </tr>
 </thead>
 <tbody>
@@ -3507,7 +3534,7 @@ audited character BOM, may replace it.</p>
 check pixels. Pad tests use the engine's stand-in pad (<code>tests/input/stand_in_devices.py</code>)
 through the real devices door, plugged in and out mid-run. Its golden replay
 (<code>tests/fixtures/replays/golden.jsonl.gz</code>) joins the keyboard after one blink cycle, pauses and
-resumes, opens the feature card with keypad Enter and comes back with Enter, then quits.</p>
+resumes, opens the feature card with keypad Enter and comes back with Backspace, then quits.</p>
 
 
 
@@ -3528,7 +3555,7 @@ resumes, opens the feature card with keypad Enter and comes back with Enter, the
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 20, 2026 10:34:34 UTC">November 20, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
   </span>
 
     
