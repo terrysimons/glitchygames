@@ -7,7 +7,9 @@
 // `series[path][metric]`, a point `[commit index, value]` at each commit that changed the value.
 // Each line is drawn as a step that holds until the next change, extended to the newest commit
 // (that last point has no marker: nothing changed there). plotly.js is loaded only on this page,
-// from the pinned URL the data names.
+// from the pinned URL the data names. A local docs build writes placeholder data instead
+// (write_placeholder_unless_current): no measurements, and a `placeholder` notice shown in place
+// of the chart.
 (function () {
     "use strict";
 
@@ -278,6 +280,11 @@
                 return response.json();
             })
             .then(function (data) {
+                // A build that skipped the generation (only a deploy measures the history)
+                if (data.placeholder) {
+                    root.textContent = data.placeholder;
+                    return;
+                }
                 return loadPlotly(data.plotly).then(function () {
                     build(root, data);
                 });

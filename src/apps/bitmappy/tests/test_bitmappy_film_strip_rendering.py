@@ -237,6 +237,52 @@ class TestDecorationFailuresAreLogged:
         assert 'Font rendering failed' in caplog.text
 
 
+class TestOnionSkinningIndicator:
+    """An onion-skinned frame's thumbnail gets a yellow dot in its top-right corner.
+
+    Each test gives the renderer its own manager: the module's shared one keeps whatever frame
+    an earlier test turned on, so before these tests only the test order decided whether CI
+    drew the dot, and its coverage missed it (#263).
+    """
+
+    @staticmethod
+    def own_manager(mocker, *, onion_skinned: bool) -> onion_skinning.OnionSkinningManager:
+        """Give the renderer a manager of its own, with 'idle' frame 0 on or off.
+
+        Returns:
+            The manager.
+
+        """
+        manager = onion_skinning.OnionSkinningManager()
+        if onion_skinned:
+            manager.toggle_frame_onion_skinning('idle', 0)
+        mocker.patch.object(onion_skinning, 'get_onion_skinning_manager', return_value=manager)
+        return manager
+
+    def test_an_onion_skinned_frame_gets_the_dot(self, film_strip_with_two_frames, mocker):
+        self.own_manager(mocker, onion_skinned=True)
+        width = film_strip_with_two_frames.frame_width
+        surface = pygame.Surface((width, width), pygame.SRCALPHA)
+
+        film_strip_with_two_frames.renderer._draw_onion_skinning_indicator(surface, 'idle', 0)
+
+        # The dot's center: 12 pixels across, 2 from the right and top edges
+        red, green, blue, alpha = surface.get_at((width - 2 - 6, 2 + 6))
+        assert (red, green, blue) == (255, 255, 0)
+        assert alpha > 0
+        assert surface.get_at((0, width - 1)).a == 0
+
+    def test_a_frame_without_onion_skinning_gets_no_dot(self, film_strip_with_two_frames, mocker):
+        self.own_manager(mocker, onion_skinned=False)
+        width = film_strip_with_two_frames.frame_width
+        surface = pygame.Surface((width, width), pygame.SRCALPHA)
+        pixels_before = surface_pixels(surface)
+
+        film_strip_with_two_frames.renderer._draw_onion_skinning_indicator(surface, 'idle', 0)
+
+        assert surface_pixels(surface) == pixels_before
+
+
 class TestCounterFont:
     """The frame counters use one cached bundled font (BUGS.md #178 item 6)."""
 

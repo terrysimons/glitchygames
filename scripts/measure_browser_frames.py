@@ -28,9 +28,9 @@ import asyncio
 import contextlib
 import itertools
 import json
+import os
 import re
 import shutil
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - starts Chrome, a fixed binary
 import sys
 import tempfile
 import threading
@@ -41,7 +41,7 @@ from typing import IO, TYPE_CHECKING, Any, Final
 import websockets
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.process import stop_command
+from glitchygames.process import ErrorOutput, start_command, stop_command
 from scripts import frame_phase_probe
 from scripts.build_browser_bundle import (
     GAMES,
@@ -590,18 +590,23 @@ def run_chrome(*, run: ChromeRun) -> dict[str, Any]:
         RuntimeError: When Chrome starts without a standard error pipe.
 
     """
-    with tempfile.TemporaryDirectory(prefix='measure-browser-chrome-') as profile:
+    with (
+        tempfile.TemporaryDirectory(prefix='measure-browser-chrome-') as profile,
+        Path(os.devnull).open('w', encoding='utf-8') as discarded,
+    ):
         # Chrome, with the arguments built here (no shell), leading a session of its own so
-        # stop_command ends its helper processes with it
-        chrome_process = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true]
-            chrome_command(chrome=run.chrome, profile_directory=Path(profile), headed=run.headed),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-            start_new_session=True,
+        # stop_command ends its helper processes with it, and closes the pipe of its standard
+        # error (where it prints its DevTools address) once it is reaped
+        chrome_process = start_command(
+            command=chrome_command(
+                chrome=run.chrome, profile_directory=Path(profile), headed=run.headed
+            ),
+            environment=os.environ,
+            output=discarded,
+            errors=ErrorOutput.PIPED,
         )
         try:
-            if chrome_process.stderr is None:  # pragma: no cover - stderr=PIPE always gives one
+            if chrome_process.stderr is None:  # pragma: no cover - errors=PIPED always gives one
                 message = 'Chrome was started without a standard error pipe'
                 raise RuntimeError(message)
             return asyncio.run(measure_with_chrome(chrome_errors=chrome_process.stderr, run=run))
