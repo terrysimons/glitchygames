@@ -344,3 +344,13 @@ def test_both_liveries_recolor_the_soldier():
     for part in livery.parts:
         for drawn_color in part.colors:
             assert drawn_color not in colors_in(grey['walk'][1])
+
+
+@pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+def test_a_sprite_file_with_any_line_end_gives_the_same_swatch_sets(tmp_path, line_end):
+    """A sprite saved on Windows (CRLF) or an old Mac (lone CR) reads as one with LF."""
+    lf_path = write_toml(directory=tmp_path, text=TEST_TOML)
+    other_path = tmp_path / 'other.toml'
+    other_path.write_bytes(TEST_TOML.replace('\n', line_end).encode('utf-8'))
+
+    assert load_swatch_sets(path=other_path) == load_swatch_sets(path=lf_path)

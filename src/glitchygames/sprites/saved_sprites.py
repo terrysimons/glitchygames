@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from glitchygames.output_files import write_aside_then_replace
+from glitchygames.output_files import write_text_whole
 from glitchygames.replay.tools.identity import package_directory_of
 
 if TYPE_CHECKING:
@@ -77,9 +77,7 @@ def save_sprite(*, toml_text: str, file_stem: str, sprites_folder: Path) -> Path
 
     sprites_folder.mkdir(parents=True, exist_ok=True)
     destination = find_available_path(sprites_folder / f'{file_stem}{SPRITE_FILE_SUFFIX}')
-    write_aside_then_replace(
-        destination=destination, write=lambda aside: aside.write_text(toml_text, encoding='utf-8')
-    )
+    write_text_whole(destination=destination, text=toml_text)
     return destination
 
 

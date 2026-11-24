@@ -71,7 +71,11 @@ from glitchygames.replay.tools.registry import (
 from glitchygames.sources import active_sources
 from glitchygames.tracing import read_trace_result
 from tests.demo_runs import engine_run_environment
-from tests.replay.replay_helpers import replay_through_engine, rewrite_recording
+from tests.replay.replay_helpers import (
+    failing_the_test,
+    replay_through_engine,
+    rewrite_recording,
+)
 from tests.stand_in_games import (
     STAND_IN_GAME_TARGET_FPS,
     StandInGame,
@@ -129,7 +133,7 @@ CHILD_TIMEOUT_SECONDS = 120.0
 # Every frame time of a recording the watched replays present: exactly one paced frame, so the
 # frames presented never depend on the recording machine's timing. Up to 1x the viewer presents
 # a late frame and the short one catching up after it each in its own tick
-# (glitchygames/replay/viewer.py, rule 2), but a genuine stall (frames owed beyond a tick) still
+# (glitchygames/replay/pacer.py, rule 2), but a genuine stall (frames owed beyond a tick) still
 # runs as one burst presenting only its last frame
 STEADY_FRAME_SECONDS = 1 / float(STAND_IN_GAME_TARGET_FPS)
 # The FPS-event interval of every recording whose frame times are steadied: an hour, so the
@@ -603,6 +607,7 @@ def watched_replay(
     remaining_keys = list(keys)
     presented: list[Presented] = []
     clock = {'now': 1000.0}
+    viewer_waits = {'count': 0}
     engines: list[GameEngine] = []
 
     def read_clock() -> float:
@@ -614,7 +619,11 @@ def watched_replay(
         assert isinstance(sources, ReplaySources)
         if not (sources.controls.awaiting_start or sources.controls.paused):
             return
-        assert remaining_keys, 'the replay waited for the viewer after every key was pressed'
+        viewer_waits['count'] += 1
+        assert remaining_keys, (
+            f'the replay waited for the viewer {viewer_waits["count"]} times, but only '
+            f'{len(keys)} keys were given ({keys})'
+        )
         key = remaining_keys.pop(0)
         for event_type in (pygame.KEYDOWN, pygame.KEYUP):
             pygame.event.post(
@@ -638,9 +647,9 @@ def watched_replay(
         )
 
     mocker.patch('glitchygames.clock.measured_seconds', side_effect=read_clock)
-    mocker.patch.object(viewer_module, 'sleep_for', side_effect=wait)
-    mocker.patch.object(viewer_module, 'sleep_coarsely', side_effect=wait)
-    mocker.patch.object(pygame.display, 'flip', side_effect=flip)
+    mocker.patch.object(viewer_module, 'sleep_for', side_effect=failing_the_test(wait))
+    mocker.patch.object(viewer_module, 'sleep_coarsely', side_effect=failing_the_test(wait))
+    mocker.patch.object(pygame.display, 'flip', side_effect=failing_the_test(flip))
     with engine_environment(mocker):
         GoldenTraceSceneManager.install()
         try:
@@ -924,7 +933,9 @@ def test_a_stream_nobody_reads_any_more_ends_the_replay(color_game, mocker, fram
         return stream
 
     mocker.patch.object(
-        compare.FrameStream, 'connect', side_effect=connect_once_the_listener_is_gone
+        compare.FrameStream,
+        'connect',
+        side_effect=failing_the_test(connect_once_the_listener_is_gone),
     )
 
     replay = replay_through_engine(
@@ -2175,7 +2186,7 @@ def live_play(
             )
         )
 
-    mocker.patch.object(pygame.display, 'flip', side_effect=flip)
+    mocker.patch.object(pygame.display, 'flip', side_effect=failing_the_test(flip))
     exit_status: object = None
     with engine_environment(mocker):
         GoldenTraceSceneManager.install()

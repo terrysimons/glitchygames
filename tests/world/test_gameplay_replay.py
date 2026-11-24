@@ -135,6 +135,7 @@ from glitchygames.tracing import (
 from tests.display_canvas import display_looks_entirely_black, real_display_surface
 from tests.harness import TEST_WINDOWS_HIDDEN, imported_engine_is_the_checkouts
 from tests.replay.replay_helpers import (
+    failing_the_test,
     replay_through_engine,
     rewrite_recording,
     tamper_first_sprite_rect,
@@ -605,8 +606,11 @@ class FakeMeasuredClock:
         self.now = 1000.0
         self._on_wait = on_wait
         mocker.patch('glitchygames.clock.measured_seconds', side_effect=self.read)
-        mocker.patch.object(viewer_module, 'sleep_for', side_effect=self.wait)
-        mocker.patch.object(viewer_module, 'sleep_coarsely', side_effect=self.wait)
+        # The sleeps run inside the replay: a failure in on_wait fails the test, not as 70
+        mocker.patch.object(viewer_module, 'sleep_for', side_effect=failing_the_test(self.wait))
+        mocker.patch.object(
+            viewer_module, 'sleep_coarsely', side_effect=failing_the_test(self.wait)
+        )
 
     def read(self) -> float:
         """Return the fake time.

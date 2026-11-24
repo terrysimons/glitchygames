@@ -3,8 +3,9 @@
 Status: **folded into the Arcade's master plan on 2026-11-08** (the owner: "Rewrite the plan
 order"): each remaining sub-plan is now part of the Arcade sub-plan that needs it
 ([2026-10-23-arcade-showcase.md](2026-10-23-arcade-showcase.md), Sub-plans: sub-plan 2 is Arcade
-1; 3, 4, 6 and 7 are Arcade 3; 5 is Arcade 4; 8 goes with Arcade 5; sub-plan 3's browser and
-thread rules with Arcade 8). This file stays as the reference for the audit table and the
+1; 3, 4, 6 and 7 are Arcade 3; 5 is Arcade 4; 8 was to go with Arcade 5, and was moved to a
+later Arcade sub-plan by the owner on 2026-11-20, not done; sub-plan 3's browser and thread rules
+with Arcade 8). This file stays as the reference for the audit table and the
 decisions. Sub-plan 1 implemented and verified on feature/engine-context-state (commits
 9d3a162e^..364f4910, the documentation commits included; whole-branch verification in its
 Task 10), merged as #108. Sub-plan 2
@@ -93,12 +94,13 @@ the row below that covers it and why.
 | C19 | `_INTERNAL_POSTS` (`InternalEventPosts`) | `src/glitchygames/recording.py:414` | code-posted events awaiting their pump, their owners, live-game and input posts | 2, done (7eb16f94, a62f2570) |
 | C20 | `<GameClass>.options` (found by sub-plan 2's review) | `src/glitchygames/engine/game_engine.py:1129` (`initialize_arguments` set the game's options on its scene class) | the run's options, on a class every context shares | 2, done (0d98b33f): removed; each engine keeps its own and the scene gets them at construction |
 
-Beside C16, `tests/test_process_state_guard.py` lists Bitmappy's two other pieces of process
+Beside C16, `tests/test_process_state_guard.py` listed Bitmappy's two other pieces of process
 state under it: its onion-skinning manager (`onion_skinning_manager`,
 `src/apps/bitmappy/src/bitmappy/onion_skinning.py`) and its AI training state
-(`ai_training_state`, `src/apps/bitmappy/src/bitmappy/constants.py`). Neither has an owning plan
-yet (`plans/future-work.md`, Engine context); each needs one before a Bitmappy runs in more than
-one engine context.
+(`ai_training_state`, `src/apps/bitmappy/src/bitmappy/constants.py`). Since 2026-11-21
+(`fix/bitmappy-context-slots`) the manager is a slot (`bitmappy.onion_skinning.manager`) and the
+training state is S21 (shared, read-only package data), so neither stands in the way of a
+Bitmappy in more than one engine context; C16 still does.
 
 C19 moves into the context in sub-plan 2 with the other engine state; where a context's posts
 go (today `pygame.event.post` into SDL's one queue, item S5) is sub-plan 6's. The 15 lines of
@@ -130,6 +132,7 @@ tests of moved state (Decisions, 1).
 | S18 | `_NAMED_CUSTOM_EVENT_TYPES` | `src/glitchygames/events/base.py:151` | pygame's custom event types by name | stays shared: pygame allocates them once per process, and each name is registered once, at its module's import | none |
 | S19 | Bitmappy's MasterHUB `_REGISTRY` | `src/apps/bitmappy/src/bitmappy/masterhub.py:28` | the MasterHUB installer the browser page registers | stays shared: the player's, as S9 and S10 are | none |
 | S20 | `_warned_hertz_values` | `src/glitchygames/audio/pitch.py:79` | the out-of-range frequencies already warned about (each warned once) | **open: not yet per context**: a second context never warns about a value the first did | none yet |
+| S21 | Bitmappy's AI training library `_INSTALLED` | `src/apps/bitmappy/src/bitmappy/training_library.py` | the training examples built from the packaged sprite files (was `constants.ai_training_state`) | stays shared, read-only package data: frozen (`TrainingLibrary`), installed once by `load_ai_training_data()`; a later load is ignored (2026-11-21, `fix/bitmappy-context-slots`) | none |
 
 ### Read-only (17)
 
@@ -436,10 +439,15 @@ its own is the playback core's decision.
    (`test_ten_inner_games_per_outer_frame`). Row S8 is only partly done (above).
 8. **The replay viewer's inner game in its own context**: the first existing user; the viewer
    stays the outer game in the default context; every watched-replay test and golden replay
-   unchanged.
+   unchanged. **Moved, not done** (the owner, 2026-11-20): Arcade sub-plan 5
+   ([2026-11-20-arcade-5-playback-core.md](2026-11-20-arcade-5-playback-core.md), decision 1 of
+   its owner's decisions) built `DemoPlayer` on `InnerGame` and the viewer's pacer
+   (`src/glitchygames/replay/pacer.py`) without it; the viewer still runs in its game's own
+   engine. The move is a later Arcade sub-plan, starting from the design questions that plan
+   lists under "The viewer's own context".
 
-After sub-plan 8 the Arcade spec's sub-plan 2 (one playback core, then `DemoPlayer`) builds on
-contexts.
+The Arcade spec's playback core (its sub-plan 5) was built on contexts without sub-plan 8: the
+tiles are `InnerGame`s, and the viewer shares their pacing, not their context.
 
 ## Decisions (the owner, 2026-10-25)
 

@@ -168,3 +168,20 @@ At `warning` no recording should emit an INFO or DEBUG record (the startup optio
 CRITICAL record a run): a logger that does has a level set behind the command line's back
 (BUGS.md #236), which `tests/replay/test_replays_log_quietly.py`
 and `tests/test_logger_levels_at_import.py` fail on in the ordinary test run.
+
+## What demo players cost
+
+A benchmark measures what an Arcade's tiles cost, with the real bundled demos: ten
+`DemoPlayer`s sharing one 11 ms budget per 60 Hz Arcade frame, a loop's build for each bundled
+demo (cold and warm) and the ten posters' fast-forward. Like the logging benchmark it runs only
+under `--benchmark-only` (it skips otherwise), so CI runs it in `nox -s performance-test`. Run it
+alone with
+
+```bash
+uv run pytest tests/benchmarks/test_demo_player_benchmarks.py -o addopts= -p no:xdist --benchmark-only --dummy-only
+```
+
+It prints each demo's builds, each player's frames, loops and effective speed, and the Arcade
+frames the posters took. The numbers of the first run (2026-11-20) are in the engine context
+page's [Performance](../architecture/engine_context.md#performance) section; its table's
+ten-player row is checked against the 11 ms budget in the normal test run.

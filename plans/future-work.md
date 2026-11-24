@@ -235,6 +235,12 @@ arc was lost. What follows is left.
   `STRING_LOADS` adds `importlib.__import__`, `builtins.__import__`, `pytest.importorskip` and
   `importlib.util.find_spec`; the member-test naming check already required a separator
   (`test_bitmappyx.py` is refused).
+- **A member's own folder measures coverage differently from the root (found 2026-11-22).**
+  `uv run pytest` run from `src/apps/bitmappy/` doesn't read the root `pyproject.toml`'s
+  `[tool.coverage.report] exclude_lines`, so it reports `editor.py:1674` (the
+  `if __name__ == '__main__':` call) as missed, while the same tests run from the root give 100%.
+  CI and the gate measure from the root, so neither is affected; it misleads anyone checking a
+  member from its folder. Member runs should read the root's coverage settings.
 
 ## Engine context (2026-10-28, sub-plan 2)
 
@@ -255,10 +261,10 @@ arc was lost. What follows is left.
   generic multi-controller code into the engine as a per-context roster and deletes the
   singleton (`src/apps/bitmappy/src/bitmappy/controllers/manager.py:69`). Until it lands,
   `tests/test_process_state_guard.py` lists the singleton under C16. Bitmappy's two other pieces
-  of process state that guard lists, `onion_skinning_manager`
-  (`src/apps/bitmappy/src/bitmappy/onion_skinning.py:162`) and `ai_training_state`
-  (`src/apps/bitmappy/src/bitmappy/constants.py:100`), are not the roster's and have no owning
-  plan yet: each needs one before a Bitmappy runs in more than one engine context.
+  of process state are settled (2026-11-21, `fix/bitmappy-context-slots`): the onion skinning
+  manager is a slot (`bitmappy.onion_skinning.manager`, reset per test by the autouse
+  `fresh_onion_skinning_manager` in `src/apps/bitmappy/tests/conftest.py`), and the AI training
+  data is a frozen library installed once (`bitmappy.training_library`, audit row S21).
 - **The performance gate could compare the FPS slice summaries too** (the controller,
   2026-10-29). Sub-plan 2's Task 17 gate (a) compares each recording's p50 and p99 processing
   times, base against branch; it could later also compare the mean and the "5% low"/"5% high"
@@ -867,6 +873,12 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   (`log.exception`), though that is a normal case. In the one-process Arcade, Bitmappy's tile
   would start a worker on every loop. Start no worker, and log no error (INFO at most), when the
   service is absent, in a replay or in a demo (`src/apps/bitmappy/src/bitmappy/ai_worker.py`).
+  Measured by Arcade sub-plan 5's benchmark (2026-11-20): each Bitmappy tile build starts the
+  worker and then joins it at once, because `main()`'s `finally` (`shut_down_running_ai_workers`,
+  `src/apps/bitmappy/src/bitmappy/editor.py`) runs as soon as an inner game's `engine.start()`
+  returns from its build: about 275 ms of a 355-450 ms build is that join, and the join can wait
+  up to `AI_WORKER_JOIN_TIMEOUT_SECONDS` (2 s) plus 1 s after terminating (a likely reading of
+  the 3.1 s build first seen). The worker also prints the traceback to the host's terminal.
 - ~~**Convert the joystick demo (and the dt demo) to sprites**~~ (the owner, 2026-11-11). **Done**
   in sub-plan 2's Task 4 (`40576db5`, `8c5dcf61`), which removed the entry from Games: both draw
   with sprites (the joystick demo's gauges, a column rebuilt when a pad's mapping changes), so
@@ -1053,6 +1065,38 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
     the grandchild's plays as both games' (`plain_plays_followed`). Nothing does this today.
   - A review minor about real-time margins in the tests (M5) was parked without detail beyond
     its name; the archived ledger holds the review.
+
+## Arcade (sub-plan 5 follow-ups, 2026-11-20; plans/2026-11-20-arcade-5-playback-core.md)
+
+- **The replay viewer's inner game in its own context** (engine context sub-plan 8): moved by the
+  owner to a later Arcade sub-plan, not done. Its design questions (where the outer viewer game
+  lives, the dropped real key presses above, where the viewer's controls and frame sink live,
+  and what an in-process step back replaces) are in that plan, "The viewer's own context".
+- **A loop's build runs past decision 7's 9 to 40 ms for four of the eleven bundled demos**
+  (measured warm 2026-11-20, docs/architecture/engine_context.md, Performance): Bitmappy 355 to
+  450 ms (its AI worker, above, and about 147 ms of `load_ai_training_data` rendering 71 sprite
+  files as text for a log line at any log level), Zombies Ain't My Neighbors 100 to 176 ms warm
+  (about 160 ms of it reading and decoding its 1,538-frame recording again) and 860 ms cold, and
+  Brave Adventurer's two demos 33 to 71 ms. A cold first build is longer (Mr. Muncher: 24 ms
+  warm, 207 ms cold).
+  The build is one indivisible call charged to the budget (decision 7), so a looping Bitmappy
+  tile holds the whole Arcade for about 22 frames (the benchmark's worst round, 376 ms). Options
+  for sub-plan 6: keep the decoded recording across a player's loops (an engine change: the
+  recording is read whole by every `InnerGame.replay`), build the next game ahead of time
+  (a second context for a moment, which the channel declaration must allow), and Bitmappy's own
+  fixes (no worker in a replay; no ASCII rendering unless its log level is on).
+- **Not measured:** a Raspberry Pi (the budget will bind; slow motion is the answer, but nine or
+  ten tiles at 60 Hz there are not promised) and a restart's build in the browser (Pyodide).
+- **The proof's demo-player runs use a fake budget clock** (`FrameCostClock`), so their frames
+  per tick are the same on every machine; what a real clock does to the frames' timing (not
+  their content) is the benchmark's and `tests/test_demo_player.py`'s. A recorded Arcade session
+  replays its inputs, not its tiles' progress (the owner's decision 5): if sub-plan 6 ever wants
+  its golden replay to compare tile pixels, option B of that plan's audit (the frames each tile
+  ran per tick recorded as an internal event) is what it needs.
+- **The ten-tile set leaves one bundled demo out.** There are eleven bundled demos (Brave
+  Adventurer has two, and Zombies Ain't My Neighbors' `neighborhood_four_kids` is one); the
+  benchmark leaves out the text-input demo (its key repeat). Sub-plan 6 decides the real ten.
+  (2026-11-20: the gameplay replay page now lists all eleven, instead of "ten in all".)
 
 ## Games
 
@@ -1656,8 +1700,9 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
     own step after every package: remove S101 from ruff's ignore list (the per-file ignores keep
     asserts allowed in tests only), so any assert in a non-test file fails, and tighten bandit
     past B101's filter. No list of files still to do is kept in the code (a saved ratchet guard
-    is in the gitignored `build/assert-sweep-final-step/` of the
-    `glitchygames-assert-replacement-engine` worktree; keep it when that worktree is removed).
+    was in the gitignored `build/assert-sweep-final-step/` of the
+    `glitchygames-assert-replacement-engine` worktree, removed on 2026-11-24; archived to
+    `.ledger/archive/worktree-leftovers-2026-11-24/glitchygames-assert-replacement-engine/build/assert-sweep-final-step/`, on the owner's Mac).
   - Progress (2026-11-21): done are `InnerGame`'s three (#246), 78 in 27 engine files (#259;
     one, in `audio/assets.py`'s pitch check, could fire in normal use, a `Note` or `Midi` pitch
     in a Python-built table, and is now a `ValueError`), Bitmappy's (#258) and `scripts/` 43 in
@@ -1859,7 +1904,8 @@ Loading and memory:
 
 - [ ] **Decide whether to enable the memory cgroup on Raspberry Pi OS.** Its firmware boots the
   kernel with `cgroup_disable=memory` (in its own boot arguments, ahead of `cmdline.txt`'s: read
-  2026-11-16 on `raspberry-pi-5-16gb-raspberry-pi-os`), so the runner's `MemoryMax=2G` and
+  2026-11-16 on `raspberry-pi-5-16gb-raspberry-pi-os`; not read on
+  `raspberry-pi-5-8gb-raspberry-pi-os`, added 2026-11-21), so the runner's `MemoryMax=2G` and
   `MemorySwapMax=0` are written and not enforced there; the Ubuntu Pis enforce them. Left alone
   for now (the owner: "Leave boot arguments alone but make a todo"). It matters only once a Pi's
   CircleCI job is switched on: no workflow runs one, and the push-time measuring logs in over SSH,
