@@ -935,6 +935,7 @@ class TestDrawingOnlyWhatChanged:
     only when they are shown, hidden or swapped. The actors move, so they are drawn every frame.
     """
 
+    @pytest.mark.draws_frames
     def test_in_play_a_still_sprite_is_drawn_again_only_when_it_changed(self, mocker):
         """Each frame in play, a sprite other than an actor is redrawn only if it changed.
 
@@ -980,6 +981,7 @@ class TestDrawingOnlyWhatChanged:
         assert unchanged_but_redrawn == []
         assert redrawn_still_sprites > 0  # Snacks blinked: the check saw changes to allow
 
+    @pytest.mark.draws_frames
     def test_every_golden_frame_equals_a_full_repaint(self, mocker):
         """Each frame of the golden, drawn as the game draws it, equals a full repaint.
 
@@ -1011,6 +1013,7 @@ class TestDrawingOnlyWhatChanged:
         assert comparison.compared > 1000
         assert comparison.shaken > 0
 
+    @pytest.mark.draws_frames
     def test_a_cleared_level_flashing_equals_a_full_repaint(self):
         """Each frame of a level's end, the maze flashing, equals a full repaint."""
         with (
@@ -1028,6 +1031,7 @@ class TestDrawingOnlyWhatChanged:
         assert flashing > 1
         assert comparison.compared - flashing > 1
 
+    @pytest.mark.draws_frames
     def test_the_frames_after_a_pause_equal_a_full_repaint(self):
         """After the pause screen drew over the game, the resumed game's frames are whole."""
         with (
