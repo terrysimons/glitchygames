@@ -41,6 +41,12 @@ if TYPE_CHECKING:
 CHANNEL_SLIDER_ATTRIBUTES = ('red_slider', 'green_slider', 'blue_slider', 'alpha_slider')
 
 
+# Module-level, so its handler is added once: added in __init__, each instance added another
+# to the one shared logger, never removed (3,545 over Bitmappy's tests, 2026-11-23)
+SLIDER_MANAGER_LOG = logging.getLogger('game.tools.bitmappy.slider_manager')
+SLIDER_MANAGER_LOG.addHandler(logging.NullHandler())
+
+
 class SliderManager:
     """Manages slider and color well UI for the Bitmappy editor.
 
@@ -57,8 +63,7 @@ class SliderManager:
 
         """
         self.editor = editor
-        self.log = logging.getLogger('game.tools.bitmappy.slider_manager')
-        self.log.addHandler(logging.NullHandler())
+        self.log = SLIDER_MANAGER_LOG
 
         # State owned by SliderManager (labels and bounding boxes)
         self.alpha_label: TextSprite | None = None

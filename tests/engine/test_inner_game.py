@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import pygame
 import pytest
@@ -48,6 +48,7 @@ from glitchygames.inner_game import (
     REFUSED_SHORT_FLAG_LETTERS,
     SHORT_FLAGS_TAKING_A_VALUE,
     InnerGame,
+    InnerGameAudibleError,
     InnerGameOutcome,
     InnerGameRefusedError,
     InnerGameState,
@@ -59,6 +60,7 @@ from glitchygames.inner_game import (
 )
 from glitchygames.render_target import render_target
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES
+from glitchygames.replay.pacer import TickBudget
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites.spawned import SpawnedSprite
@@ -70,13 +72,20 @@ from tests.audio.voice_support import (
     SAMPLE_RATE,
     unreserved_channel_ids,
 )
-from tests.replay.replay_helpers import tamper_first_sprite_rect
+from tests.inner_game_tiles import (
+    Tile,
+    assert_no_tile_is_heard,
+    play_alone,
+    reference_digests,
+)
+from tests.replay.replay_helpers import rewrite_recording, tamper_first_sprite_rect
 from tests.stand_in_games import (
     STAND_IN_GAME_RESOLUTION,
     STAND_IN_SPAWN_POINT,
     StandInGame,
     copy_recording,
     record_stand_in_game_once,
+    use_stand_in_game,
     write_chiming_stand_in_game,
     write_live_voice_stand_in_game,
     write_spawning_stand_in_game,
@@ -85,8 +94,9 @@ from tests.stand_in_games import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
     from pathlib import Path
+    from typing import Any
 
     from pytest_mock import MockerFixture
 
@@ -129,6 +139,17 @@ TARGET_SIZE = (
 ANOTHER_SIZE = (TARGET_SIZE[0] + 16, TARGET_SIZE[1])
 # The frame a tampered copy first differs at
 TAMPERED_FRAME = 10
+# A fast-forward's budgets run on a fake clock on which each frame costs this (frame_cost_clock):
+# a power of two, so every multiple and difference of multiples is exact in a float and a k-frame
+# budget is spent by exactly k frames (0.004 is not: from frame 9 one frame left it unspent)
+FRAME_COST_SECONDS = 1 / 256
+# The start frames and budgets (in frames) the frame-cost clock is checked over: longer than any
+# recording a test fast-forwards
+FRAME_COST_CHECKED_START_FRAMES = 5000
+FRAME_COST_CHECKED_BUDGET_FRAMES = (1, 2, 3, 5, 8)
+# The frame the sliced fast-forwards go to, and the frames a slice allows: not a multiple of it
+SLICED_TO_FRAME = 10
+FRAMES_PER_SLICE = 3
 # More steps than any stand-in recording holds: a loop that never ends fails instead of hanging
 MOST_STEPS = 500
 # Quiet inner engines: their INFO lines would only crowd a failing test's output
@@ -869,6 +890,496 @@ class TestAReplayInsideItsContext:
             assert outcome.report is not None
             assert outcome.report.startswith('Replay matched'), outcome.report
         assert first.context is not second.context
+
+
+class TestWhatAHostNeedsToPaceIt:
+    """The recorded duration of the next frame, the frame count and the frame index."""
+
+    @staticmethod
+    def make_uneven(*, recording: Path) -> list[float]:
+        """Give the recording a different ``dt`` on every frame.
+
+        Returns:
+            The new ``dt`` of each frame, in order.
+
+        """
+        new_durations: list[float] = []
+
+        def change(trace: dict[str, Any]) -> None:
+            for position, frame in enumerate(trace['frames']):
+                frame['dt'] = 0.010 + 0.001 * position
+                new_durations.append(frame['dt'])
+
+        rewrite_recording(recording_path=recording, change=change)
+        return new_durations
+
+    def test_the_next_frames_duration_follows_the_viewers_rule_on_uneven_dts(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """The next frame's recorded dt; the current frame's for the last; 0.0 past the end."""
+        durations = self.make_uneven(recording=recording)
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+
+        assert inner_game.frame_count == len(durations)
+        seen: list[tuple[int, float]] = []
+        while True:
+            seen.append((inner_game.frame_index, inner_game.next_frame_seconds))
+            if not inner_game.step():
+                break
+
+        for frame_index, seconds in seen:
+            if frame_index + 1 < len(durations):
+                assert seconds == pytest.approx(durations[frame_index + 1])
+            elif frame_index < len(durations):
+                assert seconds == pytest.approx(durations[frame_index])
+        assert seen[0][1] == pytest.approx(durations[1])
+        assert seen[-1][0] <= len(durations)
+        assert inner_game.next_frame_seconds == 0.0
+
+    def test_the_frame_index_is_the_next_frame_and_equals_the_frames_run(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """Before frame 0 it is 0; each step adds one; it always equals outcome.frames_run."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        assert inner_game.frame_index == 0
+
+        while inner_game.step():
+            assert inner_game.frame_index == inner_game.outcome.frames_run
+        assert inner_game.frame_index == inner_game.outcome.frames_run
+        assert inner_game.frame_index == inner_game.frame_count
+
+    def test_all_three_read_as_defined_after_the_game_ended_early(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """A game finished before the end still answers by the recording it replayed."""
+        durations = self.make_uneven(recording=recording)
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        inner_game.step()
+        inner_game.finish()
+
+        assert inner_game.frame_count == len(durations)
+        assert inner_game.frame_index == 1
+        assert inner_game.next_frame_seconds == pytest.approx(durations[2])
+
+    def test_an_engine_without_replay_sources_has_no_frames_to_report(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """Nothing to read the recording from: 0 frames and 0.0 seconds, not an error."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        assert inner_game._engine is not None
+        replay_sources = inner_game._engine.replay_sources
+        inner_game._engine.replay_sources = None
+
+        assert inner_game.frame_count == 0
+        assert inner_game.next_frame_seconds == 0.0
+
+        inner_game._engine.replay_sources = replay_sources
+        inner_game.finish()
+
+    def test_a_game_that_failed_to_build_has_no_frames(self, recording: Path):
+        """No installed command: nothing recorded is known, so 0 frames and 0.0 seconds."""
+        inner_game = InnerGame.replay(
+            command='no-such-command-anywhere', path=recording, name='tile', size=TARGET_SIZE
+        )
+
+        assert inner_game.outcome.state is InnerGameState.FAILED
+        assert inner_game.frame_count == 0
+        assert inner_game.frame_index == 0
+        assert inner_game.next_frame_seconds == 0.0
+
+
+class CountsFrames(Protocol):
+    """What the frame-cost clock reads: an inner game, or a counter standing in for one."""
+
+    @property
+    def frame_index(self) -> int:
+        """The frames run so far."""
+        ...
+
+
+class FrameCounter:
+    """A frame index set by hand, to check the frame-cost clock against ``TickBudget``."""
+
+    def __init__(self) -> None:
+        """Start at frame 0."""
+        self.frame_index = 0
+
+
+def frame_cost_clock(inner_game: CountsFrames) -> Callable[[], float]:
+    """Return a fake real-time clock on which every frame the inner game runs costs one frame.
+
+    A ``TickBudget`` of ``FRAME_COST_SECONDS`` on it is spent by exactly one frame, so a test
+    says how many frames a budget allows without reading the wall clock.
+
+    Returns:
+        The clock: the frames run so far, times ``FRAME_COST_SECONDS``.
+
+    """
+    return lambda: inner_game.frame_index * FRAME_COST_SECONDS
+
+
+def frame_budget(*, inner_game: CountsFrames, frame_count: float) -> TickBudget:
+    """Start a budget allowing ``frame_count`` frames on the frame-cost clock.
+
+    Returns:
+        The budget, started now.
+
+    """
+    return TickBudget(
+        length_seconds=frame_count * FRAME_COST_SECONDS,
+        measured_seconds=frame_cost_clock(inner_game),
+    )
+
+
+def fast_forward_in_slices(
+    *, inner_game: InnerGame, to_frame: int, frames_per_slice: float
+) -> list[int]:
+    """Fast-forward in calls of a fresh budget each, as a host does once per tick, until reached.
+
+    Returns:
+        How many frames each call ran, in order.
+
+    """
+    frames_run_by_call: list[int] = []
+    for _call in range(MOST_STEPS):
+        frames_before = inner_game.frame_index
+        reached = inner_game.fast_forward(
+            to_frame=to_frame,
+            budget=frame_budget(inner_game=inner_game, frame_count=frames_per_slice),
+        )
+        frames_run_by_call.append(inner_game.frame_index - frames_before)
+        assert inner_game.frame_index <= to_frame
+        if reached:
+            return frames_run_by_call
+    pytest.fail(f'{inner_game.context.name} did not reach frame {to_frame} in {MOST_STEPS} calls')
+
+
+def test_the_frame_cost_clock_spends_a_k_frame_budget_in_exactly_k_frames():
+    """The double's own contract, for every start frame of a long recording.
+
+    ``TickBudget.is_spent`` compares a difference of clock readings with the length, so a frame
+    cost that floats cannot hold exactly (0.004) lets a "one-frame" budget run two frames from
+    some start frames; the tests above would then count frames the fast-forward never chose.
+    """
+    counter = FrameCounter()
+    wrong: list[tuple[int, int]] = []
+    for start_frame in range(FRAME_COST_CHECKED_START_FRAMES):
+        for budget_frames in FRAME_COST_CHECKED_BUDGET_FRAMES:
+            counter.frame_index = start_frame
+            budget = frame_budget(inner_game=counter, frame_count=budget_frames)
+            counter.frame_index = start_frame + budget_frames - 1
+            spent_a_frame_early = budget.is_spent
+            counter.frame_index = start_frame + budget_frames
+            if spent_a_frame_early or not budget.is_spent:
+                wrong.append((start_frame, budget_frames))
+
+    assert wrong == []
+
+
+class TestAFastForward:
+    """A silent, time-sliced fast-forward to a frame (Arcade sub-plan 5, decision 8).
+
+    ``fast_forward(to_frame=..., budget=...)`` runs the frames from the next one up to
+    ``to_frame`` until the budget is spent, at least one a call, and says whether it got there;
+    the next call goes on. The budgets here run on a fake clock on which each frame costs
+    ``FRAME_COST_SECONDS`` (``frame_cost_clock``).
+    """
+
+    def test_one_call_with_a_large_budget_reaches_the_frame_and_the_next_step_runs_it(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """Every frame before ``to_frame`` runs in one call; the next step runs ``to_frame``."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        to_frame = inner_game.frame_count // 2
+
+        reached = inner_game.fast_forward(
+            to_frame=to_frame,
+            budget=frame_budget(inner_game=inner_game, frame_count=inner_game.frame_count),
+        )
+
+        assert reached is True
+        assert inner_game.frame_index == to_frame
+        assert inner_game.outcome.state is InnerGameState.RUNNING
+        assert inner_game.step()
+        assert inner_game.frame_index == to_frame + 1
+        assert current_context() is default_context()
+        inner_game.finish()
+
+    def test_a_budget_of_one_frame_takes_one_call_a_frame(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """``to_frame`` calls, each running exactly one frame, never past ``to_frame``."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        to_frame = inner_game.frame_count // 2
+
+        frames_run_by_call = fast_forward_in_slices(
+            inner_game=inner_game, to_frame=to_frame, frames_per_slice=1
+        )
+
+        assert frames_run_by_call == [1] * to_frame
+        assert inner_game.frame_index == to_frame
+        inner_game.finish()
+
+    def test_a_spent_budget_still_runs_one_frame_a_call(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """Progress is guaranteed: a budget spent before the call still runs one frame."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        to_frame = SLICED_TO_FRAME
+
+        frames_run_by_call = fast_forward_in_slices(
+            inner_game=inner_game, to_frame=to_frame, frames_per_slice=0
+        )
+
+        assert frames_run_by_call == [1] * to_frame
+        inner_game.finish()
+
+    def test_a_budget_of_several_frames_stops_at_the_frame_not_past_it(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """Slices of three frames toward a frame not a multiple of three: the last is shorter."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        to_frame = SLICED_TO_FRAME
+
+        frames_run_by_call = fast_forward_in_slices(
+            inner_game=inner_game, to_frame=to_frame, frames_per_slice=FRAMES_PER_SLICE
+        )
+
+        assert to_frame % FRAMES_PER_SLICE
+        assert frames_run_by_call == [FRAMES_PER_SLICE] * (to_frame // FRAMES_PER_SLICE) + [
+            to_frame % FRAMES_PER_SLICE
+        ]
+        assert inner_game.frame_index == to_frame
+        inner_game.finish()
+
+    def test_every_frame_after_it_is_a_headless_replays(
+        self,
+        stand_in: StandInGame,
+        recording: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """The proof's check: digests equal a headless replay's, pixels the game's alone.
+
+        Every frame's digest (those it fast-forwarded through and those after) equals the
+        recording replayed alone, headless, in a child; every frame from ``to_frame`` on draws
+        what the recording replayed alone as an inner game draws.
+        """
+        use_stand_in_game(install_directory=stand_in.install_directory, monkeypatch=monkeypatch)
+        reference = reference_digests(
+            console_script=stand_in.console_script, recording=recording, work_directory=tmp_path
+        )
+        alone = play_alone(
+            console_script=stand_in.console_script, recording=recording, work_directory=tmp_path
+        )
+        tile = Tile(
+            console_script=stand_in.console_script,
+            recording=recording,
+            name='fast-forwarded',
+            work_directory=tmp_path,
+        )
+        to_frame = tile.inner_game.frame_count // 2
+
+        frames_run_by_call = fast_forward_in_slices(
+            inner_game=tile.inner_game, to_frame=to_frame, frames_per_slice=FRAMES_PER_SLICE
+        )
+        while tile.running:
+            tile.run_frames(frame_count=1)
+
+        assert sum(frames_run_by_call) == to_frame
+        assert tile.matched_digests() == reference
+        assert len(tile.pixel_hashes) == len(alone.pixel_hashes) - to_frame
+        assert tile.pixel_hashes == alone.pixel_hashes[to_frame:]
+
+    @pytest.mark.parametrize(
+        ('stand_in_name', 'recording_name', 'sounding_frame'),
+        [
+            ('chiming_stand_in', 'chiming_recording', CHIME_FRAME),
+            ('live_voice_stand_in', 'live_voice_recording', LIVE_VOICE_FRAME),
+        ],
+    )
+    def test_nothing_it_runs_is_heard(
+        self,
+        stand_in_name: str,
+        recording_name: str,
+        sounding_frame: int,
+        tmp_path: Path,
+        request: pytest.FixtureRequest,
+    ):
+        """Through a chime's frame and a live voice's start: no channel heard, live chunks at 0."""
+        game: StandInGame = request.getfixturevalue(stand_in_name)
+        sounding_recording: Path = request.getfixturevalue(recording_name)
+        tile = Tile(
+            console_script=game.console_script,
+            recording=sounding_recording,
+            name='fast-forwarded',
+            work_directory=tmp_path,
+        )
+        to_frame = sounding_frame + FRAMES_PER_SLICE * 2
+
+        for _call in range(MOST_STEPS):
+            reached = tile.inner_game.fast_forward(
+                to_frame=to_frame, budget=frame_budget(inner_game=tile.inner_game, frame_count=1)
+            )
+            assert_no_tile_is_heard(tiles=(tile,))
+            if reached:
+                break
+
+        assert tile.inner_game.frame_index == to_frame
+        tile.inner_game.finish()
+
+    def test_a_chime_it_runs_through_never_reaches_a_channel(
+        self, chiming_stand_in: StandInGame, chiming_recording: Path
+    ):
+        """The chime's play returned None: not even heard for a moment inside the call."""
+        inner_game = replay_stand_in(game=chiming_stand_in, path=chiming_recording)
+        before = reservation()
+
+        reached = inner_game.fast_forward(
+            to_frame=CHIME_FRAME + 1,
+            budget=frame_budget(inner_game=inner_game, frame_count=inner_game.frame_count),
+        )
+
+        assert reached is True
+        assert chime_channel(inner_game) is None
+        assert busy_channel_ids() == []
+        assert reservation() == before
+        inner_game.finish()
+
+    def test_an_audible_game_is_refused_naming_the_call_that_silences_it(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """Refused before any frame runs; the error names ``set_audible(audible=False)``."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        inner_game.set_audible(audible=True)
+
+        with pytest.raises(InnerGameAudibleError, match=r'set_audible\(audible=False\)'):
+            inner_game.fast_forward(
+                to_frame=SLICED_TO_FRAME,
+                budget=frame_budget(inner_game=inner_game, frame_count=SLICED_TO_FRAME),
+            )
+
+        assert inner_game.frame_index == 0
+        assert inner_game.audible is True
+        inner_game.set_audible(audible=False)
+        assert inner_game.fast_forward(
+            to_frame=SLICED_TO_FRAME,
+            budget=frame_budget(inner_game=inner_game, frame_count=SLICED_TO_FRAME),
+        )
+        inner_game.finish()
+
+    @pytest.mark.parametrize('frames_past_the_last', [0, 1])
+    def test_a_frame_at_or_past_the_frame_count_is_a_value_error(
+        self, stand_in: StandInGame, recording: Path, frames_past_the_last: int
+    ):
+        """The recording has no such frame to stand at: refused, nothing run."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        to_frame = inner_game.frame_count + frames_past_the_last
+
+        with pytest.raises(ValueError, match='frame count'):
+            inner_game.fast_forward(
+                to_frame=to_frame, budget=frame_budget(inner_game=inner_game, frame_count=1)
+            )
+
+        assert inner_game.frame_index == 0
+        inner_game.finish()
+
+    def test_a_negative_frame_is_a_value_error(self, stand_in: StandInGame, recording: Path):
+        """No frame comes before frame 0: refused, nothing run."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+
+        with pytest.raises(ValueError, match='frame count'):
+            inner_game.fast_forward(
+                to_frame=-1, budget=frame_budget(inner_game=inner_game, frame_count=1)
+            )
+
+        assert inner_game.frame_index == 0
+        inner_game.finish()
+
+    def test_a_divergence_on_the_way_ends_it_with_that_outcome_and_it_is_not_reached(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """A tampered frame before ``to_frame``: ENDED, diverged, reported, and False."""
+        tamper_first_sprite_rect(recording_path=recording, frame_number=TAMPERED_FRAME)
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        to_frame = inner_game.frame_count - 1
+        assert to_frame > TAMPERED_FRAME
+
+        reached = inner_game.fast_forward(
+            to_frame=to_frame,
+            budget=frame_budget(inner_game=inner_game, frame_count=inner_game.frame_count),
+        )
+
+        outcome = inner_game.outcome
+        assert reached is False
+        assert outcome.state is InnerGameState.ENDED, outcome
+        assert outcome.diverged is True
+        assert outcome.report is not None
+        assert outcome.report.startswith(f'Replay diverged at frame {TAMPERED_FRAME}')
+        assert inner_game.frame_index < to_frame
+        assert current_context() is default_context()
+
+    def test_a_failure_on_the_way_ends_it_with_that_outcome_and_it_is_not_reached(
+        self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
+    ):
+        """The scene raising on a frame before ``to_frame``: FAILED with its error, and False."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        inner_game.step()
+        with inner_game.context.active():
+            scene = SceneManager().active_scene
+        assert isinstance(scene, Scene)
+        # An injected failure, from the second frame on
+        mocker.patch.object(scene, 'dt_tick', side_effect=RuntimeError('the scene broke'))
+
+        reached = inner_game.fast_forward(
+            to_frame=SLICED_TO_FRAME,
+            budget=frame_budget(inner_game=inner_game, frame_count=SLICED_TO_FRAME),
+        )
+
+        assert reached is False
+        assert inner_game.outcome.state is InnerGameState.FAILED
+        assert inner_game.outcome.error == 'RuntimeError: the scene broke'
+        assert inner_game.frame_index == 1
+        # A finished game goes no further: still not reached, and nothing runs
+        assert (
+            inner_game.fast_forward(
+                to_frame=SLICED_TO_FRAME, budget=frame_budget(inner_game=inner_game, frame_count=1)
+            )
+            is False
+        )
+        assert inner_game.frame_index == 1
+
+    def test_a_frame_already_passed_is_a_no_op(self, stand_in: StandInGame, recording: Path):
+        """At or past ``to_frame``: no frame runs, even with a spent budget, and it is reached."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        for _step in range(SLICED_TO_FRAME):
+            assert inner_game.step()
+
+        at_the_frame = inner_game.fast_forward(
+            to_frame=SLICED_TO_FRAME, budget=frame_budget(inner_game=inner_game, frame_count=0)
+        )
+        past_the_frame = inner_game.fast_forward(
+            to_frame=SLICED_TO_FRAME - 1, budget=frame_budget(inner_game=inner_game, frame_count=0)
+        )
+
+        assert at_the_frame is True
+        assert past_the_frame is True
+        assert inner_game.frame_index == SLICED_TO_FRAME
+        inner_game.finish()
+
+    def test_a_game_that_ended_is_not_at_its_frame_though_it_passed_it(
+        self, stand_in: StandInGame, recording: Path
+    ):
+        """Played to its end: no next frame runs, so a frame it passed is not reached (False)."""
+        inner_game = replay_stand_in(game=stand_in, path=recording)
+        play_to_the_end(inner_game)
+
+        reached = inner_game.fast_forward(
+            to_frame=SLICED_TO_FRAME, budget=frame_budget(inner_game=inner_game, frame_count=1)
+        )
+
+        assert reached is False
+        assert inner_game.frame_index == inner_game.frame_count
 
 
 class TestARecordedQuit:

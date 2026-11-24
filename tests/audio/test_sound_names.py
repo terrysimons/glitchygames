@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from glitchygames.audio.assets import ShortNameIndex, SoundLocation, clear_sound_file_cache
+from glitchygames.audio.assets import (
+    ShortNameIndex,
+    SoundLocation,
+    clear_sound_file_cache,
+    load_sound_file,
+)
 from glitchygames.audio.exceptions import SoundAssetError
 
 FIXTURES = Path(__file__).parent / 'fixtures'
@@ -145,3 +150,84 @@ def test_the_index_loads_a_file_with_its_package_root(tmp_path):
     loaded = index.load(index.resolve('coin'))
 
     assert loaded.sounds['coin'].file == (package / 'samples' / 'coin.wav').resolve()
+
+
+EFFECT_TABLE = (
+    '[effects.jump]\nvolume = 0.35\n\n'
+    '[[effects.jump.tones]]\nwaveform = "sine"\nstart_frequency = 220.0\nend_frequency = 660.0\n'
+    'duration = 0.12\nenvelope = { attack = 0.005, decay = 0.0, sustain_level = 1.0, '
+    'release = 0.08 }\n'
+)
+REPOSITORY = Path(__file__).resolve().parents[2]
+
+
+def test_an_effects_table_is_a_short_name(tmp_path):
+    """An ``[effects.<name>]`` table is one of a file's sounds, so its name is a short name."""
+    (tmp_path / 'sfx.toml').write_text(HEADER + EFFECT_TABLE)
+
+    assert ShortNameIndex(tmp_path).resolve('jump') == SoundLocation(
+        path=tmp_path / 'sfx.toml', table_name='jump'
+    )
+
+
+def _sound_files() -> list[Path]:
+    """Every sound file the engine's fixtures and the games ship (version 1 and version 0).
+
+    Returns:
+        Their paths, sorted.
+    """
+    # The dup fixtures are for the index alone: their instruments are not valid, so no load
+    candidates = [*SOUNDS.glob('*.toml'), *(REPOSITORY / 'src').rglob('sounds/*.toml')]
+    return sorted(
+        path
+        for path in candidates
+        if 'kind = "sounds"' in (text := path.read_text(encoding='utf-8')) or '[recipes.' in text
+    )
+
+
+def _every_kind_file(directory: Path) -> Path:
+    """Write a version 1 file holding one table of every kind the loader reads.
+
+    Returns:
+        Its path.
+    """
+    path = directory / 'every_kind.toml'
+    path.write_text(
+        HEADER
+        + '[waves.hollow]\nmix = { square = 0.7, sine = 0.3 }\n\n'
+        + '[instruments.pluck]\n\n[instruments.pluck.sources.tone]\nwave = "hollow"\n\n'
+        + '[sounds.ping]\ninstrument = "pluck"\npitch = "A4"\nlength = 0.1\n\n'
+        + EFFECT_TABLE
+    )
+    return path
+
+
+def test_the_corpus_holds_the_shipped_sound_files_and_both_versions():
+    """The invariant below reads real files: the games', and version 0 and 1 fixtures."""
+    names = {path.name for path in _sound_files()}
+
+    assert {'pickups.toml', 'legacy_recipes.toml', 'sounds.toml'} <= names
+
+
+@pytest.mark.parametrize(
+    'sound_file',
+    [*_sound_files(), None],
+    ids=lambda path: 'every-table-kind' if path is None else str(path.relative_to(REPOSITORY)),
+)
+def test_every_sound_a_file_loads_is_a_short_name_for_it(sound_file, tmp_path):
+    """Whatever kind of table a sound comes from, its name finds it in its directory's index.
+
+    The conservation rule between the loader and the index: a new table kind the loader turns
+    into a sound fails here until the index reads it too (``[effects.*]`` once did:
+    bugs/2026-11-22-effects-tables-are-not-short-names.md).
+    """
+    path = _every_kind_file(tmp_path) if sound_file is None else sound_file
+    loaded = load_sound_file(path, package_root=path.parent)
+    index = ShortNameIndex(path.parent)
+
+    assert loaded.sounds
+    for name in loaded.sounds:
+        # Several files of a directory may define one name (a duplicate the index reports when
+        # the name is asked for); the index must still list this file's
+        locations = index._index()[name]  # pyright: ignore[reportPrivateUsage]
+        assert SoundLocation(path=path, table_name=name) in locations

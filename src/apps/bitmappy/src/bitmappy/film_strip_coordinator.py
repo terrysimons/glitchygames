@@ -28,6 +28,12 @@ if TYPE_CHECKING:
     from .protocols import EditorContext
 
 
+# Module-level, so its handler is added once: added in __init__, each instance added another
+# to the one shared logger, never removed (3,545 over Bitmappy's tests, 2026-11-23)
+FILM_STRIP_COORDINATOR_LOG = logging.getLogger('game.tools.bitmappy.film_strip_coordinator')
+FILM_STRIP_COORDINATOR_LOG.addHandler(logging.NullHandler())
+
+
 class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
     """Coordinates film strip operations for the Bitmappy editor.
 
@@ -44,8 +50,7 @@ class FilmStripCoordinator:  # ruff: ignore[too-many-public-methods]
 
         """
         self.editor = editor
-        self.log = logging.getLogger('game.tools.bitmappy.film_strip_coordinator')
-        self.log.addHandler(logging.NullHandler())
+        self.log = FILM_STRIP_COORDINATOR_LOG
 
         # Internal state
         self._creating_animation = False

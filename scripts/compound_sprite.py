@@ -11,7 +11,9 @@ if TYPE_CHECKING:
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.engine import ASSET_PATH, GameEngine
+from glitchygames.render_target import display_surface
 from glitchygames.scenes import Scene
 from glitchygames.ui import ButtonSprite, MenuBar, MenuItem
 
@@ -43,9 +45,7 @@ class GameScene(Scene):
 
         super().__init__(groups=groups)
         self.all_sprites: pygame.sprite.LayeredDirty[Any] = groups
-        screen = pygame.display.get_surface()
-        assert screen is not None
-        self.screen: pygame.Surface = screen
+        self.screen: pygame.Surface = required(display_surface(), what='the display surface')
         self.screen_width = self.screen.get_width()
         self.screen_height = self.screen.get_height()
 
@@ -75,7 +75,6 @@ class GameScene(Scene):
         # but the menu code needs to know that we're
         # trying to draw an icon.
         self.menu_icon.name = None
-        assert self.menu_icon.rect is not None
 
         self.menu_bar.add_menu_item(menu_item=self.menu_icon, menu=None)
 

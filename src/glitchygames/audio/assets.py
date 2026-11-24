@@ -976,8 +976,8 @@ def _read_document(path: Path) -> dict[str, Any]:
         SoundAssetError: When the file cannot be read or is not valid TOML.
     """
     try:
-        with path.open('rb') as sound_file:
-            return tomllib.load(sound_file)
+        # Text mode: CRLF and a lone CR read as LF, whatever OS saved the file
+        return tomllib.loads(path.read_text(encoding='utf-8'))
     except OSError as error:
         message = f'{path}: the file cannot be read: {error.strerror or error}'
         raise SoundAssetError(message) from error
@@ -1754,9 +1754,9 @@ class ShortNameIndex:
     """Which file defines each short name, for one sound directory (feature spec 3.2).
 
     The index is built on the first ``resolve``: every ``.toml`` sound file in the directory is
-    read for its ``[sounds.*]`` (or ``[recipes.*]``) table names, and every ``.wav``/``.ogg``
-    file counts as a short name by its stem. Nothing is validated or compiled by indexing, and
-    instruments are not indexed (a sound names an instrument in its own file or as
+    read for its ``[sounds.*]`` and ``[effects.*]`` (or ``[recipes.*]``) table names, and every
+    ``.wav``/``.ogg`` file counts as a short name by its stem. Nothing is validated or compiled by
+    indexing, and instruments are not indexed (a sound names an instrument in its own file or as
     ``path#name``). Other kinds of TOML file (sprites, levels) are skipped.
     """
 
@@ -1844,16 +1844,23 @@ def _table_names(path: Path) -> list[str]:
     """Read the short names a TOML file defines; other kinds of file define none.
 
     Returns:
-        The ``[sounds.*]`` names of a version 1 sound file, the recipe names of a version 0 file.
+        The ``[sounds.*]`` and ``[effects.*]`` names of a version 1 sound file (each once: a name
+        in both is the loader's to refuse), the recipe names of a version 0 file.
     """
     document = _read_document(path)
     header = document.get('glitchygames')
     if isinstance(header, dict):
         if cast('dict[str, object]', header).get('kind') != SOUND_FILE_KIND:
             return []
-        sounds = document.get('sounds')
+        tables = [document.get('sounds'), document.get('effects')]
     elif 'recipes' in document:
-        sounds = document['recipes']
+        tables = [document['recipes']]
     else:
         return []
-    return list(cast('dict[str, object]', sounds)) if isinstance(sounds, dict) else []
+    names = (
+        name
+        for table in tables
+        if isinstance(table, dict)
+        for name in cast('dict[str, object]', table)
+    )
+    return list(dict.fromkeys(names))

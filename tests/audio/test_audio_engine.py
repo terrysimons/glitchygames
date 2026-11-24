@@ -799,6 +799,24 @@ class TestSceneDirectories:
         with pytest.raises(KeyError, match='no sound directory'):
             scene_manager.audio.sound('coin')
 
+    def test_an_effects_table_is_asked_for_by_its_short_name(self, tmp_path):
+        """A sound file's ``[effects.<name>]`` table plays by its name, as a ``[sounds.*]`` does."""
+        (tmp_path / 'sfx.toml').write_text(
+            '[glitchygames]\nkind = "sounds"\nversion = 1\n\n'
+            '[effects.jump]\nvolume = 0.35\n\n'
+            '[[effects.jump.tones]]\nwaveform = "sine"\nstart_frequency = 220.0\n'
+            'end_frequency = 660.0\nduration = 0.12\n'
+            'envelope = { attack = 0.005, decay = 0.0, sustain_level = 1.0, release = 0.08 }\n'
+        )
+        scene = type('EffectsScene', (), {'SOUND_DIRECTORY': str(tmp_path)})
+        no_channels = ChannelPartition(live=(), library=(), legacy_count=0)
+
+        jump = AudioEngine(partition=no_channels, scene_source=scene).sound('jump')
+
+        assert jump.name == 'jump'
+        assert jump.effect is not None
+        assert jump.effect.tones[0].end_frequency == 660.0
+
     def test_an_absolute_sound_directory_needs_no_package(self, monkeypatch):
         monkeypatch.delitem(sys.modules, 'no_such_package_anywhere', raising=False)
         absolute = type(

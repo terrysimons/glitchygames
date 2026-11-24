@@ -14,17 +14,33 @@ docstrings there are the detailed reference.
 ## Running it
 
 ```bash
-uv run mr-muncher                      # the console script (pyproject.toml [project.scripts])
+uv run mr-muncher                      # the console script (src/games/mr-muncher/pyproject.toml [project.scripts])
 uv run mr-muncher --debug-overlay      # start with the debug overlay (F3 toggles it, F4 cycles panels)
-uv run mr-muncher --record-trace run.jsonl.gz   # record the session
-uv run mr-muncher --replay-trace run.jsonl.gz   # watch it again, exactly
 ```
+
+Recording and replay are the engine's tools, the same from either front end:
+
+=== "Game"
+
+    ```bash
+    uv run mr-muncher --record-trace run.jsonl.gz   # record the session
+    uv run mr-muncher --replay-trace run.jsonl.gz   # watch it again, exactly
+    uv run mr-muncher --verify                      # its golden and bundled demo, headless
+    ```
+
+=== "glitchygames"
+
+    ```bash
+    uv run glitchygames record-trace mr-muncher run.jsonl.gz
+    uv run glitchygames replay-trace run.jsonl.gz
+    uv run glitchygames verify --game mr-muncher
+    ```
 
 `main()` (`game.py`) is just `GameEngine(game=MrMuncherScene).start()`. The scene does not
 define an `args()` class method, so the game adds no options of its own (the engine logs `Game
 does not implement arguments` at INFO, shown with `--log-level info`). All its options are the
-engine's. These are the ones that
-matter here:
+engine's, described in [Argument System](../architecture/argument_system.md). These are the ones
+that matter here:
 
 | Option | Effect on Mr. Muncher |
 |---|---|
@@ -36,6 +52,7 @@ matter here:
 | `--random-seed INT` | Seeds the frightened munchers' random turns |
 | `--screen-shake-intensity`, `--rumble-intensity` | Scale the shake and rumble when a muncher catches you |
 | `--live-voice-pool` | The projector sound needs one free live voice |
+| `--invalid-high-scores {refuse,drop}` (default `refuse`) | What the high-score table does with a saved entry it cannot read: refuse it (keep the file, save nothing) or drop it with a warning (see [Scoring](#scoring-the-bonus-reel-and-lives)) |
 | `--record-trace`, `--replay-trace`, `--headless` | Recording and replay (see [Engine features](#how-it-uses-the-engine)) |
 
 ### Controls
@@ -53,10 +70,15 @@ tied to a key's physical position and works the same on every keyboard layout.
 | Window loses focus | Pause | `on_window_focus_lost_event` |
 | Q | Quit (on the press) | `ActionMap` (`quit`), then `scene_manager.quit()` |
 | On the pause screen: SPACE or gamepad Start or A / ESC or gamepad B or Back / Q | Resume (on release, after a press there) / quit (on the press) / quit (on release) | The engine's `PauseScene` (both gamepad event layers) |
-| On the game-over screen: SPACE (release), gamepad A or Start / ESC or gamepad B or Back | New game / quit | `MrMuncherGameOverScene` and `GameOverScene` |
+| On the pause screen: the window regains focus | Resume (ignored in the first 0.5 s) | The engine's `PauseScene` (`on_window_focus_gained_event`) |
+| On the game-over screen: SPACE (on release) / gamepad A or Start (on the press) | New game | `GameOverScene` (SPACE), `MrMuncherGameOverScene` (gamepad) |
+| On the game-over screen: ESC (on the press) / Q (on release) | Quit | `GameOverScene` and `Scene` |
 
-Note that ESC pauses the game, but ESC on the pause screen quits. The pause and game-over
-screens are engine scenes and check key codes (`event.key`), not scancodes.
+!!! warning "ESC pauses the game, but ESC on the pause screen quits"
+    The pause and game-over screens are engine scenes and check key codes (`event.key`), not
+    scancodes. On the game-over screen gamepad B and Back do nothing: `MrMuncherGameOverScene`
+    handles the gamepad buttons itself and does not pass them on to the engine's screen, which
+    would quit on them.
 
 ## Its package
 
@@ -84,9 +106,12 @@ Its recordings name it `games.mr_muncher.game:MrMuncherScene`, its golden replay
 | `src/games/mr-muncher/src/mr_muncher/autopilot.py` | `Autopilot`, a bot that plays the game. The golden replay's script and the tests use it |
 | `src/games/mr-muncher/tests/test_mr_muncher.py` | The scene: game flow, scoring, input, saves, screens, whole games |
 | `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` | The parts: maze, levels, actors, pictures, scenery, sounds, autopilot |
+| `src/games/mr-muncher/tests/test_mr_muncher_install_location.py`, `test_mr_muncher_logical_names.py`, `test_mr_muncher_touch_controls.py` | Small checks: where the package is imported from, the logical names its recordings hold, the browser's touch buttons press keys the game reads |
 | `src/games/mr-muncher/tests/fixtures/replays/golden.jsonl.gz` | The golden replay (2,072 frames) |
+| `src/games/mr-muncher/src/mr_muncher/demos/chase.jsonl.gz` | The bundled demo, 1,950 frames (see [The autopilot](#the-autopilot)) |
 | `scripts/golden_inputs.py` | `mr_muncher_script` and `MuncherSteering` (the autopilot pressing arrow keys) |
 | `scripts/record_scripted_session.py`, `scripts/golden_inputs.py` | The command that records the fixture (on the engine's scripted-session recorder, `src/glitchygames/replay/tools/scripted_sessions.py`); `mr_muncher_controls` (the golden replay's controls tail) |
+| `scripts/record_bundled_demos.py`, `scripts/demo_inputs.py` | The recipe `mr_muncher_chase` that records the bundled demo, and `mr_muncher_demo_script` |
 
 ## Scenes and how they switch
 
@@ -119,7 +144,7 @@ stateDiagram-v2
     GameOver --> NewGame : SPACE released, or A or Start<br/>switch_to_scene
     Reel --> [*] : Q (scene_manager.quit())
     Pause --> [*] : ESC, B, Back or Q
-    GameOver --> [*] : ESC, B or Back
+    GameOver --> [*] : ESC, or Q released
 ```
 
 Next reel
@@ -233,7 +258,7 @@ The ready message (`_ready_message_text`) depends on the moment:
 | A later life | 2.0 (`READY_SECONDS`) | `TAKE n`, then `ACTION!` | `action` |
 | A later reel | 2.0 | `REEL n`, then `ACTION!` | `action` |
 
-The message is drawn again only when its text or colour changes (`message_shown`), and each cue
+The message is drawn again only when its text or color changes (`message_shown`), and each cue
 plays once, when its text first appears.
 
 ## The maze
@@ -284,7 +309,7 @@ T.........................T
 
 `Maze` is a frozen pydantic model. Its validator rejects a layout that is not a rectangle or that
 does not have exactly one `P`. It knows nothing about pixels. Positions are in **tile units**:
-the centre of the tile in column `c`, row `r` is `(c, r)`, so an actor standing on a tile centre
+the center of the tile in column `c`, row `r` is `(c, r)`, so an actor standing on a tile center
 has whole-number coordinates.
 
 Tunnels
@@ -305,21 +330,21 @@ Geometry
 ### Grid movement and turn buffering
 
 Both the player and the munchers are `MazeActor`s. They move only along corridors, and they
-choose a direction only when they stand exactly on a tile centre (`is_at_tile_centre`: both
+choose a direction only when they stand exactly on a tile center (`is_at_tile_centre`: both
 coordinates are whole numbers).
 
-`MazeActor.advance(distance=..., choose_direction=...)` walks a distance from one tile centre to
-the next. Each time it reaches a centre, or starts on one, it calls `choose_direction` to decide
-the way on (`None` means stop). When a step reaches a centre, the coordinate is rounded so it
-lands exactly on it. Because the walk goes centre to centre, a long frame cannot skip past a
+`MazeActor.advance(distance=..., choose_direction=...)` walks a distance from one tile center to
+the next. Each time it reaches a center, or starts on one, it calls `choose_direction` to decide
+the way on (`None` means stop). When a step reaches a center, the coordinate is rounded so it
+lands exactly on it. Because the walk goes center to center, a long frame cannot skip past a
 turn.
 
 The player's turn buffering (`Player.travel` and `_choose_direction`):
 
 1. `wanted_direction` is the way the player last asked for.
-2. **Reversing happens at once**, even between centres. If the wanted direction is the opposite
+2. **Reversing happens at once**, even between centers. If the wanted direction is the opposite
    of the current one, the player turns round on the spot.
-3. On each tile centre the player takes the wanted direction if it is open. Otherwise it goes
+3. On each tile center the player takes the wanted direction if it is open. Otherwise it goes
    straight on if it can, and stops against a wall if it cannot. The wanted direction stays
    remembered until a junction opens that way.
 4. A new life starts heading left with left wanted, as in the arcade game.
@@ -336,10 +361,10 @@ the frame's presses and releases.
 There are four munchers (`muncher_profiles`). The chaser comes first in the list, because the
 flanker aims relative to it.
 
-| Name | Colour | `Personality` | Chase target | Scatter corner | Starts |
+| Name | Color | `Personality` | Chase target | Scatter corner | Starts |
 |---|---|---|---|---|---|
 | Chomper | purple | `CHASER` | The player's tile | (24, -3), top right | Outside, above the door, roaming left |
-| Snapper | green | `AMBUSHER` | 4 tiles ahead of where the player faces | (2, -3), top left | House centre |
+| Snapper | green | `AMBUSHER` | 4 tiles ahead of where the player faces | (2, -3), top left | House center |
 | Gnasher | orange | `FLANKER` | The pivot 2 tiles ahead of the player, mirrored away from Chomper: `2 * pivot - chaser` | (26, 24), bottom right | House, left seat |
 | Nibbles | magenta | `SHY` | The player's tile while farther than 8 tiles from it, else its own corner | (0, 24), bottom left | House, right seat |
 
@@ -348,13 +373,13 @@ nearest its corner.
 
 ### Choosing a turn
 
-At each tile centre, a roaming muncher (`Muncher._choose_direction`):
+At each tile center, a roaming muncher (`Muncher._choose_direction`):
 
 1. Never turns back by itself. The way it came is removed from the options; it is used only at
    a dead end, and this maze has none.
 2. Considers only open corridor tiles (the same test as the player's, so roaming munchers never
    walk back into the house).
-3. If **frightened**, picks one of the options at random from the seeded stream
+3. If **frightened** (and roaming: eyes never are), picks one of the options at random from the seeded stream
    `random_stream('mr_muncher.munchers')`, so a replay makes the same choices.
 4. Otherwise it takes the option whose next tile is closest in a straight line (`tile_distance`,
    tunnel-aware) to its **target**. On a tie the order is up, left, down, right
@@ -378,7 +403,7 @@ stateDiagram-v2
     WAITING : WAITING<br/>bobs on its seat
     LEAVING : LEAVING<br/>across, then up through the door
     EATEN : EATEN<br/>only eyes, through the corridors to the entrance
-    ENTERING : ENTERING<br/>eyes go down to the house centre
+    ENTERING : ENTERING<br/>eyes go down to the house center
     WAITING --> LEAVING : life_seconds reaches its release time
     LEAVING --> ROAMING : reaches the house entrance
     state ROAMING {
@@ -395,7 +420,7 @@ stateDiagram-v2
     }
     ROAMING --> EATEN : player touches it while frightened
     EATEN --> ENTERING : eyes reach the house entrance
-    ENTERING --> LEAVING : reaches the house centre<br/>(no longer frightened)
+    ENTERING --> LEAVING : reaches the house center<br/>(no longer frightened)
 ```
 
 | State | Movement | Speed | Can touch the player |
@@ -404,11 +429,11 @@ stateDiagram-v2
 | `LEAVING` | `_walk_out`: across to the door's column, then up to the entrance | `house_speed` | Yes |
 | `ROAMING` | `advance` through the corridors, turning as above | `tunnel_speed` on a `T` tile, else `frightened_speed` if frightened, else `hurry_speed` (Chomper only, with few sprockets left), else `muncher_speed` | Yes |
 | `EATEN` | `advance` towards the house entrance | `eyes_speed` | No |
-| `ENTERING` | `_walk_in`: down to the house centre | `eyes_speed` | No |
+| `ENTERING` | `_walk_in`: down to the house center | `eyes_speed` | No |
 
 A **change of mode turns every roaming muncher round**. When the schedule's phase changes, or a
 snack starts a fright, the scene sets `reverse_soon`, and the muncher reverses on its next step,
-even between tile centres. This is the only time a muncher reverses.
+even between tile centers. This is the only time a muncher reverses.
 
 ### Scatter, chase and fright timing
 
@@ -459,18 +484,21 @@ player is 1.1 times faster, and a hurrying Chomper is 1.08 times faster than the
 | Frightened muncher | 200, 400, 800, 1600 (doubling for each one eaten in the same fright) | Everything stops for 0.75 s while the points show (`camera_flash` sound). Mr. Muncher and the eaten muncher are hidden meanwhile |
 | Bonus film reel | The reel's `bonus_points` | Shown for 2 s (`eat_bonus` sound) |
 
-- **The bonus reel** appears on the tile three rows below the house centre (`message_cell`,
+- **The bonus reel** appears on the tile three rows below the house center (`message_cell`,
   where the messages show too) after the 70th and the 170th sprocket of a reel
-  (`BONUS_SPROCKET_COUNTS`), and stays 9.5 s unless eaten.
+  (`BONUS_SPROCKET_COUNTS`; a snack counts as one), and stays 9.5 s (`BONUS_SECONDS`) unless eaten.
 - **Extra life**: one, the first time the score reaches 10,000 (`extra_life` sound). The game
   starts with 3 lives, counting the one in play.
-- **Contact**: a muncher touches the player when their centres are closer than 0.6 tiles
+- **Contact**: a muncher touches the player when their centers are closer than 0.6 tiles
   (`CONTACT_DISTANCE_TILES`, tunnel-aware). Only munchers that are roaming or leaving the house
   count. The first muncher found touching settles the step: it is eaten if frightened,
   otherwise the player is caught.
-- **High scores** use the engine's saves: `open_saves(app_name='mr-muncher')`, save name
+- **High scores** use the engine's saves and its `HighScoreTable`
+  (`glitchygames.state.high_scores`): `open_saves(app_name='mr-muncher')`, save name
   `high_scores`, stored as `{'scores': [{'score': ..., 'level': ...}, ...]}`, best first, the
-  best 10 kept. The game is added to the table when the last life is lost. The panel's HIGH
+  best 10 kept. The game is added to the table when the last life is lost. A saved entry the
+  table cannot read is refused (nothing is saved, the file stays as found) or dropped with a
+  warning, as `--invalid-high-scores` says. The panel's HIGH
   SCORE is the larger of the best saved score and the current score. In a replay the saves are
   an in-memory sandbox seeded from the recording, so a replay never touches real saves.
 
@@ -605,10 +633,13 @@ classDiagram
 
 The actors are **world-space sprites** (`COORDINATE_SPACE = CoordinateSpace.WORLD`). They keep
 their positions in tiles, report `world_x`/`world_y` in pixels (the picture's top-left corner),
-and the engine places their rects every frame. Hiding one uses `hidden = True`, never
-`visible`, which the engine owns for world sprites. The camera never moves (the scene sets no
+and the engine places their rects every frame. The camera never moves (the scene sets no
 follow target), so world pixels are screen pixels. The still sprites are screen space and place
 their own rects.
+
+!!! warning "Hide a world sprite with `hidden = True`, never `visible`"
+    The engine owns `visible` for world sprites. The still sprites (screen space) are shown and
+    hidden with `visible`.
 
 `render()` is overridden: it blits the whole background (the flash copy on alternate quarter
 seconds during the level-clear flash), clears the group with that same background, draws every
@@ -619,8 +650,10 @@ sprite, and sets `self.rects = None` so the whole screen is presented.
 `drawing.py` draws every picture with pygame primitives. Shapes are drawn four times larger
 (`SUPERSAMPLE`) and smooth-scaled down, which smooths their edges. The maze is drawn twice as
 large (`MAZE_SUPERSAMPLE`) because its blur is the costly part. Every function is cached with
-`functools.cache`, because the game asks for the same few pictures every frame, so callers must
-not draw on the surfaces they get back.
+`functools.cache`, because the game asks for the same few pictures every frame.
+
+!!! warning "Never draw on a surface a `drawing` function returns"
+    The surface is the cached one, shared by every caller.
 
 The maze picture: each open tile is drawn as a black square widened by 0.2 of a tile on each
 side, the wall shape is blurred, and it is cut at two thresholds. The first gives the gold trim
@@ -635,15 +668,17 @@ with per-pixel alpha (macOS cocoa), a plain `pygame.Surface` takes the display's
 including its alpha channel. Alpha-blending a per-pixel-alpha picture such as the smooth-scaled
 maze onto it leaves alpha 0 in those pixels. Every sprite later blended over such a pixel would
 be copied unblended, and the window shows alpha 0 as black. Making the backgrounds opaque once,
-when the scene is built, keeps the sprites' blending correct. The engine also makes every
-presented frame opaque (`SceneManager._show_frame`), but that happens too late to fix blending
-inside the frame.
+when the scene is built, keeps the sprites' blending correct.
+
+!!! note "The engine's own opaque step comes too late"
+    The engine also makes every presented frame opaque (`SceneManager._show_frame`), but that
+    happens after the frame is drawn, too late to fix blending inside it.
 
 ### Layout and the side panels
 
 `maze_geometry` makes the tiles as large as the screen's height allows (`height // 24`), unless
 the side panels would then be narrower than 100 px (`(width - 200) // 27`). Tiles are never
-smaller than 8 px. The maze is centred. The two `SidePanel`s fill the space to its left and
+smaller than 8 px. The maze is centered. The two `SidePanel`s fill the space to its left and
 right, drawn as film-strip edges with sprocket holes. The left panel shows the title, SCORE,
 HIGH SCORE and REEL; the right one the spare lives (up to four bucket icons), this reel's BONUS,
 and the control hints. `fitted_font` chooses the largest bundled Bitstream Vera size (from the
@@ -672,7 +707,7 @@ volume.
 | `the_end` | THE END |
 
 Behind play runs the **projector**, a live instrument (`sounds.PROJECTOR`, started with
-`start(owner=self, volume=PROJECTOR_VOLUME)`, 0.05 as heard: raised by √2 for the centred pan's
+`start(owner=self, volume=PROJECTOR_VOLUME)`, 0.05 as heard: raised by √2 for the centered pan's
 3 dB) of low-pass filtered noise with a tremolo, so it flutters like a
 projector's shutter. Its `cutoff` and `flutter` parameters route one to one to the filter and the
 tremolo rate. `_update_projector` sets them only when they change: brighter and
@@ -703,7 +738,7 @@ How it decides:
 
 ```mermaid
 flowchart TB
-    A["decision_point()<br/>the next tile centre the player reaches<br/>(or the one after, if a key pressed now<br/>would arrive too late)"] --> B["danger = corridor distances<br/>from every dangerous muncher"]
+    A["decision_point()<br/>the next tile center the player reaches<br/>(or the one after, if a key pressed now<br/>would arrive too late)"] --> B["danger = corridor distances<br/>from every dangerous muncher"]
     B --> C["for each way on: way_on()<br/>territory = tiles the player reaches<br/>at least 2 tiles before any muncher"]
     C --> D{"seeking capture?"}
     D -->|yes| X["shortest way to a dangerous muncher"]
@@ -719,10 +754,12 @@ pressed now changes the player's direction about two frames later, so the autopi
 that far ahead. A frightened muncher is prey only if the player can reach it with at least
 0.75 s of the fright left.
 
-The game has no bundled attract-mode demo. The arcade showcase in
-`plans/2026-10-23-arcade-showcase.md` is a design draft. Because the golden script is steered
-by the autopilot, a demo could be recorded with
-`scripts/record_scripted_session.py --game mr_muncher --script-only --output PATH`.
+The game's bundled demo, `src/games/mr-muncher/src/mr_muncher/demos/chase.jsonl.gz` (1,950
+frames), is the golden script without its controls tail, so it is steered by the same autopilot.
+Its recipe is `mr_muncher_chase` in `scripts/record_bundled_demos.py`; its script,
+`mr_muncher_demo_script` in `scripts/demo_inputs.py`, lets go of the held arrow key on the last
+frame, so nothing is still pressed when a demo loops. `uv run mr-muncher --verify` replays it
+with the golden.
 
 ## How it uses the engine
 
@@ -731,7 +768,7 @@ by the autopilot, a demo could be recorded with
 | Game time and `dt` | All movement and timers use the scene's (capped) `dt`. Phase clocks, the skirt's wave and the snacks' twinkle use `game_time`, so they stop while the game is paused |
 | Random streams | The only randomness is the frightened munchers' turns, drawn from `random_stream('mr_muncher.munchers')` (seeded from `--random-seed`, kept in recordings) |
 | Scene starts | `replay_arguments()` returns `{'progress': starting_progress.model_dump()}` and the scene accepts a mapping as `progress`, so a recording can rebuild any reel as it began. `MrMuncherGameOverScene.replay_arguments()` returns the final score, the table and the reel reached |
-| Saves | High scores through `open_saves` (a sandbox in a replay) |
+| Saves | High scores through `open_saves` (a sandbox in a replay) and the engine's `HighScoreTable` |
 | `ActionMap` | Scancode bindings for the keyboard, D-pad and stick bindings for gamepads, built by `MrMuncherScene._create_action_map(options=...)`. The golden replay test reads the bindings from the same function |
 | Pause screen | The engine's `PauseScene`, which also shows the paused game in the debug overlay (`debug_subject`) |
 | Transitions | `FadeTransition` to the game-over screen |
@@ -744,7 +781,7 @@ by the autopilot, a demo could be recorded with
 
 `MrMuncherScene.debug_draw(surface, camera)` adds the game's own annotation to the engine's
 debug overlay (`--debug-overlay` or F3). For every muncher that is roaming or leaving the house
-and has a target, it draws a cross in the muncher's colour on the target tile and a thin line
+and has a target, it draws a cross in the muncher's color on the target tile and a thin line
 from the muncher to it. This shows each personality's aim live: for example, Snapper's cross
 four tiles in front of the bucket, or Nibbles' cross jumping to its corner when it gets close.
 
@@ -764,20 +801,25 @@ does not use: it taps W, A, S and D (the autopilot steers with the arrows), paus
 resumes, and ends with the game's own Q. The recording's last frame holds the QUIT event that the
 game itself posted, so a replay in which Q no longer quits diverges. With the tail, the fixture
 holds 2,072 frames. `tests/replay/test_golden_replays.py` checks that every bound control is
-exercised. The gamepad controls (D-pad, stick, Start and the hat, listed as `steer`) are
-excused in `UNEXERCISED_CONTROLS`, because the scripted session runs on the dummy driver,
-which has no gamepad.
+exercised. The gamepad controls (the D-pad, stick and Start, listed as the four `move_*` actions
+and `pause`; and the hat, listed as `steer`) are excused in `UNEXERCISED_CONTROLS`
+(`tests/replay/golden_replay_controls.py`), because the scripted session runs on the dummy
+driver, which has no gamepad.
 
 The pytest plugin `src/glitchygames/testing/replays.py` replays the fixture in a child process
 (`mr-muncher --replay-trace ... --headless`), and the test fails unless it exits `SUCCESS`.
-Re-record the fixture only deliberately (the commands are in the script's docstring), never just
-to make a failing replay pass.
+
+!!! warning "Re-record the golden replay only deliberately"
+    The commands are in `scripts/record_scripted_session.py`'s docstring. Never re-record just to
+    make a failing replay pass.
 
 ## Tests
 
-Both test files below (in the member, `src/games/mr-muncher/tests/`) use real pygame, the real 800x480 display and real files (saves go to
-`tmp_path`). What is drawn is checked by its pixels. The tests patch only sound playback, where
-a test is about which sound plays.
+The two test files below (in the member, `src/games/mr-muncher/tests/`) use real pygame, the
+real 800x480 display and real files (saves go to a temporary directory). What is drawn is checked
+by its pixels. They patch only sound playback, where a test is about which sound plays, and (for
+`main()`) the shutdown of pygame. The member's other test files are the small checks listed in
+[Where things live](#where-things-live).
 
 `src/games/mr-muncher/tests/test_mr_muncher_maze_and_actors.py` covers the parts:
 
@@ -786,7 +828,8 @@ a test is about which sound plays.
 | `TestMazeLayout` | Symmetry, at least two ways on from every corridor tile, everything reachable, one-tile corridors, the sprocket, snack and house counts |
 | `TestMazeQuestions` | Wrapping columns, wall outside the rows, the player kept out of the house and door, tunnels, short-way distance, layout validation |
 | `TestLevels` | Reel 1 values, the ramp, its end at reel 8 and the shortest fright, no reel 0, scatter then chase, the flash |
-| `TestPlayerMovement` | Exact landing on tile centres, walls, buffered turns, immediate reversing, the tunnel, `next_cell_ahead`, `reset` |
+| `TestGeometryAndCells` | Tiles to pixels, and positions to tiles |
+| `TestPlayerMovement` | Exact landing on tile centers, walls, buffered turns, immediate reversing, the tunnel, `next_cell_ahead`, `reset` |
 | `TestChaseTargets` | Each personality's target, the four profiles |
 | `TestMuncherStates` | Waiting, bobbing, walking out, eyes going home and back out, scatter and chase targets, never turning back, mode reversal, seeded frightened turns, dead ends |
 | `TestMuncherSpeeds` | Every speed, only Chomper hurrying |

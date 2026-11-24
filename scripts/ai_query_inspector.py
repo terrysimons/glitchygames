@@ -61,22 +61,42 @@ SPRITE_GLYPHS_SLICE_SIZE: int = 512
 
 
 class _ButtonSprite(pygame.sprite.Sprite):
-    """A simple button sprite with a name attribute for identification."""
+    """A labelled button: a filled face with its name centred on it, at a given position."""
 
-    def __init__(self, name: str) -> None:
-        """Initialize a button sprite.
+    def __init__(self, name: str, *, color: tuple[int, int, int], x: int, y: int) -> None:
+        """Draw the button's face and place it.
 
         Args:
-            name: The name identifier for the button.
+            name: The name identifier for the button, also its label.
+            color: The face's fill colour.
+            x: The face's left edge.
+            y: The face's top edge.
 
         """
         super().__init__()
         self.name: str = name
-        # pygame.sprite.Sprite declares image/rect as properties whose setters accept
-        # None, so these assignments must not narrow the declared type.
-        placeholder_surface = pygame.Surface((0, 0))
-        self.image = placeholder_surface
-        self.rect = placeholder_surface.get_rect()
+        face = pygame.Surface((BUTTON_WIDTH, BUTTON_HEIGHT))
+        face.fill(color)
+        label = pygame.font.Font(None, FONT_SIZE_LARGE).render(
+            name,
+            True,  # ruff: ignore[boolean-positional-value-in-call]
+            TEXT_COLOR_WHITE,
+        )
+        face.blit(label, label.get_rect(center=face.get_rect().center))
+        # pygame.sprite.Sprite declares image/rect as properties whose getters may return None,
+        # so the button keeps its own area for hit tests
+        self.area: pygame.Rect = face.get_rect(topleft=(x, y))
+        self.image = face
+        self.rect = self.area.copy()
+
+    def contains(self, position: tuple[int, int]) -> bool:
+        """Tell whether ``position`` is on the button.
+
+        Returns:
+            True when the position is inside the button's area.
+
+        """
+        return self.area.collidepoint(position)
 
 
 class AIQueryInspectorScene(Scene):
@@ -171,107 +191,36 @@ class AIQueryInspectorScene(Scene):
         # Create simple button sprites for interaction
         button_y: int = screen_height - BUTTON_MARGIN_FROM_BOTTOM
 
-        # Send Query button
-        self.send_button = _ButtonSprite(name='Send Query')
-        self.send_button.image = pygame.Surface((BUTTON_WIDTH, BUTTON_HEIGHT))
-        assert self.send_button.image is not None
-        self.send_button.image.fill(BUTTON_COLOR_GREEN)
-        self.send_button.rect = self.send_button.image.get_rect()
-        assert self.send_button.rect is not None
-        self.send_button.rect.x = BUTTON_X_SEND
-        self.send_button.rect.y = button_y
-
-        # Toggle Full Content button
-        self.full_content_button = _ButtonSprite(name='Toggle Full')
-        self.full_content_button.image = pygame.Surface((BUTTON_WIDTH, BUTTON_HEIGHT))
-        assert self.full_content_button.image is not None
-        self.full_content_button.image.fill(BUTTON_COLOR_BLUE)
-        self.full_content_button.rect = self.full_content_button.image.get_rect()
-        assert self.full_content_button.rect is not None
-        self.full_content_button.rect.x = BUTTON_X_TOGGLE
-        self.full_content_button.rect.y = button_y
-
-        # Back button
-        self.back_button = _ButtonSprite(name='Back')
-        self.back_button.image = pygame.Surface((BUTTON_WIDTH, BUTTON_HEIGHT))
-        assert self.back_button.image is not None
-        self.back_button.image.fill(BUTTON_COLOR_RED)
-        self.back_button.rect = self.back_button.image.get_rect()
-        assert self.back_button.rect is not None
-        self.back_button.rect.x = BUTTON_X_BACK
-        self.back_button.rect.y = button_y
-
-        # Add text to buttons
-        self.add_button_text()
+        self.send_button = _ButtonSprite(
+            name='Send Query', color=BUTTON_COLOR_GREEN, x=BUTTON_X_SEND, y=button_y
+        )
+        self.full_content_button = _ButtonSprite(
+            name='Toggle Full', color=BUTTON_COLOR_BLUE, x=BUTTON_X_TOGGLE, y=button_y
+        )
+        self.back_button = _ButtonSprite(
+            name='Back', color=BUTTON_COLOR_RED, x=BUTTON_X_BACK, y=button_y
+        )
 
         # Add buttons to sprite group
         self.all_sprites.add(self.send_button)
         self.all_sprites.add(self.full_content_button)
         self.all_sprites.add(self.back_button)
 
-    def add_button_text(self) -> None:
-        """Add text labels to buttons."""
-        font: pygame.font.Font = pygame.font.Font(None, FONT_SIZE_LARGE)
-
-        # Send Query button text
-        if self.send_button is not None:
-            assert self.send_button.rect is not None
-            assert self.send_button.image is not None
-            send_text: pygame.Surface = font.render(
-                'Send Query',
-                True,  # ruff: ignore[boolean-positional-value-in-call]
-                TEXT_COLOR_WHITE,
-            )
-            send_text_rect: pygame.Rect = send_text.get_rect(center=self.send_button.rect.center)
-            self.send_button.image.blit(send_text, send_text_rect)
-
-        # Toggle Full Content button text
-        if self.full_content_button is not None:
-            assert self.full_content_button.rect is not None
-            assert self.full_content_button.image is not None
-            toggle_text: pygame.Surface = font.render(
-                'Toggle Full',
-                True,  # ruff: ignore[boolean-positional-value-in-call]
-                TEXT_COLOR_WHITE,
-            )
-            toggle_text_rect: pygame.Rect = toggle_text.get_rect(
-                center=self.full_content_button.rect.center
-            )
-            self.full_content_button.image.blit(toggle_text, toggle_text_rect)
-
-        # Back button text
-        if self.back_button is not None:
-            assert self.back_button.rect is not None
-            assert self.back_button.image is not None
-            back_text: pygame.Surface = font.render(
-                'Back',
-                True,  # ruff: ignore[boolean-positional-value-in-call]
-                TEXT_COLOR_WHITE,
-            )
-            back_text_rect: pygame.Rect = back_text.get_rect(center=self.back_button.rect.center)
-            self.back_button.image.blit(back_text, back_text_rect)
-
     @override
     def on_mouse_button_up_event(self, event: events.HashableEvent) -> None:
         """Handle mouse button up events for button clicks."""
         # Check if any button was clicked
-        if self.send_button is not None:
-            assert self.send_button.rect is not None
-            if self.send_button.rect.collidepoint(event.pos):
-                self.on_send_query()
-                return
+        if self.send_button is not None and self.send_button.contains(event.pos):
+            self.on_send_query()
+            return
 
-        if self.full_content_button is not None:
-            assert self.full_content_button.rect is not None
-            if self.full_content_button.rect.collidepoint(event.pos):
-                self.on_toggle_full_content()
-                return
+        if self.full_content_button is not None and self.full_content_button.contains(event.pos):
+            self.on_toggle_full_content()
+            return
 
-        if self.back_button is not None:
-            assert self.back_button.rect is not None
-            if self.back_button.rect.collidepoint(event.pos):
-                self.on_back()
-                return
+        if self.back_button is not None and self.back_button.contains(event.pos):
+            self.on_back()
+            return
 
         # Pass to other sprites
         for sprite in self.all_sprites:

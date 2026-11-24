@@ -397,3 +397,63 @@ def writing_calls(*, source: str) -> list[tuple[str, int]]:
             if isinstance(call, ast.Call) and opens_for_writing(call=call)
         )
     return found
+
+
+# Path methods that read or write a file's bytes, so its line ends are never translated
+BYTE_METHODS = frozenset({'read_bytes', 'write_bytes'})
+# TOML calls that take a binary file
+BINARY_TOML_CALLS = frozenset({('tomllib', 'load'), ('tomli_w', 'dump')})
+# newline= values that turn text mode's line-end translation off
+UNTRANSLATED_NEWLINES = frozenset({'', '\n'})
+
+
+def _skips_line_end_translation(*, call: ast.Call) -> bool:
+    """Return whether a call reads or writes a file without text mode's line-end translation.
+
+    That is ``tomllib.load`` or ``tomli_w.dump`` (a binary file), ``read_bytes`` or
+    ``write_bytes``, an ``open`` whose literal mode is binary, or any call passing an empty or
+    line-feed ``newline``.
+
+    Returns:
+        True for such a call.
+
+    """
+    function = call.func
+    name = function.attr if isinstance(function, ast.Attribute) else getattr(function, 'id', '')
+    owner = getattr(function.value, 'id', '') if isinstance(function, ast.Attribute) else ''
+    if (owner, name) in BINARY_TOML_CALLS or name in BYTE_METHODS:
+        return True
+    for keyword in call.keywords:
+        value = keyword.value
+        is_text = isinstance(value, ast.Constant) and isinstance(value.value, str)
+        if keyword.arg == 'newline' and is_text and value.value in UNTRANSLATED_NEWLINES:
+            return True
+    if name != 'open':
+        return False
+    # Path.open(mode) takes the mode first; open(file, mode) second
+    position = 0 if isinstance(function, ast.Attribute) else 1
+    mode: ast.expr | None = call.args[position] if len(call.args) > position else None
+    mode = next((keyword.value for keyword in call.keywords if keyword.arg == 'mode'), mode)
+    return isinstance(mode, ast.Constant) and isinstance(mode.value, str) and 'b' in mode.value
+
+
+def untranslated_text_calls(*, source: str) -> list[tuple[str, int]]:
+    """Return each call that skips text mode's line-end translation, with where it is.
+
+    Text mode reads CRLF and a lone CR as LF and writes LF as the OS's line end, so a file a
+    person edits on any OS loads the same (the owner, 2026-11-22).
+
+    Returns:
+        (its top-level function or class name, or ``<module>`` outside any, line) for each.
+
+    """
+    found: list[tuple[str, int]] = []
+    for node in ast.parse(source).body:
+        is_named = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        owner = node.name if is_named else None
+        found.extend(
+            (owner or '<module>', call.lineno)
+            for call in ast.walk(node)
+            if isinstance(call, ast.Call) and _skips_line_end_translation(call=call)
+        )
+    return found
