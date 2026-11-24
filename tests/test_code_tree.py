@@ -210,6 +210,14 @@ def test_a_failing_git_command_names_itself(tmp_path):
         staged_code_tree(repository=tmp_path, paths=PATHS)
 
 
+def test_a_pathspec_git_refuses_names_the_listing_that_failed(repository):
+    """A pathspec git cannot read stops the tree with the ls-files command, not a wrong tree."""
+    paths = CodeTreePaths(measured=('src',), unmeasured=(':(nonsense)src/tests',))
+
+    with pytest.raises(RuntimeError, match=r'git ls-files -z -- :\(nonsense\)src/tests failed'):
+        commit_code_tree(repository=repository, commit='HEAD', paths=paths)
+
+
 def landed_files(repository: Path) -> dict[str, code_tree.LandedRowFile]:
     """Return the repository's landed row files with this repository's settings.
 
