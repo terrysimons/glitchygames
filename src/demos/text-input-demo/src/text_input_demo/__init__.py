@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.ui import InputBox
@@ -60,8 +61,7 @@ class Game(Scene):
 
         # The box is in the scene's own group (all_sprites), which draws it: a second group of
         # its own, and a blit in update(), drew it twice (BUGS.md #178 item 31)
-        assert self.screen is not None
-        self.all_sprites.clear(self.screen, self.background)
+        self.all_sprites.clear(required(self.screen, what='the scene screen'), self.background)
 
     @override
     def setup(self: Self) -> None:

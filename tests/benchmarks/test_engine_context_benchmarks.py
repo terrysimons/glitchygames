@@ -120,6 +120,7 @@ def test_process_events_per_call(benchmark):
 
 # Timed (--benchmark-only), pytest-benchmark calibrates its rounds from how long each takes, so
 # the number of frames this test presents differs from run to run and between drivers
+@pytest.mark.draws_frames
 @pytest.mark.frames_vary(reason='the timed rounds present as many frames as calibration chooses')
 def test_run_frame_step_per_call(benchmark):
     """Benchmark one unpaced frame step of the scene manager with an active scene."""

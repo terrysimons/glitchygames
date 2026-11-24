@@ -208,6 +208,7 @@ class TestAnimationHardware:
         yield set_display_mode(size=(SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.quit()
 
+    @pytest.mark.draws_frames
     def test_hardware_display_buffer_access(self, real_display):
         """Test that the scene renders to the real display, background everywhere but the sprite."""
         scene = HardwareAnimationTestScene(COLORS_FILE)
@@ -223,6 +224,7 @@ class TestAnimationHardware:
         sprite_area = scene.animated_sprite.rect.width * scene.animated_sprite.rect.height
         assert background_pixel_count == SCREEN_WIDTH * SCREEN_HEIGHT - sprite_area
 
+    @pytest.mark.draws_frames
     def test_sprite_visibility_in_hardware_buffer(self):
         """Test that the sprite's first frame colour is on the display where the sprite is."""
         scene = HardwareAnimationTestScene(COLORS_FILE)
@@ -231,6 +233,7 @@ class TestAnimationHardware:
 
         assert scene.sprite_area_colors_on_display() == {FRAME_COLORS[0]}
 
+    @pytest.mark.draws_frames
     def test_hardware_vs_surface_consistency(self):
         """Test that the display matches the background with the sprite composed on top."""
         scene = HardwareAnimationTestScene(COLORS_FILE)
@@ -241,6 +244,7 @@ class TestAnimationHardware:
             scene.capture_hardware_display_buffer(), scene.compose_expected_frame()
         )
 
+    @pytest.mark.draws_frames
     def test_animation_frame_transitions_in_hardware(self):
         """Test that each frame's colour reaches the display as the frame changes."""
         scene = HardwareAnimationTestScene(COLORS_FILE)
@@ -259,6 +263,8 @@ class TestAnimationHardware:
             for color in FRAME_COLORS
         ]
 
+    @pytest.mark.wall_clock(reason='renders and reads back frames against MAX_PERFORMANCE_TIME')
+    @pytest.mark.draws_frames
     def test_hardware_rendering_performance(self):
         """Test that rendering and reading back the display performs within acceptable limits."""
         scene = HardwareAnimationTestScene(COLORS_FILE)
@@ -273,6 +279,7 @@ class TestAnimationHardware:
 
         assert total_time < MAX_PERFORMANCE_TIME, f'Rendering should be fast: {total_time:.3f}s'
 
+    @pytest.mark.draws_frames
     def test_hardware_buffer_integrity(self):
         """Test that presenting an unchanged scene again leaves the display unchanged."""
         scene = HardwareAnimationTestScene(COLORS_FILE)
@@ -284,6 +291,7 @@ class TestAnimationHardware:
 
         assert np.array_equal(first_capture, second_capture)
 
+    @pytest.mark.draws_frames
     def test_sprite_positioning_in_hardware_buffer(self):
         """Test that the drawn pixels sit exactly in the sprite's rect, centred on screen."""
         scene = HardwareAnimationTestScene(COLORS_FILE)
@@ -302,6 +310,7 @@ class TestAnimationHardware:
         assert drawn_rect == scene.animated_sprite.rect
         assert drawn_rect.center == (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
 
+    @pytest.mark.draws_frames
     def test_hardware_vs_sprite_surface_consistency(self):
         """Test that the display's sprite area holds exactly the sprite image's pixels."""
         scene = HardwareAnimationTestScene(COLORS_FILE)
@@ -321,6 +330,7 @@ class TestAnimationHardware:
             pygame.surfarray.array3d(scene.animated_sprite.image),
         )
 
+    @pytest.mark.draws_frames
     def test_animation_timing_affects_hardware_buffer(self):
         """Test that the display changes frame only once the frame's duration has passed."""
         scene = HardwareAnimationTestScene(COLORS_FILE)

@@ -9,14 +9,17 @@ driver dependence (BUGS.md #142, #189). Outside CI, a pytest run therefore:
    recording every presented frame (glitchygames/testing/frame_fingerprints.py, asked through
    its environment variables), and coverage is measured here alone, so the 99% gate is the
    dummy run's, as before;
-2. runs the same command on the native driver in a child pytest started at the session's start
-   (``NATIVE_WORKER_SHARE`` of the usual workers go to it, the rest stay here: the native run is
-   slower per test, and the two together never use more workers than one run would), with its
-   output in ``test-results/driver-comparison/pytest/native/pytest.log``;
+2. runs the same command on the native driver in a child pytest started at the session's start,
+   with ``--draws-frames-only``: only the tests marked ``draws_frames`` run there, the others
+   having no frame to compare (the plugin keeps the marker true in both runs).
+   ``NATIVE_WORKER_SHARE`` of the usual workers go to it, the rest stay here: the native run is
+   slower per test, and the two together never use more workers than one run would. Its
+   output is in ``test-results/driver-comparison/pytest/native/pytest.log``;
 3. at the session's end compares the two runs' frames (glitchygames/testing/frame_comparison.py),
-   re-runs any differing tests on both drivers saving PNG files of the differing frames and a
-   difference image, and reports them in the terminal summary. A driver difference, or a failure
-   in the native run, fails this run.
+   re-runs any differing tests on both drivers saving PNG files of the frames around each
+   first difference and a difference image of each (a re-run stops once it has saved them,
+   unless they reach the test's final frame), and reports them in the terminal summary. A
+   driver difference, or a failure in the native run, fails this run.
 
 Tests marked ``@pytest.mark.frames_vary(reason=...)`` are listed, not compared: their frames are
 not expected to match between runs or drivers (they hold measured frame times, or the live
@@ -61,6 +64,8 @@ from glitchygames.testing.frame_comparison import (
     images_report,
 )
 from glitchygames.testing.frame_fingerprints import (
+    DRAWING_ONLY_VARIABLE,
+    DRAWS_FRAMES_ONLY_OPTION,
     FINGERPRINTS_OPTION,
     FINGERPRINTS_VARIABLE,
     IMAGES_REQUEST_OPTION,
@@ -246,6 +251,8 @@ def child_pytest_command(
     appended = [
         *([] if workers is None else ['-n', str(workers)]),
         *(['--no-cov'] if coverage_loaded else []),
+        # Only the tests that draw have frames to compare
+        DRAWS_FRAMES_ONLY_OPTION,
         f'--junitxml={directory / "junit.xml"}',
         '-o',
         f'cache_dir={directory / "cache"}',
@@ -313,7 +320,7 @@ def driver_environment(*, environment: Mapping[str, str], drivers: NativeDrivers
     child_environment = {
         name: value
         for name, value in environment.items()
-        if name not in {FINGERPRINTS_VARIABLE, SEED_VARIABLE, OWNER_VARIABLE}
+        if name not in {FINGERPRINTS_VARIABLE, SEED_VARIABLE, OWNER_VARIABLE, DRAWING_ONLY_VARIABLE}
     }
     child_environment.update({
         'SDL_VIDEODRIVER': drivers.video,
@@ -457,6 +464,11 @@ class DriverComparison:
                 f'({self.native_workers} workers); its output: {log_path}'
             )
         ]
+        if returncode == pytest.ExitCode.NO_TESTS_COLLECTED:
+            lines.append(
+                f'{self.native_label}: no drawing tests selected: nothing to compare (only tests '
+                'marked draws_frames run on it)'
+            )
         if returncode not in NATIVE_RUN_SUCCESS_CODES:
             self.failed = True
             failures = failure_summary_lines(log_text=log_path.read_text(encoding='utf-8'))
@@ -648,6 +660,9 @@ def pytest_configure(config: pytest.Config) -> None:
     # This run (and its workers) record the dummy frames; everything started from here on
     # runs its own driver only
     os.environ[FINGERPRINTS_VARIABLE] = str(comparison.dummy_directory)
+    # Only the tests that draw: the native run runs only those, so both sides record the same
+    # tests (and the others' frames are not fingerprinted for nothing)
+    os.environ[DRAWING_ONLY_VARIABLE] = '1'
     os.environ[SEED_VARIABLE] = str(COMPARISON_SEED)
     os.environ[OWNER_VARIABLE] = str(os.getpid())
     os.environ[COMPARISON_ACTIVE_VARIABLE] = '1'

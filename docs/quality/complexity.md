@@ -12,10 +12,13 @@ hide it). wily follows files by path; the engine moved from the repository root 
 path are joined to its current one (`MOVED_PATH_PREFIXES` in
 `scripts/generate_complexity_graphs.py`), and its line runs through its whole history.
 
-The measurements are generated, not kept in git: every docs build generates them when HEAD
-changed (`nox -s docs-deploy` before it builds the published site). To generate them by hand, run
-`uv run python scripts/generate_complexity_graphs.py` (or `nox -s code-complexity -- --graphs`),
-which measures the committed history (HEAD) in a temporary worktree and writes
-`docs/quality/graphs/complexity-explorer.json`; until then this page has only this text.
+The measurements are generated, not kept in git, and only when the docs are deployed
+(`nox -s docs-deploy`, which CircleCI runs after every merge to main): measuring the whole
+history takes minutes. Every other docs build (`nox -s lint`'s strict build, `docs-serve`,
+`mkdocs build`) shows a placeholder here instead, unless the measurements of the same commit are
+already there. To generate them by hand, run `uv run python scripts/generate_complexity_graphs.py`
+(or `nox -s code-complexity -- --graphs`), which measures the committed history (HEAD) in a
+temporary worktree and writes `docs/quality/graphs/complexity-explorer.json`, then build the docs
+again; or build with `GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1`, which generates them first.
 
 --8<-- "docs/quality/graphs/complexity_graphs.md"

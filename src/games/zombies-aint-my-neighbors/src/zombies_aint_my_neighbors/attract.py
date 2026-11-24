@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any, Final, override
 import pygame
 
 from glitchygames.bundled_demos import bundled_demos
+from glitchygames.fonts import font_manager
 from glitchygames.inner_game import InnerGame, InnerGameState
 from glitchygames.sprites.root_sprite import RootSprite
 from zombies_aint_my_neighbors import text
@@ -162,9 +163,9 @@ class AttractScene(PadTolerantScene):
         self._set_up = True
         size = (self.screen_width, self.screen_height)
         picture = DemoPicture(size=size, groups=self.all_sprites)
-        font = text.title_font(size=LABEL_FONT_SIZE)
+        font = font_manager.bundled_font(bold=True, size=LABEL_FONT_SIZE)
         self.label = text.TextPicture(
-            image=text.render_text(font=font, text=LABEL_TEXT, colour=LABEL_COLOUR),
+            image=font_manager.render_line(font=font, text=LABEL_TEXT, color=LABEL_COLOUR),
             centre=(round(size[0] * LABEL_CENTRE[0]), round(size[1] * LABEL_CENTRE[1])),
             name='Attract demo label',
             groups=self.all_sprites,

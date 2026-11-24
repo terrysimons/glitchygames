@@ -328,6 +328,26 @@ class TestOnionSkinningIndicator:
             before=plain, after=render_idle_thumbnail(film_strip, frame_index=0)
         )
 
+    def test_the_indicator_is_a_yellow_dot_in_the_top_right_corner(
+        self, film_strip_with_two_frames
+    ):
+        """On a clear surface the dot's center is pure yellow, and the far corner stays clear."""
+        film_strip = film_strip_with_two_frames
+        onion_skinning.get_onion_skinning_manager().toggle_frame_onion_skinning('idle', 0)
+        width = film_strip.frame_width
+        surface = pygame.Surface((width, width), pygame.SRCALPHA)
+
+        film_strip.renderer._draw_onion_skinning_indicator(surface, 'idle', 0)
+
+        half = ONION_INDICATOR_SIZE // 2
+        red, green, blue, alpha = surface.get_at((
+            width - ONION_INDICATOR_MARGIN - half,
+            ONION_INDICATOR_MARGIN + half,
+        ))
+        assert (red, green, blue) == (255, 255, 0)
+        assert alpha > 0
+        assert surface.get_at((0, width - 1)).a == 0
+
 
 class TestCounterFont:
     """The frame counters use one cached bundled font (BUGS.md #178 item 6)."""

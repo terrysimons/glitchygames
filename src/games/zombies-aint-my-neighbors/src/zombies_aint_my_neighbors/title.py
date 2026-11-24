@@ -17,6 +17,7 @@ import math
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Final, override
 
+from glitchygames.fonts import font_manager
 from glitchygames.input.state import current_input
 from zombies_aint_my_neighbors import launch_showing, text
 from zombies_aint_my_neighbors.roster import MAXIMUM_PLAYERS, PLAYER_COLOURS, DeviceKind
@@ -179,13 +180,13 @@ class TitleScene(RosterScene):
             # Set up again (after a pause): the sprites already exist
             return
         screen_width, screen_height = self.screen_width, self.screen_height
-        title_font = text.fitted_title_font(
+        title_font = font_manager.fitted_font(
             texts=(TITLE_TEXT,),
             width=int(screen_width * TEXT_WIDTH_FRACTION),
             largest=TITLE_LARGEST_FONT_SIZE,
         )
         text.TextPicture(
-            image=text.render_text(font=title_font, text=TITLE_TEXT, colour=TITLE_COLOUR),
+            image=font_manager.render_line(font=title_font, text=TITLE_TEXT, color=TITLE_COLOUR),
             centre=(screen_width // 2, screen_height // 3),
             name='Title',
             groups=self.all_sprites,
@@ -196,7 +197,7 @@ class TitleScene(RosterScene):
             *(f'{slot_label(slot_index=index)} {READY_TEXT}' for index in range(MAXIMUM_PLAYERS)),
             *DEVICE_TEXTS.values(),
         )
-        slot_font = text.fitted_title_font(
+        slot_font = font_manager.fitted_font(
             texts=slot_texts,
             width=int(slot_width * TEXT_WIDTH_FRACTION),
             largest=SLOT_LARGEST_FONT_SIZE,
