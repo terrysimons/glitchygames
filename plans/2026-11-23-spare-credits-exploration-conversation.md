@@ -812,3 +812,97 @@ Building all 28 (Quicksilver renamed Argent: it is a Marvel character). One shar
 each owl its own species, palette and personality; the ogham owl spells OGAM with verified strokes
 that are never mirrored. Agents draw them in waves of seven. The demo now loads only the owl on
 screen (each takes about 0.11 s to load) and Shift+Tab goes back.
+
+## 104. User (2026-11-23)
+
+> Go ahead and get everything added and committed.
+
+## 105. Claude
+
+Started the remaining waves (twenty agents at once, the session's limit) and began adding finished
+owls to the demo in committed batches.
+
+## 106. User (2026-11-23)
+
+> Great, continue.
+
+## 107. Claude
+
+All 28 drawn and added, one sheet opened per owl as it landed: the demo holds 33 owls. Fixed what
+the parallel agents tripped over (a shared scratch folder, a preview written into the
+repository, Relay's files rebuilt by accident and proven unchanged). The demo now loads only the
+owl on screen, and Shift+Tab goes back.
+
+## 108. User (2026-11-23)
+
+> Swap the "shift" key to "space" for flying and make the flying animation play while the key is
+> held even if we're not moving.
+
+## 109. User (2026-11-23)
+
+> I want you to add breathing to Kelvin and have his breath be foggy like a cold morning.  It'll
+> need per-pixel alpha.
+
+## 110. Claude
+
+Space flies (faster than walking) and, held alone, hovers in place playing `fly_<facing>`; it
+cancels an emote, and emote keys do nothing while it is held. Kelvin breathes on an 8-frame idle,
+and each exhale billows a cloud of nine translucent white and ice-blue entries from the beak.
+
+## 111. User (2026-11-23)
+
+> No need to make separate contact sheets for this one, but I'd like you to build versions of these
+> for *ALL* colorspaces.  Let's also make a copy of the existing sprites, rename it to reflect the
+> color space, and keep the originals as-is, then for all of the new colorspaces, use the
+> colorspace file naming as well.
+
+## 112. User (2026-11-23)
+
+> Tell me what you plan to do when up and down converting colorspaces to make the sprites look as
+> good as possible at that new resolution.
+
+## 113. Claude
+
+Down-converting follows the approved converter: one palette per owl, snapping by perceived color
+(OKLab), merging the closest pairs weighted by pixel use, protecting each owl's identity colors,
+keeping its value steps, no color dithering. Up-converting cannot add detail, and the format stops
+at 64 glyphs. The owner then decided:
+
+> Every profile × space. Convert at run time. Checkerboard large areas. Keep it on this branch.
+
+## 114. User (2026-11-23)
+
+> Oh yeah, let's address the glyph question while we work  There was a patch going in somewhere
+> that added a glyph generation helper that we should be able to use.
+
+## 115. User (2026-11-23)
+
+> Get the owl names from the sprite file.
+
+## 116. User (2026-11-23)
+
+> And make sure there aren't any duplicates.
+
+## 117. Claude
+
+Each sprite file's `[sprite]` name is now the owl's display name ("Púca"), and the demo shows it as
+it is; tests require unique names (ignoring case and accents) and files. None of the 33 matches an
+earlier candidate's name. Searched every branch, worktree and open PR for the glyph helper and
+found none.
+
+## 118. User (2026-11-23)
+
+> Go look at all of the color-related branches that we did work on to get the rgb+ type stuff, as
+> well as todo/design notes for pending work etc.
+
+## 119. User (2026-11-23)
+
+> It might be in a local branch that we haven't merged but it would have been in a branch that had
+> color work done.
+
+## 120. Claude
+
+What exists is history: an October 2025 helper in `sprites/constants.py` (commit `7c5895d2`) that
+collected every Unicode letter at import, never used and later removed; the owner's 2026-11-16
+design replaced it. The unmerged color branches hold no generator (the converter plan names it a
+non-goal). Building the generator to the 2026-11-16 design on this branch, then the converter.

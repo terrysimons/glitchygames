@@ -144,10 +144,22 @@ mode's loading scene.
   - **Hertz:** the unit of frequency, after its pulsing eyes.
   - **Grimwire:** a grimoire that is also wiring.
 
-  **(user)** The choice is between Nixie and Grimwire. Each gets its own design, inspired by the
+  **(user)** The choice was between Nixie and Grimwire. Each got its own design, inspired by the
   owl, with a full character sheet: basic animations in all eight directions and ten emotes.
-- The sprite files are not in the repository yet; where the chosen mascot lands is the owner's
-  call.
+- **(user)** Then every liked name got its own owl (Triode, Ohm, Hertz), and the owner asked for
+  more, on both the technical and the magic side, "the variability in style" being the point:
+  - Units and components: Kelvin, Henry, Watt, Farad, Joule, Diode, Relay, Fuse, Patch.
+  - Arcane tech: Hex, Qubit, Ferro, Byte.
+  - Magic: Retort, Argent, Athanor, Augur, Nyx, Cantrip, Wyrd, Cinder, Bramble, Tempest, Lich,
+    Strix, Glamour.
+  - From Irish folklore, chosen by the owner for the demo: Púca and Ogham.
+
+  33 owls in all, each on a different real owl species for silhouette, with the same 34
+  animations at `16-bit+`. **(user)** No name from another work (Quicksilver became Argent).
+  Names to avoid as trademarks: Valve, Tesla.
+- The sprites live in the Mascot demo (`src/demos/mascot-demo/`, branch `feature/mascot-demo`),
+  each file naming its own owl, with its character sheet beside the demo. The pick of one mascot
+  is still the owner's call.
 
 ## 5. Open questions
 
