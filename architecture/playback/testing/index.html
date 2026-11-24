@@ -1127,6 +1127,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#tests-that-time-real-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests that time real work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-suites-order-in-ci" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3011,6 +3022,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#tests-that-time-real-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests that time real work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-suites-order-in-ci" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3273,7 +3295,7 @@ test, instead of the kernel killing the job silently (<code>tests/memory_guard.p
 <code>tests/test_memory_guard.py</code>).</p>
 <ul>
 <li>It is on only when <code>GLITCHYGAMES_TEST_RSS_LIMIT_MB</code> is set; CircleCI's Linux and Raspberry Pi
-  jobs set 1400.</li>
+  jobs set 1500 (1400 from 2026-11-19 until every machine collected the whole suite, #286).</li>
 <li>A background thread samples memory every <code>SAMPLE_INTERVAL_SECONDS</code>, and each test's start and
   end are checked too.</li>
 <li>It reads the container's memory (cgroup v2) where there is one, else this process's resident
@@ -3283,8 +3305,9 @@ test, instead of the kernel killing the job silently (<code>tests/memory_guard.p
 </ul>
 <h2 id="a-ci-job-split-across-machines">A <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> job split across machines<a class="headerlink" href="#a-ci-job-split-across-machines" title="Permanent link">#</a></h2>
 <p><strong>Intent:</strong> one CircleCI job ran past CircleCI's one-hour job limit running the whole suite on
-one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs on three
-(<code>parallelism: 3</code>; two until 2026-11-20), each running a share (<code>tests/circleci_test_split.py</code>;
+one machine (Linux, jobs 3705 and 3707), so the Linux test job runs on six machines and the
+Windows one on three (<code>parallelism</code>; two until 2026-11-20, Linux three until 2026-11-23), each
+running a share (<code>tests/circleci_test_split.py</code>;
 <code>tests/test_circleci_test_split.py</code>).</p>
 <ul>
 <li>It is on only when <code>GLITCHYGAMES_TEST_SPLIT</code> is <code>circleci</code>; the split jobs set it, and any
@@ -3307,6 +3330,23 @@ one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs
 <li>No share reaches the 100% coverage rule alone, so the test session turns it off for a share;
   each machine keeps its <code>.coverage</code> in <code>coverage-data/&lt;job&gt;/</code>, and a <code>coverage-combine-*</code> job
   combines them on the job's Python and applies the rule (<code>nox -s coverage-combine-3.15</code>).</li>
+</ul>
+<h2 id="tests-that-time-real-work">Tests that time real work<a class="headerlink" href="#tests-that-time-real-work" title="Permanent link">#</a></h2>
+<p><strong>Intent:</strong> a test that times real work against a tolerance measures the machine, not the code,
+when other tests share its CPUs. #287's Windows job (5141) ran four workers on four CPUs, and a
+timer accuracy test trailed the OS sleep by 19 ms against its 3 ms bound; the owner, 2026-11-23,
+kept the workers and set these tests apart.</p>
+<ul>
+<li>Such a test carries <code>@pytest.mark.wall_clock(reason=...)</code> (registered in <code>tests/harness.py</code>).
+  <code>tests/test_suite_collection.py</code> holds the swept files to it: a test there that reads the real
+  clock is marked, or listed with why it bounds no duration.</li>
+<li><code>nox -s test</code> runs the suite twice: every other test on its workers (<code>-m "not wall_clock"</code>,
+  coverage rule off), then the marked tests alone, in one process (<code>-n 0 -m wall_clock</code>), given only the files that
+  hold them (<code>noxfile.WALL_CLOCK_TEST_FILES</code>, held to the files using the marker by
+  <code>tests/test_ci_config.py</code>) so the suite is not collected twice, appending to the first run's coverage, so the 100% rule is applied to both, and writing
+  <code>test-results/junit-wall-clock.xml</code>. On a split <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> machine each run is split on its own, and a
+  machine dealt no marked test collects nothing (exit 5, which passes). <code>nox -s test-random</code>,
+  the pre-push hook, splits its shuffled run the same way.</li>
 </ul>
 <h2 id="the-suites-order-in-ci">The suite's order in <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr><a class="headerlink" href="#the-suites-order-in-ci" title="Permanent link">#</a></h2>
 <p><strong>Intent:</strong> catch a test that passes only after, or only before, another on every <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> platform and
@@ -3411,7 +3451,7 @@ holding back code pull requests (the owner, 2026-11-20).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 13:21:27 UTC">November 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:08:18 UTC">November 24, 2026</span>
   </span>
 
     

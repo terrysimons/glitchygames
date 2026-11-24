@@ -3109,9 +3109,21 @@ every frame each test presents (<code>src/glitchygames/testing/frame_fingerprint
 finished, the frames are compared (<code>src/glitchygames/testing/frame_comparison.py</code>; its command line
 is <code>scripts/compare_driver_frames.py</code>). Any difference, or a
 failure in the native run, fails the run; the differing tests are re-run on both drivers to save
-the differing frames as PNG files with a difference image (the baseline dimmed to grey, differing
-pixels magenta) under <code>test-results/driver-comparison/pytest/</code>. The terminal summary names every
-file and the native run's log.</p>
+the frames around each first difference (five before and five after) as PNG files with a
+difference image of each (the baseline dimmed to grey, differing pixels magenta) under
+<code>test-results/driver-comparison/pytest/</code>. The window is also one side-by-side animation, native |
+dummy | difference in each frame, so the two drivers stay in step:
+<code>window-side-by-side-game-speed.apng</code> (each gap the dummy run's served frame time to the next
+present, at least 17 ms: in a test whose clock never moves, every gap) and
+<code>window-side-by-side-250ms.apng</code>, both holding the
+last frame for a second before they loop. Above the frames, a title bar names the test (and the
+seed of a shuffled run), and each panel's caption states what that run recorded: driver, refresh
+rate ("n/a" on dummy), configured <abbr title="Frames per second">FPS</abbr> ("uncapped" for 0, "n/a" without an engine) and resolution.
+Each panel is stamped with its present and served game time, and the first differing frame has a
+red border; the saved PNGs stay as recorded. A re-run stops its test once those frames are saved, as
+a skip (a test cannot skip ahead to its difference, but need not play on past it); only a window
+that reaches the test's final frame runs the test to its end, saving the final frames too. The
+terminal summary names every file and the native run's log.</p>
 <p>The comparison is off, and the summary says why, in <abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> (<code>CI=true</code>), with <code>--dummy-only</code> (fast
 iteration), when <code>SDL_VIDEODRIVER</code> or <code>SDL_AUDIODRIVER</code> is set (that driver runs alone), and on a
 Linux machine without a display.</p>
@@ -3142,7 +3154,10 @@ carries <code>@pytest.mark.draws_frames</code>; in a parametrized test whose cas
 carries it through <code>pytest.param(..., marks=pytest.mark.draws_frames)</code>. A test whose frames vary
 and that draws carries both markers. The comparison's runs pass the frame fingerprints plugin's
 <code>--draws-frames-only</code>, which runs only the marked tests (after any <code>-m</code> of yours): about 850 of
-the suite's 30,900.</p>
+the suite's 30,900. In a local run the dummy side records only those tests too
+(<code>--frame-fingerprints-drawing-only</code>), so the summary lists no test as recorded on one driver
+only for drawing nothing; a run of files with no drawing tests says "no drawing tests selected:
+nothing to compare" and passes.</p>
 <p>The marker cannot go stale: every run (<abbr title="Continuous integration: CircleCI's jobs and GitHub Actions, run for every push">CI</abbr> too, every driver) checks each test whose body passed,
 and fails it when the marker disagrees with what it did:</p>
 <ul>
@@ -3203,8 +3218,8 @@ any other path, a new directory included, is compared; outside a push it always 
 <code>nox -s compare-drivers -- --drivers dummy,cocoa,x11-macos</code> chooses configurations
 (<code>dummy</code> is always added: it is the baseline; one that cannot run here is refused with the
 reason), and other arguments select tests (<code>-- tests/scenes</code>). The tests that differ anywhere are
-re-run on every configuration saving their differing frames, and every differing pair gets both
-PNG files and a difference image under
+re-run on every configuration saving the frames around their first difference (stopping once
+they are saved, as above), and every differing pair gets both PNG files and a difference image under
 <code>test-results/driver-comparison/nox/differences/&lt;first&gt;-vs-&lt;second&gt;/</code>.</p>
 <p>The report, <code>test-results/driver-comparison/nox/matrix.md</code> (and <code>matrix.json</code>), holds each
 run's time, a summary row per pair (tests compared, how many differ, by kind: pixels, size,
@@ -3312,7 +3327,7 @@ the way CircleCI's Linux job does, to reproduce that job's failures here. It rea
 (<code>test-python-3-15-linux</code>) from <code>.circleci/continue_config.yml</code>: its image (<code>cimg/python</code> at
 <code>PYTHON_VERSION</code>), its resource class's memory and CPUs (<code>small</code>: 2 GB, no swap, and one
 <abbr title="Central processing unit">CPU</abbr>, given to <code>docker run</code> as <code>--memory</code>, <code>--memory-swap</code> and <code>--cpus</code>) and its environment
-(<code>PYTEST_WORKERS=0</code>: one serial process; <code>GLITCHYGAMES_TEST_RSS_LIMIT_MB=1400</code>:
+(<code>PYTEST_WORKERS=0</code>: one serial process; <code>GLITCHYGAMES_TEST_RSS_LIMIT_MB=1500</code>:
 <code>tests/memory_guard.py</code> stops the run past it, naming the test), with <code>CI=true</code> and
 <code>CIRCLECI=true</code>. The container gets what git would commit from this checkout: tracked files and
 untracked ones that are not ignored, uncommitted changes included, never an ignored file (the
@@ -3350,7 +3365,7 @@ Apple silicon. Made on macOS; on a Linux host the results are made writable for 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 23, 2026 12:33:14 UTC">November 23, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:08:18 UTC">November 24, 2026</span>
   </span>
 
     
