@@ -1016,6 +1016,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-demo-in-a-tile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A demo in a tile
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#-replay-fps-real" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2912,6 +2923,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-demo-in-a-tile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A demo in a tile
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#-replay-fps-real" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3142,9 +3164,13 @@ not presented (<code>presents_frames</code> is False).</dd>
    0.95).</li>
 <li><strong>Otherwise</strong> the tick closes and the frame is presented.</li>
 </ol>
-<p>So at 1x a 60 <abbr title="Frames per second">FPS</abbr> recording runs one inner frame per tick, at 8x eight, and at &frac14;x one every fourth
-tick (the viewer's docstring). The speed keys double or halve the speed (<code>SPEED_STEP_FACTOR</code> = 2.0),
-within <code>MIN_SPEED</code> = 0.25 and <code>MAX_SPEED</code> = 8.0 (<code>ReplayControls</code>,
+<p>The accumulator, the owed limit and the one-frame rule of step 2 are <code>RecordedFramePacer</code>, and each
+tick's budget a <code>TickBudget</code> (<code>src/glitchygames/replay/pacer.py</code>, where the constants above live),
+shared by every player of a recording: the viewer tells the pacer the speed and its 60 Hz tick
+period, and keeps the keys, the cadence and the start screen.</p>
+<p>So at 1x a 60 <abbr title="Frames per second">FPS</abbr> recording runs one inner frame per tick, at 8x eight, and at &frac14;x one every
+fourth tick (the pacer's docstring, <code>src/glitchygames/replay/pacer.py</code>). The speed keys double or
+halve the speed (<code>SPEED_STEP_FACTOR</code> = 2.0), within <code>MIN_SPEED</code> = 0.25 and <code>MAX_SPEED</code> = 8.0 (<code>ReplayControls</code>,
 <code>src/glitchygames/replay/controls.py</code>). The owed limit (32.5 frames, never less than its floor) is
 what lets the viewer catch up after a stall, in one bounded burst.</p>
 <pre class="mermaid"><code>gantt
@@ -3162,6 +3188,30 @@ what lets the viewer catch up after a stall, in one bounded burst.</p>
     present                                 :p2, 24, 25</code></pre>
 <p>The accumulator only decides <strong>when</strong> inner frames run, never what they do, so a watched replay
 is as exact as a headless one (<code>viewer.py</code>).</p>
+<h2 id="a-demo-in-a-tile">A demo in a tile<a class="headerlink" href="#a-demo-in-a-tile" title="Permanent link">#</a></h2>
+<p>An Arcade tile's demo is a <code>DemoPlayer</code> (<code>src/glitchygames/demo_player.py</code>): a recording
+replayed as an <code>InnerGame</code> in a context of its own, inside the host's frame loop. It is paced by
+the same <code>RecordedFramePacer</code> as the watched replay, told speed 1.0 and the host's own frame
+period (so a browser's 120 Hz frame is not taken for a 60 Hz one). Each host frame, the host
+starts one <code>TickBudget</code> of <code>INNER_FRAME_BUDGET_SECONDS</code> and hands it to its players in turn:
+<code>tick(elapsed_seconds=..., budget=...)</code> pays the pacer the host's frame time, never a clock the
+player reads, and runs the frames owed while the budget lasts, so what one player leaves the next
+gets. A player that cannot keep up plays every frame in slow motion. How the budget is shared
+is the host's choice, not the player's: a host whose budget is too small for all its players
+should give each at most one frame a turn (<code>tick</code>'s <code>most_frames=1</code>) and start each host frame
+with the player after the last one that ran, or a player that fell behind takes the whole budget
+to catch up while the others wait (<code>TestASharedBudget</code> in <code>tests/test_demo_player.py</code> measures
+that policy: ten players, three frames a tick, none waiting more than four ticks). No host does
+this yet: the Arcade screen (sub-plan 6) is the first. A loop's build (a new <code>InnerGame</code> from frame 0) is one call,
+made on the player's turn and charged to the shared budget. A fast-forward to a poster frame runs
+silent, one budget slice per host frame, until it gets there or the player freezes (a second
+divergence on the way; <code>is_frozen</code> tells a final False from a spent budget).</p>
+<p>The frames a tile runs are its recording's, exactly: only when they run differs. But the budget
+is real time (<code>clock.measured_seconds</code>), so how many frames a tile runs in a host frame depends on
+the machine. A recorded Arcade session therefore replays its inputs exactly, but not its tiles'
+progress frame for frame: a tile may be a frame or two apart between runs, as a watched replay's
+viewer already is, and nothing compares an Arcade session's tile pixels frame for frame (the
+owner's decision 5 in <code>plans/2026-11-20-arcade-5-playback-core.md</code>).</p>
 <h2 id="-replay-fps-real"><code>--replay-fps real</code><a class="headerlink" href="#-replay-fps-real" title="Permanent link">#</a></h2>
 <p><code>--replay-fps</code> changes only which frame time the <abbr title="Frames per second">FPS</abbr> statistics read, never the logic and never
 the pacing. Under <code>recorded</code> (the default), the <abbr title="Frames per second">FPS</abbr> events and performance statistics use the
@@ -3266,6 +3316,13 @@ With an onion skin, the restarted process's child skips straight to the paired g
 <td>as headless</td>
 </tr>
 <tr>
+<td>Demo in a tile</td>
+<td>never (the host paces)</td>
+<td>until the host's frame pays for the frame and its budget allows</td>
+<td>recorded</td>
+<td>as headless</td>
+</tr>
+<tr>
 <td>Live vs OLD</td>
 <td>to the deadline</td>
 <td>never</td>
@@ -3301,7 +3358,7 @@ With an onion skin, the restarted process's child skips straight to the paired g
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 13:41:28 UTC">November 24, 2026</span>
   </span>
 
     

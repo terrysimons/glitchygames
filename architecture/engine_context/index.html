@@ -1136,6 +1136,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Performance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#demo-players" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Demo players
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -2929,6 +2946,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Performance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#demo-players" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Demo players
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -3238,6 +3272,24 @@ the contract; <code>plans/2026-11-12-arcade-3-inner-game.md</code>):</p>
    channel (its plain plays find every channel reserved, its voice table makes no mixer call,
    its live chunks play at volume 0 on its own pool); switching a heard tile silent fades its
    voices, stops its plain plays and mutes its live chunks, never another context's sound.</li>
+<li><strong>A tile's demo is a <code>DemoPlayer</code></strong> (Arcade sub-plan 5,
+    <code>plans/2026-11-20-arcade-5-playback-core.md</code>; <code>src/glitchygames/demo_player.py</code>, whose
+    docstring is the contract): an engine module that holds one <code>InnerGame</code> replaying a recording
+    and needs no game or Arcade. <code>tick(elapsed_seconds=..., budget=..., most_frames=None)</code> pays a
+    <code>RecordedFramePacer</code> the host's frame time and runs the frames it owes within a
+    <code>TickBudget</code> (<code>src/glitchygames/replay/pacer.py</code>, the watched replay's pacing, shared), which
+    a host hands to its players in turn; frames are never skipped (a player that cannot keep up
+    plays in slow motion, <code>is_behind</code>, <code>effective_speed</code>). At its end the demo loops: the game is
+    finished (giving its channels back) and a new one built from frame 0 in a new context,
+    <code>on_new_game</code> running before its first frame, the build charged to the budget. A divergence
+    restarts it once, then freezes it on the diverged frame (<code>DemoOutcome</code>, <code>DemoState</code>).
+    <code>fast_forward(to_frame=..., budget=...)</code> runs silent, sliced and resumable toward a poster
+    frame (<code>poster_frame</code>, drawn from the host's named stream), building a waiting loop or
+    restart itself, so it gets there or the player freezes (<code>is_frozen</code>). The budget is real time
+    (<code>clock.measured_seconds</code>), so how far a tile gets in a host frame depends on the machine: a
+    recorded Arcade session replays its inputs exactly, but not its tiles' progress frame for
+    frame (tiles may be a frame or two apart, as a watched replay's viewer already is), and
+    nothing compares an Arcade session's tile pixels frame for frame.</li>
 </ol>
 <p>An inner game never changes <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s blocked event types: every engine call that blocks or allows
 goes through <code>events.set_event_types_allowed</code>, which changes nothing in an inner context (its
@@ -3252,10 +3304,16 @@ can't undo it, so only the host's own engine does.) The proof is
 replayed as an inner game beside another, unevenly interleaved, inside an outer window of
 another size, matches its solo headless replay's digests frame for frame and draws the pixels it
 draws alone, with every tile silent and with the first switched heard for the middle third of
-its recording and back (Bitmappy's demo is a strict xfail: it measures the outer window,
-<code>plans/future-work.md</code>). Ten stand-in inner games stepped once per outer frame cost about 0.29 ms
-on the machine it was measured on (<code>test_ten_inner_games_per_outer_frame</code>, an Apple M4 Max,
-2026-11-12).</p>
+its recording and back (Bitmappy's demo, which measured the outer window, reads its own screen
+since 2026-11-20: <code>bugs/2026-11-20-bitmappy-tile-read-the-hosts-window.md</code>). The same file
+proves it through <code>DemoPlayer</code>: each pair as two players ticked with uneven time and budgets,
+the first fast-forwarded to a seeded poster frame, looped, and heard for the middle third of its
+second run, and again in slow motion with one frame each of a shared budget a tick; every game
+they build ends with its solo replay's digests and every tick draws the recording's pixels alone
+at its frame (the budgets run on a fake clock there, so the runs are the same on every machine).
+Ten stand-in inner games stepped once per outer frame cost about 0.29 ms on the machine it was
+measured on (<code>test_ten_inner_games_per_outer_frame</code>, an Apple M4 Max, 2026-11-12); what demo
+players of the real bundled demos cost is under Performance.</p>
 <h2 id="read-only-views">Read-only views<a class="headerlink" href="#read-only-views" title="Permanent link">#</a></h2>
 <p>The class attributes that held one game's state are now read-only views. Each is read-only, the
 current game's, and <code>None</code> (or its empty default) outside a game; engine code reads the instance
@@ -3377,7 +3435,8 @@ or the slot's owner function instead, and so does any code that writes.</p>
 <p>Each game's performance report covers that game alone (its context's <code>AdaptiveClamping()</code>); an
 outer game that steps others (the Arcade's wrapper) reports the aggregate of every game it steps.</p>
 <h2 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">#</a></h2>
-<p>What each kind of read costs (Apple M4 Max; measured on Python 3.14, before the tests moved to 3.15):</p>
+<p>What each kind of read costs (Apple M4 Max; measured on Python 3.14, before the tests moved to 3.15,
+except the <code>ten demo players</code> row, measured on Python 3.15):</p>
 <table>
 <thead>
 <tr>
@@ -3416,6 +3475,11 @@ outer game that steps others (the Arcade's wrapper) reports the aggregate of eve
 <td><code>context switch</code></td>
 <td>430 ns</td>
 <td><code>with context.active():</code> entered and left; <code>timeit</code>; the owner, 2026-10-28</td>
+</tr>
+<tr>
+<td><code>ten demo players</code></td>
+<td>6.9 ms</td>
+<td>one Arcade frame of ten <code>DemoPlayer</code>s of the real bundled demos sharing an 11 ms budget; Arcade sub-plan 5's Task 6, 2026-11-20, Apple M4 Max, Python 3.15, median (Demo players, below)</td>
 </tr>
 </tbody>
 </table>
@@ -3459,6 +3523,37 @@ best-of-five figures (slot read 61 ns, view 126 ns or 2.07 slot reads, <code>cur
   slot reads, <code>current_engine()</code> at most 2; <code>tests/test_read_only_views.py</code> checks this table
   against them).</li>
 </ul>
+<h3 id="demo-players">Demo players<a class="headerlink" href="#demo-players" title="Permanent link">#</a></h3>
+<p>Measured by <code>tests/benchmarks/test_demo_player_benchmarks.py</code> (pytest-benchmark under
+<code>--benchmark-only</code>, dummy drivers, one run on 2026-11-20 on an Apple M4 Max with Python 3.15, the
+machine's one-minute load 3.2 to 3.7): ten <code>DemoPlayer</code>s of the real bundled demos (all but the text-input demo), each paid one
+60 Hz Arcade frame a round and sharing one <code>INNER_FRAME_BUDGET_SECONDS</code> (11 ms) budget:</p>
+<ul>
+<li><strong>Per Arcade frame:</strong> median 6.9 ms (minimum 3.2 ms, mean 7.1 ms) for about ten frames a round
+  (mean 9.97, at most 17 after a hitch); every player kept speed 1.00 over 1,200 rounds (Mr.
+  Muncher 1.02). The budget was spent in 19 of the 1,200 rounds, and the players looped twelve
+  times in all over the 1,200. The worst round, 376 ms, matches a Bitmappy build (below; Bitmappy looped once),
+  not traced round by round: one build held the Arcade for about 22 frames.</li>
+<li><strong>A restart's build</strong> (<code>InnerGame.replay</code>, the call decision 7 charges to the budget), five
+  per demo, the first with the harness's emptied sound and sprite caches: dt, joystick and
+  text-input demos 5 to 10 ms; PaddleSlap 7 to 11 ms; Clockwork Keep 7 ms (26 ms cold); Drawing
+  Fire 13 to 19 ms; Mr. Muncher 24 ms (207 ms cold); Brave Adventurer 33 to 71 ms; Zombies Ain't
+  My Neighbors 100 to 176 ms (860 ms cold), of which about 160 ms is reading and decoding its
+  1,538-frame recording again (a profile of one warm build); Bitmappy 355 to 450 ms. A profile
+  of one Bitmappy build splits it into about 275 ms waiting for the <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> worker process it has just
+  started to exit (its <code>main()</code> shuts its workers down in a <code>finally</code> after <code>engine.start()</code>,
+  which in an inner game returns as soon as the game is built, so each build starts a worker
+  and joins it) and about 147 ms in <code>load_ai_training_data</code> (it renders 71 sprite files as text
+  for a log line even at <code>--log-level error</code>). That join waits up to
+  <code>AI_WORKER_JOIN_TIMEOUT_SECONDS</code> (2 s) and then 1 s more after terminating, so a slow worker
+  start costs about 3 s: the likely reading of the 3.1 s build the plan's first measurement saw
+  (neither that 3.1 s nor its 73 to 180 ms readings is reproduced here).</li>
+<li><strong>The ten posters' fast-forward</strong> (seed 5, the 11 ms budget shared each Arcade frame): about
+  2.6 s in total (three rounds, 2.60 to 2.68 s), 180 Arcade frames (3 s at 60 Hz) before every
+  tile stands at its poster.</li>
+</ul>
+<p>Not measured: a Raspberry Pi (the budget will bind there, which is what slow motion is for), and
+a build in the browser (Pyodide).</p>
 
 
 
@@ -3479,7 +3574,7 @@ best-of-five figures (slot read 61 ns, view 126 ns or 2.07 slot reads, <code>cur
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 13:41:28 UTC">November 24, 2026</span>
   </span>
 
     
