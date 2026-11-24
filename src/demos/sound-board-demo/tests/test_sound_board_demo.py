@@ -190,6 +190,7 @@ def test_the_label_mode_changes_only_the_label_not_the_pitch(
     assert scene.step_pitch(step_index=5).to_hz() == pytest.approx(440.0)
 
 
+@pytest.mark.draws_frames
 def test_the_screen_shows_the_selected_row_and_is_not_black(scene: sound_board_demo.Game) -> None:
     """The last frame has pixels: the selected row's cells are coloured apart from the others."""
     assert scene.screen is not None
@@ -260,6 +261,7 @@ def test_main_keeps_the_users_own_flags(mocker: MockerFixture) -> None:
     assert arguments_seen == ['sound-board-demo', '--log-level', 'warning']
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run')
 def test_main_runs_the_demo_and_plays_a_key(mocker: MockerFixture) -> None:
     """A real engine run: key 1 then the chord key play, and the run quits on its own."""

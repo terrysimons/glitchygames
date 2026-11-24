@@ -82,6 +82,7 @@ def replay_session_with_arguments(
         run_engine('--replay-trace', str(recording_path), *arguments)
 
 
+@pytest.mark.draws_frames
 def test_a_headless_replay_under_another_seed_reports_what_differed_and_exits_success(
     mocker, tmp_path, capsys
 ):
@@ -103,6 +104,7 @@ def test_a_headless_replay_under_another_seed_reports_what_differed_and_exits_su
     assert sorted(path.name for path in tmp_path.iterdir()) == [recording_path.name]
 
 
+@pytest.mark.draws_frames
 def test_a_rebaseline_under_another_seed_records_it_in_new(mocker, tmp_path, capsys):
     """``--rebaseline NEW --random-seed N``: NEW's header and options name N; OLD is untouched."""
     recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -129,6 +131,7 @@ def test_a_rebaseline_under_another_seed_records_it_in_new(mocker, tmp_path, cap
     assert recording_path.read_bytes() == recording_bytes
 
 
+@pytest.mark.draws_frames
 def test_an_audit_under_another_seed_is_refused(mocker, tmp_path, caplog):
     """``--audit`` is a check: under another seed it is refused before anything runs."""
     recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -238,6 +241,7 @@ def test_d_never_restarts_a_reseeded_replay_at_a_difference():
     assert controls.take_restart_request() is None
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize('exit_status', [0, None])
 def test_a_reseeded_replay_cut_short_by_the_games_own_exit_still_succeeds(
     mocker, tmp_path, capsys, exit_status

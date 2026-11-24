@@ -7,6 +7,8 @@ bundled demo headless through its console script. This one plays PaddleSlap's ow
 
 from __future__ import annotations
 
+import pytest
+
 from glitchygames.live_sources import LiveSources
 from glitchygames.replay.tools.golden_traces import FRAME_SECONDS
 from glitchygames.tracing import FRAMES_FIELD, read_trace_result
@@ -15,6 +17,7 @@ from tests.replay.playback_fixtures import step_finishing
 from tests.world.frame_harness import running_scene
 
 
+@pytest.mark.draws_frames
 def test_the_paddleslap_demo_plays_in_game(mocker):
     """The demo plays to its end inside a running PaddleSlap and returns to the live scene.
 

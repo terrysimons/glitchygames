@@ -527,6 +527,7 @@ PAYLOAD_TYPE_NAME = f'{PayloadObject.__module__}.PayloadObject'
 class TestRecordingThroughTheEngine:
     """--record-trace records the real loop: header, dt and the raw event batches."""
 
+    @pytest.mark.draws_frames
     def test_recording_holds_header_dt_and_events(self, mocker, tmp_path):
         """A run with a transition and scripted input is recorded frame by frame."""
         path = tmp_path / 'session.jsonl.gz'
@@ -613,6 +614,7 @@ class TestRecordingThroughTheEngine:
         assert marker_x[:TRANSITION_START_FRAME] == [1, 2, 3]
         assert marker_x[-1] == 100 + ARRIVAL_QUIT_FRAME + 1
 
+    @pytest.mark.draws_frames
     def test_engine_posted_events_are_internal(self, mocker, tmp_path):
         """FPS events and quit_game()'s QUIT, posted by the engine, are recorded as internal."""
         path = tmp_path / 'session.jsonl.gz'
@@ -630,6 +632,7 @@ class TestRecordingThroughTheEngine:
         assert _origins(frames[-1], pygame.QUIT) == {INTERNAL_ORIGIN}
         assert len(frames) == 3
 
+    @pytest.mark.draws_frames
     def test_scene_change_starts_a_keyframe(self, mocker, tmp_path):
         """The frame whose scene differs from the one before is a keyframe on disk."""
         path = tmp_path / 'session.jsonl.gz'
@@ -645,6 +648,7 @@ class TestRecordingThroughTheEngine:
             expected_keyframes
         )
 
+    @pytest.mark.draws_frames
     def test_teardown_logs_path_and_frame_count(self, mocker, tmp_path, caplog):
         """The recorder logs where it wrote and how many frames, once, at teardown."""
         path = tmp_path / 'session.jsonl.gz'
@@ -658,6 +662,7 @@ class TestRecordingThroughTheEngine:
         ]
         assert recording_messages == [f'Recorded {frame_count} frames to {path}']
 
+    @pytest.mark.draws_frames
     def test_off_by_default(self, mocker, tmp_path, monkeypatch):
         """Without --record-trace no recorder is constructed and no file is written."""
         monkeypatch.chdir(tmp_path)
@@ -671,6 +676,7 @@ class TestRecordingThroughTheEngine:
         assert list(tmp_path.iterdir()) == []
         assert len(Script.logic_dts) == TRANSITION_START_FRAME + TRANSITION_FRAME_COUNT + 4
 
+    @pytest.mark.draws_frames
     def test_frame_ending_with_no_scene_is_still_recorded(self, mocker, tmp_path):
         """A transition to None ends the game; that last frame is written with no scene."""
         path = tmp_path / 'session.jsonl.gz'
@@ -692,6 +698,8 @@ class TestRecordingThroughTheEngine:
         assert frames[1]['scene'] is None
         assert frames[1]['sprites'] == []
 
+    # Every case draws where it runs (SIGBREAK only on Windows, never judged on macOS)
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('signal_name', 'expected_exit_code'),
         [
@@ -726,6 +734,7 @@ class TestRecordingThroughTheEngine:
         assert [frame['frame'] for frame in result.trace['frames']] == [0, 1]
         assert handler_after_run == signal.SIG_DFL
 
+    @pytest.mark.draws_frames
     def test_sigint_ends_the_run_and_closes_the_recording(self, mocker, tmp_path):
         """Ctrl-C (KeyboardInterrupt) while recording still closes the file at teardown."""
         path = tmp_path / 'session.jsonl.gz'
@@ -744,6 +753,7 @@ class TestRecordingThroughTheEngine:
         assert result.is_complete
         assert [frame['frame'] for frame in result.trace['frames']] == [0]
 
+    @pytest.mark.draws_frames
     def test_a_recording_that_fails_part_way_ends_the_run_cannot_write_output(
         self, mocker, tmp_path, caplog
     ):
@@ -777,6 +787,7 @@ class TestRecordingThroughTheEngine:
         # One line, not a traceback
         assert failures[0].exc_info is None
 
+    @pytest.mark.draws_frames
     def test_a_recording_that_fails_to_close_ends_the_run_cannot_write_output(
         self, mocker, tmp_path
     ):
@@ -796,6 +807,8 @@ class TestRecordingThroughTheEngine:
 
         assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
 
+    # Every case draws where it runs (SIGBREAK only on Windows, never judged on macOS)
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('signal_name', ['SIGTERM', 'SIGHUP', 'SIGBREAK'])
     def test_existing_signal_handler_is_left_alone(self, mocker, tmp_path, signal_name):
         """A game that installed its own handler for a signal (Bitmappy) keeps it."""
@@ -820,6 +833,7 @@ class TestRecordingThroughTheEngine:
         assert observed_handlers == [game_handler]
         assert handler_after_run is game_handler
 
+    @pytest.mark.draws_frames
     def test_recording_holds_input_changes_and_control_events(self, mocker, tmp_path):
         """Control events land in their frame; polled input is recorded as changes."""
         recording_path = tmp_path / 'session.jsonl.gz'
@@ -853,6 +867,7 @@ class TestRecordingThroughTheEngine:
             )
             assert rebuilt_snapshot == served_snapshot
 
+    @pytest.mark.draws_frames
     def test_saves_opened_after_recording_started_are_snapshotted_in_their_frame(
         self, mocker, tmp_path
     ):
@@ -876,6 +891,7 @@ class TestRecordingThroughTheEngine:
         assert frames[0]['frame'] == 0
         assert SAVES_OPENED_FIELD in frames[0]
 
+    @pytest.mark.draws_frames
     def test_recording_holds_each_scene_start(self, mocker, tmp_path):
         """Frame 0 holds the first scene's start, and each start is on its first logic frame."""
         recording_path = tmp_path / 'session.jsonl.gz'
@@ -905,6 +921,7 @@ class TestRecordingThroughTheEngine:
         assert first_start.first_logic_frame is not None
         assert first_start.first_logic_frame.arrived_by_transition is False
 
+    @pytest.mark.draws_frames
     def test_saves_opened_before_recording_are_in_the_header(self, tmp_path):
         """A store the game opened before recording started is snapshotted into the header."""
         recording_path = tmp_path / 'session.jsonl.gz'
@@ -927,6 +944,7 @@ class TestRecordingThroughTheEngine:
         }
         assert all(SAVES_OPENED_FIELD not in frame for frame in header['frames'])
 
+    @pytest.mark.draws_frames
     def test_devices_opened_are_recorded(self, mocker, tmp_path):
         """A device opened during the run: its descriptor, its open answer and its positions."""
         fake_device = mocker.Mock(**{
@@ -1039,6 +1057,7 @@ class TestRandomSeed:
         assert engine.random_seed == 55
 
 
+@pytest.mark.draws_frames
 def test_recording_matches_the_golden_harness_frames(mocker, tmp_path):
     """Recording a golden script gives the harness's own sprite frames, plus dt and events.
 
@@ -1187,6 +1206,7 @@ class TestRecordingEdgeCases:
             pass
         assert 'SDL may own SIGINT and SIGTERM' not in caplog.text
 
+    @pytest.mark.draws_frames
     def test_controller_input_mode_runs_with_a_controller_manager(self, mocker):
         """--input-mode controller: SDL's Game Controller API, its events left unblocked."""
         controller_events_blocked: list[bool] = []

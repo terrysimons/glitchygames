@@ -1206,6 +1206,7 @@ def test_version_flag_prints_the_version_and_exits(mocker, capsys, version_flag)
 GOLDEN_REPLAY_PATH = Path(__file__).parent / 'fixtures' / 'replays' / 'golden.jsonl.gz'
 
 
+@pytest.mark.draws_frames
 def test_main_runs_the_game_through_the_engine(mocker, capsys):
     """main() starts PaddleSlap in the engine: here a headless replay of the golden run.
 
