@@ -165,13 +165,26 @@ class TestRecordings:
 
     @pytest.mark.parametrize(
         'folder',
-        ['C:\\Users\\circleci', 'it\'s "quoted"'],
-        ids=['a backslash (a Windows path)', 'quotes'],
+        [
+            # No drive letter: joined to tmp_path, a drive path would replace it on Windows
+            # (CircleCI job 5401 tried to make C:\Users\circleci). Windows makes two nested
+            # folders here, other systems one folder with a backslash in its name: either way
+            # the plan's path holds a backslash
+            'Users\\circleci',
+            "it's",
+            pytest.param(
+                'it\'s "quoted"',
+                marks=pytest.mark.skipif(
+                    sys.platform == 'win32', reason='a Windows file name cannot hold a double quote'
+                ),
+            ),
+        ],
+        ids=['a backslash (a Windows path)', 'a single quote', 'both quotes'],
     )
     def test_a_plan_reads_any_recording_path(self, tmp_path, folder):
         r"""A Windows path (``C:\Users``) in a hand-quoted plan read as a TOML escape (#279)."""
         directory = tmp_path / folder
-        directory.mkdir()
+        directory.mkdir(parents=True)
         old = _recording(directory / 'old.jsonl.gz', frames=_frames())
         new = _recording(directory / 'new.jsonl.gz', frames=_frames())
         plan = _toml_plan(tmp_path, _pair(old, new))
