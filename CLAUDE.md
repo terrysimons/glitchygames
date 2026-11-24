@@ -185,13 +185,13 @@ so replays serve the same values.
   `--compare-trace`, instant replay, demos, ghosts) are in `replay/driver.py`'s docstring and the
   docs above; pacing a recording is only `replay/pacer.py` (an Arcade replays inputs, not tiles).
 
-**Engine Context** (`src/glitchygames/engine_context.py`; docs/architecture/engine_context.md):
-the state one running game owns, so several games can run in one process (the Arcade). New
-per-game state is a `ContextSlot` declared at module level and read with
-`current_context().value(slot=...)` at use time, never at import; every slot needs an isolation
-check in `tests/test_engine_context.py`. New module- or class-level mutable state fails
-`tests/test_process_state_guard.py` unless it is a slot or listed with its audit row. Each context
-has its own audio engine, scene manager and performance manager. The old class-level names
+**Engine Context** (`src/glitchygames/engine_context.py`; docs/architecture/engine_context.md): the
+state one running game owns, so several games can run in one process (the Arcade). New per-game
+state is a `ContextSlot` declared at module level and read with `current_context().value(slot=...)`
+at use time, never at import; every slot needs an isolation check in `tests/test_engine_context.py`
+(a member's: its own tests' `MEMBER_ISOLATION_CHECKS`). New module- or class-level mutable state
+fails `tests/test_process_state_guard.py` unless it is a slot or listed with its audit row. Each
+context has its own audio engine, scene manager and performance manager. The old class-level names
 (`GameEngine.OPTIONS`, ...) are read-only views engine code never reads. Inner games
 (`src/glitchygames/inner_game.py`) draw on a render target and use a private event queue; engine
 code uses `display_surface()`, never `pygame.display.get_surface()`; tiles: `demo_player.py`.

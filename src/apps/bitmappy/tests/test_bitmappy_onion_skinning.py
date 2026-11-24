@@ -6,6 +6,7 @@ import math
 import pytest
 
 from bitmappy.onion_skinning import OnionSkinningManager, get_onion_skinning_manager
+from glitchygames.engine_context import EngineContext
 
 
 class TestOnionSkinningManager:
@@ -94,6 +95,20 @@ class TestOnionSkinningManager:
         manager.toggle_global_onion_skinning()
         assert manager.global_onion_skinning_enabled
         assert manager.is_frame_onion_skinned('animation1', 0)
+
+    def test_global_onion_skinning_is_reported_on_at_startup_and_follows_its_toggle(self):
+        """is_global_onion_skinning_enabled reports the startup True, then each toggle's state.
+
+        Covered on purpose: the suite once reached it only from other files' tests, so this file
+        alone left it uncovered (coverage that followed the test order).
+        """
+        manager = OnionSkinningManager()
+
+        assert manager.is_global_onion_skinning_enabled() is True
+        manager.toggle_global_onion_skinning()
+        assert manager.is_global_onion_skinning_enabled() is False
+        manager.toggle_global_onion_skinning()
+        assert manager.is_global_onion_skinning_enabled() is True
 
     def test_set_transparency(self):
         """Test setting onion skinning transparency."""
@@ -195,7 +210,7 @@ class TestOnionSkinningIntegration:
     """Integration tests for onion skinning functionality."""
 
     def test_global_manager_singleton(self):
-        """Test that get_onion_skinning_manager returns a singleton."""
+        """get_onion_skinning_manager returns the same manager each time within one context."""
         manager1 = get_onion_skinning_manager()
         manager2 = get_onion_skinning_manager()
 
@@ -228,6 +243,67 @@ class TestOnionSkinningIntegration:
 
         manager.set_transparency(-1.0)
         assert math.isclose(manager.onion_transparency, 0.0, abs_tol=1e-9)
+
+
+class TestEveryTestGetsAFreshSharedManager:
+    """The conftest's autouse ``fresh_onion_skinning_manager`` resets the default context's."""
+
+    def test_the_shared_manager_starts_in_its_startup_state(self):
+        """No frame is on, global onion skinning is on and transparency is 0.5, for every test.
+
+        Then it leaves state behind on purpose: any later test on this worker that saw it would
+        fail this same check, as the film strip tests once drew the indicator from leftovers.
+        """
+        manager = get_onion_skinning_manager()
+
+        assert manager.onion_skinning_enabled == {}
+        assert manager.global_onion_skinning_enabled is True
+        assert math.isclose(manager.onion_transparency, 0.5)
+        manager.toggle_frame_onion_skinning('left_behind', 0)
+        manager.toggle_global_onion_skinning()
+
+
+def check_onion_skinning_manager(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context keeps its own onion skinning, and the default context sees neither's.
+
+    Args:
+        first: One context.
+        second: Another.
+
+    """
+    with first.active():
+        get_onion_skinning_manager().toggle_frame_onion_skinning('walk', 0)
+    with second.active():
+        get_onion_skinning_manager().toggle_frame_onion_skinning('walk', 1)
+        get_onion_skinning_manager().toggle_global_onion_skinning()
+
+    with first.active():
+        first_manager = get_onion_skinning_manager()
+        assert first_manager.is_frame_onion_skinned('walk', 0)
+        assert not first_manager.onion_skinning_enabled['walk'].get(1, False)
+        assert first_manager.is_global_onion_skinning_enabled()
+    with second.active():
+        second_manager = get_onion_skinning_manager()
+        assert second_manager.onion_skinning_enabled['walk'] == {1: True}
+        assert not second_manager.is_global_onion_skinning_enabled()
+    assert first_manager is not second_manager
+    assert get_onion_skinning_manager().onion_skinning_enabled == {}
+
+
+# Every Bitmappy slot, with the check that proves its values never leak between contexts: the
+# member's own isolation checks, which tests/test_engine_context_source_guards.py finds in this
+# file by name (the engine's tests never import a member)
+MEMBER_ISOLATION_CHECKS = {
+    'bitmappy.onion_skinning.manager': check_onion_skinning_manager,
+}
+
+
+@pytest.mark.parametrize('slot_name', sorted(MEMBER_ISOLATION_CHECKS))
+def test_no_bitmappy_slot_value_leaks_between_two_contexts(slot_name):
+    """Two contexts beside the default one: each keeps its own value of the slot."""
+    MEMBER_ISOLATION_CHECKS[slot_name](
+        first=EngineContext(name='first'), second=EngineContext(name='second')
+    )
 
 
 if __name__ == '__main__':

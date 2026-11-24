@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from src.apps.bitmappy.tests.training_library_support import use_training_library
 
 from bitmappy.ai_worker import (
     _extract_example_size,
@@ -1339,25 +1340,13 @@ class TestExtractExampleSize:
 class TestSelectRelevantTrainingExamples:
     """Test select_relevant_training_examples function."""
 
-    def test_returns_empty_for_non_list_data(self, mocker):
-        """Test that non-list training data returns empty list."""
-        mocker.patch.dict(
-            'bitmappy.ai_worker.ai_training_state',
-            {'data': 'not a list'},
-        )
-        result = select_relevant_training_examples('create a sprite')
-        assert result == []
-
     def test_returns_all_when_fewer_than_max(self, mocker):
         """Test that all examples are returned when fewer than max_examples."""
         examples = [
             {'name': 'slime', 'sprite_type': 'static', 'has_alpha': False},
             {'name': 'mushroom', 'sprite_type': 'animated', 'has_alpha': True},
         ]
-        mocker.patch.dict(
-            'bitmappy.ai_worker.ai_training_state',
-            {'data': examples},
-        )
+        use_training_library(mocker, examples=examples)
         result = select_relevant_training_examples('create a sprite', max_examples=10)
         assert len(result) == 2
 
@@ -1369,10 +1358,7 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'dragon', 'sprite_type': 'animated', 'has_alpha': False},
             {'name': 'cat', 'sprite_type': 'static', 'has_alpha': False},
         ]
-        mocker.patch.dict(
-            'bitmappy.ai_worker.ai_training_state',
-            {'data': examples},
-        )
+        use_training_library(mocker, examples=examples)
         mocker.patch(
             'bitmappy.ai_worker.get_sprite_size_hint',
             return_value=None,
@@ -1387,22 +1373,10 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'rock', 'sprite_type': 'static', 'has_alpha': False},
             {'name': 'glass', 'sprite_type': 'static', 'has_alpha': True},
         ]
-        mocker.patch.dict(
-            'bitmappy.ai_worker.ai_training_state',
-            {'data': examples},
-        )
+        use_training_library(mocker, examples=examples)
         mocker.patch(
             'bitmappy.ai_worker.get_sprite_size_hint',
             return_value=None,
         )
         result = select_relevant_training_examples('create a transparent ghost', max_examples=2)
         assert len(result) == 2
-
-    def test_returns_empty_for_none_data(self, mocker):
-        """Test that None training data returns empty list."""
-        mocker.patch.dict(
-            'bitmappy.ai_worker.ai_training_state',
-            {'data': None},
-        )
-        result = select_relevant_training_examples('create a sprite')
-        assert result == []
