@@ -2353,7 +2353,7 @@ def test_the_test_session_writes_its_order_for_the_jobs_artifacts(
     """test-results/test-order.txt holds the order, seed, workspace and kind of run, before pytest.
 
     CircleCI uploads test-results/ with ``when: always``, so a failed job's roll is a file beside
-    its test-split.txt.
+    its test-split-junit.txt.
     """
     import noxfile
 
@@ -2457,6 +2457,34 @@ def test_random_order_is_off_unless_asked_for():
 
     assert '-p' in addopts
     assert addopts[addopts.index('-p') + 1] == 'no:randomly'
+
+
+def test_every_run_with_workers_balances_them_by_work_stealing():
+    """The addopts give xdist --dist worksteal, read by every run, and nothing chooses another.
+
+    One definition: every pytest in the checkout reads addopts (nox's test and test-random
+    sessions, compare-drivers, CircleCI's jobs through PYTEST_WORKERS, the native driver's child
+    run), so a worker that runs out of tests takes queued ones from a busy worker. Under the
+    default (--dist load) #287's Windows job (5210) left one worker 525 s of work at the end
+    and another 7 s.
+    """
+    pyproject = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+    addopts = shlex.split(pyproject['tool']['pytest']['ini_options']['addopts'])
+
+    assert addopts[addopts.index('--dist') + 1] == 'worksteal'
+    assert addopts.count('--dist') == 1
+    for path in (PROJECT_ROOT / 'noxfile.py', CIRCLECI_CONFIG_PATH):
+        text = path.read_text(encoding='utf-8')
+        assert not re.search(r"--dist\b(?!path)|'--dist'|\bloadfile\b|\bloadscope\b", text), path
+
+
+def test_work_stealing_is_accepted_by_a_run_without_workers(pytester):
+    """-n 0 (CircleCI's Linux jobs, every wall_clock run) with addopts' --dist runs in process."""
+    pytester.makepyfile(test_two='def test_one():\n    pass\n\ndef test_two():\n    pass\n')
+
+    result = pytester.runpytest_inprocess('-p', 'no:randomly', '-n', '0', '--dist', 'worksteal')
+
+    result.assert_outcomes(passed=2)
 
 
 # How each shuffled run gets its Python: a throwaway environment from uv.lock, never the

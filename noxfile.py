@@ -1110,7 +1110,7 @@ def describe_suite_order(*, order: SuiteOrder) -> str:
         f'Test order: shuffled, seed {order.seed}{how}. Replay it with '
         f'{SUITE_ORDER_VARIABLE}={order.seed} nox -s test-3.15, or with pytest '
         f'{shlex.join(suite_order_pytest_arguments(order=order))} -n 0; a split CI machine '
-        f'shuffled only its share, the tests kept in test-results/test-split.txt (its '
+        f'shuffled only its share, the tests kept in test-results/test-split-junit.txt (its '
         f'artifacts), so name those tests to replay its order'
     )
 
