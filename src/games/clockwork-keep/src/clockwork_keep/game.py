@@ -66,7 +66,6 @@ from glitchygames.fonts import FontManager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
-from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sprites import Sprite
 from glitchygames.state import SaveManager, open_saves
 from glitchygames.state.high_scores import (
@@ -1065,7 +1064,7 @@ class ClockworkKeepScene(Scene):
         """
         super().on_window_focus_lost_event(event)
         if not self.game_over_triggered:
-            self.next_scene = PauseScene(options=self.options)
+            self.pause()
 
     @override
     def on_key_down_event(self: Self, event: KeyEvent) -> None:
@@ -1080,7 +1079,7 @@ class ClockworkKeepScene(Scene):
         if action == 'jump':
             self._try_jump()
         elif action == 'pause':
-            self.next_scene = PauseScene(options=self.options)
+            self.pause()
         elif action == 'quit':
             # A QUIT event ends the run (next_scene = None does not: the scene manager reads it
             # as no switch pending)

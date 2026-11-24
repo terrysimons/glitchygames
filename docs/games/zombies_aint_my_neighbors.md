@@ -3,10 +3,10 @@
 Zombies Ain't My Neighbors is a late-night creature-feature run-and-gun for up to four players,
 on the keyboard or gamepads. Four kids at a sleepover put on their VR headsets, and the monsters
 of a cancelled horror show climb out of the TV and into the neighborhood. Every sprite, sound and
-note of music is to be written in the engine's own formats.
+note of music is written in the engine's own formats.
 
-It is being built feature by feature. So far: the title screen, four player slots each blinking
-PRESS START in its player's colour, joined from the keyboard or any of up to four pads; a TV
+It is built feature by feature. So far: the title screen, four player slots each blinking
+PRESS START in its player's color, joined from the keyboard or any of up to four pads; a TV
 title card, FEATURE PRESENTATION; and the neighborhood, a yard larger than the screen where each
 joined player walks their own kid (Dex, Marisol, Theo, June: 32x48 SNES-era sprites written by
 the game's own rig, `zombies_aint_my_neighbors/art/`) under one camera that keeps the group on
@@ -16,7 +16,7 @@ up and blinks, untouchable, for two seconds. The kids fight back with the Channe
 remote that fires zaps of static four times a second: one zap crumbles a zombie, and three zaps
 break a TV into its next stage (cracked, smashed and sparking, destroyed and smoking), each
 stage spawning half as often, until a destroyed one spawns nothing. Neighbors wait round the
-yard to be rescued: a kid's touch rescues one and a zombie's loses one. Each kid has 3 lives.
+yard to be rescued: a kid's touch rescues one and a zombie's loses one. Each kid has 3 lives (a kid out of lives returns with 1 in the next stage).
 When every neighbor is rescued or lost and at least one was rescued, a gate opens in the top
 hedge; a kid through it clears the stage, and the next stage brings back only the neighbors
 rescued. Every life lost, or a stage with nobody rescued, and the TV switches off: game over.
@@ -35,10 +35,23 @@ Its package: `src/games/zombies-aint-my-neighbors/`, a workspace member
 ```bash
 uv run zombies-aint-my-neighbors
 uv run zombies-aint-my-neighbors --input-mode joystick   # read every pad on the joystick layer (see below)
-uv run zombies-aint-my-neighbors --verify                # replay its golden, headless
 ```
 
-The game adds no options of its own; the engine's are in
+Replaying its goldens and bundled demo, headless, is the same tool from either front end:
+
+=== "Game"
+
+    ```bash
+    uv run zombies-aint-my-neighbors --verify
+    ```
+
+=== "glitchygames"
+
+    ```bash
+    uv run glitchygames verify --game zombies-aint-my-neighbors
+    ```
+
+The game adds no options of its own (`TitleScene.args` adds none); the engine's are in
 [Argument System](../architecture/argument_system.md).
 
 ### Controls
@@ -53,19 +66,24 @@ The game adds no options of its own; the engine's are in
 | Fire the Channel Changer (the neighborhood; hold to keep firing) | `J` or right `Shift` (by position) | `A` (button 0 in `--input-mode joystick`) |
 | Switch weapons: the Channel Changer or the laser pointer (the neighborhood) | `K` (by position) | `Y` (button 3 in `--input-mode joystick`) |
 | Shine the laser pointer (hold; it warms up for 0.4 s first) | `J` or right `Shift`, holding the laser pointer | `A`, holding the laser pointer |
-| Pause (every screen) | `P` position; `Enter` in the neighborhood | `START` in the neighborhood |
+| Pause (the title, the feature card and the neighborhood) | `P` position; `Enter` in the neighborhood | `START` in the neighborhood |
 | Resume from the pause screen | `Space` | `START` or `A` |
 | Quit | `Q` or `Esc` (on release) | `B` or `Back` on the pause screen |
 
-In `--input-mode joystick`, START is read by its game-controller number on the raw joystick
-layer. Many pads number their buttons differently there (on Xbox-layout pads that number is
-often Back or View), so another button may join and START may do nothing; the engine's
-`ActionMap` documents the same caveat. Leave the input mode at `auto` to use the controller
-mapping. A per-device lookup of START's raw button is on the master plan's Engine wishlist.
+!!! warning "In `--input-mode joystick`, START may join nobody"
+    START is read by its game-controller number on the raw joystick layer. Many pads number
+    their buttons differently there (on Xbox-layout pads that number is often Back or View), so
+    another button may join and START may do nothing; the engine's `ActionMap` documents the
+    same caveat. Leave the input mode at `auto` to use the controller mapping. A per-device
+    lookup of START's raw button is on the master plan's Engine wishlist.
 
-The keys are bound by position (scancodes), so they sit in the same place on every layout. The
-game never uses `Space` or `Esc` for its own actions: the engine's shared pause and game-over
-screens use them, in the browser too. `J` sits under a WASD hand and right `Shift` under an
+The keys are bound by position (scancodes), so they sit in the same place on every layout.
+
+!!! note "`Space` and `Esc` are the engine's"
+    The game never uses `Space` or `Esc` for its own actions: the engine's shared pause and
+    game-over screens use them, in the browser too.
+
+`J` sits under a WASD hand and right `Shift` under an
 arrows hand. In the browser on a touch screen, **Start** and **Pause** press `Enter` and `P`, a
 D-pad on the left presses the arrows, **Fire** holds `J` and **Switch** presses `K`. The D-pad walks four ways: each
 button presses one key, so a diagonal takes two fingers.
@@ -89,8 +107,8 @@ flowchart LR
     Pause -- "Space" --> Title
 ```
 
-Both screens are `RosterScene`s (`roster_scene.py`): they keep the **join roster** and read the
-same controls (one `ActionMap`, `RosterScene._create_action_map`). Each says what a start press
+The title, the feature card, the neighborhood and the game over are `RosterScene`s
+(`roster_scene.py`): they keep the **join roster** and read the same controls (one `ActionMap`, `RosterScene._create_action_map`). Each says what a start press
 means (`_press_start`) and what an unplugged pad means (`_device_left`). `RosterScene` is a
 `PadTolerantScene` (`pad_tolerant.py`), which deliberately ignores the pad events the screens
 don't use (sticks, hats, touchpads, sensors, raw device events), so `--no-unhandled-events`
@@ -156,10 +174,6 @@ the cheer, before the STAGE 2 card. The Arcade can play it on a tile like any bu
   shipped demo, replayed as the attract scene replays it, still shows every kid walking and
   zapping, a TV destroyed, a zombie zapped, neighbors saved and the clear with all four cheering.
 
-The title is the game's class for now, so its golden replay stays in one scene, as
-`tests/replay/test_golden_replays.py` requires. When gameplay arrives, the golden moves to the
-gameplay scene.
-
 ## The neighborhood
 
 `NeighborhoodScene` (`neighborhood.py`) gives each joined slot its kid (`kid.py`), an animated
@@ -214,16 +228,24 @@ given back. A test fails if any sprite file loads during twenty busy seconds.
 
 Built from options alone, as a recording's first scene is, the neighborhood has the keyboard as
 P1. The game has two golden replays: the title's (`golden.jsonl.gz`) and the neighborhood's
-(`golden-neighborhood.jsonl.gz`: walking every way, then firing with `J` and right `Shift`, a
-zombie zapped and the top-left TV destroyed); `main` (`launcher.py`) starts a replay on the scene its
-recording names, as Brave Adventurer's launcher does.
+(`golden-neighborhood.jsonl.gz`: walking every way, firing with `J` and right `Shift`, the top-left TV
+destroyed, a neighbor rescued, the laser pointer luring a zombie, then the stage cleared through the gate
+into stage 2). A player's run starts on the title, but a golden's first scene is the gameplay
+scene (`tests/replay/test_golden_replays.py`), so `main` (`launcher.py`) starts a replay on the scene
+its recording names, as Brave Adventurer's launcher does.
 
 ## Sounds
 
-Every sound is an effect in one sound file, `sounds/sounds.toml`, written by `sound_rig.py`. Do not
-edit the file by hand: change the rig and run
-`uv run python -m zombies_aint_my_neighbors.sound_rig`. The sounds are declared in `SOUNDS` on
-`RosterScene`, so the engine compiles them while the game starts.
+Every sound is an effect in one sound file, `sounds/sounds.toml`, written by `sound_rig.py`. The
+sounds are declared in `SOUNDS` on `RosterScene`, so the engine compiles them while the game
+starts.
+
+!!! warning "Do not edit `sounds.toml` by hand"
+    Change the rig and regenerate the file:
+
+    ```bash
+    uv run python -m zombies_aint_my_neighbors.sound_rig
+    ```
 
 - **The remote's zap:** warbly theremin radio waves. Six swoops of a sine between about 600 and
   700 Hz, 0.22 s (under the 0.25 s firing rhythm), with a faint hiss.
@@ -268,11 +290,14 @@ never steals it.
 
 The score's mixes (`music.SCORE`) are declared with the effects in `SOUNDS`, so the engine builds
 them while the game starts, during the CRT power-on; the stage and the game over then find them
-built. Measured 2026-11-18 on the development Mac: the stage loop builds in 188 ms (on the first
-launch, holding back one frame of the power-on; later launches read it from the disk cache, and
-where the power-on is skipped it is built before the first scene), the stings in 21 and 43 ms;
-the score holds about 15 MB (9.9 MB of it the loop: float and int16 samples and the mixer's
-stereo copy), and its loudest peak is 0.79, so nothing clips.
+built.
+
+!!! info "Measured 2026-11-18 on the development Mac"
+    The stage loop builds in 188 ms (on the first launch, holding back one frame of the
+    power-on; later launches read it from the disk cache, and where the power-on is skipped it is
+    built before the first scene), the stings in 21 and 43 ms; the score holds about 15 MB (9.9 MB
+    of it the loop: float and int16 samples and the mixer's stereo copy), and its loudest peak is
+    0.79, so nothing clips.
 
 ## The join roster
 
@@ -283,7 +308,7 @@ title and the card pass the roster between them as a constructor argument, and g
 replay as JSON (`replay_arguments`).
 
 Pads already plugged in when the game starts are never announced to a scene (the engine
-synchronises them before any scene exists), so joining reads only the press's instance id.
+synchronizes them before any scene exists), so joining reads only the press's instance id.
 
 The engine tells only the active scene that a device left, so a pad unplugged on the pause
 screen is caught when the title or the card resumes: setting a screen up again drops every
@@ -297,7 +322,7 @@ image a slot shows and whether it is shown, so no frame renders text. Free slots
 half a second shown and half hidden, from `Scene.game_time`, so a replay blinks exactly as the
 recording did.
 
-| Player | Colour |
+| Player | Color |
 | --- | --- |
 | P1 | ghoul green `(92, 230, 92)` |
 | P2 | pumpkin orange `(255, 140, 26)` |
@@ -313,4 +338,4 @@ The member's tests (`src/games/zombies-aint-my-neighbors/tests/`) run on the rea
 check pixels. Pad tests use the engine's stand-in pad (`tests/input/stand_in_devices.py`)
 through the real devices door, plugged in and out mid-run. Its golden replay
 (`tests/fixtures/replays/golden.jsonl.gz`) joins the keyboard after one blink cycle, pauses and
-resumes, opens the feature card with keypad Enter and comes back with Enter, then quits.
+resumes, opens the feature card with keypad Enter and comes back with Backspace, then quits.

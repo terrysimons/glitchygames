@@ -357,11 +357,33 @@ class TestMultiControllerConfig:
 class TestMultiControllerLogger:
     """Tests for the MultiControllerLogger class."""
 
-    def test_initialization_with_logging_enabled(self):
+    def test_initialization_with_logging_enabled(self, tmp_path, monkeypatch):
         """Test logger initializes with logging enabled."""
+        monkeypatch.chdir(tmp_path)
         config = MultiControllerConfig(error_logging_enabled=True)
         logger = MultiControllerLogger(config)
-        assert logger.config is config
+        try:
+            assert logger.config is config
+        finally:
+            logger.close()
+
+    def test_close_leaves_the_shared_logger_as_it_was_and_closes_the_log_file(
+        self, tmp_path, monkeypatch
+    ):
+        """The handlers it added are removed and closed: no handler or open file outlives it."""
+        monkeypatch.chdir(tmp_path)
+        shared_logger = logging.getLogger('multi_controller')
+        handlers_before = list(shared_logger.handlers)
+        logger = MultiControllerLogger(MultiControllerConfig(error_logging_enabled=True))
+        file_handlers = [
+            handler for handler in logger.added_handlers if isinstance(handler, logging.FileHandler)
+        ]
+
+        logger.close()
+
+        assert shared_logger.handlers == handlers_before
+        assert [handler.stream for handler in file_handlers] == [None]
+        assert (tmp_path / 'multi_controller.log').exists()
 
     def test_initialization_with_logging_disabled(self):
         """Test logger initializes with logging disabled."""

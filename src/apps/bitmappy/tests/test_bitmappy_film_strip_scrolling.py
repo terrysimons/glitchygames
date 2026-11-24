@@ -1,6 +1,5 @@
 """Tests for film strip scrolling functionality."""
 
-import pygame
 import pytest
 
 from bitmappy.editor import BitmapEditorScene
@@ -23,18 +22,15 @@ class TestFilmStripScrolling:
         """Set up test fixtures using centralized mocks."""
         self._mocker = mocker
 
-        # Use real pygame initialization since BitmapEditorScene requires it
-        pygame.init()
+        # The harness keeps pygame initialized for every test; this file never quits it. Quitting
+        # it here, with the scene's fonts still alive, leaked each font's open file: a font freed
+        # after pygame.font has quit never closes it (pygame-ce)
         set_display_mode(size=(800, 600))
 
         # Create scene
         self.scene = BitmapEditorScene(options={})
         self.scene.max_visible_strips = MAX_VISIBLE_STRIPS
         self.scene.film_strip_scroll_offset = SCROLL_OFFSET_0
-
-        yield
-
-        pygame.quit()
 
     def test_scroll_film_strips_up(self):
         """Test scrolling film strips up functionality."""
