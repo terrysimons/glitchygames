@@ -210,6 +210,14 @@ def test_a_failing_git_command_names_itself(tmp_path):
         staged_code_tree(repository=tmp_path, paths=PATHS)
 
 
+def test_a_pathspec_git_refuses_names_the_listing_that_failed(repository):
+    """A pathspec git cannot read stops the tree with the ls-files command, not a wrong tree."""
+    paths = CodeTreePaths(measured=('src',), unmeasured=(':(nonsense)src/tests',))
+
+    with pytest.raises(RuntimeError, match=r'git ls-files -z -- :\(nonsense\)src/tests failed'):
+        commit_code_tree(repository=repository, commit='HEAD', paths=paths)
+
+
 def landed_files(repository: Path) -> dict[str, code_tree.LandedRowFile]:
     """Return the repository's landed row files with this repository's settings.
 
@@ -359,6 +367,36 @@ def test_landed_row_files_refuses_a_shallow_clone(repository, tmp_path_factory):
 
     with pytest.raises(RuntimeError, match='shallow clone'):
         landed_files(shallow)
+
+
+def test_a_past_commits_code_tree_needs_no_file_contents(repository, tmp_path_factory):
+    """A blobless clone (CircleCI's checkout) takes a past commit's tree without fetching a file.
+
+    #287's checks-linux (job 5174): taking a past commit's tree refreshed the index against the
+    working tree, which fetched each missing file from the remote one at a time, and timed out.
+    Here the remote is gone after the clone, so any fetch fails.
+    """
+    first = git(repository=repository, arguments=['rev-parse', 'HEAD'])
+    write(repository=repository, relative_path='src/glitchygames/game.py', text='speed = 2\n')
+    write(
+        repository=repository,
+        relative_path='src/games/mr-muncher/tests/test_mr_muncher.py',
+        text='def test_it():\n    pass\n',
+    )
+    git(repository=repository, arguments=['commit', '--quiet', '-m', 'Second'])
+    expected = commit_code_tree(repository=repository, commit=first, paths=PATHS)
+    git(repository=repository, arguments=['config', 'uploadpack.allowFilter', 'true'])
+    blobless = tmp_path_factory.mktemp('clones') / 'blobless'
+    git(
+        repository=blobless.parent,
+        arguments=['clone', '--quiet', '--filter=blob:none', repository.as_uri(), str(blobless)],
+    )
+    git(
+        repository=blobless,
+        arguments=['remote', 'set-url', 'origin', (blobless.parent / 'gone').as_uri()],
+    )
+
+    assert commit_code_tree(repository=blobless, commit=first, paths=PATHS) == expected
 
 
 def test_landed_row_files_reads_each_commits_tree_once(mocker, repository):

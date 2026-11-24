@@ -6,7 +6,8 @@ project building ``main`` of this repository. A V2 token's ``sub`` is
 ``org/<org>/project/<project>/user/<user>/vcs-origin/<origin>/vcs-ref/<ref>``
 (https://circleci.com/docs/guides/permissions-authentication/openid-connect-tokens/), so IAM
 itself refuses a job on another branch, whatever that branch's configuration says; the
-workflow's ``only: main`` filter (``.circleci/config.yml``, ``deploy-site``) only saves running it.
+workflow's ``only: main`` filter (``.circleci/continue_config.yml``, ``deploy-site``) only saves
+running it.
 The role may only do what publishing needs (``glitchy_site.publish``).
 
 IAM allows one provider per URL per account: an account that already trusts CircleCI names its

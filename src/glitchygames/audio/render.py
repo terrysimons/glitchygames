@@ -78,6 +78,9 @@ PULSE_GIBBS_PEAK: Final[float] = 1.296
 POLYBLEP_PEAK_MARGIN: Final[float] = 1.01
 # A table read never exceeds its band's peak; this only absorbs the division's rounding
 TABLE_PEAK_MARGIN: Final[float] = 1.0 + 1e-9
+# A wave-table read works through a note this many samples at a time (about 1.5 s at 44100 Hz,
+# 512 KiB per temporary), so a long note's memory stays small (_table_samples)
+TABLE_READ_BLOCK_SAMPLES: Final[int] = 65536
 # Impl 5 "Denormals and non-finite values": magnitudes below this flush to zero, so a denormal
 # level (2.2e-313) never reaches a division such as synth.normalize's peak / loudest
 DENORMAL_FLUSH_LEVEL: Final[float] = 1e-30
@@ -344,18 +347,33 @@ def _table_samples(wave: Wave, frequencies: FloatArray, *, sample_rate: int) -> 
     Returns:
         One sample per frequency.
     """
-    table_frequencies = frequencies / wave.note_periods_per_cycle
-    highest = max(float(np.max(table_frequencies)), LOWEST_BAND_HERTZ)
+    # A new array (the caller's frequencies are never changed), divided in place below
+    increments = frequencies / wave.note_periods_per_cycle
+    highest = max(float(np.max(increments)), LOWEST_BAND_HERTZ)
     table = wave.band_limited_table(highest_frequency=highest, sample_rate=sample_rate)
-    increments = table_frequencies / sample_rate
-    # Exclusive running sum, as synth.oscillator: sample 0 sits at phase 0
-    positions = ((np.cumsum(increments) - increments) % 1.0) * WAVE_TABLE_LENGTH
-    below = np.floor(positions)
-    fraction = positions - below
-    below_index = below.astype(np.intp) % WAVE_TABLE_LENGTH
-    above_index = (below_index + 1) % WAVE_TABLE_LENGTH
+    np.divide(increments, sample_rate, out=increments)
+    # Exclusive running sum, as synth.oscillator: sample 0 sits at phase 0. Worked in place, and
+    # the table read in blocks (TABLE_READ_BLOCK_SAMPLES): a note is one array, and a tune's
+    # drone lasts the whole tune (98 s, 33 MiB per temporary), so reading it whole held a dozen
+    # such temporaries at once (#287's Linux job 5155: the listening test grew 484 MiB). Each
+    # step is the same element-wise operation as before, so the samples are bit-for-bit the same.
+    positions = np.cumsum(increments)
+    np.subtract(positions, increments, out=positions)
+    del increments
+    np.remainder(positions, 1.0, out=positions)
+    np.multiply(positions, WAVE_TABLE_LENGTH, out=positions)
     headroom = 1.0 / (TABLE_PEAK_MARGIN * wave.band_limited_peak(sample_rate=sample_rate))
-    return headroom * (table[below_index] * (1.0 - fraction) + table[above_index] * fraction)
+    samples = np.empty_like(positions)
+    for start in range(0, len(positions), TABLE_READ_BLOCK_SAMPLES):
+        block = positions[start : start + TABLE_READ_BLOCK_SAMPLES]
+        below = np.floor(block)
+        fraction = block - below
+        below_index = below.astype(np.intp) % WAVE_TABLE_LENGTH
+        above_index = (below_index + 1) % WAVE_TABLE_LENGTH
+        samples[start : start + len(block)] = headroom * (
+            table[below_index] * (1.0 - fraction) + table[above_index] * fraction
+        )
+    return samples
 
 
 def _noise_samples(

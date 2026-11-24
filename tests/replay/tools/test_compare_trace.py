@@ -20,6 +20,7 @@ import importlib
 import itertools
 import logging
 import os
+import re
 import socket
 import struct
 import sys
@@ -131,6 +132,13 @@ CHILD_TIMEOUT_SECONDS = 120.0
 # (glitchygames/replay/viewer.py, rule 2), but a genuine stall (frames owed beyond a tick) still
 # runs as one burst presenting only its last frame
 STEADY_FRAME_SECONDS = 1 / float(STAND_IN_GAME_TARGET_FPS)
+# The FPS-event interval of every recording whose frame times are steadied: an hour, so the
+# engine's FPS event (posted each half interval of frame clock, the sum of the frames' dt) can't
+# fall inside a few frames however slow the machine. The live run would post it from its real
+# frame times, which steadying replaces, so its replay would never post it back: a loaded
+# Windows runner recorded 6 frames past 500 ms (the default's half) and every replay of that
+# OLD diverged (#287, CircleCI job 5206)
+STEADIED_RECORDING_FPS_LOG_INTERVAL_MS = '3600000'
 
 COLOR_GAME_SOURCE = f'''\
 """A stand-in game: a plain floor with one marker on it, the seed's red and the frame's green."""
@@ -322,29 +330,98 @@ def recorded_old(tmp_path_factory) -> Path:
     # runs one recorded frame per 60 Hz tick at 1x unless behind, then as many as owed), so an
     # uncapped OLD's frames, far shorter than a tick, would run many to a tick; then steadied
     # (steady_frame_times), so the frames presented never depend on this machine's timing
+    game = install_color_game(install_directory=root / 'site-packages')
     recording = record_stand_in_game_once(
-        game=install_color_game(install_directory=root / 'site-packages'),
+        game=game,
         path=root / 'old.jsonl.gz',
-        extra_arguments=('--random-seed', str(OLD_SEED)),
+        extra_arguments=steadied_recording_arguments(seed=OLD_SEED),
         paced=True,
     )
-    steady_frame_times(recording=recording)
+    steady_frame_times(game=game, recording=recording)
     return recording
 
 
-def steady_frame_times(*, recording: Path) -> None:
+def steadied_recording_arguments(*, seed: int) -> tuple[str, ...]:
+    """Return the arguments of a recording whose frame times will be steadied.
+
+    Args:
+        seed: The run's random seed.
+
+    Returns:
+        The seed, and an FPS-event interval no test reaches
+        (``STEADIED_RECORDING_FPS_LOG_INTERVAL_MS``).
+
+    """
+    return (
+        '--random-seed',
+        str(seed),
+        '--fps-log-interval-ms',
+        STEADIED_RECORDING_FPS_LOG_INTERVAL_MS,
+    )
+
+
+def steady_frame_times(*, game: StandInGame, recording: Path) -> None:
     """Give every frame of a paced recording exactly one frame period (``STEADY_FRAME_SECONDS``).
 
     Pacing is still what the recording ran under; only the jitter of the machine that recorded
     it goes (a stall would still run as a burst), so a watched replay presents the same frames
-    on every machine.
+    on every machine. Then the steadied recording is replayed once, headless, and must reach its
+    end: anything the live run recorded from its real frame times (an FPS event) no longer
+    follows from the steadied ones, and every test reading the recording would diverge.
+
+    Args:
+        game: The stand-in game that recorded it.
+        recording: The recording, rewritten in place.
+
     """
+    write_steady_frame_times(recording=recording)
+    check_the_recording_replays_to_its_end(game=game, recording=recording)
+
+
+def write_steady_frame_times(*, recording: Path) -> None:
+    """Rewrite every frame's ``dt`` as ``STEADY_FRAME_SECONDS``, and nothing else."""
 
     def steady(trace: dict[str, Any]) -> None:
         for frame in trace['frames']:
             frame['dt'] = STEADY_FRAME_SECONDS
 
     rewrite_recording(recording_path=recording, change=steady)
+
+
+def check_the_recording_replays_to_its_end(*, game: StandInGame, recording: Path) -> None:
+    """Replay a recording headless in a child process, and fail unless it reaches its end.
+
+    In a child, so a module-scoped fixture can call it (no test's mocker or engine state).
+
+    Args:
+        game: The stand-in game that recorded it.
+        recording: The recording.
+
+    """
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        use_stand_in_game(install_directory=game.install_directory, monkeypatch=monkeypatch)
+        completed = run_command(
+            command=[
+                sys.executable,
+                '-c',
+                f'import {game.package}; {game.package}.main()',
+                '--replay-trace',
+                str(recording),
+                '--headless',
+                '--log-level',
+                'error',
+            ],
+            environment=os.environ,
+            timeout_seconds=CHILD_TIMEOUT_SECONDS,
+            capture_output=OutputCapture.TOGETHER,
+        )
+    if completed.returncode != ExitCode.SUCCESS:
+        divergence = re.search(r'Replay diverged at frame \d+[^\n]*', completed.stdout)
+        pytest.fail(
+            f'{recording.name} does not replay to its end once its frame times are steadied '
+            f'(exit {completed.returncode}): '
+            f'{divergence.group(0) if divergence else completed.stdout}'
+        )
 
 
 @pytest.fixture
@@ -429,6 +506,54 @@ def test_watched_recordings_have_steady_frame_times(color_game, tmp_path):
     for recording in (color_game.old, pausing):
         frames = read_trace_result(path=recording).trace['frames']
         assert {frame['dt'] for frame in frames} == {STEADY_FRAME_SECONDS}, recording
+
+
+@pytest.mark.draws_frames
+def test_a_steadied_recording_replays_however_slow_the_machine_recording_it(
+    tmp_path, monkeypatch, mocker
+):
+    """OLD's arguments, recorded on a machine managing 5 frames a second, steady and replay.
+
+    5 FPS stands in for a loaded runner (job 5206 recorded at 14): OLD's 6 frames then pass the
+    default FPS interval's half (500 ms), and with that interval the live run would post an FPS
+    event its steadied replay never posts back.
+    """
+    game = install_color_game(install_directory=tmp_path / 'site-packages')
+    recording = record_stand_in_game_once(
+        game=game,
+        path=tmp_path / 'slow.jsonl.gz',
+        # A later --target-fps wins: the slow machine's pace
+        extra_arguments=(*steadied_recording_arguments(seed=OLD_SEED), '--target-fps', '5'),
+        paced=True,
+    )
+    write_steady_frame_times(recording=recording)
+    use_stand_in_game(install_directory=game.install_directory, monkeypatch=monkeypatch)
+    mocker.patch.dict(sys.modules)
+    module = importlib.import_module(PACKAGE)
+
+    replay = replay_through_engine(
+        mocker=mocker, scene_class=getattr(module, SCENE_NAME), path=recording
+    )
+
+    assert replay.exit_status == ExitCode.SUCCESS, replay.result
+
+
+def test_steadying_fails_a_recording_that_no_longer_replays(tmp_path):
+    """A live run that posted FPS events from its real frame times fails steadying, by frame.
+
+    An interval of 20 ms posts one every frame (half the interval, 10 ms, is under any paced
+    frame), as a slow machine does after 500 ms.
+    """
+    game = install_color_game(install_directory=tmp_path / 'site-packages')
+    recording = record_stand_in_game_once(
+        game=game,
+        path=tmp_path / 'fps-events.jsonl.gz',
+        extra_arguments=('--random-seed', str(OLD_SEED), '--fps-log-interval-ms', '20'),
+        paced=True,
+    )
+
+    with pytest.raises(pytest.fail.Exception, match=r'Replay diverged at frame \d+.*fps'):
+        steady_frame_times(game=game, recording=recording)
 
 
 def presented_frame_index(*, sources: ReplaySources) -> int | None:
@@ -2727,10 +2852,10 @@ def record_a_pausing_run(*, color_game: ColorGame, path: Path) -> Path:
     recording = record_stand_in_game(
         game=color_game.game,
         path=path,
-        extra_arguments=('--random-seed', str(PAUSING_SEED)),
+        extra_arguments=steadied_recording_arguments(seed=PAUSING_SEED),
         paced=True,
     )
-    steady_frame_times(recording=recording)
+    steady_frame_times(game=color_game.game, recording=recording)
     assert recorded_frame_count(path=recording) == len(GAME_FRAME_OF_A_PAUSING_RUN)
     return recording
 
