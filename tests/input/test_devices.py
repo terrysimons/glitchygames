@@ -7,14 +7,18 @@ import pygame._sdl2.controller
 import pytest
 
 from glitchygames.input.devices import (
+    MIDI_INPUT_KIND,
+    MIDI_OUTPUT_KIND,
     DeviceDescriptor,
     EnumerationAnswer,
     LiveDeviceRegistry,
+    MidiPortInfo,
     PolledDevices,
     ReplayController,
     ReplayDeviceRegistry,
     ReplayJoystick,
     _import_sdl_controller_module,
+    find_midi_port,
     sdl_controller_module,
 )
 from glitchygames.input.state import InputSnapshot, set_current_input
@@ -763,3 +767,210 @@ def test_stand_in_frames_without_a_recorder_keep_no_answers():
 
         assert registry.take_enumeration_answers() == []
         assert registry.take_opened_descriptors() == []
+
+
+KEYS_PORT = MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False)
+SYNTH_PORT = MidiPortInfo(interface='CoreMIDI', name='Synth', is_input=False, is_output=True)
+MIDI_ANSWER_CALLS = [
+    'midi_port_count',
+    'midi_port_info',
+    'midi_port_info',
+    'default_midi_input_id',
+    'default_midi_output_id',
+]
+
+
+def _patch_portmidi(mocker):
+    """Stand in for pygame.midi as PortMidi answers (a keyboard, a synth); return it."""
+    midi_module = mocker.Mock()
+    mocker.patch('glitchygames.input.devices.import_midi_module', return_value=midi_module)
+    midi_module.get_count.return_value = 2
+    midi_module.get_device_info.side_effect = [
+        (b'CoreMIDI', b'Keys', 1, 0, 0),
+        (b'CoreMIDI', b'Synth', 0, 1, 0),
+    ]
+    midi_module.get_default_input_id.return_value = 0
+    midi_module.get_default_output_id.return_value = 1
+    return midi_module
+
+
+def _ask_midi(registry):
+    return (
+        registry.midi_port_count(),
+        registry.midi_port_info(port_id=0),
+        registry.midi_port_info(port_id=1),
+        registry.default_midi_input_id(),
+        registry.default_midi_output_id(),
+    )
+
+
+def test_live_midi_enumeration_is_remembered(mocker):
+    """Live MIDI answers are the ports' (names decoded) and remembered in call order."""
+    _patch_portmidi(mocker)
+    registry = LiveDeviceRegistry()
+
+    assert _ask_midi(registry) == (2, KEYS_PORT, SYNTH_PORT, 0, 1)
+    answers = registry.take_enumeration_answers()
+    assert [answer.call for answer in answers] == MIDI_ANSWER_CALLS
+    assert answers[0] == EnumerationAnswer(call='midi_port_count', device_index=None, value=2)
+    assert answers[1] == EnumerationAnswer(
+        call='midi_port_info', device_index=0, value=['CoreMIDI', 'Keys', True, False]
+    )
+
+
+def test_midi_port_names_with_undecodable_bytes_are_replaced(mocker):
+    """A name that is not UTF-8 is decoded with replacement characters, not an error."""
+    midi_module = _patch_portmidi(mocker)
+    midi_module.get_device_info.side_effect = [(b'ALSA', b'Caf\xe9', 1, 0, 0)]
+
+    info = LiveDeviceRegistry().midi_port_info(port_id=0)
+
+    assert info == MidiPortInfo(interface='ALSA', name='Caf\ufffd', is_input=True, is_output=False)
+
+
+def test_a_missing_midi_port_is_remembered_as_none(mocker):
+    """PortMidi answers None for an id it does not have; a replay gives None too."""
+    midi_module = _patch_portmidi(mocker)
+    midi_module.get_device_info.side_effect = [None]
+    registry = LiveDeviceRegistry()
+
+    assert registry.midi_port_info(port_id=9) is None
+    replay = ReplayDeviceRegistry(
+        descriptors=[], enumeration_answers=registry.take_enumeration_answers()
+    )
+    assert replay.midi_port_info(port_id=9) is None
+
+
+def test_replay_answers_midi_enumeration_as_recorded(mocker):
+    """A replay gives the recorded MIDI answers and never touches pygame.midi."""
+    midi_module = _patch_portmidi(mocker)
+    live = LiveDeviceRegistry()
+    live_answers = _ask_midi(live)
+    recorded = live.take_enumeration_answers()
+    midi_module.reset_mock()
+    mocker.patch(
+        'glitchygames.input.devices.import_midi_module',
+        side_effect=pygame.error('replay must not ask PortMidi'),
+    )
+
+    replay = ReplayDeviceRegistry(descriptors=[], enumeration_answers=recorded)
+
+    assert _ask_midi(replay) == live_answers
+    assert midi_module.mock_calls == []
+
+
+def test_replay_without_recorded_midi_answers_has_no_ports(caplog):
+    """A recording with no MIDI answers has no ports, and says so once per call."""
+    replay = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+
+    assert _ask_midi(replay) == (0, None, None, -1, -1)
+    assert 'midi_port_count' in caplog.text
+
+
+def test_a_recorded_midi_failure_raises_again_in_replay(mocker):
+    """A PortMidi error is recorded and a replay raises it again."""
+    midi_module = _patch_portmidi(mocker)
+    midi_module.get_count.side_effect = pygame.error('PortMidi is gone')
+    live = LiveDeviceRegistry()
+    with pytest.raises(pygame.error, match='PortMidi is gone'):
+        live.midi_port_count()
+    recorded = live.take_enumeration_answers()
+    assert recorded == [
+        EnumerationAnswer(
+            call='midi_port_count', device_index=None, value=None, error='PortMidi is gone'
+        )
+    ]
+
+    replay = ReplayDeviceRegistry(descriptors=[], enumeration_answers=recorded)
+    with pytest.raises(pygame.error, match='PortMidi is gone'):
+        replay.midi_port_count()
+
+
+def test_malformed_recorded_midi_values_answer_as_no_ports():
+    """A recorded value of the wrong shape is no port, no count and no default."""
+    replay = ReplayDeviceRegistry(
+        descriptors=[],
+        enumeration_answers=[
+            EnumerationAnswer(call='midi_port_count', device_index=None, value='two'),
+            EnumerationAnswer(call='midi_port_info', device_index=0, value=['too', 'short']),
+            EnumerationAnswer(call='default_midi_input_id', device_index=None, value='none'),
+            EnumerationAnswer(call='default_midi_output_id', device_index=None, value=None),
+        ],
+    )
+
+    assert _ask_midi(replay) == (0, None, None, -1, -1)
+
+
+def test_no_portmidi_answers_zero_midi_ports(mocker):
+    """Without PortMidi every MIDI call answers as no ports, and the answers are recorded."""
+    mocker.patch('glitchygames.input.devices.import_midi_module', return_value=None)
+    registry = LiveDeviceRegistry()
+
+    assert (
+        registry.midi_port_count(),
+        registry.default_midi_input_id(),
+        registry.default_midi_output_id(),
+        registry.midi_port_info(port_id=0),
+    ) == (0, -1, -1, None)
+    assert registry.take_enumeration_answers() == [
+        EnumerationAnswer(call='midi_port_count', device_index=None, value=0),
+        EnumerationAnswer(call='default_midi_input_id', device_index=None, value=-1),
+        EnumerationAnswer(call='default_midi_output_id', device_index=None, value=-1),
+        EnumerationAnswer(call='midi_port_info', device_index=0, value=None),
+    ]
+
+
+def test_find_midi_port_matches_name_and_direction(mocker):
+    """A port is found by name and by the direction the caller wants."""
+    midi_module = _patch_portmidi(mocker)
+    midi_module.get_device_info.side_effect = lambda port_id: [
+        (b'CoreMIDI', b'Keys', 1, 0, 0),
+        (b'CoreMIDI', b'Synth', 0, 1, 0),
+    ][port_id]
+    registry = LiveDeviceRegistry()
+
+    assert find_midi_port(devices=registry, name='Keys', kind=MIDI_INPUT_KIND) == 0
+    assert find_midi_port(devices=registry, name='Keys', kind=MIDI_OUTPUT_KIND) is None
+    assert find_midi_port(devices=registry, name='Synth', kind=MIDI_OUTPUT_KIND) == 1
+    assert find_midi_port(devices=registry, name='Nothing', kind=MIDI_INPUT_KIND) is None
+
+
+def test_find_midi_port_skips_a_port_that_has_gone(mocker):
+    """A port id with no info (unplugged between the count and the ask) is skipped."""
+    midi_module = _patch_portmidi(mocker)
+    midi_module.get_device_info.side_effect = [None, (b'CoreMIDI', b'Synth', 0, 1, 0)]
+
+    assert find_midi_port(devices=LiveDeviceRegistry(), name='Synth', kind=MIDI_OUTPUT_KIND) == 1
+
+
+def test_midi_enumeration_never_initializes_portmidi_until_asked(mocker):
+    """Building the registry starts nothing; the first MIDI call initializes PortMidi once."""
+    midi_module = _patch_portmidi(mocker)
+
+    registry = LiveDeviceRegistry()
+    assert midi_module.mock_calls == []
+
+    _ask_midi(registry)
+    registry.midi_port_count()
+    midi_module.init.assert_called_once_with()
+
+
+def test_midi_port_info_round_trips_through_an_answer_value():
+    """The recorded list is what the port is read back from."""
+    assert MidiPortInfo.from_answer_value(KEYS_PORT.to_answer_value()) == KEYS_PORT
+    assert MidiPortInfo.from_answer_value(None) is None
+
+
+def test_a_stand_in_registry_answers_midi_from_its_ports_and_tells_the_recorder():
+    """Stand-in MIDI answers come from midi_ports (id = position) and are kept for a recorder."""
+    registry = stand_in_registry(descriptors=[], midi_ports=[KEYS_PORT, SYNTH_PORT])
+
+    assert _ask_midi(registry) == (2, KEYS_PORT, SYNTH_PORT, 0, 1)
+    assert [answer.call for answer in registry.take_enumeration_answers()] == MIDI_ANSWER_CALLS
+    assert registry.midi_port_info(port_id=2) is None
+    assert registry.midi_port_info(port_id=-1) is None
+
+
+def test_a_stand_in_registry_has_no_midi_ports_by_default():
+    """Without midi_ports a stand-in registry counts none and has no defaults."""
+    assert _ask_midi(install_stand_in_devices(descriptors=[])) == (0, None, None, -1, -1)

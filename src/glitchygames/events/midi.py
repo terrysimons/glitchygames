@@ -7,39 +7,25 @@ there the manager forwards MIDI events to the game but has no subsystem to proxy
 
 from __future__ import annotations
 
-import importlib
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 
-from glitchygames.events import MIDI_EVENTS, set_event_types_allowed
+from glitchygames.events import (
+    MIDI_EVENTS,
+    MidiEvent,
+    MidiEvents,
+    ResourceManager,
+    set_event_types_allowed,
+)
+from glitchygames.input.devices import MIDI_MODULE
 
 if TYPE_CHECKING:
     import argparse
-    from types import ModuleType
-
-from glitchygames.events import MidiEvent, MidiEvents, ResourceManager
 
 log = logging.getLogger('game.midi')
 log.addHandler(logging.NullHandler())
-
-
-def import_midi_module() -> ModuleType | None:
-    """Import pygame.midi, or return None where this pygame build has no PortMidi.
-
-    Returns:
-        The module, or None.
-
-    """
-    try:
-        return importlib.import_module('pygame.midi')
-    except ImportError:
-        log.info('pygame.midi is unavailable in this pygame build: no MIDI devices')
-        return None
-
-
-MIDI_MODULE = import_midi_module()
 
 
 class MidiEventManager(ResourceManager):

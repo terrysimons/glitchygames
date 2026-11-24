@@ -32,12 +32,17 @@ from typing import TYPE_CHECKING, Any, Self, override
 from glitchygames.input.devices import (
     CONTROLLER_COUNT_CALL,
     CONTROLLER_KIND,
+    DEFAULT_MIDI_INPUT_CALL,
+    DEFAULT_MIDI_OUTPUT_CALL,
     IS_CONTROLLER_CALL,
     JOYSTICK_COUNT_CALL,
+    MIDI_PORT_COUNT_CALL,
+    MIDI_PORT_INFO_CALL,
     NAME_FOR_INDEX_CALL,
     DeviceDescriptor,
     EnumerationAnswer,
     EnumerationValue,
+    MidiPortInfo,
     ReplayDeviceRegistry,
 )
 from glitchygames.live_sources import LiveSources
@@ -68,15 +73,21 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         *,
         descriptors: list[DeviceDescriptor],
         enumeration_answers: list[EnumerationAnswer],
+        midi_ports: Sequence[MidiPortInfo] = (),
     ) -> None:
         """Index the stand-ins and queue their answers, with nothing given yet.
 
         Args:
             descriptors: The stand-in devices.
             enumeration_answers: The answers SDL would give for them.
+            midi_ports: The MIDI ports PortMidi would list, a port's id being its position. The
+                MIDI answers come from them (the first input and the first output port are the
+                defaults), unless ``enumeration_answers`` records others.
 
         """
         super().__init__(descriptors=descriptors, enumeration_answers=enumeration_answers)
+        # What the replay registry's MIDI calls answer when nothing is recorded for them
+        self._midi_ports = tuple(midi_ports)
         self._given_answers: list[EnumerationAnswer] = []
         self._opened_descriptors: list[DeviceDescriptor] = []
 
@@ -133,6 +144,61 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         name = super().name_for_index(device_index=device_index)
         self._keep_answer(call=NAME_FOR_INDEX_CALL, device_index=device_index, value=name)
         return name
+
+    @override
+    def midi_port_count(self: Self) -> int:
+        """Answer with the stand-in ports' count, and keep the answer for the recorder.
+
+        Returns:
+            The count.
+
+        """
+        count = super().midi_port_count()
+        self._keep_answer(call=MIDI_PORT_COUNT_CALL, device_index=None, value=count)
+        return count
+
+    @override
+    def midi_port_info(self: Self, *, port_id: int) -> MidiPortInfo | None:
+        """Answer with the stand-in port ``port_id``, and keep the answer for the recorder.
+
+        Args:
+            port_id: The port's position in ``midi_ports``.
+
+        Returns:
+            The port, or None when there is no such port.
+
+        """
+        info = super().midi_port_info(port_id=port_id)
+        self._keep_answer(
+            call=MIDI_PORT_INFO_CALL,
+            device_index=port_id,
+            value=None if info is None else info.to_answer_value(),
+        )
+        return info
+
+    @override
+    def default_midi_input_id(self: Self) -> int:
+        """Answer with the first stand-in input port, and keep the answer for the recorder.
+
+        Returns:
+            The port id, -1 when no stand-in port is an input.
+
+        """
+        port_id = super().default_midi_input_id()
+        self._keep_answer(call=DEFAULT_MIDI_INPUT_CALL, device_index=None, value=port_id)
+        return port_id
+
+    @override
+    def default_midi_output_id(self: Self) -> int:
+        """Answer with the first stand-in output port, and keep the answer for the recorder.
+
+        Returns:
+            The port id, -1 when no stand-in port is an output.
+
+        """
+        port_id = super().default_midi_output_id()
+        self._keep_answer(call=DEFAULT_MIDI_OUTPUT_CALL, device_index=None, value=port_id)
+        return port_id
 
     @override
     def _descriptor_to_open(
@@ -249,13 +315,17 @@ class StandInDeviceSources(LiveSources):
 
 
 def stand_in_registry(
-    *, descriptors: Sequence[DeviceDescriptor], plugged_in_at_start: bool = True
+    *,
+    descriptors: Sequence[DeviceDescriptor],
+    plugged_in_at_start: bool = True,
+    midi_ports: Sequence[MidiPortInfo] = (),
 ) -> StandInDeviceRegistry:
     """Return a registry of stand-in devices, answering enumeration as SDL would for them.
 
     Args:
         descriptors: The devices; a CONTROLLER_KIND one is a mapped game controller.
         plugged_in_at_start: False counts no devices (they are to be hot-plugged).
+        midi_ports: The MIDI ports PortMidi would list (a port's id is its position).
 
     Returns:
         The registry.
@@ -274,23 +344,31 @@ def stand_in_registry(
         )
         for descriptor in descriptors
     )
-    return StandInDeviceRegistry(descriptors=list(descriptors), enumeration_answers=answers)
+    return StandInDeviceRegistry(
+        descriptors=list(descriptors), enumeration_answers=answers, midi_ports=midi_ports
+    )
 
 
 def install_stand_in_devices(
-    *, descriptors: Sequence[DeviceDescriptor], plugged_in_at_start: bool = True
+    *,
+    descriptors: Sequence[DeviceDescriptor],
+    plugged_in_at_start: bool = True,
+    midi_ports: Sequence[MidiPortInfo] = (),
 ) -> StandInDeviceRegistry:
     """Install doors whose devices are stand-ins (see ``stand_in_registry``).
 
     Args:
         descriptors: The devices; a CONTROLLER_KIND one is a mapped game controller.
         plugged_in_at_start: False counts no devices (they are to be hot-plugged).
+        midi_ports: The MIDI ports PortMidi would list (a port's id is its position).
 
     Returns:
         The installed registry.
 
     """
-    registry = stand_in_registry(descriptors=descriptors, plugged_in_at_start=plugged_in_at_start)
+    registry = stand_in_registry(
+        descriptors=descriptors, plugged_in_at_start=plugged_in_at_start, midi_ports=midi_ports
+    )
     install_sources(
         sources=StandInDeviceSources(registry=registry, random_seed=STAND_IN_DOORS_RANDOM_SEED)
     )

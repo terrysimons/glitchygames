@@ -18,7 +18,8 @@ from glitchygames.events import (
     MidiEventStubs,
     UnhandledEventError,
 )
-from glitchygames.events.midi import MidiEventManager, import_midi_module
+from glitchygames.events.midi import MidiEventManager
+from glitchygames.input.devices import import_midi_module
 from glitchygames.scenes import Scene
 
 EVENT_TEST_OPTIONS = {'debug_events': False, 'no_unhandled_events': True}
@@ -481,10 +482,10 @@ class TestOptionalMidiModule:
     def test_import_midi_module_is_none_when_pygame_midi_cannot_import(self, mocker, caplog):
         """A pygame build without PortMidi (no pygame.pypm) gives None, logged once."""
         mocker.patch(
-            'glitchygames.events.midi.importlib.import_module',
+            'glitchygames.input.devices.importlib.import_module',
             side_effect=ModuleNotFoundError("No module named 'pygame.pypm'"),
         )
-        with caplog.at_level('INFO', logger='game.midi'):
+        with caplog.at_level('INFO', logger='game.input.devices'):
             assert import_midi_module() is None
 
         assert 'pygame.midi is unavailable' in caplog.text

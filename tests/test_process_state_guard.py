@@ -1022,7 +1022,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     'events/sprite_spawn.py': {
         'SPRITE_SPAWN_EVENT': EVENT_TYPE_TABLE,
     },
-    'events/midi.py': {'MIDI_MODULE': "R5: an import's result, the same in every context."},
     'fonts/font_manager.py': {
         'FontManager._font_cache': (
             'R9: fonts by their settings, one cache per process (the owner, 2026-10-25).'
@@ -1030,6 +1029,7 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     },
     'input/devices.py': {
         '_SDL_CONTROLLER_MODULE': "R5: an import's result, the same in every context.",
+        'MIDI_MODULE': "R5: an import's result, the same in every context.",
     },
     'input/state.py': {
         '_SCANCODE_OF_KEY_CODE': 'R3: an immutable scancode table built at import.',
