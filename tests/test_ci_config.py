@@ -3067,6 +3067,24 @@ def test_the_performance_session_collects_only_the_benchmark_paths():
     assert pytest_command[-len(noxfile._BENCHMARK_PATHS) :] == tuple(noxfile._BENCHMARK_PATHS)
 
 
+def test_the_performance_session_saves_no_run_into_the_repository():
+    """No benchmark run is saved: ``.benchmarks/`` is tracked, and nothing reads it.
+
+    The owner, 2026-11-23: benchmarks run in CI, but no file they write may get committed.
+    """
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+    noxfile.performance_test(session)
+
+    pytest_command = next(command for command in session.commands if command[0] == 'pytest')
+    assert not [
+        argument
+        for argument in pytest_command
+        if argument.startswith(('--benchmark-save', '--benchmark-autosave', '--benchmark-json'))
+    ]
+
+
 def test_the_wheel_build_builds_every_workspace_package(mocker):
     """The wheel build covers the engine and every workspace member, not the root project alone."""
     import noxfile

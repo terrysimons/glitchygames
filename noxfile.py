@@ -2961,10 +2961,14 @@ _BENCHMARK_PATHS = [
 
 @nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
-    """Run performance benchmarks."""
+    """Run performance benchmarks; pass or fail, saving nothing into the repository.
+
+    The results table goes to the log only. ``--benchmark-save`` wrote a run into the tracked
+    ``.benchmarks/`` on every run, which nothing reads (plans/2026-11-04-performance-page-
+    comparison.md, Step 3; the owner, 2026-11-23: no file a benchmark writes may get committed).
+    """
     _install_from_lockfile(session)
 
-    # Run performance tests with pytest-benchmark
     # Override addopts to avoid conflict with --cov flags from pyproject.toml
     session.run(
         'pytest',
@@ -2973,7 +2977,6 @@ def performance_test(session: nox.Session) -> None:
         '-p',
         'no:xdist',
         '--benchmark-only',
-        '--benchmark-save=baseline',
         *_BENCHMARK_PATHS,
     )
 
