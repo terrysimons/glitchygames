@@ -13,7 +13,8 @@ import hashlib
 import json
 import os
 import textwrap
-from typing import TYPE_CHECKING
+import types
+from typing import TYPE_CHECKING, cast
 
 import pygame
 import pytest
@@ -151,6 +152,7 @@ def inner_tests(pytester: pytest.Pytester) -> Iterator[pytest.Pytester]:
 class TestRecordingARun:
     """A run with --frame-fingerprints writes each test's frames, in present order."""
 
+    @pytest.mark.draws_frames
     def test_each_test_gets_its_presents_and_final_frame(self, inner_tests, tmp_path):
         """Setup and body presents count, in order; the final frame is the display as left."""
         directory = tmp_path / 'run'
@@ -181,6 +183,7 @@ class TestRecordingARun:
         assert records[FAILS].outcome == 'failed'
         assert len(records[FAILS].presented) == 1
 
+    @pytest.mark.draws_frames
     def test_the_display_functions_are_put_back_after_the_run(self, inner_tests, tmp_path):
         """The wrappers live only as long as the inner run."""
         flip_before = pygame.display.flip
@@ -193,6 +196,7 @@ class TestRecordingARun:
         assert pygame.display.flip is flip_before
         assert pygame.display.update is update_before
 
+    @pytest.mark.draws_frames
     def test_without_the_option_nothing_is_recorded(self, inner_tests):
         """Loading the plugin alone changes nothing: no files are written."""
         result = inner_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
@@ -200,6 +204,7 @@ class TestRecordingARun:
         result.assert_outcomes(passed=2, failed=1, skipped=1)
         assert not list(inner_tests.path.glob('**/*.jsonl'))
 
+    @pytest.mark.draws_frames
     def test_requested_frames_are_saved_as_images(self, inner_tests, tmp_path):
         """--frame-images-request saves the named positions of the named tests as PNG files."""
         directory = tmp_path / 'run'
@@ -451,6 +456,7 @@ class TestFingerprintDisplay:
 class TestTheRecorderBetweenTests:
     """The recorder object, used directly."""
 
+    @pytest.mark.draws_frames
     def test_presents_outside_a_test_are_passed_through_unrecorded(self, tmp_path):
         """With no test being recorded the wrappers only present."""
         recorder = FrameFingerprintRecorder(directory=tmp_path / 'run', image_request=None)
@@ -639,3 +645,722 @@ class TestEnvironmentActivation:
         expected_draws = SeededDraws(key='8:test_seeds.py::test_draws_two_seeds')
         seeds = json.loads((tmp_path / 'seeds.json').read_text(encoding='utf-8'))
         assert seeds[0] == expected_draws.randbits(SEED_BITS)
+
+
+# Inner tests for the draws_frames check. The inner conftest's blank screen is green at every
+# size, and each inner test leaves green (draws nothing) or red (draws) on the display. An inner
+# run in this process uses this process's display; one in a child process opens its own
+INNER_BLANK_SCREEN_CONFTEST = textwrap.dedent(
+    """
+    import pygame
+    import pytest
+
+
+    def pytest_frame_fingerprints_blank_screen(size):
+        return bytes((20, 180, 60)) * (size[0] * size[1])
+
+
+    @pytest.fixture(autouse=True, scope='session')
+    def a_display():
+        if not pygame.get_init() or pygame.display.get_surface() is None:
+            pygame.init()
+            pygame.display.set_mode((64, 48))
+    """
+)
+INNER_MARKER_TESTS = textwrap.dedent(
+    """
+    import pygame
+    import pytest
+
+    GREEN = (20, 180, 60)
+    RED = (200, 30, 40)
+
+
+    def leave(color):
+        pygame.display.get_surface().fill(color)
+
+
+    @pytest.fixture
+    def presents_in_setup():
+        pygame.display.flip()
+
+
+    @pytest.fixture
+    def presents_in_teardown():
+        yield
+        pygame.display.flip()
+
+
+    def test_presents_unmarked():
+        leave(GREEN)
+        pygame.display.flip()
+
+
+    def test_updates_unmarked():
+        leave(GREEN)
+        pygame.display.update(pygame.Rect(0, 0, 4, 4))
+
+
+    @pytest.mark.draws_frames
+    def test_presents_marked():
+        leave(GREEN)
+        pygame.display.flip()
+
+
+    def test_leaves_a_picture_unmarked():
+        leave(RED)
+
+
+    @pytest.mark.draws_frames
+    def test_leaves_a_picture_marked():
+        leave(RED)
+
+
+    def test_leaves_the_blank_screen_unmarked():
+        leave(GREEN)
+
+
+    def test_leaves_the_blank_screen_at_a_new_size_unmarked():
+        pygame.display.set_mode((64, 48))
+        leave(GREEN)
+
+
+    @pytest.mark.draws_frames
+    def test_marked_but_draws_nothing():
+        leave(GREEN)
+
+
+    def test_presents_in_its_fixture_setup_unmarked(presents_in_setup):
+        leave(GREEN)
+
+
+    @pytest.mark.draws_frames
+    def test_presents_only_in_its_fixture_teardown_marked(presents_in_teardown):
+        leave(GREEN)
+
+
+    @pytest.mark.draws_frames
+    @pytest.mark.frames_vary(reason='varies on purpose')
+    def test_varies_and_draws_marked():
+        leave(GREEN)
+        pygame.display.flip()
+
+
+    @pytest.mark.parametrize(
+        'draws', [pytest.param(True, marks=pytest.mark.draws_frames), False]
+    )
+    def test_cases_marked_one_by_one(draws):
+        leave(GREEN)
+        if draws:
+            pygame.display.flip()
+
+
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize('draws', [True, False])
+    def test_cases_marked_on_the_function(draws):
+        leave(GREEN)
+        if draws:
+            pygame.display.flip()
+
+
+    def test_presents_then_fails_unmarked():
+        pygame.display.flip()
+        raise AssertionError('fails on purpose')
+    """
+)
+# The inner tests whose marker disagrees with what they did, and why
+UNMARKED_DRAWING_TESTS = {
+    'test_inner_markers.py::test_presents_unmarked': 'presented 1 frame(s)',
+    'test_inner_markers.py::test_updates_unmarked': 'presented 1 frame(s)',
+    'test_inner_markers.py::test_leaves_a_picture_unmarked': (
+        'left a picture other than the blank screen'
+    ),
+    'test_inner_markers.py::test_presents_in_its_fixture_setup_unmarked': 'presented 1 frame(s)',
+}
+MARKED_NON_DRAWING_TESTS = {
+    'test_inner_markers.py::test_marked_but_draws_nothing',
+    'test_inner_markers.py::test_presents_only_in_its_fixture_teardown_marked',
+    'test_inner_markers.py::test_cases_marked_on_the_function[False]',
+}
+INNER_MARKER_TEST_COUNT = 16
+# The failing inner test fails on its own, so it is not judged
+INNER_FAILING_TEST_COUNT = 1
+
+
+def read_markers_report(*, pytester: pytest.Pytester) -> dict[str, str]:
+    """Read an inner run's draws_frames report.
+
+    Returns:
+        The reasons by node id.
+
+    """
+    report_path = pytester.path / frame_fingerprints.MARKERS_REPORT_PATH
+    lines = report_path.read_text(encoding='utf-8').splitlines()
+    return dict(line.split('\t', 1) for line in lines)
+
+
+@pytest.fixture
+def inner_marker_tests(pytester: pytest.Pytester) -> Iterator[pytest.Pytester]:
+    """A pytester directory holding the draws_frames inner tests and their blank screen.
+
+    Yields:
+        The pytester.
+
+    """
+    pytester.makeconftest(INNER_BLANK_SCREEN_CONFTEST)
+    pytester.makepyfile(test_inner_markers=INNER_MARKER_TESTS)
+    yield pytester
+    show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+
+def judge_inner_runs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make in-process pytest runs judged, as a run no test started is.
+
+    pytest sets PYTEST_CURRENT_TEST at the start of each phase, so this runs in the test body.
+
+    Args:
+        monkeypatch: The test's patcher (it puts the variable back).
+
+    """
+    monkeypatch.delenv(frame_fingerprints.CURRENT_TEST_VARIABLE)
+
+
+# Each test's inner run presents frames in this process, so the test itself draws
+@pytest.mark.draws_frames
+class TestTheDrawsFramesCheck:
+    """In a judged run, a test whose draws_frames marker disagrees with what it did fails."""
+
+    def test_each_disagreeing_test_fails_and_the_rest_pass(self, inner_marker_tests, monkeypatch):
+        """Unmarked drawing tests and marked non-drawing tests fail; every other test passes."""
+        judge_inner_runs(monkeypatch)
+
+        result = inner_marker_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
+
+        disagreeing = len(UNMARKED_DRAWING_TESTS) + len(MARKED_NON_DRAWING_TESTS)
+        result.assert_outcomes(
+            passed=INNER_MARKER_TEST_COUNT - disagreeing - INNER_FAILING_TEST_COUNT,
+            failed=disagreeing + INNER_FAILING_TEST_COUNT,
+        )
+        failed = {report.nodeid for report in result.reprec.getfailures()}
+        assert failed == {
+            *UNMARKED_DRAWING_TESTS,
+            *MARKED_NON_DRAWING_TESTS,
+            'test_inner_markers.py::test_presents_then_fails_unmarked',
+        }
+
+    def test_the_failures_name_the_marker_and_what_to_do(self, inner_marker_tests, monkeypatch):
+        """An unmarked drawing test is told to add the marker, a marked idle one to remove it."""
+        judge_inner_runs(monkeypatch)
+
+        result = inner_marker_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
+
+        result.stdout.fnmatch_lines([
+            (
+                '*test_presents_unmarked draws without the draws_frames marker '
+                '(presented 1 frame(s)): add @pytest.mark.draws_frames*'
+            ),
+            '*test_marked_but_draws_nothing is marked draws_frames but draws nothing*remove*',
+        ])
+
+    def test_the_report_lists_each_disagreement_with_its_reason(
+        self, inner_marker_tests, monkeypatch
+    ):
+        """The report names every disagreeing test and how it drew (or that it did not)."""
+        judge_inner_runs(monkeypatch)
+
+        inner_marker_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
+
+        report = read_markers_report(pytester=inner_marker_tests)
+        assert set(report) == set(UNMARKED_DRAWING_TESTS) | MARKED_NON_DRAWING_TESTS
+        for nodeid, how in UNMARKED_DRAWING_TESTS.items():
+            assert f'({how})' in report[nodeid]
+        for nodeid in MARKED_NON_DRAWING_TESTS:
+            assert 'draws nothing' in report[nodeid]
+
+    def test_report_only_lists_the_disagreements_and_fails_no_test(
+        self, inner_marker_tests, monkeypatch
+    ):
+        """With --frame-markers-report-only, only the test failing on its own fails."""
+        judge_inner_runs(monkeypatch)
+
+        result = inner_marker_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, frame_fingerprints.REPORT_ONLY_OPTION
+        )
+
+        result.assert_outcomes(
+            passed=INNER_MARKER_TEST_COUNT - INNER_FAILING_TEST_COUNT,
+            failed=INNER_FAILING_TEST_COUNT,
+        )
+        report = read_markers_report(pytester=inner_marker_tests)
+        assert set(report) == set(UNMARKED_DRAWING_TESTS) | MARKED_NON_DRAWING_TESTS
+
+    def test_each_run_starts_a_new_report(self, inner_marker_tests, monkeypatch):
+        """A run whose tests all agree leaves an empty report, whatever an earlier run wrote."""
+        judge_inner_runs(monkeypatch)
+        inner_marker_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
+
+        inner_marker_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, '-k', 'leaves_the_blank_screen or presents_marked'
+        ).assert_outcomes(passed=3)
+
+        assert read_markers_report(pytester=inner_marker_tests) == {}
+
+    def test_without_a_blank_screen_only_presents_count(self, pytester, monkeypatch):
+        """With no project hook, a test that only leaves a picture is not judged as drawing."""
+        judge_inner_runs(monkeypatch)
+        pytester.makepyfile(test_inner_markers=INNER_MARKER_TESTS)
+
+        result = pytester.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, '-k', 'leaves_a_picture or presents_unmarked'
+        )
+        show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+        failed = {report.nodeid for report in result.reprec.getfailures()}
+        assert failed == {
+            'test_inner_markers.py::test_presents_unmarked',
+            'test_inner_markers.py::test_leaves_a_picture_marked',
+        }
+
+    def test_a_pytest_started_inside_a_test_is_not_judged(self, inner_marker_tests):
+        """A run configured while a test runs (this one) judges nothing and writes no report."""
+        result = inner_marker_tests.runpytest_inprocess('-p', PLUGIN_MODULE)
+
+        result.assert_outcomes(
+            passed=INNER_MARKER_TEST_COUNT - INNER_FAILING_TEST_COUNT,
+            failed=INNER_FAILING_TEST_COUNT,
+        )
+        assert not (inner_marker_tests.path / frame_fingerprints.MARKERS_REPORT_PATH).exists()
+
+    def test_the_check_runs_beside_the_recorder_and_both_are_put_back(
+        self, inner_marker_tests, monkeypatch, tmp_path
+    ):
+        """Recording too, the verdicts are the same and the present functions are restored."""
+        judge_inner_runs(monkeypatch)
+        flip_before = pygame.display.flip
+        update_before = pygame.display.update
+
+        result = inner_marker_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, f'{FINGERPRINTS_OPTION}={tmp_path / "run"}'
+        )
+
+        failed = {report.nodeid for report in result.reprec.getfailures()}
+        assert failed - {'test_inner_markers.py::test_presents_then_fails_unmarked'} == {
+            *UNMARKED_DRAWING_TESTS,
+            *MARKED_NON_DRAWING_TESTS,
+        }
+        assert pygame.display.flip is flip_before
+        assert pygame.display.update is update_before
+
+
+class TestTheDrawsFramesCheckInAChildProcess:
+    """A pytest a test starts as a child process inherits PYTEST_CURRENT_TEST: not judged.
+
+    Its presents happen in the child, so the test itself draws nothing (it carries no marker).
+    """
+
+    def test_a_pytest_a_test_starts_as_a_child_process_is_not_judged(self, inner_marker_tests):
+        """Every inner test is left to its own outcome, and no report is written."""
+        result = inner_marker_tests.runpytest_subprocess(
+            '-p', PLUGIN_MODULE, '-p', 'no:cacheprovider'
+        )
+
+        result.assert_outcomes(
+            passed=INNER_MARKER_TEST_COUNT - INNER_FAILING_TEST_COUNT,
+            failed=INNER_FAILING_TEST_COUNT,
+        )
+        assert not (inner_marker_tests.path / frame_fingerprints.MARKERS_REPORT_PATH).exists()
+
+
+class TestDrawsFramesOnly:
+    """--draws-frames-only runs the marked tests alone, after any -m of the caller's."""
+
+    INNER = textwrap.dedent(
+        """
+        import pytest
+
+
+        @pytest.mark.draws_frames
+        def test_marked():
+            pass
+
+
+        @pytest.mark.draws_frames
+        @pytest.mark.slow
+        def test_marked_and_slow():
+            pass
+
+
+        def test_unmarked():
+            pass
+        """
+    )
+
+    @pytest.fixture
+    def inner_selection_tests(self, pytester: pytest.Pytester) -> pytest.Pytester:
+        """A directory of marked and unmarked tests.
+
+        Returns:
+            The pytester.
+
+        """
+        pytester.makeini('[pytest]\nmarkers =\n    slow: slow\n')
+        pytester.makepyfile(test_selection=self.INNER)
+        return pytester
+
+    def test_only_the_marked_tests_run(self, inner_selection_tests):
+        """The unmarked test is deselected, not skipped."""
+        result = inner_selection_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, frame_fingerprints.DRAWS_FRAMES_ONLY_OPTION
+        )
+
+        result.assert_outcomes(passed=2, deselected=1)
+
+    def test_a_callers_marker_expression_still_narrows_the_run(self, inner_selection_tests):
+        """-m slow with --draws-frames-only runs the tests that are both."""
+        result = inner_selection_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, frame_fingerprints.DRAWS_FRAMES_ONLY_OPTION, '-m', 'slow'
+        )
+
+        result.assert_outcomes(passed=1, deselected=2)
+
+    def test_a_run_whose_collected_tests_are_all_unmarked_runs_nothing(self, inner_selection_tests):
+        """Nothing to run is pytest's "no tests ran", not an error: a targeted run may draw nothing.
+
+        A driver comparison that runs nothing is refused where it compares (a run that recorded
+        no test: scripts/driver_frame_matrix.py, BUGS.md #192).
+        """
+        result = inner_selection_tests.runpytest_inprocess(
+            '-p', PLUGIN_MODULE, frame_fingerprints.DRAWS_FRAMES_ONLY_OPTION, '-k', 'unmarked'
+        )
+
+        assert result.ret == pytest.ExitCode.NO_TESTS_COLLECTED
+        result.assert_outcomes(deselected=3)
+
+    def test_recording_drawing_tests_only_leaves_the_others_out(
+        self, inner_selection_tests, tmp_path
+    ):
+        """--frame-fingerprints-drawing-only: every test runs, only the marked ones are recorded."""
+        directory = tmp_path / 'run'
+
+        result = inner_selection_tests.runpytest_inprocess(
+            '-p',
+            PLUGIN_MODULE,
+            f'{FINGERPRINTS_OPTION}={directory}',
+            frame_fingerprints.DRAWING_ONLY_OPTION,
+        )
+
+        result.assert_outcomes(passed=3)
+        assert set(read_recorded_frames(directory=directory)) == {
+            'test_selection.py::test_marked',
+            'test_selection.py::test_marked_and_slow',
+        }
+
+    def test_recording_drawing_tests_only_can_be_asked_by_the_environment(
+        self, inner_selection_tests, monkeypatch, tmp_path
+    ):
+        """GLITCHYGAMES_FRAME_FINGERPRINTS_DRAWING_ONLY, for the run it names, as the others."""
+        directory = tmp_path / 'run'
+        monkeypatch.setenv(FINGERPRINTS_VARIABLE, str(directory))
+        monkeypatch.setenv(frame_fingerprints.DRAWING_ONLY_VARIABLE, '1')
+        monkeypatch.setenv(OWNER_VARIABLE, str(os.getpid()))
+
+        inner_selection_tests.runpytest_inprocess('-p', PLUGIN_MODULE).assert_outcomes(passed=3)
+
+        assert 'test_selection.py::test_unmarked' not in read_recorded_frames(directory=directory)
+
+    def test_without_the_option_every_test_runs(self, inner_selection_tests):
+        """The option is off by default."""
+        inner_selection_tests.runpytest_inprocess('-p', PLUGIN_MODULE).assert_outcomes(passed=3)
+
+
+def stand_in_check_config(*, root: Path, worker: bool) -> pytest.Config:
+    """Return the parts of pytest's configuration the draws_frames check reads, at a root.
+
+    Built from what the check reads (``rootpath``; an xdist worker's ``workerinput``, which
+    xdist sets on each worker's configuration), so a test can drive the worker path in a run
+    with no workers, as Linux CI's serial machines are.
+
+    Returns:
+        The stand-in, typed as the configuration it stands in for.
+
+    """
+    attributes: dict[str, object] = {'rootpath': root}
+    if worker:
+        attributes['workerinput'] = {'workerid': 'gw0'}
+    return cast('pytest.Config', types.SimpleNamespace(**attributes))
+
+
+class TestTheDrawsFramesCheckDirectly:
+    """Branches a whole run reaches only in some shapes or orders, driven on their own."""
+
+    def test_an_xdist_workers_session_start_leaves_the_report_alone(self, tmp_path):
+        """Only the controller empties the report: a worker neither empties nor creates it."""
+        report_path = tmp_path / frame_fingerprints.MARKERS_REPORT_PATH
+        worker_check = frame_fingerprints.DrawsFramesCheck(
+            config=stand_in_check_config(root=tmp_path, worker=True), report_only=False
+        )
+
+        worker_check.pytest_sessionstart()
+        assert not report_path.exists()
+
+        report_path.parent.mkdir(parents=True)
+        report_path.write_text('tests/a.py::t\tkept\n', encoding='utf-8')
+        worker_check.pytest_sessionstart()
+        assert report_path.read_text(encoding='utf-8') == 'tests/a.py::t\tkept\n'
+
+    def test_the_controllers_session_start_empties_the_report(self, tmp_path):
+        """The same report, the controller's start: empty, so the run lists only its own."""
+        report_path = tmp_path / frame_fingerprints.MARKERS_REPORT_PATH
+        report_path.parent.mkdir(parents=True)
+        report_path.write_text('tests/a.py::t\tstale\n', encoding='utf-8')
+
+        frame_fingerprints.DrawsFramesCheck(
+            config=stand_in_check_config(root=tmp_path, worker=False), report_only=False
+        ).pytest_sessionstart()
+
+        assert not report_path.read_text(encoding='utf-8')
+
+    def test_pygame_running_with_no_display_mode_shows_no_picture(self, tmp_path):
+        """No display surface to read: nothing other than the blank screen is shown."""
+        check = frame_fingerprints.DrawsFramesCheck(
+            config=stand_in_check_config(root=tmp_path, worker=False), report_only=False
+        )
+        pygame.display.quit()
+        pygame.display.init()
+        try:
+            assert pygame.get_init()
+            assert pygame.display.get_surface() is None
+            assert not check.display_differs_from_the_blank_screen()
+        finally:
+            show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+    def test_pygame_not_running_shows_no_picture(self, tmp_path):
+        """With pygame stopped there is no display to read: no picture."""
+        check = frame_fingerprints.DrawsFramesCheck(
+            config=stand_in_check_config(root=tmp_path, worker=False), report_only=False
+        )
+        pygame.quit()
+        try:
+            assert not pygame.get_init()
+            assert not check.display_differs_from_the_blank_screen()
+        finally:
+            pygame.init()
+            show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+
+# Inner tests for a re-run that stops: each presents twelve frames, frame N filled with grey N*20
+INNER_LONG_TESTS = textwrap.dedent(
+    """
+    import pygame
+    import pytest
+
+
+    def present_twelve():
+        display = pygame.display.get_surface()
+        for frame in range(12):
+            display.fill((frame * 20, frame * 20, frame * 20))
+            pygame.display.flip()
+
+
+    @pytest.fixture
+    def presents_in_teardown():
+        yield
+        pygame.display.flip()
+
+
+    def test_long(presents_in_teardown):
+        present_twelve()
+
+
+    def test_long_catching_errors():
+        # As an engine's frame loop catches its game's errors: the stop is not an error
+        try:
+            present_twelve()
+        except Exception:
+            pytest.fail('the stop reached an except Exception')
+
+
+    def test_long_not_stopped():
+        present_twelve()
+    """
+)
+LONG = 'test_long.py::test_long'
+LONG_CATCHING = 'test_long.py::test_long_catching_errors'
+LONG_NOT_STOPPED = 'test_long.py::test_long_not_stopped'
+
+
+# Each test's inner run presents frames in this process, so the test itself draws
+@pytest.mark.draws_frames
+class TestAReRunStopsAfterItsFrames:
+    """A re-run given where to stop ends its test there, as a skip, after saving its frames."""
+
+    @pytest.fixture
+    def long_tests(self, pytester: pytest.Pytester) -> Iterator[pytest.Pytester]:
+        """A pytester directory holding the long inner tests, the display shown again afterwards.
+
+        Yields:
+            The pytester.
+
+        """
+        pytester.makepyfile(test_long=INNER_LONG_TESTS)
+        yield pytester
+        show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+    def run_with_request(
+        self, *, pytester: pytest.Pytester, directory: Path, request: FrameImageRequest
+    ) -> pytest.RunResult:
+        """Run the long inner tests recording into ``directory`` under an image request.
+
+        Returns:
+            The inner run's result.
+
+        """
+        request_path = directory.parent / 'request.json'
+        request_path.write_text(request.model_dump_json(), encoding='utf-8')
+        return pytester.runpytest_inprocess(
+            '-p',
+            PLUGIN_MODULE,
+            f'{FINGERPRINTS_OPTION}={directory}',
+            f'{IMAGES_REQUEST_OPTION}={request_path}',
+        )
+
+    def test_the_test_stops_after_its_last_requested_frame_as_a_skip(self, long_tests, tmp_path):
+        """Frames 3 to 5 saved, the test ended after present 5, skipped (not failed)."""
+        directory = tmp_path / 'run'
+        result = self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(
+                positions_by_test={LONG: (3, 4, 5)}, stop_after_by_test={LONG: 5}
+            ),
+        )
+
+        result.assert_outcomes(passed=2, skipped=1)
+        record = read_recorded_frames(directory=directory)[LONG]
+        assert len(record.presented) == 6
+        assert record.final is None
+        assert record.stopped_after == 5
+        assert record.outcome == 'skipped'
+        saved = sorted(path.name for path in (directory / 'images').glob('*/*.png'))
+        assert saved == ['frame-3.png', 'frame-4.png', 'frame-5.png']
+        fifth = pygame.image.load(frame_image_path(directory=directory, nodeid=LONG, position=5))
+        assert fifth.get_at((0, 0))[:3] == (100, 100, 100)
+
+    def test_the_stop_passes_through_code_that_catches_errors(self, long_tests, tmp_path):
+        """A test catching Exception around its presents still ends as a skip there."""
+        directory = tmp_path / 'run'
+        result = self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(
+                positions_by_test={LONG_CATCHING: (1,)}, stop_after_by_test={LONG_CATCHING: 1}
+            ),
+        )
+
+        result.assert_outcomes(passed=2, skipped=1)
+        assert read_recorded_frames(directory=directory)[LONG_CATCHING].stopped_after == 1
+
+    def test_the_frame_clock_is_noted_at_each_requested_present(self, pytester, tmp_path):
+        """The served game time at each saved present, for the animations' gaps; no others."""
+        pytester.makepyfile(
+            test_clocked=textwrap.dedent(
+                """
+                import pygame
+
+                from glitchygames import clock
+
+
+                def test_clocked(monkeypatch):
+                    served = {'seconds': 0.0}
+                    monkeypatch.setattr(clock, 'frame_clock_seconds', lambda: served['seconds'])
+                    for _frame in range(6):
+                        pygame.display.flip()
+                        served['seconds'] += 1 / 60
+                """
+            )
+        )
+        directory = tmp_path / 'run'
+
+        result = self.run_with_request(
+            pytester=pytester,
+            directory=directory,
+            request=FrameImageRequest(positions_by_test={'test_clocked.py::test_clocked': (2, 4)}),
+        )
+        show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+        result.assert_outcomes(passed=1)
+        record = read_recorded_frames(directory=directory)['test_clocked.py::test_clocked']
+        assert record.frame_clock_at == pytest.approx({2: 2 / 60, 4: 4 / 60})
+
+    def test_the_run_facts_are_noted_with_the_saved_frames(self, long_tests, tmp_path):
+        """The display's refresh rate as pygame reports it (none on dummy); no FPS, no engine.
+
+        It draws, so compare-drivers runs it on the native driver too, where the display has a
+        real refresh rate (the dummy driver's 60 Hz is SDL's stand-in: None).
+        """
+        directory = tmp_path / 'run'
+
+        self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(positions_by_test={LONG_NOT_STOPPED: (3,)}),
+        )
+
+        record = read_recorded_frames(directory=directory)[LONG_NOT_STOPPED]
+        if pygame.display.get_driver() == 'dummy':
+            assert record.refresh_rate_hz is None
+        else:
+            assert record.refresh_rate_hz == pygame.display.get_current_refresh_rate()
+        assert record.configured_fps is None
+        assert record.test_order_seed is None
+
+    def test_a_test_with_no_stop_runs_to_its_end(self, long_tests, tmp_path):
+        """Positions alone (a final frame asked for): every present, and the final frame."""
+        directory = tmp_path / 'run'
+        result = self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(positions_by_test={LONG_NOT_STOPPED: (10, 11, 12)}),
+        )
+
+        result.assert_outcomes(passed=3)
+        record = read_recorded_frames(directory=directory)[LONG_NOT_STOPPED]
+        assert len(record.presented) == 12
+        assert record.final is not None
+        assert record.stopped_after is None
+
+
+class TestRunFacts:
+    """The run facts the recorder notes for a re-run's animation, read on their own."""
+
+    def test_the_configured_fps_is_the_running_engines(self, mocker):
+        """The engine's resolved target (--target-fps, else the scene's TARGET_FPS)."""
+        engine = mocker.Mock(options={'target_fps': 30.0})
+        mocker.patch('glitchygames.engine.game_engine.current_engine', return_value=engine)
+
+        assert frame_fingerprints.configured_fps() == engine.options['target_fps']
+
+    def test_no_running_engine_has_no_configured_fps(self):
+        """Outside an engine (most drawing tests): None, shown as "n/a"."""
+        assert frame_fingerprints.configured_fps() is None
+
+    def test_a_real_drivers_refresh_rate_is_what_pygame_reports(self, mocker):
+        """A native driver's display rate, as pygame reads it."""
+        mocker.patch('pygame.display.get_driver', return_value='cocoa')
+        mocker.patch('pygame.display.get_current_refresh_rate', return_value=120)
+
+        assert frame_fingerprints.display_refresh_rate() == 120  # the stand-in's rate
+
+    def test_the_dummy_drivers_stand_in_rate_is_not_a_refresh_rate(self, mocker):
+        """SDL's dummy driver answers 60 Hz for a display that does not exist: None."""
+        mocker.patch('pygame.display.get_driver', return_value='dummy')
+        mocker.patch('pygame.display.get_current_refresh_rate', return_value=60)
+
+        assert frame_fingerprints.display_refresh_rate() is None
+
+    def test_a_stopped_display_has_no_refresh_rate(self, mocker):
+        """No display (pygame's error) is None, never a made-up number."""
+        mocker.patch('pygame.display.get_driver', return_value='cocoa')
+        mocker.patch('pygame.display.get_current_refresh_rate', side_effect=pygame.error('none'))
+
+        assert frame_fingerprints.display_refresh_rate() is None

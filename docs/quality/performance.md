@@ -78,24 +78,19 @@ changes". They stay in the pending file after a deploy, so they remain visible l
 
 ## Where the numbers come from
 
-1. **Every commit carries the measurements of its code.** A pre-commit hook
-   (`scripts/measure_staged_replays.py`, installed by `.envrc`) works out the *code tree* of what
-   is being committed (`src/glitchygames/code_tree.py`: only what can change how the replays run,
-   the engine, games, demos, apps, recordings, `uv.lock` and `pyproject.toml`). When this machine
-   has not measured that code yet, it measures every golden replay and bundled demo on it and
-   adds one small file per recording to the commit, under `quality/replay-ledger/`. A docs commit
-   after a measured one is instant; code that arrived by a merge from `main` or a rebase is
-   measured by the next commit (or by hand: `nox -s measure-staged`, then commit, which also
-   adds a machine without the hook). `SKIP=replay-metrics git commit ...` skips it.
-   A pre-push hook (`scripts/measure_on_raspberry_pi.py`) measures the same way on the Raspberry
-   Pis (a Pi 4 and two Pi 5s, 16 GB and 8 GB, `ansible/inventory.yml`'s `raspberry_pis`), all at
-   once, and copies
-   their row files of the pushed commit's code tree here, staged. Each Pi measures one push at a
-   time (a lock beside its clone; a second push waits, and gives up after 30 minutes), and a row
-   of any other code tree is refused rather than staged. A push that brings rows stops so they
-   can be committed, and the next one goes through; a Pi that cannot be reached stops the push
-   before any Pi measures (by hand: `nox -s measure-on-raspberry-pi`;
-   `SKIP=raspberry-pi-replay-metrics git push ...` skips it).
+1. **New rows are no longer committed** (the owner, 2026-11-22: about 19 more files per commit,
+   7,368 of them by then, were too many for git; they move to S3, a to-do in
+   `plans/future-work.md`). The rows already in `quality/replay-ledger/` stay, and the site
+   still shows them. Until then a commit carried the measurements of its code: a pre-commit hook
+   (`scripts/measure_staged_replays.py`) worked out the *code tree* of what was being committed
+   (`src/glitchygames/code_tree.py`: only what can change how the replays run, the engine, games,
+   demos, apps, recordings, `uv.lock` and `pyproject.toml`) and, when this machine had not
+   measured that code yet, measured every golden replay and bundled demo on it, adding one small
+   file per recording to the commit. A pre-push hook (`scripts/measure_on_raspberry_pi.py`) did
+   the same on the Raspberry Pis (a Pi 4 and three Pi 5s, `ansible/inventory.yml`'s
+   `raspberry_pis`), all at once, one push at a time per Pi, and copied their rows here, staged.
+   Both still run by hand (`nox -s measure-staged`, `nox -s measure-on-raspberry-pi`) and stage
+   their rows; leave those unstaged until the rows have their new home.
 2. **The site shows what landed on `main`.** Every docs build reads the repository's row files
    and keeps each row whose code tree is the code tree of the commit that added its file: on
    `main`, the squash merge, so each is shown under the commit its code landed in (code that

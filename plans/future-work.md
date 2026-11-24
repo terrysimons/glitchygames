@@ -47,10 +47,6 @@ Carried from the Part 2 session (#109), to settle in the re-audit or the phase 0
   replaced the per-game commands. Registration by composition (design section 5a) reaches a
   wrapped game through its wrapper, so no target needs a command of its own. Check first that #111
   did not change or start using it.
-- [ ] **Bundled demos inside a wrapped game** need no lookup of their own: `bundled_demos()` pairs a
-  demo with the command whose module is the demo's package, so a demo in a package without a
-  command (`brave_adventurer/demos/`) would fail collection. No wrapped game ships a demo; the
-  samples catalogue (composition) replaces this lookup. Record it there, build nothing now.
 - [ ] **The moved recordings' stale module fields, and the ledger's key, in this order**: re-key the
   run ledger by sample identity (`<target>:<kind>:<role>`, design section 5) before the samples move
   the recordings again, so that move needs no rename lines; then convert each recording's header
@@ -104,7 +100,7 @@ local branches are deleted. The decisions made on the way, for the record:
   `PROCESSING_SLOWER`, content hashes and measurement history, scancode bindings (the golden
   fixtures and bundled demo patched and rebaselined), and certifi 2026.10.19 for
   PYSEC-2026-4320.
-- Bugs logged on the branch and still open: BUGS.md #83 (a documented limitation).
+- Bugs logged on the branch: BUGS.md #83 (a documented limitation; won't fix, 2026-10-31).
 
 ## Input
 
@@ -157,18 +153,17 @@ local branches are deleted. The decisions made on the way, for the record:
 
 | Item | Where | Notes |
 |---|---|---|
-| Undoing an animation delete loses its per-frame hitboxes and rebuilds frames on surfaces without SRCALPHA (alpha lost); frame-add and animation-create undo captures still copy `frame.pixels`, which is fragile | `src/glitchygames/bitmappy/history/commands.py` | Found while fixing BUGS.md #53; same family as #51/#53. |
+| Undoing an animation delete loses its per-frame hitboxes and rebuilds frames on surfaces without SRCALPHA (alpha lost); frame-add and animation-create undo captures still copy `frame.pixels`, which is fragile | `src/apps/bitmappy/src/bitmappy/history/commands.py` | Found while fixing BUGS.md #53; same family as #51/#53. |
 | `CollisionManager.check_overlap` computes each sprite's rect once per pass, so a callback that moves a sprite leaves later pairs using its old rect | `src/glitchygames/collision/layers.py` (documented in the docstring) | Harmless in PaddleSlap; matters for generic reuse. |
 | Frame-anchor reference cache doesn't notice a frame hitbox edited in place (only frame add/remove/replace) | `src/glitchygames/sprites/animated.py` (documented) | Nothing edits in place today. |
-| `test_requests_while_a_flush_runs_get_one_more_pass_and_never_overlap` depends on the wall clock: the stand-in `syncfs` takes a real 10 ms (`SYNC_SECONDS`) and the test assumes five requests 1 ms apart all land during the first pass. Under the full parallel suite the sleeps stretch, a request lands in the second pass, and a third runs (`assert 3 == 2`; seed 4023912552 failed the website branch's pre-push gate, 2026-11-20; passes alone, with its file, and under that seed alone) | `tests/test_browser_storage.py` (from #238) | Fix: the test completes the stand-in's write-back itself (an event it sets), so "during the running pass" holds by construction. Then sweep the suite for other tests that sleep against a real-time stand-in (the wall-clock rule in CLAUDE.md's Testing Guidelines). |
 | Frames loaded from TOML keep magenta (255, 0, 255) opaque (no colorkey, alpha 255), so the visible-pixel hitbox fallback of a magenta-keyed sprite is its whole frame (ghosty: `Rect(0, 0, 32, 32)`) | `src/glitchygames/sprites/animated.py` (loader), `src/glitchygames/collision/bounds.py` | Found while testing the viewport-save hitbox rule; confirm whether games rely on explicit hitboxes or set a colorkey themselves. |
 | A real AI request has not been run in the packaged binary (needs an API key or network) | `dist/bitmappy` | Do once by hand to fully close BUGS.md #47. |
 | The browser wheel's build runs `uv venv` on its cached toolchain folder whenever the cached venv's `bin/python` doesn't run (likely a link into uv's managed-Python folder, which the cache doesn't hold: unverified), and uv asks on the terminal whether to replace it: deploy-docs hung to its 60-minute no-output limit (jobs 4431, 4443, 2026-11-20). #257 set `UV_VENV_CLEAR=1` on the step (closing stdin doesn't stop uv's prompt, tried 2026-11-21) | `third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh` lines 39-41 (submodule); `.circleci/config.yml` deploy-docs | Fix in the submodule: `uv venv --clear`, and check the venv's python actually runs before reusing it. Then shorten the step's `no_output_timeout` to just above the build's longest silent stretch, so a stuck step fails in minutes. |
 | `scripts/raw_sprite_loader.py` cannot start: `BitmappyLegacySprite` calls `Sprite.__init__` without x and y, and `inflate` draws zero-size rects (nothing) | `scripts/raw_sprite_loader.py:~41, ~84` | Found while deleting `legacy_sprite_loader.py` (BUGS.md #46). Tests use only its `deflate`; fix or fold into Galimore import (sub-plan E). |
-| ~~`FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels~~ | `src/glitchygames/bitmappy/history/commands.py` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). **Done** (#93, `606fa59b`): `FrameAddCommand._insert_frame` (the method's name now) uses `set_pixel_data` on an SRCALPHA frame and restores an explicit hitbox. |
-| Undoing an animation delete restores the sprite data but only refreshes existing film strip widgets, so the restored animation appears to get no film strip until strips are rebuilt (`on_sprite_loaded`) | `src/glitchygames/bitmappy/history/commands.py` (`AnimationAddCommand._add_animation`) | Found while fixing BUGS.md #51; not checked in the running app. |
-| The animation-delete undo capture keeps frame pixels and durations but not per-frame hitboxes | `src/glitchygames/bitmappy/film_strip_coordinator.py` (`_capture_animation_deletion_for_undo`) | Found while fixing BUGS.md #51. |
-| PaddleSlap's `_separate_overlapping_balls` runs after wall and paddle handling, so a ball can sit 1–3 px inside a paddle or past a wall for one frame | `src/games/paddleslap/paddleslap/__init__.py` | Pre-existing, self-correcting next frame. |
+| ~~`FrameAddCommand._add_frame` copies pixels through `PixelArray.flat` (pygame-ce has no `.flat`), so undoing a frame delete / redoing a frame add fails whenever the frame has pixels~~ | `src/apps/bitmappy/src/bitmappy/history/commands.py` | Same bug fixed in `AnimationAddCommand` for BUGS.md #51 (use `SpriteFrame.set_pixel_data`). **Done** (#93, `606fa59b`): `FrameAddCommand._insert_frame` (the method's name now) uses `set_pixel_data` on an SRCALPHA frame and restores an explicit hitbox. |
+| Undoing an animation delete restores the sprite data but only refreshes existing film strip widgets, so the restored animation appears to get no film strip until strips are rebuilt (`on_sprite_loaded`) | `src/apps/bitmappy/src/bitmappy/history/commands.py` (`AnimationAddCommand._add_animation`) | Found while fixing BUGS.md #51; not checked in the running app. |
+| The animation-delete undo capture keeps frame pixels and durations but not per-frame hitboxes | `src/apps/bitmappy/src/bitmappy/film_strip_coordinator.py` (`_capture_animation_deletion_for_undo`) | Found while fixing BUGS.md #51. |
+| PaddleSlap's `_separate_overlapping_balls` runs after wall and paddle handling, so a ball can sit 1–3 px inside a paddle or past a wall for one frame | `src/games/paddleslap/src/paddleslap/__init__.py` | Pre-existing, self-correcting next frame. |
 | ~~Papyrus sprites keep their unscaled native rect size~~ | BUGS.md #59 | Latent; fixing it needs its own golden expected-difference class. **Done** 2026-10-31 (bug sweep, golden changers): rects sized to the scaled image, a new `ExpectedDifference`, golden-papyrus rebaselined. |
 | ~~Brave Adventurer's ground and walls stay drawn only because the parallax layers dirty the whole screen~~ | BUGS.md #60 | Fragile; make the terrain `dirty = 2` or document the dependency. **Done** 2026-10-31 (bug sweep 2): the terrain is `dirty = 2`. |
 | Brave Adventurer's and Papyrus's enemies (Cobra, Scarab, Scorpion) still draw in `update()` | `src/games/brave-adventurer/src/brave_adventurer/enemies.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/enemies.py` | Harmless while their hitboxes do not depend on the pose (the scarab's bounds are the same at every roll angle); move drawing into `dt_tick` (the pose rule) if they ever do. |
@@ -589,7 +584,7 @@ Follow-ups (not in any plan yet):
   resolved 2026-10-22 with #181),
   #72 (`BitmappyMultiControllerEnhancements` stores a duration where a timestamp is expected;
   resolved 2026-10-31, bug sweep 2), #73
-  (PaddleSlap sets the `game` logger to INFO at import), #74 (`debug_events` is always False;
+  (PaddleSlap sets the `game` logger to INFO at import; resolved 2026-10-31, bug sweep), #74 (`debug_events` is always False;
   resolved 2026-10-23: it is the `--debug-events` flag now),
   #75 (`pygame_needs_fastevents` compares major and minor separately; resolved 2026-10-31,
   bug sweep 2).
@@ -699,9 +694,9 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   - The redirect regroups repeated query keys and drops `=` on empty values (harmless today).
   - Weak cross-stack references: after replacing the site's bucket or distribution, deploy
     `GlitchyGamesSiteDeployRole` with `--force` or its role keeps the old ARNs.
-  - CircleCI: give `test-infra`/`deploy-site` a uv cache key with `infra/uv.lock`; a missing
-    `CIRCLE_OIDC_TOKEN_V2` should fail with a clear message, not "unbound variable".
-  - Plan Task 8 Step 7: AWS Budgets email subscribers need no confirmation.
+  - CircleCI: give `test-website-aws-infrastructure`/`deploy-site` a uv cache key with
+    `infra/uv.lock`; a missing `CIRCLE_OIDC_TOKEN_V2` should fail with a clear message, not
+    "unbound variable".
   - The `glitchygames.ai` redirect distribution sends no HSTS (found at go-live, 2026-11-20:
     the `glitchy.games` hosts' 301s carry `strict-transport-security`, the `.ai` ones don't), so
     a browser's first `http://glitchygames.ai` request isn't upgraded by the browser itself.
@@ -712,7 +707,7 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   publishes still running in parallel inside it: for example two background steps, or the docs
   build and the S3 upload started together. Keep what the two jobs guarantee today:
   - the docs deploy waits for no test job;
-  - the site publish waits for `test-infra`;
+  - the site publish waits for `test-website-aws-infrastructure`;
   - two back-to-back merges cannot race gh-pages;
   - a deploy whose main is already published stops.
 - **The site deploy stops when main is already live** (2026-11-20, the follow-up to
@@ -1045,8 +1040,6 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   - After `release_channels()` without a mixer restart, a re-declaration's `legacy_count` is the
     mixer's whole remainder above the partition, so the mixer can grow by much more than needed
     (only a process reusing a grown mixer, as tests do).
-  - `reserve_live_voice_pool` (the legacy wrapper) can raise `MixerBusyError` when called while
-    sound plays and it must grow (intended under BUGS.md #145; not in the docs).
   - Nested inner games: an audible inner game stepping its own audible inner game would count
     the grandchild's plays as both games' (`plain_plays_followed`). Nothing does this today.
   - A review minor about real-time margins in the tests (M5) was parked without detail beyond
@@ -1093,6 +1086,21 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 
 ## Performance and pacing
 
+- **Give the replay-ledger rows a home outside git** (the owner, 2026-11-22: "We're pushing too
+  many large-ish files up, and I really don't want to use lfs - we'll push them to s3 or
+  something"). By then `quality/replay-ledger/` held 7,368 row files (17.6 MB, about 2.4 KB each)
+  and grew by about 19 per commit plus each Pi push's, so the `replay-metrics` pre-commit and
+  `raspberry-pi-replay-metrics` pre-push hooks were removed; `nox -s measure-staged` and
+  `measure-on-raspberry-pi` still measure by hand and stage rows, which stay uncommitted.
+  - Design first (brainstorm): an S3 bucket beside the site's (infra/, CDK), uploaded by whom
+    (a session by hand, the Pis, or a CircleCI job; CI never measures, its machines vary),
+    keyed by code tree and machine as the row files are now; the docs build
+    (`scripts/generate_performance_graphs.py`, `scripts/mkdocs_hooks.py`) reading the bucket
+    instead of the directory, and how a landed row is still told from an unlanded one (today:
+    the commit that added the row's file).
+  - Then: move the 7,368 rows (or leave them as frozen history), point the measuring scripts at
+    the new home instead of staging, and rewrite their docstrings, which still speak of "the
+    hook".
 - **Re-measure the requirements page** (the owner, 2026-11-09). `docs/requirements.md` gives each
   measured machine's verdict per game from runs of November 5 to 9, 2026 (Raspberry Pi 4,
   Raspberry Pi 5, Apple M4 Max). The owner expects the numbers to improve once the in-flight work
@@ -1279,7 +1287,7 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 ## Assets and art
 
 - Ghosty sprite: frames 1–7 have inferred outer outlines; canvas screenshots of each frame would
-  make them exact (`src/apps/bitmappy/bitmappy/resources/sprites/ghosty.toml`).
+  make them exact (`src/apps/bitmappy/src/bitmappy/resources/sprites/ghosty.toml`).
 - Papyrus player art could be redrawn bottom-aligned, after which `frame_anchor` is unnecessary.
 
 ## Galimore
@@ -1394,7 +1402,6 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   (`xattr -w com.dropbox.ignored 1 <path>`).
 - Optional: lazy-import `speech_recognition` so the audio import chain doesn't load `aifc` (its
   deprecation warning is already filtered in `pyproject.toml`).
-- ty reports 50 pre-existing `unused-ignore-comment` warnings (identical on main).
 - **Bundle the dependencies' license texts into the Bitmappy binary** (found 2026-10-28 writing
   README.md's license obligations). `bitmappy.spec` freezes one executable and collects no
   license files, so a distributed build does not carry pygame-ce's LGPL-2.1, the MPL-2.0 and
@@ -1508,6 +1515,39 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
       `glitchygames.audio.listening`, the scripts are gone.
     - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
       clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
+- ~~**Make the driver comparison's image re-run stop at the frames it needs**~~ **Done**
+  2026-11-23 (the owner, 2026-11-22; branch `perf/image-rerun-stops-at-needed-frames`). The image
+  request (`frame_comparison.image_request_for`) now names a window of `IMAGE_WINDOW_PRESENTS`
+  (5) frames on each side of each test's first difference (the owner: `...bbbbbdaaaaa...`), and,
+  when every frame of the window is a present on both drivers, where the re-run may stop
+  (`FrameImageRequest.stop_after_by_test`). The recorder ends that test right after that present
+  with `pytest.skip` (a skip fails no run, and passes `except Exception`); its record has
+  `stopped_after` and no final frame. The images report compares the first difference, then the
+  window's other frames, and plays the window as one side-by-side animation (native | dummy |
+  difference) at game speed and at 250 ms a frame, with captions of each run's recorded facts
+  (`frame_comparison.write_window_animations`, Pillow; docs/quality/driver_comparison.md). A
+  window reaching the final frame runs the test to its end, as before. Measured on a 900-frame
+  test differing at present 20 (dummy against cocoa, the local run): the re-run took 9.2 s
+  before, 2.5 s after (1.9 s with a window of two).
+  Left:
+  - **A golden replay's re-run starting near its difference: not possible as things stand**
+    (measured 2026-11-23). A trace keyframe holds sprite rects only, not the game's state
+    (logic, random streams, timers), so no replay can start from one; a replay starts mid-way
+    only at a scene start (`ReplayOptions.start_frame`, the playback scope of driver rule 18,
+    which applies no recorded options or seed), and a step back rebuilds from frame 0
+    unpresented (rule 15). The re-run also replays pytest tests, not recordings. It would need
+    the game's state saved at keyframes first.
+  - **The monitor's name in the captions** (the owner, 2026-11-23): SDL 2's
+    `SDL_GetDisplayName` answers "0", "1", "2" on this Mac (three displays), so no name is
+    recorded. A real name needs a per-OS source (macOS `system_profiler SPDisplaysDataType`,
+    about a second, or AppKit's NSScreen through pyobjc, not a dependency); the refresh rate is
+    already the window's own display's.
+  - **Game speed for most tests**: a test without an engine has a frame clock that never moves,
+    so its game-speed animation shows every gap at the 17 ms minimum; only engine runs and
+    replays have served frame times (and a live engine's are measured, so they vary with load).
+  - **Fingerprints before the window** (small): the re-run still fingerprints every present
+    before its window (about 0.75 ms each at 800x600), which it uses to confirm the difference
+    reproduced; skipping them would need another way to tell.
 - ~~**Move the games onto the new sound library (sound engine M2's migration), in
   `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache**~~ **Done**
   2026-11-15 (plans/2026-11-14-sound-migration.md, steps 1-9, and its two measurements: ten
@@ -1664,7 +1704,7 @@ drafted issue text. Not posted yet:
   stamp), and the BUGS.md audit (2026-11-02) found code comments and docs ahead of or behind
   the tracker. Scope: the root's Markdown (`README.md`, `CLAUDE.md`, `ANIMATION_README.md`,
   `API_README.md`, `BITMAPPY_ARCHITECTURE.md`, `CONTROLLER_CONTROLS_README.md`,
-  `LOADER_README.md`, `TEST_UPDATE_PLAN.md`: is each still current, or merged into `docs/`?),
+  `LOADER_README.md`: is each still current, or merged into `docs/`?),
   the 51 pages under `docs/` (architecture, playback, games, quality), every member's README
   (`src/games/*`, `src/demos/*`, `src/apps/bitmappy`, `src/quicklook`), and module docstrings
   that describe behaviour (the engine's especially). For each claim: check it against the code
@@ -1997,6 +2037,12 @@ discussing it found and decided:
 
 ## Code quality
 
+- **Four scripts still start their children themselves** (2026-11-22, the launcher fix,
+  bugs/2026-11-20-process-stop-tests-failed-under-load.md). `scripts/audio_glitch_probe.py`,
+  `scripts/build_browser_bundle.py` (two) and `scripts/generate_sbom.py` call `subprocess.run`, so
+  Ctrl-C leaves their child killed and unreaped. Move each to `process.run_command` and drop its
+  allowance in `tests/test_child_launches_go_through_process.py`, which fails until the allowance
+  goes.
 - **The replay silencer stops every channel once, so a live voice's queued chunk can play under
   it** (found 2026-11-19 with the harness's mixer leak, tests/harness.py `silence_every_channel`).
   pygame starts a channel's queued sound the moment the channel is halted, so one stop leaves a
@@ -2015,6 +2061,28 @@ discussing it found and decided:
   review, 2026-11-19). `film_strip_rendering.convert_magenta_to_transparent` calls `get_at` and
   `set_at` for each pixel of each thumbnail each time the strip renders: editor time, not memory.
   A colorkey or `pygame.transform.threshold` does it in one call.
+- **The sprite memory bug record lacks the CI headroom after the fix** (the owner's call,
+  2026-11-20). `bugs/2026-11-18-sprite-frames-held-a-tuple-per-pixel.md`'s "Measured" line has
+  only the zombies pair (683 against 1353 MiB). After #220, CI peaked at 1248 MiB (machine 0) and
+  1154 MiB (machine 1) against the 1750 MiB limit then, and the heaviest test
+  (`test_every_recording_replays_inside_an_inner_game.py`) peaked at 238.5 MiB. Record them as
+  measured before #230, which moved the limit to 1500 MiB and changed how each machine collects
+  its tests.
+- **A plan run's decisions go into its plan file when the run finishes** (the owner's call,
+  2026-11-20). The superpowers skills keep a run's ledger (its rulings and deferred minors) in
+  `.superpowers/sdd/<plan>/progress.md`, which is gitignored (#236) and deleted after the final
+  review. Copy the rulings no committed file holds into a "Decisions made during the work"
+  section of the plan, as the instrument batch cleanup did on 2026-11-14, so the plan keeps them.
+- **A watched replay in the browser may judder at 120 Hz** (found with
+  bugs/2026-11-20-browser-frames-juddered-at-120-hz.md; not measured). `run_watched_replay_async`
+  ticks the viewer once per animation frame, but `ReplayViewer` snaps only ticks within
+  `TICK_SNAP_WINDOW_SECONDS` of its 60 Hz `CONTROL_TICK_SECONDS`, so at 120 Hz (8.3 ms) no tick
+  snaps and its accumulator meets the drift and jitter `TickPacer` met. The Arcade branch
+  (`feature/arcade-5-playback-core`) moves that accumulator into `replay/pacer.py`'s
+  `RecordedFramePacer`, leaving the snap in `viewer.py`: the Arcade's `DemoPlayer` tiles then pay
+  raw elapsed time with no snap, the same class. Fix it there (the whole-tick cadence of
+  `host.whole_ticks_per_frame`) once that lands. Measure first: the frame probe
+  (`scripts/frame_phase_probe.py`) wraps `TickPacer`, not the replay pacer.
 - **Test-suite memory on the Linux CI job: the structural options** (the owner's call;
   bugs/2026-11-17-linux-test-memory-guard-stops.md). #218 brought the peak to 1341-1350 MiB of
   1600; what is left grows from 503 to 859 MiB over 274 files, spread thin. In order of
@@ -2048,14 +2116,14 @@ discussing it found and decided:
   run) gain nothing from it.
 - **Audit dataclasses for conversion to pydantic** (user request, 2026-10-20; lean yes unless there's
   a good reason not to). `src/glitchygames/` has ~49 `@dataclasses.dataclass` structures across ~30 files
-  (`git grep -n "@dataclasses.dataclass\|@dataclass" -- glitchygames`). New data classes already use
+  (`git grep -n "@dataclasses.dataclass\|@dataclass" -- src`). New data classes already use
   pydantic `BaseModel` (frozen where immutable, `extra='forbid'`; house style in
-  `src/glitchygames/api/models/sprite_models.py` and `src/glitchygames/bitmappy/models.py`). For each existing
+  `src/glitchygames/api/models/sprite_models.py` and `src/apps/bitmappy/src/bitmappy/models.py`). For each existing
   one, decide convert or keep and record why:
   - Convert by default — validation at construction and JSON serialization for free; highest value
     first: replay and recording data (`src/glitchygames/replay/`, `recording.py`, `input/state.py`
     `InputSnapshot`, `input/devices.py` descriptors and enumeration answers, `supervision.py`
-    `ControlEvent`), configuration (`services/config.py`), save data (`state/`).
+    `ControlEvent`), configuration (`src/glitchygames/services/config.py`), save data (`state/`).
   - Good reasons to keep a dataclass: a per-frame hot path where pydantic construction cost is
     measurable (benchmark first — `InputSnapshot` is built once per frame; `effects/shake.py` and
     `input/action_map.py` run per frame); identity/mutation semantics pydantic would change (custom
@@ -2091,9 +2159,8 @@ discussing it found and decided:
   done 2026-10-21 (the dead `EM101`/`EM102` ignores removed, the `COM812` comment corrected, the
   50 unused `ty: ignore` comments deleted so ty reports nothing, `S311` scoped to
   `src/glitchygames/randomness.py` and the tests). Phase 3 part 1 done 2026-10-21: the 36 broad try
-  blocks outside Bitmappy narrowed. Left, carried forward by the user's choice (2026-10-21):
-  Bitmappy's 62 `PLW0717` sites (`src/glitchygames/bitmappy/`, `src/glitchygames/sprites/bitmappy_sprite.py`,
-  `tests/tools/`; BUGS.md #19), then removing the ignore; `ANN401`; and a decision on `G004`.
+  blocks outside Bitmappy narrowed. The rest (Bitmappy's 62 `PLW0717` sites,
+  BUGS.md #19; `ANN401`; `G004`) was carried forward by the user's choice (2026-10-21) and is done:
   Phase 3 done 2026-10-22 (ignore removed); phase 4: 151 of 152 typed, the last (`events/base.py`'s
   `__getattr__`) waiting on the typed events plan (see the plan); phase 5 done (all logging lazy,
   ignore removed). Phase 4 done 2026-10-22 too (`a8cbd953`): the global `ANN401` ignore is gone,

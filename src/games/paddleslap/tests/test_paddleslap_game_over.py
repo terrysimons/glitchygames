@@ -12,6 +12,7 @@ import pytest
 
 from glitchygames.display_mode import set_display_mode
 from paddleslap import Game, PaddleSlapGameOverScene
+from tests.state.recording_saves import saves_holding
 
 LOG = logging.getLogger(__name__)
 
@@ -86,3 +87,31 @@ def test_game_over_condition():
     LOG.info('✅ Game Over condition properly detected!')
 
     pygame.quit()
+
+
+# A saved table the game cannot read (game code plan, sub-plan 2): refused by default
+REFUSED_TABLE = {'scores': [{'score': 50}, {'floor': 3}]}
+
+
+def test_a_refused_high_score_table_still_shows_this_rally_and_saves_nothing(caplog):
+    """The default policy leaves the file as it is, logs once, and the screen gets the rally."""
+    saves = saves_holding(REFUSED_TABLE)
+    game = object.__new__(Game)
+    game.saves, game.rally_count, game.options = saves, 40, {}
+
+    with caplog.at_level(logging.ERROR, logger='glitchygames.state.high_scores'):
+        shown = game._save_high_score()
+
+    assert shown == [{'score': 40}]
+    assert [call[0] for call in saves.calls] == ['load']
+    assert len([record for record in caplog.records if record.levelno == logging.ERROR]) == 1
+
+
+def test_dropping_invalid_high_scores_saves_the_rally_among_the_valid_ones():
+    """--invalid-high-scores drop: the unreadable entry goes, the rest and the rally stay."""
+    saves = saves_holding(REFUSED_TABLE)
+    game = object.__new__(Game)
+    game.saves, game.rally_count, game.options = saves, 40, {'invalid_high_scores': 'drop'}
+
+    assert game._save_high_score() == [{'score': 50}, {'score': 40}]
+    assert saves.calls[-1] == ('save', 'high_scores', {'scores': [{'score': 50}, {'score': 40}]})

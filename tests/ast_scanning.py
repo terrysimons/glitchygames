@@ -6,7 +6,9 @@ to, following imports and aliases of the watched modules. The randomness guard
 (tests/test_engine_doors.py) each pass their own set of watched modules. ``member_imports``
 finds every import of a workspace member, for the guards that the engine's source
 (tests/test_workspace_config.py) and the engine's tests (tests/test_suite_collection.py) import
-none.
+none. ``writing_calls`` finds every call that writes a file in place (``write_text``,
+``write_bytes``, a writing ``open``), for the guards that durable files are written whole
+(tests/test_ledger_write_source_guard.py).
 
 It imports no ``scripts.*`` (Part 3, Stage D, Task D9): what reads the workspace (the files the
 source guards scan, the members' packages) is in tests/workspace_sources.py.
@@ -344,3 +346,54 @@ def path_to_package(
                 came_from[name] = current
                 queue.append(name)
     return None
+
+
+# Path methods that write a file in place
+IN_PLACE_WRITE_METHODS = frozenset({'write_text', 'write_bytes'})
+# Characters of an open mode that write
+WRITING_MODE_CHARACTERS = frozenset('wax+')
+
+
+def opens_for_writing(*, call: ast.Call) -> bool:
+    """Return whether a call writes a file: ``write_text``, ``write_bytes`` or a writing ``open``.
+
+    An ``open`` whose mode is not a literal counts as writing: the scan can't tell.
+
+    Returns:
+        True for a writing call.
+
+    """
+    function = call.func
+    name = function.attr if isinstance(function, ast.Attribute) else getattr(function, 'id', '')
+    if name in IN_PLACE_WRITE_METHODS:
+        return True
+    if name != 'open':
+        return False
+    # Path.open(mode) takes the mode first; open(file, mode) second
+    position = 0 if isinstance(function, ast.Attribute) else 1
+    mode: ast.expr | None = call.args[position] if len(call.args) > position else None
+    mode = next((keyword.value for keyword in call.keywords if keyword.arg == 'mode'), mode)
+    if mode is None:
+        return False
+    if not (isinstance(mode, ast.Constant) and isinstance(mode.value, str)):
+        return True
+    return not WRITING_MODE_CHARACTERS.isdisjoint(mode.value)
+
+
+def writing_calls(*, source: str) -> list[tuple[str, int]]:
+    """Return each call that writes a file, with the top-level function or class it is in.
+
+    Returns:
+        (its function or class name, or ``<module>`` outside any, line) for each writing call.
+
+    """
+    found: list[tuple[str, int]] = []
+    for node in ast.parse(source).body:
+        is_named = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        owner = node.name if is_named else None
+        found.extend(
+            (owner or '<module>', call.lineno)
+            for call in ast.walk(node)
+            if isinstance(call, ast.Call) and opens_for_writing(call=call)
+        )
+    return found

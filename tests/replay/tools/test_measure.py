@@ -68,6 +68,7 @@ from glitchygames.replay.tools.settings import (
 )
 from glitchygames.scenes import Scene
 from glitchygames.tracing import FRAMES_FIELD, is_bookmarked_copy, read_trace
+from tests.interrupted_writes import cut_writes_short
 from tests.ledger_repositories import clone_with_published_ledger, git
 from tests.replay.replay_helpers import rewrite_recording
 from tests.stand_in_games import (
@@ -692,6 +693,28 @@ class TestHistoryRunsInThePendingFile:
 
         assert LedgerOrigin.RECORDING in {row.origin for row in rows}
 
+    def test_a_row_appended_after_a_line_cut_short_is_kept(
+        self, tmp_path, stand_in_game, stand_in_golden
+    ):
+        """A stopped append leaves a last line with no line break: the next row starts its own.
+
+        Before, it joined the cut line and both were skipped as unreadable, so the row was lost
+        (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md).
+        """
+        earlier = ledger_row(recording='src/games/paddleslap/tests/fixtures/replays/other.jsonl.gz')
+        whole_line = ledger_text(rows=[earlier])
+        (tmp_path / 'pending.jsonl').write_text(
+            whole_line + whole_line[: len(whole_line) // 2], encoding='utf-8'
+        )
+
+        rows = self.measure_into_pending(
+            tmp_path=tmp_path, game=stand_in_game, golden=stand_in_golden
+        )
+
+        assert rows[0] == earlier
+        assert [row.origin for row in rows[1:]] == [LedgerOrigin.REPLAY_METRICS]
+        assert read_ledger_file(path=tmp_path / 'pending.jsonl').unreadable_lines == 1
+
 
 class TestMeasuring:
     """Each recording is rebaselined into a temporary file and its runs become pending rows."""
@@ -1001,6 +1024,26 @@ class TestClearingPublishedRows:
         published = ledger_text(rows=publishable_rows(rows=[clean, trial]))
         clear_published(pending_path=pending, published_text=published)
         assert read_ledger_file(path=pending).rows == (trial,)
+
+    @pytest.mark.parametrize('fraction', [0.0, 0.5, 0.99], ids=['none', 'half', 'all-but-the-end'])
+    def test_a_rewrite_cut_short_keeps_every_pending_row(self, mocker, tmp_path, fraction):
+        """A stopped rewrite leaves the pending ledger as it was, never truncated."""
+        pending = tmp_path / 'pending.jsonl'
+        published_row = ledger_row()
+        unpublished_rows = [
+            ledger_row(measured_at=f'2026-10-24T0{hour}:00:00+00:00') for hour in (7, 8, 9)
+        ]
+        before = ledger_text(rows=[published_row, *unpublished_rows])
+        pending.write_text(before, encoding='utf-8')
+        characters = int(len(ledger_text(rows=unpublished_rows)) * fraction)
+        with (
+            pytest.raises(KeyboardInterrupt),
+            cut_writes_short(mocker=mocker, characters=characters),
+        ):
+            clear_published(pending_path=pending, published_text=ledger_text(rows=[published_row]))
+
+        assert pending.read_text(encoding='utf-8') == before
+        assert [path.name for path in tmp_path.iterdir()] == ['pending.jsonl']
 
 
 class TestWhatIsMissing:

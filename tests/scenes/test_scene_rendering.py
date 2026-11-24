@@ -122,6 +122,7 @@ class TestSceneRendering:
         # Reset singleton state for clean test
         SceneManager._reset()
 
+    @pytest.mark.draws_frames
     def test_scene_rendering(self, display):
         """The first render paints the scene's background over the whole display."""
         scene = _scene_with_background(BACKGROUND)
@@ -132,6 +133,7 @@ class TestSceneRendering:
         # The first draw of a group reports the whole screen as changed
         assert scene.rects == [pygame.Rect((0, 0), SCREEN_SIZE)]
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_surface(self, display):
         """A scene renders onto any surface it is given, leaving the display alone."""
         scene = _scene_with_background(BACKGROUND)
@@ -144,6 +146,7 @@ class TestSceneRendering:
         assert _count_rgb(offscreen, BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1] - 20 * 30
         assert _count_rgb(display, BACKGROUND) == 0
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_manager(self, display):
         """Switching to a scene paints its background on the display at once."""
         scene = _scene_with_background(BACKGROUND)
@@ -153,6 +156,7 @@ class TestSceneRendering:
         assert self.scene_manager.active_scene is scene
         assert _count_rgb(display, BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1]
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_multiple_scenes(self, display):
         """Two scenes keep their own backgrounds and sprites: each renders only its own."""
         first_scene = _scene_with_background(BACKGROUND)
@@ -169,6 +173,7 @@ class TestSceneRendering:
         assert _count_rgb(second_surface, SPRITE_COLOR) == 0
         assert _count_rgb(second_surface, OTHER_BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1]
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_scene_transition(self, display):
         """A switch from one scene to another replaces the first's picture with the second's."""
         first_scene = _scene_with_background(BACKGROUND)
@@ -186,6 +191,7 @@ class TestSceneRendering:
         assert _count_rgb(display, SPRITE_COLOR) == 0
         assert _count_rgb(display, OTHER_BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1]
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_visibility(self, display):
         """An invisible sprite is not drawn; making it visible draws it on the next render."""
         scene = _scene_with_background(BACKGROUND)
@@ -201,6 +207,7 @@ class TestSceneRendering:
         scene.render(display)
         assert _count_rgb(display, SPRITE_COLOR) == 16 * 16
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_visibility_manager(self, display):
         """A visible sprite of the scene switched to is drawn by its next render."""
         scene = _scene_with_background(BACKGROUND)
@@ -215,6 +222,7 @@ class TestSceneRendering:
         assert _count_rgb(display, SPRITE_COLOR) == 12 * 8
         assert _count_rgb(display, TOP_SPRITE_COLOR) == 0
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_custom_drawing(self, display):
         """A scene that overrides render() can draw on top of the sprites it renders."""
 
@@ -235,6 +243,7 @@ class TestSceneRendering:
         # The marker covers a quarter of the sprite
         assert _count_rgb(display, SPRITE_COLOR) == 10 * 10 - 5 * 5
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_layering(self, display):
         """Where sprites overlap, the higher layer is drawn on top, whatever the add order."""
         scene = _scene_with_background(BACKGROUND)
@@ -249,6 +258,7 @@ class TestSceneRendering:
         assert _count_rgb(display, SPRITE_COLOR) == 10 * 20
         assert _rgb_at(display, (115, 110)) == TOP_SPRITE_COLOR
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_render_state(self, display):
         """A render cleans dirty=1 sprites; dirty=2 sprites stay dirty and redraw every frame."""
         scene = _scene_with_background(BACKGROUND)
@@ -271,6 +281,7 @@ class TestSceneRendering:
         assert _rgb_at(display, (1, 1)) == SPRITE_COLOR
         assert _rgb_at(display, (11, 1)) == MARKER_COLOR
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_render_state_manager(self, display):
         """Switching to a scene marks it dirty, so its sprites are redrawn on its next update."""
         scene = _scene_with_background(BACKGROUND)
@@ -290,6 +301,7 @@ class TestSceneRendering:
         scene.render(display)
         assert _count_rgb(display, SPRITE_COLOR) == 4 * 4
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_exceptions(self, display):
         """Rendering onto a surface smaller than the scene clips instead of raising."""
         scene = _scene_with_background(BACKGROUND)
@@ -301,6 +313,7 @@ class TestSceneRendering:
         assert _count_rgb(small_surface, SPRITE_COLOR) == 10 * 10
         assert _count_rgb(small_surface, BACKGROUND) == 40 * 40 - 10 * 10
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_manager_exceptions(self, display):
         """Switching to no scene ends the run without drawing over the last scene's picture."""
         scene = _scene_with_background(BACKGROUND)
@@ -312,6 +325,7 @@ class TestSceneRendering:
         assert self.scene_manager.previous_scene is scene
         assert _count_rgb(display, BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1]
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_surface_management(self, display):
         """A scene draws to the display it was made with; its background is display-sized."""
         scene = _scene_with_background(BACKGROUND)
@@ -321,6 +335,7 @@ class TestSceneRendering:
         assert (scene.screen_width, scene.screen_height) == SCREEN_SIZE
         assert _count_rgb(scene.background, BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1]
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_surface_management_manager(self, display):
         """A screenshot is a copy of the display: later drawing does not change it."""
         scene = _scene_with_background(BACKGROUND)
@@ -332,6 +347,7 @@ class TestSceneRendering:
         assert screenshot.get_size() == SCREEN_SIZE
         assert _count_rgb(screenshot, BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1]
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_custom_surface(self, display):
         """Sprites are placed by their rects on whatever surface the scene renders to."""
         scene = _scene_with_background(BACKGROUND)
@@ -345,6 +361,7 @@ class TestSceneRendering:
         assert _count_rgb(sprite_area, SPRITE_COLOR) == 3 * 2
         assert _count_rgb(custom_surface, SPRITE_COLOR) == 3 * 2
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_render_order(self, display):
         """On one layer, a sprite added later is drawn over one added earlier."""
         scene = _scene_with_background(BACKGROUND)
@@ -356,6 +373,7 @@ class TestSceneRendering:
         assert _rgb_at(display, (115, 110)) == TOP_SPRITE_COLOR
         assert _count_rgb(display, SPRITE_COLOR) == 10 * 20
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_render_order_transition(self, display):
         """Switching back to a scene shows its background, then its sprites in order again."""
         first_scene = _scene_with_background(BACKGROUND)
@@ -390,6 +408,7 @@ class TestSceneRenderingEdgeCases:
         # Reset singleton state for clean test
         SceneManager._reset()
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_render_state_changes(self, display):
         """A sprite that moves leaves background where it was, not a stale copy of itself."""
         scene = _scene_with_background(BACKGROUND)
@@ -405,6 +424,7 @@ class TestSceneRenderingEdgeCases:
         assert _rgb_at(display, (105, 105)) == BACKGROUND
         assert _rgb_at(display, (305, 105)) == SPRITE_COLOR
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_render_state_changes_manager(self, display):
         """A new background color set while a scene is showing reaches the whole display."""
         scene = _scene_with_background(BACKGROUND)
@@ -417,6 +437,7 @@ class TestSceneRenderingEdgeCases:
 
         assert _count_rgb(display, OTHER_BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1]
 
+    @pytest.mark.draws_frames
     def test_background_pattern_set_while_showing_reaches_the_whole_display(self, display):
         """A pattern set while a scene is showing replaces the old color everywhere (#166)."""
         scene = _scene_with_background(BACKGROUND)
@@ -433,6 +454,7 @@ class TestSceneRenderingEdgeCases:
         assert _count_rgb(display, BACKGROUND) == _count_rgb(expected, BACKGROUND)
         assert scene.rects == [pygame.Rect((0, 0), SCREEN_SIZE)]
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_edge_cases(self, display):
         """An empty scene renders only its background; later renders report no changes."""
         scene = _scene_with_background(BACKGROUND)
@@ -443,6 +465,7 @@ class TestSceneRenderingEdgeCases:
         assert scene.rects == []
         assert _count_rgb(display, BACKGROUND) == SCREEN_SIZE[0] * SCREEN_SIZE[1]
 
+    @pytest.mark.draws_frames
     def test_scene_rendering_with_edge_cases_manager(self, display):
         """A sprite partly off the display is clipped to the visible part."""
         scene = _scene_with_background(BACKGROUND)
@@ -458,6 +481,7 @@ class TestSceneRenderingEdgeCases:
 class TestSceneBackgroundOpacity:
     """The scene background is opaque, so sprites blend over it (BUGS.md #142)."""
 
+    @pytest.mark.draws_frames
     def test_a_translucent_sprite_blends_over_the_bare_background(self, display):
         """BUGS.md #142: the background is opaque, so a translucent sprite blends over it.
 
