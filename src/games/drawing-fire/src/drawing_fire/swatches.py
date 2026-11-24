@@ -120,8 +120,7 @@ def load_swatch_sets(*, path: Path) -> dict[str, SwatchSet]:
             a character is in two parts of one set.
 
     """
-    with path.open('rb') as sprite_file:
-        document = tomllib.load(sprite_file)
+    document = tomllib.loads(path.read_text(encoding='utf-8'))
     palette: dict[str, Color] = {
         character: (entry['red'], entry['green'], entry['blue'])
         for character, entry in document.get('colors', {}).items()

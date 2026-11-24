@@ -13,6 +13,7 @@ from bitmappy.controllers.error_handling import (
     MultiControllerLogger,
     MultiControllerValidator,
 )
+from tests.interrupted_writes import cut_writes_short
 
 
 class TestErrorSeverity:
@@ -292,6 +293,17 @@ class TestMultiControllerConfig:
         config = MultiControllerConfig.from_file(str(config_file))
         assert config.max_controllers == 8
         assert config.controller_timeout == pytest.approx(600.0)
+
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_from_file_reads_any_line_end(self, tmp_path, line_end):
+        """A config saved on Windows (CRLF) or an old Mac (CR) loads as one with LF."""
+        text = json.dumps({'max_controllers': 8, 'visual_indicator_shape': 'circle'}, indent=2)
+        config_file = tmp_path / 'config.json'
+        config_file.write_bytes(text.replace('\n', line_end).encode('utf-8'))
+
+        config = MultiControllerConfig.from_file(str(config_file))
+
+        assert (config.max_controllers, config.visual_indicator_shape) == (8, 'circle')
         assert config.visual_indicator_shape == 'circle'
 
     def test_from_file_invalid_json(self, tmp_path):
@@ -345,11 +357,33 @@ class TestMultiControllerConfig:
 class TestMultiControllerLogger:
     """Tests for the MultiControllerLogger class."""
 
-    def test_initialization_with_logging_enabled(self):
+    def test_initialization_with_logging_enabled(self, tmp_path, monkeypatch):
         """Test logger initializes with logging enabled."""
+        monkeypatch.chdir(tmp_path)
         config = MultiControllerConfig(error_logging_enabled=True)
         logger = MultiControllerLogger(config)
-        assert logger.config is config
+        try:
+            assert logger.config is config
+        finally:
+            logger.close()
+
+    def test_close_leaves_the_shared_logger_as_it_was_and_closes_the_log_file(
+        self, tmp_path, monkeypatch
+    ):
+        """The handlers it added are removed and closed: no handler or open file outlives it."""
+        monkeypatch.chdir(tmp_path)
+        shared_logger = logging.getLogger('multi_controller')
+        handlers_before = list(shared_logger.handlers)
+        logger = MultiControllerLogger(MultiControllerConfig(error_logging_enabled=True))
+        file_handlers = [
+            handler for handler in logger.added_handlers if isinstance(handler, logging.FileHandler)
+        ]
+
+        logger.close()
+
+        assert shared_logger.handlers == handlers_before
+        assert [handler.stream for handler in file_handlers] == [None]
+        assert (tmp_path / 'multi_controller.log').exists()
 
     def test_initialization_with_logging_disabled(self):
         """Test logger initializes with logging disabled."""
@@ -454,3 +488,23 @@ class TestMultiControllerValidator:
         assert self.validator.validate_frame_index(-1) is False
         assert self.validator.validate_frame_index(1.5) is False  # type: ignore[arg-type]
         assert self.validator.validate_frame_index('0') is False  # type: ignore[arg-type]
+
+
+class TestConfigSaveIsWholeOrNothing:
+    """An interrupted save leaves the earlier config as it was.
+
+    bugs/2026-11-21-sprite-saves-are-not-atomic.md
+    """
+
+    def test_a_save_stopped_part_way_leaves_the_earlier_file_whole(self, tmp_path, mocker):
+        config_file = tmp_path / 'config.json'
+        config_file.write_text('{"max_controllers": 2}\n', encoding='utf-8')
+
+        with (
+            cut_writes_short(mocker=mocker, characters=10),
+            pytest.raises(KeyboardInterrupt),
+        ):
+            MultiControllerConfig(max_controllers=8).save_to_file(str(config_file))
+
+        assert config_file.read_text(encoding='utf-8') == '{"max_controllers": 2}\n'
+        assert sorted(path.name for path in tmp_path.iterdir()) == ['config.json']

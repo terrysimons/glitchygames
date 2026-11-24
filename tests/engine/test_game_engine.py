@@ -2594,25 +2594,26 @@ class TestProcessMidiEvent:
     """Test GameEngine.process_midi_event dispatcher."""
 
     def test_midi_in(self, mocker):
-        """Test process_midi_event dispatches MIDIIN."""
+        """Test process_midi_event dispatches MIDIIN to the MIDI manager."""
         engine = _make_engine(mocker)
-        engine.scene_manager.handle_event = mocker.Mock()
+        engine.midi_manager = mocker.Mock()
 
         event = events.HashableEvent(pygame.MIDIIN)
 
         result = engine.process_midi_event(event)
         assert result is True
-        engine.scene_manager.handle_event.assert_called_once_with(event)
+        engine.midi_manager.on_midi_in_event.assert_called_once_with(event)
 
     def test_midi_out(self, mocker):
-        """Test process_midi_event dispatches MIDIOUT."""
+        """Test process_midi_event dispatches MIDIOUT to the MIDI manager."""
         engine = _make_engine(mocker)
-        engine.scene_manager.handle_event = mocker.Mock()
+        engine.midi_manager = mocker.Mock()
 
         event = events.HashableEvent(pygame.MIDIOUT)
 
         result = engine.process_midi_event(event)
         assert result is True
+        engine.midi_manager.on_midi_out_event.assert_called_once_with(event)
 
     def test_midi_unhandled_returns_false(self, mocker):
         """Test process_midi_event returns False for unknown midi events."""

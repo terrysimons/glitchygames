@@ -17,6 +17,7 @@ from glitchygames.color import (
     RGBA_COMPONENT_COUNT,
 )
 from glitchygames.input.state import current_input
+from glitchygames.output_files import write_text_whole
 
 from .models import MockEvent
 from .toml_processing import (
@@ -36,6 +37,12 @@ if TYPE_CHECKING:
     from .protocols import EditorContext
 
 
+# Module-level, so its handler is added once: added in __init__, each instance added another
+# to the one shared logger, never removed (3,545 over Bitmappy's tests, 2026-11-23)
+FILE_IO_LOG = logging.getLogger('game.tools.bitmappy.file_io')
+FILE_IO_LOG.addHandler(logging.NullHandler())
+
+
 class FileIOManager:
     """Manages file I/O operations for the Bitmappy editor.
 
@@ -52,8 +59,7 @@ class FileIOManager:
 
         """
         self.editor = editor
-        self.log = logging.getLogger('game.tools.bitmappy.file_io')
-        self.log.addHandler(logging.NullHandler())
+        self.log = FILE_IO_LOG
 
     # ──────────────────────────────────────────────────────────────────────
     # Drop event handling
@@ -385,7 +391,9 @@ class FileIOManager:
 
         """
         output_path = Path(file_path).with_suffix('.toml')
-        Path(output_path).write_text(toml_content, encoding='utf-8')
+        # Whole or nothing: a stopped save leaves the earlier file
+        # (bugs/2026-11-21-sprite-saves-are-not-atomic.md)
+        write_text_whole(destination=output_path, text=toml_content)
 
         self.log.info('Validating generated TOML file...')
         self._validate_toml_content(output_path)
@@ -402,8 +410,7 @@ class FileIOManager:
             ValueError: If the TOML file is missing required sections.
 
         """
-        with output_path.open(encoding='utf-8') as f:
-            content = f.read()
+        content = output_path.read_text(encoding='utf-8')
 
         if '[sprite]' not in content:
             self.log.error('TOML file missing [sprite] section!')

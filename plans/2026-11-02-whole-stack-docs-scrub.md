@@ -158,15 +158,22 @@ Where the scrub stands, for whoever picks it up (the session that did steps 1-2 
   `docs/scattered-doc-todos`): the six claims the report then listed (the two names, the three
   build-written files, the relative link) are `RECORDED_EXCEPTIONS` entries, each with its
   reason. The quicker way, so the checker fixes above remain open if wanted.
-- **Next, on the reading pass's branch: step 3, the root files.** Decide with the owner, per file, keep, fold into `docs/` or
-  retire: `ANIMATION_README.md`, `API_README.md`, `BITMAPPY_ARCHITECTURE.md`,
-  `CONTROLLER_CONTROLS_README.md`, `LOADER_README.md` (`README.md` and `CLAUDE.md` stay; read
-  them in full). Not yet read; bring a recommendation per file. Then step 4 (`docs/` by area,
+- **Step 3, the root files: read and decided (2026-11-22, `docs/scrub-root-files`).** The owner's
+  decision: retire and fold nothing yet, because some of these files are the only architecture
+  record of features and tools still to be ported. The per-file findings and candidates are a
+  to-do in `plans/future-work.md`'s "Documentation scrub". Then step 4 (`docs/` by area,
   one commit each, then the audio area as designed above: `sound.md`'s package map and how a
   sound flows, the 9 undocumented audio modules, `CLAUDE.md`'s audio section, the sound tools,
   the Sound Board README, an API page per audio module), step 5 (member READMEs, module
   docstrings), step 6 (a test asserting `all_claims() == []`, beside the path guard in
   `tests/test_suite_collection.py`), step 7.
+- **Done, the games area** (2026-11-22, `docs/scrub-games`, one commit per file): step 4's
+  six `docs/games/` pages and step 5's six `src/games/*` READMEs, read against the code and
+  each game's `--help` (one reader per game), with Part 2's judgment conventions applied.
+  Found outside the pages, not fixed there: Mr. Muncher's game-over screen ignores gamepad B
+  and Back (its handlers do not call the engine's), `scripts/record_scripted_session.py`'s
+  "Drawing Fire alone" comment on `POLLED_INPUT_GAMES`, and stale header metadata in
+  PaddleSlap's recordings (fixed only by a re-record).
 - **Open question for the owner:** read steps 3-5 in sequence (the default so far) or as
   parallel agents, one per area.
 - **When the reading pass closes:** update `plans/future-work.md`'s "Documentation scrub" item
@@ -183,6 +190,31 @@ Where the scrub stands, for whoever picks it up (the session that did steps 1-2 
   - `uv run mkdocs build --strict -d <scratch directory>` takes about 2.5 minutes.
   - Push only from the main checkout, never from a worktree (the pre-push hook broke the
     repository once from one); the hooks take about 20 minutes.
+
+## The audio area (2026-11-22, `docs/scrub-audio`)
+
+Taken by session 21f7657c from main 6163d80c; the other areas are other sessions' (the
+playback pages, `gameplay_replay.md` included, are `docs/scrub-playback`'s).
+
+- **Done:** `sound.md` (claim by claim against the code; a new "Inside the package": how a sound
+  flows and each module's job, which supersedes the design's "shims" list: `recipes` is gone and
+  `synth` and `live` are machinery, not shims), the Sound Board README, `argument_system.md`'s
+  `--crt-power-on` (its default and `GLITCHYGAMES_CRT_POWER_ON`), and the audio API page as one
+  section per module with an API (the owner, 2026-11-22: sections on one page, as the sprites
+  page does, not a page per module). `engine_context.md`'s audio slots checked: right.
+- **Found and fixed on its own branch:** an `[effects.*]` table was not a short name
+  (bugs/2026-11-22-effects-tables-are-not-short-names.md, `fix/effects-tables-are-short-names`).
+  `sound.md` here describes effects tables as short names, so that branch lands first.
+- **Sent to `docs/scrub-playback`:** `gameplay_replay.md`'s `sound-render` row (its
+  `--sample-format` default and exit codes).
+- **Left: `CLAUDE.md`'s audio section, after c3's `CLAUDE.md` change lands** (the file is at its
+  360-line limit, so each correction keeps the count):
+  - "Request sounds in `setup()`: a gameplay compile is counted and logged": no log line is
+    written for a gameplay compile; it is counted and listed in the Audio panel (only a slow
+    setup logs, one INFO line). Say "counted and shown in the Audio panel".
+  - "Sources: a short name ..., a path ..., an `Instrument`, or a `Mix`": an `Effect` is a source
+    too (`audio/effects.py`, tones mixed straight). Add it.
+  - Point at the package map: "the modules: sound.md, Inside the package".
 
 ## `docs/architecture/game_packages.md`
 

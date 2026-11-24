@@ -1,0 +1,28 @@
+# The Compare-Trace Tests' Steadied Recording Kept the Live Run's FPS Events
+
+- **Description**: #287's CircleCI job 5206 (Windows, machine 2, four test workers a machine, head `4749b31d`) failed `tests/replay/tools/test_compare_trace.py::test_the_child_streams_one_frame_per_frame_in_order[restarted-at-frame-4]`: exit `REPLAY_DIVERGED`, "Replay diverged at frame 5: event UserEvent missing internal event expected {... 'fps': 14.21338844340271}, got None", with 6 frames replayed. The test isn't on CircleCI's flaky-test list.
+- **Status**: Fixed in `b1eeeb76` on `fix/steadied-recordings-stay-replayable`, merged into #287 as `d491d902` (2026-11-23), on main with #287 (`f1a6da7f`).
+- **Priority**: Medium. It is intermittent on loaded runners, and fails every test that replays the affected worker's recording.
+- **Root Cause** (reproduced 2026-11-23): the test fixture is at fault, not the engine or the restart.
+  - `SceneManager._finish_frame` (`src/glitchygames/scenes/scene.py`) posts an FPS event whenever the frame clock, the sum of closed frames' `dt`, has advanced half of `--fps-log-interval-ms` (500 ms by default). Its value is 1 / the frame's `dt`. Both come through the doors, so a replay posts them again exactly from the recorded frame times.
+  - `recorded_old` records OLD live and paced. Then `steady_frame_times`, added for BUGS.md #267, rewrote every frame's `dt` to 1/60 s, but left the FPS events the live run had already posted from its real frame times.
+  - On a loaded runner OLD's 6 live frames passed 500 ms (a ~70 ms frame, fps 14.2), so OLD held an FPS event at frame 5. Its steadied replay's frame clock reaches only 100 ms, posts none, and diverges.
+  - Every test that replays that worker's module-scoped OLD fails the same way, from frame 0 or restarted. #287's doubling of the Windows workers made the load likelier: it exposed the bug rather than introducing it.
+- **Reproduction**, deterministic and without CPU load: record the color game with `--fps-log-interval-ms 20`, which posts an FPS event every frame, as a slow machine does after 500 ms.
+  - Steadied, the replay diverged at frame 1, both from frame 0 and restarted at frame 4.
+  - Unsteadied, both runs succeeded.
+- **Test gap**: `steady_frame_times` assumed that `dt` only decides when a watched replay presents frames, and nothing checked that the rewritten recording still replays. CI's load had never pushed 6 frames past 500 ms before.
+- **Sweep** (2026-11-23):
+  - `record_a_pausing_run` steadies a live run too: same defect, fixed with OLD.
+  - `tests/test_recording_history.py` rewrites a `dt`, but only feeds a summary function and replays nothing.
+- **Fix** (`tests/replay/tools/test_compare_trace.py`):
+  - Prevention: OLD and the pausing run record with an FPS interval of an hour (`STEADIED_RECORDING_FPS_LOG_INTERVAL_MS`, through `steadied_recording_arguments`), so no FPS event falls inside a test's frames however slow the machine.
+  - The invariant for the whole class: `steady_frame_times` now replays the steadied recording once, headless in a child process, and fails naming the diverging frame unless it reaches its end (`check_the_recording_replays_to_its_end`). It catches anything a live run records from its real frame times: today's FPS events, or a later addition.
+- **Tests**, each failing on the old fixture:
+  - `test_a_steadied_recording_replays_however_slow_the_machine_recording_it`: OLD's arguments recorded at `--target-fps 5` (a loaded machine, deterministically) steady and replay. On the old fixture it failed with job 5206's signature: "missing internal event ... fps 4.9998" at frame 3.
+  - `test_steadying_fails_a_recording_that_no_longer_replays`: a recording whose live run posted FPS events fails steadying, naming the frame. On the old fixture: "DID NOT RAISE".
+  - `test_compare_trace` and `test_an_unseen_game` at `-n 4 --dummy-only`: 303 passed.
+- **Confirmed by CI**: #287's Windows job passed with 4 workers, and so have the Windows jobs of #290, #291, #292 and #265 since.
+- **Reporter**: CircleCI pipeline for #287, job 5206
+- **Date Reported**: 2026-11-23
+- **Files**: `tests/replay/tools/test_compare_trace.py`, `src/glitchygames/scenes/scene.py` (`_finish_frame`, `_post_fps_event`)

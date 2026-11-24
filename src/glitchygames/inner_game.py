@@ -94,6 +94,15 @@ The rules:
    when both play the very same ``Sound`` object (``plain_plays_followed``'s edge). A plain play
    the game starts after it went silent within the same call (its finish) is stopped as the
    call ends.
+8. **A fast-forward is silent and sliced** (plans/2026-11-20-arcade-5-playback-core.md, decision
+   8): ``fast_forward(to_frame=..., budget=...)`` steps the game toward a frame (an Arcade
+   tile's poster frame) until it stands there or the budget (``replay.pacer.TickBudget``, real
+   time a host may share among its players) is spent, at least one frame a call, and the next
+   call goes on. It is refused while the game is audible (``InnerGameAudibleError``, naming
+   ``set_audible(audible=False)``): a host silences the game first, so the burst of frames is
+   never heard, and the fast-forward itself never switches the route or silences a frame (its
+   steps reserve the mixer as every silent step does: rule 5). It only steps, so the frames are
+   the recording's: frame ``to_frame`` is then the next step's, as in a replay run alone.
 
 A recorded quit (every golden ends with its game's quit control) ends only its inner game:
 the QUIT is posted to and drained from the context's private queue, never SDL's.
@@ -140,6 +149,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from glitchygames.engine.game_engine import GameEngine
+    from glitchygames.replay.driver import RecordedFrames
+    from glitchygames.replay.pacer import TickBudget
 
 LOG = logging.getLogger('game.inner_game')
 
@@ -204,8 +215,9 @@ class InnerGameOutcome(BaseModel):
             or where a failure stopped it); None before, or when the game was never built.
         diverged: Once the report is settled, whether the replay diverged
             (``ReplayReport.is_failure``): a frame differed, or the run ended before the
-            recording did (``ReplaySources.finish_run`` makes that a length divergence; the
-            state is then ``FAILED``). False when it matched; None while ``report`` is None.
+            recording did (``ReplaySources.finish_run`` makes that a length divergence). A game
+            that quit before its recording ended is then ``ENDED``; one that failed early is
+            ``FAILED`` with its error. False when it matched; None while ``report`` is None.
         error: The failure's text when ``state`` is ``FAILED``, else None.
 
     """
@@ -225,6 +237,10 @@ class InnerGameRefusedError(ValueError):
 
 class InnerGameStateError(RuntimeError):
     """The inner game is in a state its own code never reaches (a bug, not a game failure)."""
+
+
+class InnerGameAudibleError(RuntimeError):
+    """A fast-forward was asked of an audible inner game (it runs only silent: decision 8)."""
 
 
 class InnerGameStartError(RuntimeError):
@@ -468,6 +484,8 @@ class InnerGame:
         self._engine: GameEngine | None = None
         self._frame_start_seconds = 0.0
         self._frames_run = 0
+        # What it replays, kept after the engine is gone so a finished game still answers
+        self._recording: RecordedFrames | None = None
         self._state = InnerGameState.RUNNING
         self._report: str | None = None
         self._diverged: bool | None = None
@@ -601,6 +619,42 @@ class InnerGame:
             error=self._error,
         )
 
+    @property
+    def frame_count(self: Self) -> int:
+        """How many frames the recording holds (0 when the game never got as far as reading it)."""
+        recording = self._replayed_recording()
+        return 0 if recording is None else recording.frame_count
+
+    @property
+    def frame_index(self: Self) -> int:
+        """The next frame to run: the frames run so far (``outcome.frames_run``)."""
+        return self._frames_run
+
+    @property
+    def next_frame_seconds(self: Self) -> float:
+        """How long the frame starting now lasted when recorded (``ReplaySources`` rule 4).
+
+        The next frame's recorded ``dt`` (the duration of this one), the current frame's for the
+        last, 0.0 past the end or when there is no recording. It is how a host that paces this
+        game (``RecordedFramePacer``) learns what the next frame is owed.
+        """
+        recording = self._replayed_recording()
+        if recording is None:
+            return 0.0
+        return recording.next_frame_seconds(frame_index=self._frames_run)
+
+    def _replayed_recording(self: Self) -> RecordedFrames | None:
+        """Return the recording the game replays: its engine's while running, else the kept one.
+
+        Returns:
+            The recorded frames, or None when the game never got as far as reading them.
+
+        """
+        engine = self._engine
+        if engine is not None and engine.replay_sources is not None:
+            return engine.replay_sources.recording
+        return self._recording
+
     def _unfinished_engine(self: Self) -> GameEngine:
         """Return the engine of a game that is not finished (one that was not finished was built).
 
@@ -641,6 +695,56 @@ class InnerGame:
         if not still_running:
             self.finish()
         return still_running
+
+    def fast_forward(self: Self, *, to_frame: int, budget: TickBudget) -> bool:
+        """Run frames toward ``to_frame``, silent, until there or the budget is spent (rule 8).
+
+        Runs frames ``[frame_index, to_frame)`` one ``step()`` each, checking the budget after
+        each frame: at least one frame runs a call, so a host passing a spent budget (one
+        another player used up) still moves on, and none runs past ``to_frame``. The next call
+        goes on from where this one stopped. A divergence or a failure on the way ends the game
+        with that outcome, as a step does. Once it returns True, frame ``to_frame`` is the next
+        ``step()``'s, and the frames are those of the recording replayed alone: it only steps.
+        A game already at or past ``to_frame`` runs nothing.
+
+        Args:
+            to_frame: The frame to stand at (the next to run), less than ``frame_count``.
+            budget: The real time it may take (``glitchygames.replay.pacer.TickBudget``),
+                possibly shared with other players: it decides how many frames run now, never
+                what they do.
+
+        Returns:
+            True when the game is running and stands at or past ``to_frame``; False when the
+            budget was spent first (call again), or the game has ended or failed (``outcome``
+            says how; it never gets there).
+
+        Raises:
+            InnerGameAudibleError: If the game is audible: its frames would be heard, a burst
+                of them at once (its host calls ``set_audible(audible=False)`` first). Nothing
+                runs.
+            ValueError: If ``to_frame`` is negative, or not less than the recording's frame
+                count. Nothing runs.
+
+        """
+        if self.audible:
+            message = (
+                f'Inner game {self._context.name} is audible: a fast-forward runs silent, so '
+                'call set_audible(audible=False) first'
+            )
+            raise InnerGameAudibleError(message)
+        frame_count = self.frame_count
+        if not 0 <= to_frame < frame_count:
+            message = (
+                f'Inner game {self._context.name} cannot fast-forward to frame {to_frame}: '
+                f'the frame must be at least 0 and less than the frame count ({frame_count})'
+            )
+            raise ValueError(message)
+        while self._frames_run < to_frame:
+            if not self.step():
+                return False
+            if budget.is_spent:
+                break
+        return not self._finished and self._frames_run >= to_frame
 
     def finish(self: Self) -> InnerGameOutcome:
         """End the game's run inside its context and settle its replay's result (idempotent).
@@ -817,6 +921,7 @@ class InnerGame:
         report = engine.settle_replay_report(
             replay_sources=replay_sources, run_ended_by=self._run_ended_by
         )
+        self._recording = replay_sources.recording
         self._report = report.text
         self._diverged = report.is_failure
         LOG.info('Inner game %s: %s', self._context.name, report.text)

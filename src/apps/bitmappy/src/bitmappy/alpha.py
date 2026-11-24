@@ -176,8 +176,7 @@ def parse_toml_sprite_data(config_file: Path) -> tuple[dict[str, Any], dict[str,
     """
     import tomllib
 
-    with config_file.open(mode='rb') as f:
-        config_data = tomllib.load(f)
+    config_data = tomllib.loads(config_file.read_text(encoding='utf-8'))
 
     config_data = normalize_toml_data(config_data)
 

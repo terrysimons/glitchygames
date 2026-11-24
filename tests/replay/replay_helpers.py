@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import os
 from typing import TYPE_CHECKING, Any
 
@@ -24,6 +25,37 @@ if TYPE_CHECKING:
 
     from glitchygames.replay import ReplayResult
     from glitchygames.scenes import Scene
+
+
+def failing_the_test[**Parameters, Result](
+    callback: Callable[Parameters, Result],
+) -> Callable[Parameters, Result]:
+    """Wrap a test callback that runs inside a game's run, so its failure fails the test itself.
+
+    The engine reports any ``Exception`` raised during its run as ``ExitCode.INTERNAL_ERROR``
+    (``_crash_boundary``), so a callback's own failed check (a patched flip, sleep or key press)
+    read as the engine's 70: once, in a full-suite run, a test saw only that
+    (bugs/2026-11-20-compare-trace-step-back-exited-internal-error-under-load.md). The wrapper
+    turns the failure into ``pytest.fail``, whose exception is a ``BaseException`` the crash
+    boundary passes through, so the test fails at once, with the callback's own message.
+
+    Returns:
+        The wrapped callback.
+
+    """
+
+    @functools.wraps(callback)
+    def call(*args: Parameters.args, **kwargs: Parameters.kwargs) -> Result:
+        try:
+            return callback(*args, **kwargs)
+        except Exception as error:
+            name = getattr(callback, '__name__', repr(callback))
+            message = (
+                f'a test callback failed inside the run ({name}): {type(error).__name__}: {error}'
+            )
+            raise pytest.fail.Exception(message, pytrace=False) from error
+
+    return call
 
 
 @dataclasses.dataclass(frozen=True)

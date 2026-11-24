@@ -107,7 +107,8 @@ class SaveSlotInfo:
         timestamp: When the save was last written (UTC).
         version: Save format version from metadata.
         app_name: Application name from metadata.
-        size_bytes: File size in bytes.
+        size_bytes: The save's size in bytes: its UTF-8 text with LF line ends, so the
+            same on every OS and in a replay (a Windows file on disk is larger, by its CRs).
 
     """
 
@@ -664,7 +665,9 @@ class DiskSaveManager(SaveManager):
         return self._slot_info_from_content(
             path=path,
             read_content=lambda: path.read_text(encoding='utf-8'),
-            size_bytes=lambda: path.stat().st_size,
+            # The text as read (LF line ends), as the replay sandbox counts it, not the disk's
+            # bytes: a slot lists at one size live and in a replay, on Windows as on a Mac
+            size_bytes=lambda: len(path.read_text(encoding='utf-8').encode('utf-8')),
             fallback_timestamp=lambda: datetime.fromtimestamp(path.stat().st_mtime, tz=UTC),
         )
 
@@ -683,12 +686,11 @@ class DiskSaveManager(SaveManager):
         try:
             # Write to temp file in the same directory (same filesystem
             # guarantees atomic replace)
-            # newline='\n': never translated, so a save has the same bytes (and size) on
-            # every OS; Windows would otherwise write \r\n (reading accepts either)
+            # Text mode, the default newline: the OS's line ends (CRLF on Windows), so a person
+            # can read a save in their usual editor; reading takes either (the owner, 2026-11-22)
             with tempfile.NamedTemporaryFile(
                 mode='w',
                 encoding='utf-8',
-                newline='\n',
                 dir=target_path.parent,
                 suffix='.tmp',
                 delete=False,

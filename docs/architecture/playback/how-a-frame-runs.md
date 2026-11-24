@@ -10,9 +10,12 @@ interface is `EngineSources` in `src/glitchygames/sources.py`.
 `should_run_frames`, then `end_frames`. A browser host runs the same steps itself, one per tick,
 unpaced (`GameHost.run_async`, `src/glitchygames/host.py`).
 
-- `begin_frames` takes the first `time.perf_counter()` reading. The first frame has no previous
-  frame, so its `dt` is the short time since that reading (a replay's frame-time door returns the
-  recorded first `dt` instead).
+- `begin_frames` takes the first reading of the raw counter (`clock.raw_counter_seconds()`,
+  `src/glitchygames/clock.py`). The first frame has no previous frame, so its `dt` is the short
+  time since that reading (a replay's frame-time door returns the recorded first `dt` instead).
+- `run_frame_step` runs one frame, or presents a held one again (below). The browser host calls
+  it unpaced (`paced=False`): its wait for the next tick is the pacing, measured into the next
+  frame's `dt`.
 - `should_run_frames` goes on while a scene is active, no quit was requested and the doors do
   not ask to stop (`stop_requested`: a replay reached its end).
 
@@ -24,9 +27,9 @@ flowchart TD
     held["present the last frame again<br/>(_present_held_frame)"]
     pace_q["paced_frame_seconds()<br/>door, asked once"]
     period["the frame period: timer.start_frame(target_fps)<br/>when the doors answered None, else theirs<br/>src/glitchygames/timing.py"]
-    steps["_run_frame_steps<br/>(the frame's work, below)"]
-    proc["processing time =<br/>work, less presenting"]
-    finish["_finish_frame:<br/>pace, one perf_counter() reading,<br/>dt through frame_seconds() door,<br/>advance frame clock, FPS sample"]
+    steps["_run_frame -> _run_frame_steps<br/>(the frame's work, below)"]
+    proc["processing time =<br/>the work, without pacing"]
+    finish["_finish_frame:<br/>pace, one raw counter reading,<br/>dt through frame_seconds() door,<br/>advance frame clock, FPS sample"]
     next(["next frame starts at<br/>that same reading"])
 
     hold -- "yes (a paused watched replay)" --> held --> next
@@ -36,24 +39,30 @@ flowchart TD
 `run_frame_step` first asks the doors whether to hold (`hold_frame`): a paused watched replay
 holds, and the last frame is presented again with the doors' overlay; nothing runs and the frame
 clock stands still. Otherwise it asks `paced_frame_seconds` once (None: the target FPS; 0.0: no
-pacing; a positive number: that period), runs the frame, measures its processing time and ends it
-in `_finish_frame`.
+pacing; a positive number: that period), runs the frame (`_run_frame`), measures its processing
+time and ends it in `_finish_frame`. `_run_frame` marks the frame in progress around
+`_run_frame_steps`, then ends an in-game playback scope whose recording ended, diverged or was
+asked to exit.
 
 ## Inside the frame: `_run_frame_steps`
 
-1. Start the processing-time clock (`measured_seconds()`, `src/glitchygames/clock.py`).
+1. Start the processing-time clock (`measured_seconds()`, `src/glitchygames/clock.py`), and
+   begin the audio engine's frame if one exists (`src/glitchygames/audio/`).
 2. Enter a requested in-game playback scope, if any (`_enter_requested_playback`;
    `src/glitchygames/replay/playback.py`), and apply a recorded resume (`_apply_resume_bridge`).
 3. Complete the active scene's start on its first logic frame (`_begin_scene_logic_frame`;
    `src/glitchygames/scene_start.py`) and begin the instant-replay journal's frame
    (`_begin_journal_frame`; `src/glitchygames/instant_replay.py`).
 4. Begin the game-frame clock (`src/glitchygames/game_frames.py`), which pairs onion-skin frames.
-5. Run the frame's contents: a transition frame, or a scene frame (`_run_scene_frame`, below).
-6. The processing time is the work since step 1, less the time spent presenting
-   (`_frame_present_seconds`).
+5. Run the frame's contents (`_run_frame_contents`, inside the playback scope when one is in
+   progress): a transition frame (the transition's update and render, its events, the
+   supervisor slot and frame services), or a scene frame (`_run_scene_frame`, below).
+6. The processing time the doors get is the work since step 1, less the time spent presenting
+   (`_frame_present_seconds`); the audio engine's account of the frame is taken with it.
 7. End the frame at the doors (`_end_frame_at_doors` -> `end_frame`): a recorder samples the
    sprites and writes the frame here; a replay compares the frame here. Then the journal takes
-   the frame (`_journal_frame`).
+   the frame (`_journal_frame`). Inside a playback scope, the scope compares the frame with
+   its recording (`compare_frame`) and the installed doors end it (`end_frame`) instead.
 
 ## A scene frame: `_run_scene_frame`
 
@@ -65,7 +74,7 @@ flowchart TD
     sup["_run_supervisor_slot:<br/>control_events_for_frame() door"]
     services["_update_frame_services<br/>(shake, rumble)"]
     aim["aim the camera,<br/>position world sprites"]
-    render["_render_scene:<br/>Scene.update(), Scene.render(screen)"]
+    render["update_screen, then _render_scene:<br/>Scene.update(), Scene.render(screen)"]
     shake["advance a still camera's shake"]
     present["_present_frame:<br/>presents_frames door"]
     switch["start a pending transition,<br/>or the requested scene switch"]
@@ -84,14 +93,48 @@ Points that matter for replay:
   services.
 - The supervisor slot runs after logic and events, before positioning, so what a supervisor
   changes is drawn this frame (`src/glitchygames/supervision.py`).
+- A scene switched to during the frame (resuming from the pause screen switches while events
+  are processed) ran no logic this frame, so its camera is neither aimed nor its still shake
+  advanced; its world sprites are still positioned for the render.
 - Presenting asks the doors (`presents_frames`): a watched replay's inner frames are not
   presented; the viewer's outer tick presents the latest one.
+- An inner game (an Arcade tile, `src/glitchygames/inner_game.py`) runs this same frame step,
+  unpaced, inside its own context, one `InnerGame.step()` a frame; its host decides when. A
+  tile's `DemoPlayer` (`src/glitchygames/demo_player.py`) steps it as the recorded-frame pacer
+  owes frames from the host's frame time, within the host's real-time budget
+  ([A demo in a tile](speeds-and-timing.md#a-demo-in-a-tile)), and the host draws the tile's
+  render target: the tile never presents.
+
+### What is drawn again: dirty sprites
+
+The scene's sprites draw through `pygame.sprite.LayeredDirty`, which redraws only sprites marked
+dirty, and the background under where they were:
+
+- **A sprite that changes every frame** (an animation, an actor, a live demo picture) keeps
+  `dirty = 2`.
+- **Any other sprite** keeps pygame's default `dirty = 1` and is marked `dirty = 1` again whenever
+  its picture or place changes (where it swaps its `image` or moves its `rect`); the group draws
+  it and clears the mark. Hiding or showing needs nothing more: pygame's `visible` setter marks it.
+  Never clear the mark yourself after changing the picture (the group would never draw it), and
+  leave a hidden sprite at `dirty = 0` (the group clears a mark only when it draws, so a hidden
+  dirty sprite redraws its area every frame).
+- **The scene** marks every sprite dirty once, on the frame after it becomes active or after
+  `SceneManager._force_scene_redraw` (`Scene.dirty`), then not again; becoming active also
+  repaints its whole background and presents the whole surface once.
+- **`Scene.rects`** decides only what the present sends (None: the whole screen, for a scene that
+  draws outside its sprites; a list: those rects). Every window the engine opens is SCALED, and
+  the browser's canvas shows the whole surface on any update, so it never changes the window's
+  cost; the cost saved is the drawing.
+
+`glitchygames.testing.full_repaint` compares every frame with a full repaint (its background with
+every visible sprite drawn again); `tests/replay/test_frames_equal_a_full_repaint.py` runs it over
+every golden and bundled demo, so a sprite changed without a mark fails there.
 
 ## The end of the frame: `_finish_frame`
 
 In this order: pace (the timer backend's deadline, else the pygame clock; a target of 0 or a
-frame the doors leave unpaced never waits; `_handle_frame_pacing`); take one `perf_counter()`
-reading, which ends this frame and starts the next; set `self.dt` from that start-to-start time
+frame the doors leave unpaced never waits; `_handle_frame_pacing`); take one reading of the raw
+counter, which ends this frame and starts the next; set `self.dt` from that start-to-start time
 through the `frame_seconds` door (`_set_frame_time`, the one writer of `self.dt`); add it to the
 frame clock (`advance_frame_clock`, `src/glitchygames/sources.py`); record the FPS sample and
 post the FPS event when its interval of frame-clock time has passed.
@@ -105,9 +148,9 @@ So the `dt` that frame N's logic receives is the time frame N - 1 took, start to
 | `hold_frame`, `paced_frame_seconds` | `run_frame_step` | `src/glitchygames/scenes/scene.py` |
 | `pump_events` | `GameEngine._pump_events` | `src/glitchygames/engine/game_engine.py` |
 | `input_snapshot` | `GameEngine.process_events` | `src/glitchygames/input/state.py` holds it |
-| `devices` | controller and joystick handling | `src/glitchygames/input/devices.py` |
-| `saves` | a game opening its save store | `src/glitchygames/state/manager.py` |
-| `wall_clock_time`, frame clock | `clock.wall_clock_time()`, `clock.elapsed_seconds()` | `src/glitchygames/clock.py` |
+| `devices` | `Scene.input_devices`, device listing, opening a controller | `src/glitchygames/input/input_devices.py`, `input/device_listing.py`, `events/controller.py` |
+| `saves` | `open_saves`, a game opening its save store | `src/glitchygames/state/sandbox.py` |
+| `wall_clock_time`, frame clock | `clock.wall_clock_time()`, `clock.frame_clock_seconds()`, `clock.elapsed_seconds()` | `src/glitchygames/clock.py` |
 | random seed | the named streams | `src/glitchygames/randomness.py` |
 | `control_events_for_frame` | `_run_supervisor_slot` | `src/glitchygames/supervision.py` |
 | `presents_frames` | `_present_frame` | `src/glitchygames/scenes/scene.py` |
