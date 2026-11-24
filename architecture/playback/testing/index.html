@@ -3407,8 +3407,14 @@ holding back code pull requests (the owner, 2026-11-20).</p>
   can't list gets <code>all</code>.</li>
 <li>The tests that read Markdown are <code>noxfile.MARKDOWN_TEST_FILES</code>, which
   <code>tests/test_ci_config.py</code> holds to exactly the test files that name a Markdown file in their
-  code (a string ending <code>.md</code>, or a <code>*.md</code> pattern; docstrings and comments don't count). A test
-  that reads Markdown another way isn't detected: add it to the list by hand.</li>
+  code (a string ending <code>.md</code>, or a <code>*.md</code> pattern; docstrings and comments don't count), less
+  <code>noxfile.MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES</code>: the files that name a Markdown file but read
+  none of the repository's (a report they write themselves, such as the channel-fade audio test's
+  and the logging-cost benchmark's, or a path quoted in a reason), each with its reason. A
+  docs-only change doesn't run them
+  (#295's <code>markdown-checks</code> job ran the audio test and lost it to the disk audio driver). An
+  exception that no longer names a Markdown file fails as stale. A test that reads Markdown
+  another way isn't detected: add it to the list by hand.</li>
 <li>The workflow is still <code>build-and-test</code>, the check main's ruleset requires, so a docs-only pull
   request can still merge.</li>
 </ul>
@@ -3451,7 +3457,7 @@ holding back code pull requests (the owner, 2026-11-20).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 04:08:18 UTC">November 24, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 10:47:22 UTC">November 24, 2026</span>
   </span>
 
     
