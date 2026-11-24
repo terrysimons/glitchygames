@@ -170,13 +170,17 @@ def load_script(*, path: Path, module_name: str) -> ModuleType:
     Returns:
         The module.
 
+    Raises:
+        ImportError: The script can't be loaded as a Python module.
+
     """
     loaded = sys.modules.get(module_name)
     if loaded is not None:
         return loaded
     specification = importlib.util.spec_from_file_location(module_name, path)
-    assert specification is not None, f'{path} is not a Python module'
-    assert specification.loader is not None, f'{path} has no loader'
+    if specification is None or specification.loader is None:
+        message = f'{path} is not a loadable Python module'
+        raise ImportError(message)
     module = importlib.util.module_from_spec(specification)
     sys.modules[module_name] = module
     specification.loader.exec_module(module)

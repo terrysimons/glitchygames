@@ -1629,12 +1629,20 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
     past B101's filter. No list of files still to do is kept in the code (a saved ratchet guard
     is in the gitignored `build/assert-sweep-final-step/` of the
     `glitchygames-assert-replacement-engine` worktree; keep it when that worktree is removed).
-  - Progress (2026-11-20): `InnerGame`'s three (#246) and 78 in 27 engine
-    files (`fix/assert-replacement-engine`) are done; one, in `audio/assets.py`'s pitch check,
-    could fire in normal use (a `Note` or `Midi` pitch in a Python-built table) and is now a
-    `ValueError`. Left (counted by `ast`, 2026-11-20): `scenes/` 25 (its `_run_scene_frame`
-    assert fires when a scene ends before `run_frame`), Bitmappy 35, games and demos 14,
-    `scripts/` 43.
+  - Progress (2026-11-21): done are `InnerGame`'s three (#246), 78 in 27 engine files (#259;
+    one, in `audio/assets.py`'s pitch check, could fire in normal use, a `Note` or `Midi` pitch
+    in a Python-built table, and is now a `ValueError`), Bitmappy's (#258) and `scripts/` 43 in
+    17 files (`fix/assert-replacement-scripts`; `ai_query_inspector.py`'s button labels had
+    never shown: each was centred on the button's screen position, then drawn on the button's
+    own small image, so it fell outside it). Left (counted on main, 2026-11-21): `scenes/` 25
+    (its `_run_scene_frame` assert fires when a scene ends before `run_frame`), games and
+    demos 14 (Drawing Fire 4, Brave Adventurer 4, Paddle Slap 2, Clockwork Keep 2, Mr. Muncher
+    1, the text-input demo 1).
+  - To do, found in the `scripts/` sweep: `scripts/gen_ref_pages.py`'s
+    `load_workspace_packages` and `scripts/mkdocs_hooks.py`'s `load_script` are two copies of
+    one "load a sibling script as a module, once" function (each now raises `ImportError` for a
+    file that isn't a module). Make it one shared function; both run inside a docs build, so
+    the shared home must be importable there.
 - **Stereo synthesis** (the owner, 2026-11-15: "couldn't we make them stereo since we own the
   sound waves?"; its own branch, after the sound migration). The renderer makes mono samples
   and every sound, live and baked, pans by the constant-power law (`voices.constant_power_gains`,
