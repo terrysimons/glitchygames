@@ -32,6 +32,10 @@ after ``SOUNDING_RALLY_FRAMES`` frames (``SceneManager.quit``: no event).
 ``PadReadoutScene`` stands in for a game read from a joystick: its marker's x follows the
 stand-in stick's polled axis 0, so a recorded session with the stand-in pad replays what the
 pad did (``PadReadoutScene``'s docstring has its facts).
+
+``MidiReadoutScene`` stands in for a game played from a MIDI keyboard: its marker sits at
+``MIDI_READOUT_ORIGIN`` plus the last note's number and velocity, so a replay compares the MIDI
+input the game received (``MidiReadoutScene``'s docstring has its facts).
 """
 
 from __future__ import annotations
@@ -44,6 +48,7 @@ from glitchygames.audio import Instrument
 from glitchygames.input.state import current_input
 from glitchygames.replay.tools.golden_traces import InputScript, press, release
 from glitchygames.scenes import Scene
+from glitchygames.sources import active_sources
 from glitchygames.transitions.elevator import ElevatorTransition
 from tests.input.stand_in_devices import STAND_IN_STICK
 
@@ -429,3 +434,50 @@ class PadReadoutScene(Scene):
         super().dt_tick(dt)
         axis_position = current_input().axis(device_id=STAND_IN_STICK.instance_id, axis=0)
         self.marker.rect.x = PAD_READOUT_ORIGIN_X + round(PAD_READOUT_SCALE * axis_position)
+
+
+# The MIDI readout's marker: at MIDI_READOUT_ORIGIN plus (the last note's number, its velocity)
+MIDI_READOUT_ORIGIN = (100, 100)
+MIDI_READOUT_FRAMES = 12
+
+
+class MidiReadoutScene(Scene):
+    """A stand-in for a game played from a MIDI keyboard: its marker follows the last note.
+
+    Its facts: it opens MIDI input port 0 through the devices door in ``setup()``; each MIDIIN
+    event it receives (``on_midi_in_event``) moves its marker (a sprite on every frame) to
+    ``MIDI_READOUT_ORIGIN`` plus (``data1``, ``data2``), so a replay compares the MIDI the game
+    received; it ends the run itself after ``MIDI_READOUT_FRAMES`` frames
+    (``SceneManager.quit``: no event).
+    """
+
+    NAME = 'Midi Readout'
+    VERSION = '1.0'
+
+    def __init__(self: Self, options: dict[str, Any] | None = None, groups: Any = None) -> None:
+        """Add the marker."""
+        super().__init__(options=options, groups=groups)
+        self.marker = PadReadoutMarker()
+        self.marker.rect.topleft = MIDI_READOUT_ORIGIN
+        self.all_sprites.add(self.marker)
+        self.frames_run = 0
+
+    @override
+    def setup(self: Self) -> None:
+        """Open the keyboard's input port."""
+        active_sources().devices().open_midi_input(port_id=0)
+
+    def on_midi_in_event(self: Self, event: Any) -> None:
+        """Put the note into the marker's place."""
+        self.marker.rect.topleft = (
+            MIDI_READOUT_ORIGIN[0] + event.data1,
+            MIDI_READOUT_ORIGIN[1] + event.data2,
+        )
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """End the run after its frames."""
+        super().dt_tick(dt)
+        self.frames_run += 1
+        if self.frames_run == MIDI_READOUT_FRAMES:
+            self.scene_manager.quit()

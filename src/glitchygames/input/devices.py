@@ -669,14 +669,15 @@ class MidiInputReader:
         *,
         midi_module: ModuleType,
         inputs: Mapping[int, MidiPortReadable],
-        port_name: Callable[[int], str],
+        port_names: Mapping[int, str],
     ) -> list[pygame.event.Event]:
         """Read every opened input, in port-id order, until each has nothing left waiting.
 
         Args:
             midi_module: ``pygame.midi`` (for ``midis2events`` and ``MidiException``).
             inputs: The opened input ports by port id.
-            port_name: Looks up a port's name (only asked when a port is dropped).
+            port_names: Each port's name, kept from when it was opened (a vanished device
+                cannot be asked).
 
         Returns:
             The MIDIIN events, ``vice_id`` being the port id. Timestamps are PortMidi's.
@@ -687,29 +688,32 @@ class MidiInputReader:
             if port_id in self._dropped_port_ids:
                 continue
             try:
-                events.extend(
-                    self._read_port(midi_module=midi_module, port_id=port_id, port=inputs[port_id])
+                # Appends as it reads: what a port gave before it failed is still delivered
+                self._read_port(
+                    midi_module=midi_module, port_id=port_id, port=inputs[port_id], events=events
                 )
             except midi_module.MidiException:
                 self._dropped_port_ids.add(port_id)
                 LOG.exception(
                     'MIDI input port %d (%s) failed and is no longer read',
                     port_id,
-                    port_name(port_id),
+                    port_names[port_id],
                 )
         return events
 
     @staticmethod
     def _read_port(
-        *, midi_module: ModuleType, port_id: int, port: MidiPortReadable
-    ) -> list[pygame.event.Event]:
-        events: list[pygame.event.Event] = []
+        *,
+        midi_module: ModuleType,
+        port_id: int,
+        port: MidiPortReadable,
+        events: list[pygame.event.Event],
+    ) -> None:
         while port.poll():
             messages = port.read(MIDI_READ_BATCH)
             if not messages:
                 break
             events.extend(midi_module.midis2events(messages, port_id))
-        return events
 
 
 class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every DeviceRegistry member
@@ -730,6 +734,8 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         self._midi_outputs: dict[int, PygameMidiOutput] = {}
         self._new_midi_ports: list[MidiPortDescriptor] = []
         self._midi_input_reader = MidiInputReader()
+        # Each opened input port's name, kept from its open for the log if it fails
+        self._midi_input_names: dict[int, str] = {}
 
     def joystick_count(self: Self) -> int:
         """Return how many joysticks SDL reports (remembered for the recorder).
@@ -944,6 +950,7 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
             construct=midi_module.Input,
         )
         self._midi_inputs[port_id] = midi_input
+        self._midi_input_names[port_id] = descriptor.name
         self._remember_opened_midi_port(call=OPEN_MIDI_INPUT_CALL, descriptor=descriptor)
         return midi_input
 
@@ -1006,13 +1013,8 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         midi_module = import_midi_module(log_unavailable=False)
         if midi_module is None:  # pragma: no cover - ports are opened only where PortMidi is
             return []
-
-        def port_name(port_id: int) -> str:
-            info = _read_midi_port_info(midi_module=midi_module, port_id=port_id)
-            return 'unknown' if info is None else info.name
-
         return self._midi_input_reader.read(
-            midi_module=midi_module, inputs=self._midi_inputs, port_name=port_name
+            midi_module=midi_module, inputs=self._midi_inputs, port_names=self._midi_input_names
         )
 
     def midi_output_for_port(self: Self, *, port_id: int) -> PygameMidiOutput | None:

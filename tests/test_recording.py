@@ -33,6 +33,7 @@ from glitchygames.events import (
     named_custom_event_type,
 )
 from glitchygames.events import base as events_base
+from glitchygames.exit_codes import ExitCode
 from glitchygames.input import devices as devices_module
 from glitchygames.input.devices import MIDI_INPUT_KIND, MidiPortDescriptor, MidiPortInfo
 from glitchygames.input.stand_in_devices import StandInDeviceSources, stand_in_registry
@@ -92,10 +93,21 @@ from glitchygames.recording_history import (
 )
 from glitchygames.replay.driver import ReplaySources
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
+from glitchygames.replay.tools.golden_traces import (
+    GoldenTraceEngine,
+    GoldenTraceSceneManager,
+    command_line,
+)
 from glitchygames.scenes import Scene
 from glitchygames.sources import frame_clock_seconds, set_frame_clock_seconds
 from glitchygames.supervision import ControlEvent
 from glitchygames.tracing import TraceFormatError, TraceWriter, read_trace_result
+from tests.replay.replay_helpers import replay_through_engine, rewrite_recording
+from tests.stand_in_harness_games import (
+    MIDI_READOUT_FRAMES,
+    MIDI_READOUT_ORIGIN,
+    MidiReadoutScene,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -1380,44 +1392,6 @@ class TestRecordingSources:
             kind=MIDI_INPUT_KIND, port_id=0, name='Keys', interface='CoreMIDI'
         )
 
-    def test_recorded_midi_input_replays_exactly(self, tmp_path, mocker):
-        """MIDI input is recorded with its frame's batch and replayed without any PortMidi."""
-        keys = MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False)
-        registry = stand_in_registry(descriptors=[], midi_ports=[keys, keys])
-        recorder = GameplayRecorder(
-            path=tmp_path / 'midi-input.jsonl.gz',
-            header={'game_class': 'Unit', 'random_seed': 1, 'recorded_at': '2026-11-24T12:00:00'},
-        )
-        sources = RecordingSources(
-            inner=StandInDeviceSources(registry=registry, random_seed=1), recorder=recorder
-        )
-        sources.devices().open_midi_input(port_id=1)
-        batches = []
-        for frame_number, messages in enumerate([
-            [([0x90, 60, 100, 0], 10), ([0x80, 60, 0, 0], 20)],
-            [],
-            [([0xB0, 1, 64, 0], 30)],
-        ]):
-            registry.queue_midi_input(port_id=1, messages=messages)
-            batches.append(sources.pump_events())
-            _end_frame(sources, frame_number=frame_number)
-        recorder.close()
-
-        # The replay never touches PortMidi
-        mocker.patch.object(devices_module, 'import_midi_module', side_effect=RuntimeError('no'))
-        replay = ReplaySources.from_path(path=recorder.path)
-        replayed = []
-        for frame_number in range(len(batches)):
-            replayed.append(replay.pump_events())
-            replay.end_frame(frame_number=frame_number, dt=0.016, scene=None, control_events=[])
-
-        def fields(batch):
-            return [(event.type, event.dict) for event in batch]
-
-        assert [len(batch) for batch in batches] == [2, 0, 1]
-        assert [fields(batch) for batch in replayed] == [fields(batch) for batch in batches]
-        assert all(event.type == pygame.MIDIIN for batch in replayed for event in batch)
-
     def test_input_changes_diff_against_the_previous_frame(self, tmp_path, mocker):
         """The first snapshot diffs against IDLE_INPUT; an unchanged frame records nothing."""
         path = tmp_path / 'unit.jsonl.gz'
@@ -1588,3 +1562,121 @@ class TestRecordingSources:
         assert [event.type for event in batch] == [pygame.QUIT]
         assert recorder.frame_count == 1
         assert len(read_trace_result(path=path).trace['frames']) == 1
+
+
+# MIDI input per frame of the recorded run: (message, PortMidi's timestamp)
+MIDI_SESSION_MESSAGES = {
+    2: [([0x90, 60, 100, 0], 10), ([0x80, 60, 0, 0], 20)],
+    5: [([0x90, 64, 90, 0], 30)],
+    8: [([0xB0, 1, 64, 0], 40)],
+}
+# The note the tampering changes, and what it becomes
+TAMPERED_NOTE = 64
+CHANGED_NOTE = 65
+
+
+class ScheduledMidiSources(StandInDeviceSources):
+    """Stand-in doors whose MIDI port receives each scheduled message in its frame."""
+
+    def __init__(self, **options):
+        """Start at frame 0."""
+        super().__init__(**options)
+        self.pumps = 0
+
+    def pump_events(self):
+        """Queue this frame's MIDI messages on port 0, then pump as the live doors do.
+
+        Returns:
+            The batch.
+        """
+        self.registry.queue_midi_input(
+            port_id=0, messages=MIDI_SESSION_MESSAGES.get(self.pumps, [])
+        )
+        self.pumps += 1
+        return super().pump_events()
+
+
+class MidiSessionEngine(GoldenTraceEngine):
+    """The golden-trace engine on stand-in doors that list one MIDI keyboard."""
+
+    def build_live_sources(self, *, random_seed, captures_scene_starts):
+        """Build the stand-in doors with the keyboard.
+
+        Returns:
+            The doors.
+        """
+        keys = MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False)
+        return ScheduledMidiSources(
+            registry=stand_in_registry(descriptors=[], midi_ports=[keys]),
+            random_seed=random_seed,
+            captures_scene_starts=captures_scene_starts,
+        )
+
+
+def record_midi_session(*, mocker, path):
+    """Record the MIDI readout scene's live run (stand-in keyboard) through the real engine."""
+    # GameEngine._shutdown quits pygame; later tests on this worker still need it
+    mocker.patch('pygame.quit')
+    mocker.patch('pygame.display.quit')
+    GoldenTraceSceneManager.install()
+    try:
+        with command_line([
+            '--log-level',
+            'warning',
+            '--target-fps',
+            '0',
+            '--fps-log-interval-ms',
+            '1000000000',
+            '--record-trace',
+            str(path),
+        ]):
+            engine = MidiSessionEngine(game=MidiReadoutScene)
+        engine.start()
+    finally:
+        pygame.event.clear()
+        GoldenTraceSceneManager.uninstall()
+
+
+def change_a_recorded_note(trace):
+    """Change one recorded MIDI note's number by one."""
+    for frame in trace['frames']:
+        for batch in frame['event_batches']:
+            for record in batch:
+                if record['attributes'].get('data1') == TAMPERED_NOTE:
+                    record['attributes']['data1'] = CHANGED_NOTE
+
+
+@pytest.mark.draws_frames
+def test_recorded_midi_input_replays_exactly(mocker, tmp_path):
+    """A recorded MIDI session replays headless with no PortMidi, its sprites matching.
+
+    The scene turns each MIDI note into its marker's place, so the replay compares the MIDI the
+    game received frame by frame; a recorded note changed by one is reported as a divergence.
+    """
+    path = tmp_path / 'midi.jsonl.gz'
+    record_midi_session(mocker=mocker, path=path)
+    frames = read_trace_result(path=path).trace['frames']
+    marker_places = {tuple(sprite['rect'][:2]) for frame in frames for sprite in frame['sprites']}
+    origin_x, origin_y = MIDI_READOUT_ORIGIN
+    assert marker_places == {
+        MIDI_READOUT_ORIGIN,
+        (origin_x + 60, origin_y),
+        (origin_x + TAMPERED_NOTE, origin_y + 90),
+        (origin_x + 1, origin_y + 64),
+    }
+    # The replay never touches PortMidi
+    mocker.patch.object(devices_module, 'import_midi_module', side_effect=RuntimeError('no'))
+    mocker.patch('pygame.midi.midis2events', side_effect=RuntimeError('no'))
+
+    replay = replay_through_engine(mocker=mocker, scene_class=MidiReadoutScene, path=path)
+
+    assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
+    assert replay.result.frames_replayed == MIDI_READOUT_FRAMES
+    assert replay.result.divergence is None
+
+    # The check can fail: one recorded note changed by one is caught
+    rewrite_recording(recording_path=path, change=change_a_recorded_note)
+    tampered = replay_through_engine(mocker=mocker, scene_class=MidiReadoutScene, path=path)
+
+    assert tampered.exit_status != ExitCode.SUCCESS
+    assert tampered.result.divergence is not None

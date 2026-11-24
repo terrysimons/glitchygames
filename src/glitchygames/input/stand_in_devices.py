@@ -369,7 +369,9 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         return self._midi_input_reader.read(
             midi_module=midi_module,
             inputs=self._midi_inputs,
-            port_name=lambda port_id: self._midi_inputs[port_id].descriptor.name,
+            port_names={
+                port_id: port.descriptor.name for port_id, port in self._midi_inputs.items()
+            },
         )
 
     @override

@@ -1313,14 +1313,19 @@ TWO_INPUT_PORTS = [(b'CoreMIDI', b'Keys', 1, 0, 0), (b'CoreMIDI', b'Pads', 1, 0,
 class FakePortMidiInput:
     """A PortMidi input as the hardware gives it: queued messages, read in batches."""
 
-    def __init__(self, *, messages, fails=False):
-        """Queue the messages; ``fails`` makes every poll raise MidiException."""
+    def __init__(self, *, messages, fails=False, fails_after_reads=None):
+        """Queue the messages; it raises MidiException on every poll once ``fails``.
+
+        ``fails_after_reads`` makes it fail from the poll after that many reads.
+        """
         self.messages = list(messages)
         self.fails = fails
+        self.fails_after_reads = fails_after_reads
         self.read_sizes = []
 
     def poll(self):
-        if self.fails:
+        after_reads = self.fails_after_reads
+        if self.fails or (after_reads is not None and len(self.read_sizes) >= after_reads):
             message = 'Host error'
             raise pygame.midi.MidiException(message)
         return bool(self.messages)
@@ -1437,3 +1442,39 @@ def test_a_live_port_that_says_waiting_but_reads_nothing_does_not_loop_forever(m
 
     assert registry.read_midi_input() == []
     keys.read.assert_called_once_with(MIDI_READ_BATCH)
+
+
+def test_a_failing_live_port_is_dropped_even_when_portmidi_cannot_name_it_any_more(mocker, caplog):
+    """The port's name is kept from its open: a vanished device's info lookup is never needed."""
+    keys = FakePortMidiInput(messages=[([0x90, 60, 100, 0], 1)], fails=True)
+    pads = FakePortMidiInput(messages=[([0x99, 36, 90, 0], 2)])
+    midi_module = _patch_portmidi_inputs(mocker, inputs_by_port={0: keys, 1: pads})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+    registry.open_midi_input(port_id=1)
+    # The device is gone: PortMidi cannot describe it any more
+    midi_module.get_device_info.side_effect = pygame.midi.MidiException('Host error')
+
+    with caplog.at_level('ERROR', logger='game.input.devices'):
+        events = registry.read_midi_input()
+
+    assert _timestamps(events) == [2]
+    failures = [record.getMessage() for record in caplog.records if 'failed' in record.getMessage()]
+    assert len(failures) == 1
+    assert 'port 0 (Keys)' in failures[0]
+
+
+def test_what_a_port_gave_before_it_failed_is_delivered_in_that_frame(mocker):
+    """A port returning one full batch and then raising: the batch arrives, then it is dropped."""
+    burst = [([0x90, 60, 100, 0], timestamp) for timestamp in range(MIDI_READ_BATCH + 10)]
+    keys = FakePortMidiInput(messages=burst, fails_after_reads=1)
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+
+    first = registry.read_midi_input()
+    second = registry.read_midi_input()
+
+    assert _timestamps(first) == list(range(MIDI_READ_BATCH))
+    assert second == []
+    assert keys.read_sizes == [MIDI_READ_BATCH]
