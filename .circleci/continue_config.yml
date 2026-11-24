@@ -1,0 +1,1166 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine.
+# See: https://circleci.com/docs/2.0/configuration-reference
+version: 2.1
+
+parameters:
+  # Which tests this pipeline runs, chosen by the setup configuration (.circleci/config.yml,
+  # scripts/ci_change_scope.py): all, or, for a branch whose change is Markdown only, the Markdown
+  # checks instead of the test jobs (the owner, 2026-11-20: docs-only pull requests skip the test
+  # jobs; a plan-only one waited hours for the single macOS queue). Main always runs all
+  test-scope:
+    type: enum
+    enum: [all, markdown]
+    default: all
+  # The one Python every job runs on and installs, and the Linux jobs' image (cimg/python): 3.15
+  # (noxfile.TEST_PYTHONS, PINNED_PYTHONS; tests/test_ci_config.py checks what each job installs
+  # and runs). Python 3.14 was removed from the tests and CI (the owner, 2026-11-19: "let's get rid
+  # of Python 3.14 altogether"); it stays only the oldest the code must parse and type-check as
+  # (requires-python, ruff's and the type checkers' targets), as the browser builds' Pyodide 314
+  # runs it
+  PYTHON_VERSION:
+    type: string
+    default: "3.15.2"
+  XCODE_LATEST_VERSION:
+    type: string
+    default: "27.1.0"
+  # nox is installed once per job as a uv tool and run directly (no project venv; each nox
+  # session syncs its own from uv.lock): keep this at the version uv.lock pins
+  NOX_VERSION:
+    type: string
+    default: "2026.7.11"
+  # uv itself, installed before anything reads uv.lock: keep this at the version uv.lock pins
+  # (tests/test_ci_config.py checks both). Never the newest release unpinned: uv < 0.13.4
+  # trusts a compromised CA (GHSA-hq85-5cpj-mr62)
+  UV_VERSION:
+    type: string
+    default: "0.13.9"
+  # syft and grype (nox -s security-scan: the SBOM, its CVE scan and license check), system
+  # binaries rather than Python packages, so uv.lock cannot pin them. SYFT_VERSION is the syft that
+  # wrote docs/sbom.cyclonedx.json (its metadata.tools, which tests/test_ci_config.py checks): a
+  # different syft writes a different SBOM, and the drift check fails. Each release tarball is
+  # checked against its SHA-256 below (the linux_amd64 and linux_arm64 lines of the release's
+  # checksums.txt, https://github.com/anchore/syft/releases,
+  # https://github.com/anchore/grype/releases); the scan runs in the checks-linux job (CircleCI's
+  # Docker executors are amd64; arm64 for Linux on ARM). The SBOM is the same on every platform
+  # (scripts/generate_sbom.py), so the one macOS wrote is the one Linux checks for drift
+  SYFT_VERSION:
+    type: string
+    default: "1.57.1"
+  SYFT_LINUX_AMD64_SHA256:
+    type: string
+    default: "bf52519eb57f675d47c07d43213cb6dff6449f3d6d1147ff6701ed91f44eef0c"
+  SYFT_LINUX_ARM64_SHA256:
+    type: string
+    default: "aa3d3e07344f590bcce8d31043b752daa76c8a56c2aa34ceeee63c6168152582"
+  GRYPE_VERSION:
+    type: string
+    default: "0.121.3"
+  GRYPE_LINUX_AMD64_SHA256:
+    type: string
+    default: "e9da18cc1429e786722e32161288103600efffd8e483c90761f90485bd1bec85"
+  GRYPE_LINUX_ARM64_SHA256:
+    type: string
+    default: "b7815598d48da78bfd16f5b98ef28e1bb09c03d34fc8c3e350f99b6ccb3c7cba"
+  # The fingerprint of the deploy key that may push gh-pages (a GitHub deploy key with write
+  # access to this repository, its private half in this CircleCI project's SSH keys): the
+  # deploy-docs job loads it with add_ssh_keys
+  DOCS_DEPLOY_KEY_FINGERPRINT:
+    type: string
+    # "CircleCI docs deploy" (read-write), added 2026-10-25
+    default: "SHA256:hrFdSe6hsyMQCDqSs1m1/3U9ujOZ6XJok7D7Ib41vgc"
+
+orbs:
+  win: circleci/windows@5.1.1
+  macos: circleci/macos@3.0.0
+  jira: circleci/jira@2.2.0
+  slack: circleci/slack@6.1.3
+
+commands:
+  # One cache per OS: uv's wheel cache and its managed Python, which every nox session's
+  # `uv sync --frozen` draws on. There is no project venv to cache: nox is a uv tool (installed
+  # by each job, never cached: ~/.local/share/uv/tools stays out of the paths, as Windows's
+  # tools directory, under %APPDATA%, does) and each session syncs its own venv from uv.lock
+  # (noxfile.py)
+  restore-uv-cache-posix:
+    steps:
+      - restore_cache:
+          keys:
+            - uv-cache-v3-{{ arch }}-{{ checksum "uv.lock" }}
+            - uv-cache-v3-{{ arch }}-
+
+  # Saved at the end of the job, once the nox sessions have filled it, and after
+  # `uv cache prune --ci` drops what is cheaper to download again than to restore (pre-built
+  # wheels), keeping what was built from source. Skipped when the key already exists, so the key's
+  # version goes up when what a job installs changes and uv.lock does not: v3 (posix) and v4
+  # (Windows) when every job moved to 3.15 (2026-11-18), as v2's keys held 3.14's Python
+  save-uv-cache-posix:
+    steps:
+      - run:
+          name: "Prune the uv cache"
+          when: always
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv cache prune --ci
+      - save_cache:
+          key: uv-cache-v3-{{ arch }}-{{ checksum "uv.lock" }}
+          when: always
+          paths:
+            - ~/.cache/uv
+            - ~/.local/share/uv/python
+
+  install-deps-posix:
+    parameters:
+      # The Pythons the job's nox sessions run on, and only those (the owner, 2026-11-18: "only
+      # targeting 3.15 with nox in the 3.15 jobs"), named at every use
+      pythons:
+        type: string
+      no_output_timeout:
+        type: string
+        default: 10m
+    steps:
+      - run:
+          name: "Install uv and Python"
+          no_output_timeout: << parameters.no_output_timeout >>
+          command: |
+            set -euo pipefail
+
+            # The installer for one uv version:
+            # https://docs.astral.sh/uv/getting-started/installation/
+            curl -LsSf https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.sh | sh
+            export PATH="$HOME/.local/bin:$PATH"
+
+            uv --version
+
+            # The job's Pythons (download if needed on this executor); the nox sessions install
+            # the project from uv.lock themselves
+            uv python install << parameters.pythons >>
+
+            # nox at the pinned version, a uv tool (its own venv; the executable in ~/.local/bin),
+            # run directly by every later step. Under `uvx` the uvx process stayed alive as nox's
+            # parent, about 47 MiB that the Linux job's memory guard counts
+            uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"
+            nox --version
+
+  # The system packages the Linux jobs need, from apt, with apt's lists and downloads cached:
+  # the test job (test-python-3-15-linux), the checks (checks-linux, which installs the project
+  # with every extra, hidapi's source build included) and the docs deploy (deploy-docs, which
+  # runs on Linux so it takes no Mac from the macOS jobs: the owner, 2026-11-20). One list for
+  # all, so one cache key and one install line (nox -s test-linux-ci reads it)
+  install-linux-system-dependencies:
+    steps:
+      # apt's package lists and the packages it downloaded, kept between jobs, so an Ubuntu mirror
+      # outage cannot stop the job: jobs 3822 and 3827 (2026-11-19) died here when apt-get update
+      # could not reach archive.ubuntu.com or security.ubuntu.com for 7+ minutes, and every later
+      # step failed with "nox: command not found". The owner, 2026-11-19 ("Yeah, 226"): cache them,
+      # install from the cache, and fall back to the mirror. Retries alone were turned down (apt
+      # gives up within about a minute), and so was an image of our own (too heavy for these
+      # packages). The key holds the image, the architecture and every package the step installs:
+      # change the install line and change the key with it (tests/test_ci_config.py). It ends with
+      # this ISO week, as CircleCI never overwrites a key: a key that never changed would keep the
+      # first job's lists until the mirror dropped a version they name, and then every job would
+      # need the mirror again and none could save fresher lists. A new week's first job restores
+      # last week's cache (the fallback key) and saves its own. Only the very first job, with no
+      # cache under any week, needs the mirror; bump the version to start afresh. v2: apt reads
+      # only Ubuntu's main (7.3 MB, not 44), and an existing week's v1 key kept the old cache
+      - run:
+          name: "Name this week's apt cache"
+          command: |
+            mkdir -p test-results
+            date +%G-%V > test-results/apt-cache-week
+
+      - restore_cache:
+          keys:
+            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-rsync-{{ checksum "test-results/apt-cache-week" }}
+            - apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-rsync-
+
+      - run:
+          name: "Install Linux system dependencies"
+          command: |
+            set -euo pipefail
+            # apt keeps its lists and downloaded packages in ~/apt-cache, which the cache saves
+            # (the image's docker-clean deletes packages from /var/cache/apt/archives only, and
+            # its apt keeps none unless told to), and retries each download. It reads only the
+            # main component of Ubuntu's own sources: our packages are all in main (and a main
+            # package depends only on main), so it fetches about 4 MB of lists instead of 27, and
+            # the image's Docker, git PPA and git-lfs sources, which we install nothing from,
+            # cannot slow or fail it (the owner, 2026-11-19: "only check for updates for
+            # particular packages"; apt's lists come whole per source, never per package). The
+            # copy keeps each source's URIs, suites and key, so either architecture's mirror works
+            sudo sed 's/^Components:.*/Components: main/' /etc/apt/sources.list.d/ubuntu.sources \
+              | sudo tee /etc/apt/glitchygames-ubuntu-main.sources > /dev/null
+            mkdir -p "$HOME/apt-cache/lists/partial" "$HOME/apt-cache/archives/partial"
+            printf '%s\n' \
+              "Dir::State::Lists \"$HOME/apt-cache/lists\";" \
+              "Dir::Cache::Archives \"$HOME/apt-cache/archives\";" \
+              "APT::Keep-Downloaded-Packages \"true\";" \
+              "Binary::apt::APT::Keep-Downloaded-Packages \"true\";" \
+              "Acquire::Retries \"5\";" \
+              "Acquire::http::Timeout \"30\";" \
+              "Dir::Etc::SourceList \"/etc/apt/glitchygames-ubuntu-main.sources\";" \
+              "Dir::Etc::SourceParts \"/nonexistent-glitchygames-sources.d\";" \
+              | sudo tee /etc/apt/apt.conf.d/80glitchygames-apt-cache > /dev/null
+            install_packages() {
+              # fontconfig: the suite's text tests. pkg-config, libudev-dev, libusb-1.0-0-dev:
+              # hidapi's source build on Python 3.15, which has no manylinux wheel for it (job
+              # 3629); the Raspberry Pis install the same. iproute2 (ss) and lsof: the real-socket
+              # port test (tests/test_ansible_ai_service.py) skips without the platform's port
+              # tool. rsync: the pygame-ce browser wheel's build script (deploy-docs). Each split
+              # machine is its own container, so each installs them. nox -s
+              # test-linux-ci reads this line
+              sudo apt-get install -y fontconfig libudev-dev libusb-1.0-0-dev pkg-config iproute2 lsof rsync
+            }
+            # The fallback's update, tried 5 times. It complements the cache, never replaces it
+            # (retries alone were turned down above): it runs only when the cache cannot
+            # install (a new key, or a stale cache), and there one failed fetch stopped the job
+            # (job 3840, 2026-11-19: node 0's update got an HTTP 520 from archive.ubuntu.com;
+            # Acquire::Retries does not retry that). Error-Mode=any makes a failed fetch fail the
+            # update (apt 3.2 exits 0 after one otherwise). The waits, 30 to 240 seconds, add up
+            # to 7.5 minutes, past the 7+ minute outage of 2026-11-19 and under CircleCI's
+            # 10-minute no-output limit; each failure is printed before its wait
+            update_from_the_mirror() {
+              local waits=(30 60 120 240)
+              local attempts=$(( ${#waits[@]} + 1 ))
+              local attempt=1
+              until sudo apt-get update -o APT::Update::Error-Mode=any; do
+                if (( attempt == attempts )); then
+                  echo "apt-get update failed $attempts times: giving up" >&2
+                  return 1
+                fi
+                local wait_seconds=${waits[attempt - 1]}
+                echo "apt-get update failed (attempt $attempt of $attempts):" \
+                  "trying again in ${wait_seconds}s" >&2
+                sleep "$wait_seconds"
+                attempt=$(( attempt + 1 ))
+              done
+            }
+            # Every run first tries to refresh the lists from the mirror, and goes on without
+            # them if it cannot (the owner, 2026-11-19: "Make the update/upgrade non-fatal if it
+            # fails", "But attempt it every run"). Then the install takes our packages' newest
+            # versions, upgrading only them ("just do it with the packages we care about"): no
+            # apt-get upgrade, so the rest of the image stays as CircleCI built it and nothing
+            # else is cached. With the refresh failed, it installs from the restored lists and
+            # packages; with none restored (a new key) or a stale cache, the fallback updates
+            # until the mirror answers and installs again. After any refresh, autoclean drops
+            # the packages the fresh lists no longer name, so the cache saved keeps none
+            # The first refresh gives up within a minute, with apt's retries off, so an outage
+            # costs a job a minute at most before the cache installs (in the outage of
+            # 2026-11-19 one update kept trying for 7+ minutes). Stopping apt is safe: it moves
+            # an index into place only once it is whole
+            refreshed=false
+            if sudo timeout 60 apt-get update -o APT::Update::Error-Mode=any -o Acquire::Retries=0
+            then
+              refreshed=true
+            else
+              echo "Refreshing from the mirror failed: installing from the apt cache" >&2
+            fi
+            if ! install_packages; then
+              echo "Installing from the apt cache failed: updating from the mirror" >&2
+              update_from_the_mirror
+              install_packages
+              refreshed=true
+            fi
+            if [ "$refreshed" = true ]; then
+              sudo apt-get autoclean
+            fi
+            # apt leaves root-owned files (partial/ is root or _apt, mode 700): the cache saves
+            # them as this user
+            sudo chown -R "$(id -u):$(id -g)" "$HOME/apt-cache"
+
+      - save_cache:
+          key: apt-v2-<< pipeline.parameters.PYTHON_VERSION >>-{{ arch }}-fontconfig-libudev-dev-libusb-1.0-0-dev-pkg-config-iproute2-lsof-rsync-{{ checksum "test-results/apt-cache-week" }}
+          paths:
+            - ~/apt-cache
+
+  nox-format:
+    steps:
+      - run:
+          name: "Format check"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s format
+
+  nox-lint:
+    steps:
+      - run:
+          name: "Lint (ruff, the strict docs build, YAML, TOML, deps, dead code)"
+          # The strict docs build went quiet for minutes while scripts/mkdocs_hooks.py made the
+          # complexity graphs: job 5089 (#261) was killed at the default 10 minutes once #285
+          # moved the docs build to Linux. Only a deploy generates them now (a placeholder here),
+          # and the hook logs each stage's start and end; the longer timeout stays as a margin
+          no_output_timeout: 30m
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s lint
+
+  nox-static-analysis:
+    steps:
+      - run:
+          name: "Static analysis (basedpyright)"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s static-analysis
+
+  nox-timer-report:
+    parameters:
+      no_output_timeout:
+        type: string
+        default: 10m
+    steps:
+      # Diagnostic only (always succeeds): whether this machine is a VM, its CPU share, and how
+      # late it wakes sleeping code; the timing tests judge, this explains their numbers. The
+      # nox session detects the OS itself
+      - run:
+          name: "Timer report (diagnostic)"
+          no_output_timeout: << parameters.no_output_timeout >>
+          when: always
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s timer-report
+
+  nox-test:
+    parameters:
+      # One Python's test session (noxfile.TEST_PYTHONS), named at every use, never a default:
+      # test-3.15
+      session:
+        type: string
+    steps:
+      # Tests run (and report) even when an earlier lint or format step failed, so a lint
+      # failure never hides the test results. Headless: the test session defaults SDL's video
+      # and audio drivers to dummy, and the Linux image has no clipboard tool, so the real
+      # clipboard test checks the no-clipboard path there.
+      - run:
+          name: "Tests (pytest + coverage)"
+          no_output_timeout: 120m
+          when: always
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s << parameters.session >>
+      - store_test_results:
+          path: test-results
+          when: always
+      - store_artifacts:
+          path: test-results
+          destination: test-results-<< parameters.session >>
+          when: always
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-html-<< parameters.session >>
+          when: always
+
+  # A split job's machine leaves its coverage data for the job that combines them
+  # (tests/circleci_test_split.py): .coverage, renamed by the machine's index, in coverage-data/
+  # under the job's name. Each machine's file is its own, so the workspace never gets one path twice
+  save-coverage-share-posix:
+    parameters:
+      # The job's name in coverage-data/, which its combine job reads
+      share:
+        type: string
+    steps:
+      - run:
+          name: "Keep this machine's coverage data"
+          command: |
+            set -euo pipefail
+            mkdir -p "coverage-data/<< parameters.share >>"
+            mv .coverage "coverage-data/<< parameters.share >>/.coverage.node-${CIRCLE_NODE_INDEX}"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - coverage-data/<< parameters.share >>
+
+  # As save-coverage-share-posix
+  save-coverage-share-windows:
+    parameters:
+      share:
+        type: string
+    steps:
+      - run:
+          name: "Keep this machine's coverage data"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $share = "coverage-data/<< parameters.share >>"
+            New-Item -ItemType Directory -Force -Path $share | Out-Null
+            Move-Item .coverage "$share\.coverage.node-$env:CIRCLE_NODE_INDEX"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - coverage-data/<< parameters.share >>
+
+  # syft and grype at their pinned versions, each release tarball checked against its pinned
+  # SHA-256 before anything is extracted (Linux, amd64 or arm64: the machine's own checksums)
+  install-supply-chain-tools-linux:
+    steps:
+      - run:
+          name: "Install syft and grype (pinned, checksummed)"
+          command: |
+            set -euo pipefail
+            case "$(uname -s) $(uname -m)" in
+              "Linux x86_64")
+                architecture=amd64
+                syft_sha256="<< pipeline.parameters.SYFT_LINUX_AMD64_SHA256 >>"
+                grype_sha256="<< pipeline.parameters.GRYPE_LINUX_AMD64_SHA256 >>"
+                ;;
+              "Linux aarch64")
+                architecture=arm64
+                syft_sha256="<< pipeline.parameters.SYFT_LINUX_ARM64_SHA256 >>"
+                grype_sha256="<< pipeline.parameters.GRYPE_LINUX_ARM64_SHA256 >>"
+                ;;
+              *)
+                echo "The pinned syft and grype checksums are Linux amd64's and arm64's; this is $(uname -s) $(uname -m)" >&2
+                exit 1
+                ;;
+            esac
+            mkdir -p "$HOME/.local/bin"
+            download_directory=$(mktemp -d)
+            install_release() {
+              local tool="$1" version="$2" sha256="$3"
+              local archive="${tool}_${version}_linux_${architecture}.tar.gz"
+              curl -fsSL -o "$download_directory/$archive" \
+                "https://github.com/anchore/${tool}/releases/download/v${version}/${archive}"
+              echo "$sha256  $download_directory/$archive" | sha256sum -c -
+              tar -xzf "$download_directory/$archive" -C "$download_directory" "$tool"
+              install -m 0755 "$download_directory/$tool" "$HOME/.local/bin/$tool"
+            }
+            install_release syft "<< pipeline.parameters.SYFT_VERSION >>" "$syft_sha256"
+            install_release grype "<< pipeline.parameters.GRYPE_VERSION >>" "$grype_sha256"
+            rm -rf "$download_directory"
+            export PATH="$HOME/.local/bin:$PATH"
+            syft version
+            grype version
+
+  nox-security-scan:
+    steps:
+      - run:
+          name: "Security scan (bandit, syft SBOM, grype CVEs, licenses)"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s security-scan
+
+  nox-performance-test:
+    steps:
+      - run:
+          name: "Performance benchmarks"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s performance-test
+
+  # The Bitmappy binary and the wheels, on Python 3.15 (noxfile.BUILD_PYTHONS; the owner,
+  # 2026-11-18: "Switch the builds over to 3.15"). A job builds on its last machine only: every
+  # step of a job runs on each of its machines, and both built the same thing. The last, so a
+  # split job (Linux, Windows) builds on machine 1, beside the share of tests that leaves it
+  # time (the owner, 2026-11-19: machine 0 also built, 53 of Linux's 60 minutes), and an
+  # unsplit job (macOS) on its only machine (tests/test_ci_config.py)
+  nox-build:
+    steps:
+      - run:
+          name: "Build binary and wheel"
+          command: |
+            set -euo pipefail
+            last_machine=$(( ${CIRCLE_NODE_TOTAL:-1} - 1 ))
+            if [ "${CIRCLE_NODE_INDEX:-0}" != "$last_machine" ]; then
+              echo "Built on machine $last_machine only"
+              exit 0
+            fi
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s build
+      - store_artifacts:
+          path: dist
+          destination: dist
+
+  # As nox-build, on Windows
+  nox-build-windows:
+    steps:
+      - run:
+          name: "Build binary and wheel"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $total = if ($env:CIRCLE_NODE_TOTAL) { [int]$env:CIRCLE_NODE_TOTAL } else { 1 }
+            $index = if ($env:CIRCLE_NODE_INDEX) { [int]$env:CIRCLE_NODE_INDEX } else { 0 }
+            if ($index -ne $total - 1) {
+              Write-Output "Built on machine $($total - 1) only"
+              exit 0
+            }
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            nox -s build
+      - store_artifacts:
+          path: dist
+          destination: dist
+
+  # As restore-uv-cache-posix / save-uv-cache-posix; the cache is the job's short UV_CACHE_DIR
+  restore-uv-cache-windows:
+    steps:
+      - restore_cache:
+          keys:
+            - uv-cache-v4-windows-{{ checksum "uv.lock" }}
+            - uv-cache-v4-windows-
+
+  save-uv-cache-windows:
+    steps:
+      - run:
+          name: "Prune the uv cache"
+          when: always
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            uv cache prune --ci
+      - save_cache:
+          key: uv-cache-v4-windows-{{ checksum "uv.lock" }}
+          when: always
+          paths:
+            # The job's UV_CACHE_DIR (test-python-3-15-windows), not uv's default under AppData
+            - C:\uv-cache
+            - C:\Users\circleci\AppData\Local\uv\python
+
+  # As install-deps-posix
+  install-deps-windows:
+    parameters:
+      # As install-deps-posix
+      pythons:
+        type: string
+    steps:
+      - run:
+          name: "Install uv and Python"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+
+            # Install uv: the installer for one uv version
+            # (https://docs.astral.sh/uv/getting-started/installation/)
+            irm https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.ps1 | iex
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+
+            uv --version
+
+            # Long paths on, before anything builds from source: belt and braces beside the
+            # job's short UV_CACHE_DIR, as MSVC's linker may not honour it (the owner,
+            # 2026-11-17). A package with no wheel for a Python (hidapi on 3.15) is compiled
+            # inside uv's cache, and setuptools repeats the source's absolute path in its build
+            # folder: under the default cache a linker output reached 260 characters, one past
+            # Windows' limit (CircleCI job 3628: LNK1104)
+            New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
+              -Name 'LongPathsEnabled' -Value 1 -PropertyType DWORD -Force | Out-Null
+
+            # The job's Pythons; the nox sessions install the project from uv.lock themselves
+            uv python install << parameters.pythons >>
+
+            # nox at the pinned version, a uv tool run directly, as in install-deps-posix
+            uv tool install "nox[uv]==<< pipeline.parameters.NOX_VERSION >>"
+            nox --version
+
+  # As nox-test
+  nox-test-windows:
+    parameters:
+      # As nox-test's: named at every use
+      session:
+        type: string
+    steps:
+      # Tests run (and report) even when an earlier step failed, as in nox-test
+      - run:
+          name: "Tests (pytest + coverage)"
+          no_output_timeout: 120m
+          when: always
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            nox -s << parameters.session >>
+      - store_test_results:
+          path: test-results
+          when: always
+      - store_artifacts:
+          path: test-results
+          destination: test-results-<< parameters.session >>
+          when: always
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-html-<< parameters.session >>
+          when: always
+
+# Define a job to be invoked later in a workflow.
+# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
+jobs:
+  test-python-3-15-macos:
+    macos:
+      xcode: << pipeline.parameters.XCODE_LATEST_VERSION >>
+    resource_class: m4pro.medium
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      # The Bitmappy binary is built for this executor's architecture (arm64, Apple silicon):
+      # no PYINSTALLER_TARGET_ARCH. A universal2 build needs every compiled extension fat,
+      # and numpy, scipy, pandas, Pillow and pydantic-core ship arm64-only wheels for macOS
+      # (PyInstaller then fails: "... is not a fat binary!"; it does not fall back)
+      # Each machine rolls the suite's order, fixed or shuffled, and a shuffle's seed, from the
+      # workflow's workspace, job and machine, so a rerun repeats its first run's roll
+      # (noxfile.choose_suite_order; the owner, 2026-11-20); the log and test-order.txt name it
+      GLITCHYGAMES_TEST_ORDER: "roll"
+
+    steps:
+      - checkout
+
+      - restore-uv-cache-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      # Only what is there for a Mac (the owner, 2026-11-22: format, lint, the docs, type checks
+      # and the security scan moved to checks-linux, at a tenth of a Mac's credits a minute): the
+      # timer report explains this machine's timing tests, the benchmarks keep their history on
+      # one hardware (their real-time relations flip under load: tests/benchmarks/), and the
+      # build is the macOS binary
+      - nox-timer-report
+      # 3.15, every session (noxfile.PINNED_PYTHONS; the owner, 2026-11-18: "Only 3.15 for macos
+      # too", "Just change that job's name to test-python-3-15-macos"). Linux and Windows run it
+      # in jobs of their own (test-python-3-15-linux, -windows), split across six and three
+      # machines: the suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
+      - nox-test:
+          session: test-3.15
+      - nox-performance-test
+      - nox-build
+      - save-uv-cache-posix
+
+  # The suite on Linux and Windows, a job each: only what differs by platform (the tests, the
+  # OS's build, and its uv cache, saved last: the owner, 2026-11-18, "Yes, let's move the uv
+  # cache"). The checks that give the same answer on every OS run in checks-linux, and the
+  # benchmarks on macOS
+  test-python-3-15-linux:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
+    # small (1 vCPU, 2 GB): one process runs the machine's share of the suite. It grew past 2 GB
+    # until the recording mocks in two timing and hardware tests were replaced (BUGS.md #85)
+    resource_class: small
+    # Six machines (the owner, 2026-11-23; three from 2026-11-20). Docker is billed per CPU
+    # minute, so the tests cost about what three machines' did, but each machine also pays the
+    # same fixed setup before its first test (apt, hidapi's source build, uv and Python, the
+    # whole-suite collection), and six pay it twice as often: compare the job's machine-minutes
+    # with a three-machine run's, not only its wall time
+    parallelism: 6
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
+      PYTEST_WORKERS: "0"
+      # Stop the run past 1500 MiB of the container's memory (its page cache left out), naming the
+      # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
+      # no test named (BUGS.md #235). The owner, 2026-11-23: back to 1500, as every machine now
+      # collects the whole suite (#286, about 180 MiB more each): the three machines peaked at
+      # 1335, 1226 and 1240 MiB (job 5115), too near 1400 for a slab that swings about 120 MiB a
+      # run. The owner, 2026-11-19: tightened after #226, to 1500, then 1400 once the memory
+      # follow-ups landed (#230: each machine collected only its share, the free heap is trimmed
+      # and the catalog's builds emptied after each test). With them the job peaked at 1105 and
+      # 1139 MiB (job 3948; 302 and 288 MiB of it reclaimable kernel slab, which the reading still
+      # counts: memory_guard.py), against 1328 and 1283 on main (job 3945). Was 1750
+      # (2026-11-17), 1600 before that (2026-10-28)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1500"
+      # Each machine runs its share of the suite: the heavy replays dealt out, the rest as
+      # CircleCI's splitter assigns them by past timings (tests/circleci_test_split.py). One
+      # machine ran past CircleCI's one-hour job limit (jobs 3705, 3707; the owner, 2026-11-18:
+      # two; 2026-11-20: three; 2026-11-23: six). The coverage rule is applied to the shares
+      # combined, by coverage-combine-<os> after this job
+      GLITCHYGAMES_TEST_SPLIT: "circleci"
+      # Each machine rolls the suite's order, fixed or shuffled, and a shuffle's seed, from the
+      # workflow's workspace, job and machine, so a rerun repeats its first run's roll
+      # (noxfile.choose_suite_order; the owner, 2026-11-20); the log and test-order.txt name it
+      GLITCHYGAMES_TEST_ORDER: "roll"
+
+    steps:
+      - checkout
+
+      - install-linux-system-dependencies
+
+      - restore-uv-cache-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - nox-test:
+          session: test-3.15
+      - save-coverage-share-posix:
+          share: linux-test-3.15
+      - nox-build
+      - save-uv-cache-posix
+
+  test-python-3-15-windows:
+    executor:
+      name: win/default
+      size: medium
+    # Split as on Linux (the owner, 2026-11-18: "Do it for windows too"; 2026-11-20: three)
+    parallelism: 3
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      # A test worker on each of the medium executor's 4 CPUs (16 GB): the test session's CI
+      # default is half the CPUs (noxfile.py, #71: "to avoid resource exhaustion", from when the
+      # count was the host's), 2 here. The owner, 2026-11-23; twice the parallel load on each
+      # machine, so drop this alone if the Windows tests grow flaky under it
+      PYTEST_WORKERS: "4"
+      GLITCHYGAMES_TEST_SPLIT: "circleci"
+      # Each machine rolls the suite's order, fixed or shuffled, and a shuffle's seed, from the
+      # workflow's workspace, job and machine, so a rerun repeats its first run's roll
+      # (noxfile.choose_suite_order; the owner, 2026-11-20); the log and test-order.txt name it
+      GLITCHYGAMES_TEST_ORDER: "roll"
+      # uv's cache at a short path, so a source build's paths stay under Windows' 259
+      # characters: the cache's path appears twice in them (see install-deps-windows)
+      UV_CACHE_DIR: 'C:\uv-cache'
+
+    steps:
+      - checkout
+
+      - restore-uv-cache-windows
+      - install-deps-windows:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - nox-test-windows:
+          session: test-3.15
+      - save-coverage-share-windows:
+          share: windows-test-3.15
+      - nox-build-windows
+      - save-uv-cache-windows
+
+  # Every check that gives the same answer on every OS, once, on Linux beside the test jobs (the
+  # owner, 2026-11-22): format, lint (ruff, the one strict docs build of a pipeline, YAML, TOML,
+  # deptry, vulture), the type checkers, and the security scan (bandit, the syft SBOM and its
+  # drift check, grype, licenses; the SBOM is the same on every platform). They ran on the macOS
+  # job, where the docs were built twice (job 5021: 553 s inside lint, 124 s in lint-docs) at 200
+  # credits a minute, and macOS jobs run one at a time
+  checks-linux:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
+    # large (4 vCPUs, 8 GB): the strict docs build was killed for memory at medium's 4 GB
+    # (deploy-docs)
+    resource_class: large
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+
+    steps:
+      # A full clone, not CircleCI's default blobless one: the docs build reads past commits
+      # (the performance graphs' landed rows), and in a blobless clone git fetches each missing
+      # file from GitHub one at a time (job 5174 timed out). The code-tree walk itself no longer
+      # reads file contents (glitchygames/code_tree.py); this keeps the rest of the docs build
+      # from paying for any other history read
+      - checkout:
+          method: full
+
+      # hidapi's source build (no Linux wheel for 3.15): every session here installs every extra
+      - install-linux-system-dependencies
+
+      - restore-uv-cache-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - nox-format
+      - nox-lint
+      - nox-static-analysis
+      - install-supply-chain-tools-linux
+      - nox-security-scan
+      - save-uv-cache-posix
+
+  # A split test job's coverage, its machines' data combined, held to the 100% rule
+  # (nox -s coverage-combine; tests/circleci_test_split.py). Only coverage is installed
+  coverage-combine-linux:
+    parameters:
+      # The split job's name in coverage-data/ (save-coverage-share-posix)
+      share:
+        type: string
+      # The split job's Python, and its coverage-combine session (coverage-combine-3.15)
+      pythons:
+        type: string
+      session:
+        type: string
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
+    resource_class: small
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - install-deps-posix:
+          pythons: << parameters.pythons >>
+      - run:
+          name: "Combine the machines' coverage and apply the 100% rule"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s << parameters.session >> -- "coverage-data/<< parameters.share >>"
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-html-<< parameters.share >>
+          when: always
+
+  # As coverage-combine-linux, on Windows: the data names Windows paths
+  coverage-combine-windows:
+    parameters:
+      share:
+        type: string
+      pythons:
+        type: string
+      session:
+        type: string
+    executor:
+      name: win/default
+      size: medium
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - install-deps-windows:
+          pythons: << parameters.pythons >>
+      - run:
+          name: "Combine the machines' coverage and apply the 100% rule"
+          shell: powershell.exe
+          command: |
+            $ErrorActionPreference = "Stop"
+            $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+            nox -s << parameters.session >> -- "coverage-data/<< parameters.share >>"
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-html-<< parameters.share >>
+          when: always
+
+  # The test suite on real ARM hardware: a Raspberry Pi 4 (4 GB, no added cooling) running machine
+  # runner 3 (plans/2026-11-04-raspberry-pi-ci-runner.md), set up by
+  # ansible/raspberry_pi_runner.yml. Never nox-performance-test here: it runs
+  # tests/benchmarks/test_logging_cost.py, whose heavy logs wear the Pi's SD card. The uv cache
+  # stays on the host, so no CircleCI cache (storage and network use credits), and the job has no
+  # sudo, so the host is provisioned with what it needs (fontconfig)
+  build-and-test-raspberry-pi-4-4gb-ubuntu: &raspberry-pi-job
+    machine: true
+    resource_class: terrysimons/raspberry-pi-4-4gb-ubuntu
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      # Serially, as on Linux: parallel workers could reach the swap file on the SD card
+      PYTEST_WORKERS: "0"
+      # As on Linux: stop past 1500 MiB, naming the test (tests/memory_guard.py), not a kernel
+      # kill with no test named. The owner, 2026-11-04: limits stay on the real hardware; and
+      # 2026-11-19: one limit for all Linux systems, including the Pi job (1500 from 2026-11-23)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1500"
+      # As on the other test jobs: roll the suite's order (noxfile.choose_suite_order)
+      GLITCHYGAMES_TEST_ORDER: "roll"
+
+    steps:
+      - checkout
+      # 30m, not the default 10m: the first install on a cold uv cache compiles without printing
+      # (build 2862 timed out in the timer report, the first step to install). nox-test keeps 120m
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+          no_output_timeout: 30m
+      - nox-timer-report:
+          no_output_timeout: 30m
+      - nox-test:
+          session: test-3.15
+      # After the tests: whether this run was slowed by heat or undervoltage. /dev/vcio is
+      # readable by the video group (a udev rule on the host), which the runner's user is in
+      - run:
+          name: "Throttling and temperature (vcgencmd)"
+          no_output_timeout: 30m
+          when: always
+          command: |
+            vcgencmd get_throttled
+            vcgencmd measure_temp
+      - run:
+          name: "Prune the uv cache"
+          no_output_timeout: 30m
+          when: always
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            uv cache prune
+
+  # The same job on a Raspberry Pi 5 (16 GB, Ubuntu 26.04), set up by the same playbook: only its
+  # runner differs. The same limits (the owner, 2026-11-08: the runner stays capped at 2 GB), so
+  # the two Pis' results compare the hardware, not the settings
+  build-and-test-raspberry-pi-5-16gb-ubuntu:
+    <<: *raspberry-pi-job
+    resource_class: terrysimons/raspberry-pi-5-16gb-ubuntu
+
+  # And on the 8 GB Raspberry Pi 5 (Ubuntu 26.10; the owner, 2026-11-14), the same job again
+  build-and-test-raspberry-pi-5-8gb-ubuntu:
+    <<: *raspberry-pi-job
+    resource_class: terrysimons/raspberry-pi-5-8gb-ubuntu
+
+  # And on the 16 GB Raspberry Pi 5 running Raspberry Pi OS (Trixie; the owner, 2026-11-16), set
+  # up as the Ubuntu 16 GB Pi is: the same job again, so the two compare the OSes
+  build-and-test-raspberry-pi-5-16gb-raspberry-pi-os:
+    <<: *raspberry-pi-job
+    resource_class: terrysimons/raspberry-pi-5-16gb-raspberry-pi-os
+
+  # And on the 8 GB Raspberry Pi 5 running Raspberry Pi OS (Trixie; the owner, 2026-11-21): the
+  # same job again. Its resource class is not created yet, and the job is off in the workflow
+  build-and-test-raspberry-pi-5-8gb-raspberry-pi-os:
+    <<: *raspberry-pi-job
+    resource_class: terrysimons/raspberry-pi-5-8gb-raspberry-pi-os
+
+  # Publishes the docs (https://terrysimons.github.io/glitchygames/, the gh-pages branch) after
+  # a merge to main: nox -s docs-deploy, browser games (play/) included, without measuring the
+  # replays (CI machines vary; their timings would be noise in the run ledger). It starts as soon
+  # as the macOS job passes (the fastest), alongside the Linux and Windows jobs, but runs on
+  # Linux: on a Mac it took one the pull requests' macOS jobs waited for (the owner, 2026-11-20:
+  # "cross-job contention for the mac")
+  deploy-docs:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
+    # large (4 vCPUs, 8 GB): the strict docs build was killed for memory at medium's 4 GB; at 8 GB
+    # the whole deploy build (wheel, seven games, docs) peaked at 5793 MiB, page cache included
+    # (cimg/python:3.15.2, arm64, 2026-11-20)
+    resource_class: large
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+
+    steps:
+      - checkout
+      # Publish what main is now, not only the commit this deploy was started for: a merge that
+      # landed while this deploy waited its turn (serial-group) is published here instead of
+      # depending on its own deploy, which may be canceled. A deploy whose main is already on
+      # gh-pages (MkDocs commits "Deployed <short hash> with MkDocs ...") stops, successfully
+      - run:
+          name: "Move to main's latest commit; stop if its docs are already published"
+          command: |
+            set -euo pipefail
+            git fetch --quiet origin main gh-pages
+            git checkout --quiet --detach origin/main
+            latest=$(git rev-parse HEAD)
+            published=$(git log -1 --format=%s origin/gh-pages \
+              | sed -n 's/^Deployed \([0-9a-f]\{7,\}\) with MkDocs.*/\1/p')
+            echo "main is at $latest; gh-pages holds ${published:-an unrecognised deploy}"
+            case "$latest" in
+              "${published:-none}"*)
+                echo "main's docs are already published: nothing to deploy"
+                circleci-agent step halt
+                ;;
+            esac
+      - run:
+          name: "Check out the pygame-ce submodule (the browser games' wheel is built from it)"
+          command: |
+            set -euo pipefail
+            git submodule update --init third_party/pygame-ce
+            git -C third_party/pygame-ce rev-parse HEAD > .pygame-ce-commit
+      - add_ssh_keys:
+          fingerprints:
+            - "<< pipeline.parameters.DOCS_DEPLOY_KEY_FINGERPRINT >>"
+      - restore-uv-cache-posix
+      # The Pyodide toolchain (about 2 GB; pinned in the build script) and the wheel it built
+      # from the submodule's commit (scripts/build_browser_bundle.py reuses it when
+      # dist-pyodide/build-info.json names that commit)
+      - restore_cache:
+          keys:
+            - pyodide-toolchain-v1-{{ arch }}-{{ checksum "third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh" }}
+      - restore_cache:
+          keys:
+            - pygame-ce-pyodide-wheel-v1-{{ checksum ".pygame-ce-commit" }}
+      # hidapi's source build (no Linux wheel for 3.15) and rsync (the wheel's build script)
+      - install-linux-system-dependencies
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - run:
+          name: "Deploy the docs (nox -s docs-deploy -- --no-measure)"
+          no_output_timeout: 60m
+          environment:
+            # The browser wheel's build runs `uv venv` on its cached toolchain folder when the
+            # cached venv's python doesn't run; uv then asks on this step's terminal whether to
+            # replace it, which no one answers (jobs 4431, 4443 hung to the 60-minute limit).
+            # This makes uv replace it without asking (closing stdin doesn't: uv reads the
+            # terminal). The script's own fix, uv venv --clear, is a submodule change
+            # (plans/future-work.md)
+            UV_VENV_CLEAR: "1"
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.local/bin:$PATH"
+            git config user.name "CircleCI docs deploy"
+            git config user.email "docs-deploy@circleci.invalid"
+            # Push with the deploy key: CircleCI's checkout key is read-only and is offered
+            # first otherwise. add_ssh_keys writes ~/.ssh/id_<type>_<fingerprint>
+            deploy_key=$(find ~/.ssh -maxdepth 1 -type f -name 'id_*_*' ! -name '*.pub' | head -1)
+            if [ -z "$deploy_key" ]; then
+              echo "No deploy key from add_ssh_keys in ~/.ssh: is DOCS_DEPLOY_KEY_FINGERPRINT set?" >&2
+              ls -la ~/.ssh >&2
+              exit 1
+            fi
+            export GIT_SSH_COMMAND="ssh -i $deploy_key -o IdentitiesOnly=yes"
+            nox -s docs-deploy -- --no-measure
+      - save_cache:
+          key: pyodide-toolchain-v1-{{ arch }}-{{ checksum "third_party/pygame-ce/buildconfig/glitchygames/build_pyodide_wheel.sh" }}
+          paths:
+            - ~/.cache/glitchygames-pyodide-build
+      - save_cache:
+          key: pygame-ce-pyodide-wheel-v1-{{ checksum ".pygame-ce-commit" }}
+          paths:
+            - third_party/pygame-ce/dist-pyodide
+      - save-uv-cache-posix
+
+  # A docs-only change's checks, in place of the test jobs and checks-linux (test-scope markdown):
+  # the strict docs build (checks-linux runs it inside nox -s lint, and a docs-only pipeline leaves
+  # checks-linux out) and the tests
+  # that read Markdown (nox -s test-markdown: noxfile.MARKDOWN_TEST_FILES, which
+  # tests/test_ci_config.py holds to every test file naming a Markdown file). large, as
+  # deploy-docs: the strict docs build was killed for memory at medium's 4 GB
+  markdown-checks:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
+    resource_class: large
+
+    environment:
+      DISABLE_MKDOCS_2_WARNING: "true"
+      PYTEST_WORKERS: "0"
+
+    steps:
+      - checkout
+      - restore-uv-cache-posix
+      - install-linux-system-dependencies
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - run:
+          name: "Build the docs strictly (nox -s lint-docs)"
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s lint-docs
+      - run:
+          name: "Run the tests that read Markdown (nox -s test-markdown)"
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s test-markdown
+      - store_test_results:
+          path: test-results
+          when: always
+      - save-uv-cache-posix
+
+  # Tests the website's AWS infrastructure (infra/; nox -s infra-test): the CDK app's stacks,
+  # the publisher, the deploy settings and the CloudFront redirect function, none reaching AWS.
+  # Renamed from a name that read as the project's test infrastructure (the owner, 2026-11-23).
+  # The -node image: the CDK's Python library runs on Node, and the function's tests use node
+  test-website-aws-infrastructure:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>-node
+    resource_class: small
+
+    steps:
+      - checkout
+      - restore-uv-cache-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - run:
+          name: "Test the website's infrastructure (nox -s infra-test)"
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s infra-test
+      - save-uv-cache-posix
+
+  # Publishes play.glitchy.games after a merge to main: the website (src/website) to the
+  # site's bucket, then a CloudFront invalidation (nox -s site-publish; docs/specs/
+  # 2026-10-27-glitchy-games-website-design.md, Publishing). It signs in to AWS with this job's
+  # OIDC token: boto3 assumes AWS_ROLE_ARN with the token in AWS_WEB_IDENTITY_TOKEN_FILE. The
+  # role's ARN names the AWS account, so it is the project environment variable
+  # SITE_DEPLOY_ROLE_ARN (CircleCI Project Settings), never written in this public file (the
+  # owner, 2026-10-28): the GlitchyGamesSiteDeployRole stack's DeployRoleArn output
+  deploy-site:
+    docker:
+      - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
+    resource_class: small
+
+    environment:
+      AWS_REGION: us-east-1
+
+    steps:
+      - checkout
+      # Publish what main is now, not only the commit this deploy was started for: with its own
+      # lock and only test-website-aws-infrastructure to wait for, an older pipeline's deploy
+      # could otherwise finish after a newer one and put the older site back (nox -s
+      # site-publish also refuses a checkout off main)
+      - run:
+          name: "Move to main's latest commit"
+          command: |
+            set -euo pipefail
+            git fetch --quiet origin main
+            git checkout --quiet --detach origin/main
+            echo "publishing main at $(git rev-parse HEAD)"
+      - restore-uv-cache-posix
+      - install-deps-posix:
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+      - run:
+          name: "Publish the site (nox -s site-publish)"
+          command: |
+            set -euo pipefail
+            export PATH="$HOME/.local/bin:$PATH"
+            role_arn="${SITE_DEPLOY_ROLE_ARN:-}"
+            if [ -z "$role_arn" ]; then
+              echo "SITE_DEPLOY_ROLE_ARN is not set: add it in CircleCI's Project Settings > Environment Variables, set to the GlitchyGamesSiteDeployRole stack's DeployRoleArn output" >&2
+              exit 1
+            fi
+            token_file="$(mktemp)"
+            printf '%s' "$CIRCLE_OIDC_TOKEN_V2" > "$token_file"
+            export AWS_ROLE_ARN="$role_arn"
+            export AWS_WEB_IDENTITY_TOKEN_FILE="$token_file"
+            nox -s site-publish
+      - save-uv-cache-posix
+
+# Invoke jobs via workflows
+# See: https://circleci.com/docs/2.0/configuration-reference/#workflows
+workflows:
+  build-and-test:
+    jobs:
+      # A docs-only change (test-scope markdown) leaves out the test jobs and their coverage
+      # combines and runs markdown-checks instead; the workflow keeps its name, the check main's
+      # ruleset requires (build-and-test), so the pull request can still merge
+      - test-python-3-15-macos:
+          filters: pipeline.parameters.test-scope == "all"
+      - test-python-3-15-linux:
+          filters: pipeline.parameters.test-scope == "all"
+      - test-python-3-15-windows:
+          filters: pipeline.parameters.test-scope == "all"
+      # Format, lint, the docs build, type checks and the security scan, beside the tests. A
+      # docs-only change leaves it out too: of its checks only the strict docs build reads
+      # Markdown, and markdown-checks runs that build
+      - checks-linux:
+          filters: pipeline.parameters.test-scope == "all"
+      - markdown-checks:
+          filters: pipeline.parameters.test-scope == "markdown"
+      # Each split job's coverage, combined
+      - coverage-combine-linux:
+          name: coverage-combine-linux-test-3-15
+          share: linux-test-3.15
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+          session: coverage-combine-3.15
+          requires:
+            - test-python-3-15-linux
+          filters: pipeline.parameters.test-scope == "all"
+      - coverage-combine-windows:
+          name: coverage-combine-windows-test-3-15
+          share: windows-test-3.15
+          pythons: << pipeline.parameters.PYTHON_VERSION >>
+          session: coverage-combine-3.15
+          requires:
+            - test-python-3-15-windows
+          filters: pipeline.parameters.test-scope == "all"
+      # Off: the Pis measure replays when the owner pushes, and take no CI jobs
+      # (plans/2026-11-04-raspberry-pi-ci-runner.md; the Pi 5 likewise, the owner, 2026-11-08,
+      # the 8 GB Pi 5, 2026-11-14, and the Raspberry Pi OS Pi 5s, 2026-11-16 and 2026-11-21).
+      # deploy-docs must not wait for these if they return
+      # - build-and-test-raspberry-pi-4-4gb-ubuntu
+      # - build-and-test-raspberry-pi-5-16gb-ubuntu
+      # - build-and-test-raspberry-pi-5-8gb-ubuntu
+      # - build-and-test-raspberry-pi-5-8gb-raspberry-pi-os
+      # - build-and-test-raspberry-pi-5-16gb-raspberry-pi-os
+      # After a merge to main, at once, beside the test jobs (the owner, 2026-11-20: "Docs only
+      # run after merging to main, so let's actually run it in parallel to the other jobs"; on a
+      # red main publishing a broken browser game: "For now I want faster")
+      - deploy-docs:
+          filters:
+            branches:
+              only: main
+          # Its own lock: one docs deploy at a time across pipelines, so two quick merges cannot
+          # race gh-pages (a deploy that waited finds main published and stops); the site's
+          # deploy holds another, so the two run side by side
+          serial-group: << pipeline.project.slug >>/deploy-docs
+      - test-website-aws-infrastructure
+      # After a merge to main, once the infra tests pass, beside the docs deploy (the owner,
+      # 2026-11-20: "essentially would like docs and site publish to happen in parallel"; it
+      # waited for the docs from 2026-10-28). It publishes src/website, nothing the docs build
+      # makes; one site deploy at a time. The deploy role itself trusts only main's jobs (the
+      # OIDC token's vcs-ref; infra/src/glitchy_site/deploy_role_stack.py): this filter just
+      # skips running it elsewhere
+      - deploy-site:
+          requires:
+            - test-website-aws-infrastructure
+          filters:
+            branches:
+              only: main
+          serial-group: << pipeline.project.slug >>/deploy-site

@@ -694,8 +694,9 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   - The redirect regroups repeated query keys and drops `=` on empty values (harmless today).
   - Weak cross-stack references: after replacing the site's bucket or distribution, deploy
     `GlitchyGamesSiteDeployRole` with `--force` or its role keeps the old ARNs.
-  - CircleCI: give `test-infra`/`deploy-site` a uv cache key with `infra/uv.lock`; a missing
-    `CIRCLE_OIDC_TOKEN_V2` should fail with a clear message, not "unbound variable".
+  - CircleCI: give `test-website-aws-infrastructure`/`deploy-site` a uv cache key with
+    `infra/uv.lock`; a missing `CIRCLE_OIDC_TOKEN_V2` should fail with a clear message, not
+    "unbound variable".
   - The `glitchygames.ai` redirect distribution sends no HSTS (found at go-live, 2026-11-20:
     the `glitchy.games` hosts' 301s carry `strict-transport-security`, the `.ai` ones don't), so
     a browser's first `http://glitchygames.ai` request isn't upgraded by the browser itself.
@@ -706,7 +707,7 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   publishes still running in parallel inside it: for example two background steps, or the docs
   build and the S3 upload started together. Keep what the two jobs guarantee today:
   - the docs deploy waits for no test job;
-  - the site publish waits for `test-infra`;
+  - the site publish waits for `test-website-aws-infrastructure`;
   - two back-to-back merges cannot race gh-pages;
   - a deploy whose main is already published stops.
 - **The site deploy stops when main is already live** (2026-11-20, the follow-up to
@@ -1514,6 +1515,39 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
       `glitchygames.audio.listening`, the scripts are gone.
     - A subcommand to fill the cache ahead of time (the nearest thing to "on install"), one to
       clear it, and its size in the debug overlay's Audio panel or the subcommand's output.
+- ~~**Make the driver comparison's image re-run stop at the frames it needs**~~ **Done**
+  2026-11-23 (the owner, 2026-11-22; branch `perf/image-rerun-stops-at-needed-frames`). The image
+  request (`frame_comparison.image_request_for`) now names a window of `IMAGE_WINDOW_PRESENTS`
+  (5) frames on each side of each test's first difference (the owner: `...bbbbbdaaaaa...`), and,
+  when every frame of the window is a present on both drivers, where the re-run may stop
+  (`FrameImageRequest.stop_after_by_test`). The recorder ends that test right after that present
+  with `pytest.skip` (a skip fails no run, and passes `except Exception`); its record has
+  `stopped_after` and no final frame. The images report compares the first difference, then the
+  window's other frames, and plays the window as one side-by-side animation (native | dummy |
+  difference) at game speed and at 250 ms a frame, with captions of each run's recorded facts
+  (`frame_comparison.write_window_animations`, Pillow; docs/quality/driver_comparison.md). A
+  window reaching the final frame runs the test to its end, as before. Measured on a 900-frame
+  test differing at present 20 (dummy against cocoa, the local run): the re-run took 9.2 s
+  before, 2.5 s after (1.9 s with a window of two).
+  Left:
+  - **A golden replay's re-run starting near its difference: not possible as things stand**
+    (measured 2026-11-23). A trace keyframe holds sprite rects only, not the game's state
+    (logic, random streams, timers), so no replay can start from one; a replay starts mid-way
+    only at a scene start (`ReplayOptions.start_frame`, the playback scope of driver rule 18,
+    which applies no recorded options or seed), and a step back rebuilds from frame 0
+    unpresented (rule 15). The re-run also replays pytest tests, not recordings. It would need
+    the game's state saved at keyframes first.
+  - **The monitor's name in the captions** (the owner, 2026-11-23): SDL 2's
+    `SDL_GetDisplayName` answers "0", "1", "2" on this Mac (three displays), so no name is
+    recorded. A real name needs a per-OS source (macOS `system_profiler SPDisplaysDataType`,
+    about a second, or AppKit's NSScreen through pyobjc, not a dependency); the refresh rate is
+    already the window's own display's.
+  - **Game speed for most tests**: a test without an engine has a frame clock that never moves,
+    so its game-speed animation shows every gap at the 17 ms minimum; only engine runs and
+    replays have served frame times (and a live engine's are measured, so they vary with load).
+  - **Fingerprints before the window** (small): the re-run still fingerprints every present
+    before its window (about 0.75 ms each at 800x600), which it uses to confirm the difference
+    reproduced; skipping them would need another way to tell.
 - ~~**Move the games onto the new sound library (sound engine M2's migration), in
   `chore/upgrade-and-sounds-on-first-use` with the upgrade and the disk cache**~~ **Done**
   2026-11-15 (plans/2026-11-14-sound-migration.md, steps 1-9, and its two measurements: ten
@@ -2004,6 +2038,12 @@ discussing it found and decided:
 
 ## Code quality
 
+- **Four scripts still start their children themselves** (2026-11-22, the launcher fix,
+  bugs/2026-11-20-process-stop-tests-failed-under-load.md). `scripts/audio_glitch_probe.py`,
+  `scripts/build_browser_bundle.py` (two) and `scripts/generate_sbom.py` call `subprocess.run`, so
+  Ctrl-C leaves their child killed and unreaped. Move each to `process.run_command` and drop its
+  allowance in `tests/test_child_launches_go_through_process.py`, which fails until the allowance
+  goes.
 - **The replay silencer stops every channel once, so a live voice's queued chunk can play under
   it** (found 2026-11-19 with the harness's mixer leak, tests/harness.py `silence_every_channel`).
   pygame starts a channel's queued sound the moment the channel is halted, so one stop leaves a

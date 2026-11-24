@@ -40,7 +40,7 @@
     # The same on the 16 GB Pi 5 (the owner, 2026-11-08: "Leave it capped at 2GB") and the 8 GB one
     raspberry_pi_runner_memory_max: 2G
     # What the owner measures by hand with (nox -s measure-staged). The CI job installs its own.
-    # Keep this at .circleci/config.yml's UV_VERSION (tests/test_ci_config.py checks it)
+    # Keep this at .circleci/continue_config.yml's UV_VERSION (tests/test_ci_config.py checks it)
     raspberry_pi_uv_version: "0.13.9"
     raspberry_pi_uv_path: "/home/{{ deploy_user }}/.local/bin/uv"
     # What the owner's pre-push hook measures in (scripts/measure_on_raspberry_pi.py names it),
