@@ -74,7 +74,11 @@ from tests.display_canvas import (
     show_canvas_on_new_display,
 )
 from tests.engine_source import ENGINE_DIRECTORY
-from tests.garbage_collection import process_memory_release, release_test_instance
+from tests.garbage_collection import (
+    process_memory_release,
+    release_raised_parameters,
+    release_test_instance,
+)
 from tests.git_environment import clear_git_repository_variables
 from tests.hidden_test_windows import hide_test_windows
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
@@ -288,9 +292,10 @@ def pytest_runtest_protocol(item, nextitem):
 
     Once the test's reports are made and logged, pytest has dropped its fixture values, and
     ``release_test_instance`` empties the test class's instance, which pytest itself keeps for
-    the rest of the run; so its scene and sprites are garbage, which the collector frees when
-    memory climbs. On glibc Linux the free heap then goes back to the system (``malloc_trim``):
-    tests/garbage_collection.py.
+    the rest of the run, and ``release_raised_parameters`` cuts the traceback of each exception
+    parameter it raised, which pytest keeps too; so its scene, sprites and mocks are garbage,
+    which the collector frees when memory climbs. On glibc Linux the free heap then goes back to
+    the system (``malloc_trim``): tests/garbage_collection.py.
 
     Returns:
         object: The wrapped hook's result.
@@ -300,6 +305,7 @@ def pytest_runtest_protocol(item, nextitem):
         return (yield)
     finally:
         release_test_instance(item=item)
+        release_raised_parameters(item=item)
         _MEMORY_RELEASE.after_test()
 
 

@@ -21,6 +21,12 @@ if TYPE_CHECKING:
     from .protocols import EditorContext
 
 
+# Module-level, so its handler is added once: added in __init__, each instance added another
+# to the one shared logger, never removed (3,545 over Bitmappy's tests, 2026-11-23)
+FRAME_OPERATIONS_LOG = logging.getLogger('game.tools.bitmappy.frame_operations')
+FRAME_OPERATIONS_LOG.addHandler(logging.NullHandler())
+
+
 class FrameOperationManager:
     """Manages frame operations for the Bitmappy editor.
 
@@ -37,8 +43,7 @@ class FrameOperationManager:
 
         """
         self.editor = editor
-        self.log = logging.getLogger('game.tools.bitmappy.frame_operations')
-        self.log.addHandler(logging.NullHandler())
+        self.log = FRAME_OPERATIONS_LOG
 
         # State owned by FrameOperationManager
         self._frame_clipboard: dict[str, Any] | None = None
