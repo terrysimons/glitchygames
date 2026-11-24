@@ -87,7 +87,7 @@ flowchart TB
 | `DROPBEGIN`, `DROPFILE`, `DROPTEXT`, `DROPCOMPLETE` | `process_drop_event()` | `DropEventManager` |
 | `WINDOW*` (`WINDOWDISPLAYCHANGED` and `WINDOWICCPROFCHANGED` are unhandled) | `process_window_event()` | `WindowEventManager` |
 | `FPSEVENT`, `GAMEEVENT`, `MENUEVENT`, `QUIT`, `USEREVENT`, `ACTIVEEVENT`, `VIDEORESIZE`, `VIDEOEXPOSE`, `SYSWMEVENT` (every other type in `GAME_EVENTS`, such as `CLIPBOARDUPDATE`, is unhandled) | `process_game_event()` | `GameEventManager` |
-| `MIDIIN`, `MIDIOUT` | `process_midi_event()` | none: passed to `SceneManager.handle_event()`, which ignores them (see [MidiEvents](#midievents-mideventstubs)) |
+| `MIDIIN`, `MIDIOUT` | `process_midi_event()` | `MidiEventManager` |
 | `APP_*` | `process_app_event()` | `AppEventManager` |
 | `TEXTEDITING`, `TEXTINPUT` | `process_text_event()` | none: passed to the scene manager (the active scene's `on_text_*_event`) |
 
@@ -2248,11 +2248,15 @@ which hands them to the active scene's handlers below (`Scene`'s log them); text
 
 ### MidiEvents → MidiEventStubs
 
-!!! warning "MIDI events never reach these handlers today"
-    `GameEngine.process_midi_event` passes `MIDIIN` and `MIDIOUT` to `SceneManager.handle_event()`
-    and reports them handled. That method acts only on `QUIT`, and the engine's
-    `MidiEventManager` is never called, so a scene's `on_midi_in_event` and `on_midi_out_event`
-    do not run (`src/glitchygames/engine/game_engine.py`).
+`GameEngine.process_midi_event` hands `MIDIIN` to `midi_manager.on_midi_in_event` and `MIDIOUT`
+to `on_midi_out_event`. The engine builds that `MidiEventManager` with the scene manager as its
+game, so its proxy forwards each event to the scene manager, which passes any `on_*_event` call
+to the active scene. `Scene` has the stubs, so a scene without its own handler gets
+`unhandled_event`, which raises under `--no-unhandled-events`
+(bugs/2026-11-22-midi-events-skip-the-midi-manager.md: before #300 both types went to
+`SceneManager.handle_event()`, which ignores them). Nothing in the repository posts MIDI events
+yet. The `vice_id` field below is pygame's own spelling: `pygame.midi.midis2events` builds the
+events with `vice_id=device_id`.
 
 ??? note "Its 2 handlers: each diagram, then the handler's signature"
     ```mermaid
