@@ -46,7 +46,6 @@ from glitchygames.input import ActionMap
 from glitchygames.opacity import make_opaque
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
-from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.state import SaveManager, open_saves
 from glitchygames.state.high_scores import (
     HighScoreEntry,
@@ -1311,7 +1310,7 @@ class MrMuncherScene(Scene):
     def _pause(self: Self) -> None:
         """Pause behind the engine's pause screen (not once the game is over)."""
         if self.phase is not Phase.GAME_OVER:
-            self.next_scene = PauseScene(options=self.options)
+            self.pause()
 
     @override
     def on_window_focus_lost_event(self: Self, event: WindowEvent) -> None:

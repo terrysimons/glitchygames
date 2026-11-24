@@ -859,6 +859,43 @@ truncated OLD gives a truncated NEW, whose replay matches up to its cut-off and 
 deliberate, reviewed step: read the summary, check the change is the intended one, then move
 NEW over the fixture yourself.
 
+### A reviewed re-record (`scripts/check_rebaselined_recordings.py`)
+
+When a change is meant to alter recordings (new sprites in a scene's group, say), the
+recordings are re-recorded by rebaseline, never by a fresh session: a fresh recording's `dt`
+comes from real time, so it never matches the one it replaces, while a rebaseline replays OLD's
+inputs and `dt`, so every difference between OLD and NEW is the code's. Before NEW replaces
+OLD, the check proves that the change altered only what it was meant to:
+
+1. Rebaseline each recording into a scratch folder, keeping OLD where it is.
+2. Write a plan (TOML) naming each pair and what may differ: new sprite ids, new internal
+   event types, named header or frame fields with a reason each, and the tests the change adds,
+   renames or removes, which run in only one of the two suites in step 3 (the script's
+   docstring has the format). Write Windows paths in single quotes or with forward slashes: in
+   double quotes TOML reads their backslashes as escapes.
+3. Record the suite's frames under the frame fingerprints plugin on the commit before the
+   change and on the change (`pytest -p glitchygames.testing.frame_fingerprints
+   --frame-fingerprints DIR`).
+4. Run the check:
+
+```bash
+uv run python -m scripts.check_rebaselined_recordings --plan PLAN.toml \
+    --fingerprints-before BEFORE --fingerprints-after AFTER
+```
+
+The pixel step is required: an allowed sprite's records are not compared, so a new sprite one
+pixel off would pass the recordings' part, and the frames are what show where it is drawn. It
+fails (exit 1) on any difference the plan does not name, on an allowance that matched nothing,
+on any test whose frames differ between the two runs, and on a test in one run only that
+the plan does not name; its report counts every allowed difference per recording and the
+frames it compared, which goes in the PR. The
+comparison is `src/glitchygames/replay/recording_differences.py`, whose docstring says what it
+compares and what it leaves out (the measurement histories, the header fields a rebaseline
+rewrites; custom events compare by name, as a rebaseline renumbers them). Prove the check can
+fail on the change before citing its pass: plant a defect in a copy of NEW (a sprite moved a
+pixel, a dropped internal event) and watch it go red. Only then move each NEW over its OLD, in
+a commit of its own.
+
 ## Tools for any game
 
 Every recording, replay and measurement tool belongs to the engine
