@@ -19,6 +19,8 @@ suite needs are declared here; the shared test harness (tests/harness.py) is one
 # fails one that never used it
 # tests.circleci_test_split keeps one CircleCI machine's share of the suite when
 # GLITCHYGAMES_TEST_SPLIT is set (the split CI jobs); unset, it does nothing
+# tests.per_test_limit stops a test's children before a per-test limit (the native run's
+# pytest-timeout, thread method) ends its worker; without that limit it does nothing
 pytest_plugins = [
     'tests.harness',
     'pytester',
@@ -28,4 +30,5 @@ pytest_plugins = [
     'tests.collection_logger_levels',
     'tests.disk_sound_cache',
     'tests.circleci_test_split',
+    'tests.per_test_limit',
 ]

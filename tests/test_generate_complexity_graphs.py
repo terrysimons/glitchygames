@@ -12,6 +12,7 @@ import importlib
 import json
 import logging
 import os
+import re
 import sys
 import threading
 import types
@@ -618,6 +619,9 @@ def test_main_measures_the_fixture_repositorys_history(fixture_repository, tmp_p
     ]
     snippet = (graphs_directory / GRAPHS_SNIPPET_NAME).read_text(encoding='utf-8')
     assert f'Generated at commit `{head_commit.strip()}` ' in snippet
+    # Marked with HEAD, so a later local docs build keeps them instead of the placeholder
+    full_head = git(repository=fixture_repository, arguments=['rev-parse', 'HEAD']).strip()
+    assert (graphs_directory / GENERATED_FROM_NAME).read_text(encoding='utf-8') == f'{full_head}\n'
     assert 'from all 2 commits: 2 modules and 1 packages of `src/glitchygames`.' in snippet
     # The worktree is gone and the repository's own checkout untouched
     assert len(git(repository=fixture_repository, arguments=['worktree', 'list']).splitlines()) == 1
@@ -635,7 +639,8 @@ def test_main_exits_internal_error_when_a_tool_fails(tmp_path, mocker, capsys):
         main()
 
     assert exit_information.value.code == ExitCode.INTERNAL_ERROR
-    assert 'git worktree add --detach' in capsys.readouterr().err
+    # The first tool main runs: reading the commit the generated graphs are marked with
+    assert 'git rev-parse HEAD' in capsys.readouterr().err
 
 
 def test_generate_if_stale_generates_once_per_commit(fixture_repository, tmp_path, mocker):
@@ -733,8 +738,10 @@ def test_a_generation_cleans_up_after_one_that_crashed(fixture_repository, tmp_p
     }
 
 
-def test_the_mkdocs_hook_generates_the_graphs_before_a_build(fixture_repository, tmp_path, mocker):
-    """Mkdocs's on_pre_build generates the graphs through the script it loads by path."""
+def test_the_mkdocs_hook_generates_the_graphs_before_a_deploy(fixture_repository, tmp_path, mocker):
+    """A deploy's on_pre_build generates the graphs through the script it loads by path."""
+    mocker.patch.object(mkdocs_hooks.BUILD_STATE, 'command', 'gh-deploy')
+    mocker.patch.dict(os.environ, {mkdocs_hooks.COMPLEXITY_GRAPHS_VARIABLE: ''})
     graph_script = mkdocs_hooks.load_graph_script()
     graphs_directory = tmp_path / 'graphs'
     mocker.patch.object(graph_script, 'PROJECT_ROOT', fixture_repository)
@@ -748,13 +755,86 @@ def test_the_mkdocs_hook_generates_the_graphs_before_a_build(fixture_repository,
 
     mkdocs_hooks.on_pre_build(config=MkDocsConfig())
 
-    assert (graphs_directory / GRAPHS_SNIPPET_NAME).is_file()
-    assert (graphs_directory / GENERATED_FROM_NAME).is_file()
+    assert explorer_data(graphs_directory=graphs_directory)['modules'] == [
+        'src/glitchygames/branchy.py',
+        'src/glitchygames/simple.py',
+    ]
+    assert 'placeholder' not in explorer_data(graphs_directory=graphs_directory)
+    head = git(repository=fixture_repository, arguments=['rev-parse', 'HEAD']).strip()
+    assert (graphs_directory / GENERATED_FROM_NAME).read_text(encoding='utf-8') == f'{head}\n'
     assert (tmp_path / 'metrics' / performance_script.SNIPPET_NAME).is_file()
+
+
+# A stage's lines from the hook's logger (INFO, which mkdocs prints): its start, and its end with
+# the seconds it took
+STAGE_STARTED = r'^{stage}: started$'
+STAGE_DONE = r'^{stage}: done in \d+\.\d s$'
+STAGE_FAILED = r'^{stage}: failed after \d+\.\d s$'
+
+
+def hook_messages(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Return what the hook logged at INFO, in order.
+
+    Returns:
+        The messages.
+
+    """
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == mkdocs_hooks.LOG.name and record.levelno == logging.INFO
+    ]
+
+
+def test_the_mkdocs_hook_logs_each_graph_stages_start_and_end(mocker, caplog):
+    """The build is never silent while the graphs generate, and the log says how long each took.
+
+    CircleCI's checks-linux job (#285 moved the strict docs build to Linux) was killed after 10
+    minutes with no output while the hook generated the graphs silently (job 5089, #261).
+    """
+    mocker.patch.object(mkdocs_hooks.BUILD_STATE, 'command', 'gh-deploy')
+    graph_script = mkdocs_hooks.load_graph_script()
+    mocker.patch.object(graph_script, 'generate_if_stale')
+    mocker.patch.object(
+        mkdocs_hooks, 'load_performance_script'
+    ).return_value.generate_performance_page = mocker.Mock()
+    caplog.set_level(logging.INFO, logger=mkdocs_hooks.LOG.name)
+
+    mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+
+    messages = hook_messages(caplog)
+    patterns = [
+        STAGE_STARTED.format(stage='Complexity graphs'),
+        STAGE_DONE.format(stage='Complexity graphs'),
+        STAGE_STARTED.format(stage='Performance graphs'),
+        STAGE_DONE.format(stage='Performance graphs'),
+    ]
+    assert len(messages) == len(patterns), messages
+    for message, pattern in zip(messages, patterns, strict=True):
+        assert re.fullmatch(pattern, message), (message, pattern)
+
+
+def test_a_failed_graph_stage_logs_how_long_it_ran(tmp_path, mocker, caplog):
+    """A stage that stops the build still ends its lines: failed, after how long."""
+    mocker.patch.object(mkdocs_hooks.BUILD_STATE, 'command', 'gh-deploy')
+    graph_script = mkdocs_hooks.load_graph_script()
+    not_a_repository = tmp_path / 'not-a-repository'
+    not_a_repository.mkdir()
+    mocker.patch.object(graph_script, 'PROJECT_ROOT', not_a_repository)
+    mocker.patch.object(graph_script, 'GRAPHS_DIR', tmp_path / 'graphs')
+    caplog.set_level(logging.INFO, logger=mkdocs_hooks.LOG.name)
+
+    with pytest.raises(PluginError):
+        mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+
+    messages = hook_messages(caplog)
+    assert re.fullmatch(STAGE_STARTED.format(stage='Complexity graphs'), messages[0])
+    assert re.fullmatch(STAGE_FAILED.format(stage='Complexity graphs'), messages[-1]), messages
 
 
 def test_the_mkdocs_hook_stops_the_build_when_the_generation_fails(tmp_path, mocker):
     """A failed tool becomes mkdocs's PluginError, which stops the build with the tool's output."""
+    mocker.patch.object(mkdocs_hooks.BUILD_STATE, 'command', 'gh-deploy')
     graph_script = mkdocs_hooks.load_graph_script()
     not_a_repository = tmp_path / 'not-a-repository'
     not_a_repository.mkdir()
@@ -765,6 +845,206 @@ def test_the_mkdocs_hook_stops_the_build_when_the_generation_fails(tmp_path, moc
         PluginError, match='Could not generate the complexity graphs: git rev-parse'
     ):
         mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+
+
+def local_build_hook(*, mocker, tmp_path: Path, project_root: Path, command: str | None) -> Path:
+    """Point the hook's scripts at ``tmp_path`` for a build run as ``command``.
+
+    The complexity script's ``PROJECT_ROOT`` is ``project_root``; its graphs and the performance
+    script's output go under ``tmp_path``, never this repository's docs tree, and
+    ``COMPLEXITY_GRAPHS_VARIABLE`` is unset.
+
+    Returns:
+        The complexity graphs' directory.
+
+    """
+    mocker.patch.object(mkdocs_hooks.BUILD_STATE, 'command', command)
+    mocker.patch.dict(os.environ)
+    os.environ.pop(mkdocs_hooks.COMPLEXITY_GRAPHS_VARIABLE, None)
+    graph_script = mkdocs_hooks.load_graph_script()
+    graphs_directory = tmp_path / 'graphs'
+    mocker.patch.object(graph_script, 'PROJECT_ROOT', project_root)
+    mocker.patch.object(graph_script, 'GRAPHS_DIR', graphs_directory)
+    performance_script = mkdocs_hooks.load_performance_script()
+    mocker.patch.object(performance_script, 'PROJECT_ROOT', project_root)
+    mocker.patch.object(performance_script, 'METRICS_DIR', tmp_path / 'metrics')
+    mocker.patch.object(performance_script, 'PENDING_LEDGER_PATH', tmp_path / 'pending.jsonl')
+    return graphs_directory
+
+
+@pytest.mark.parametrize('command', ['build', 'serve', None])
+def test_a_local_build_writes_the_placeholder_and_measures_nothing(
+    fixture_repository, tmp_path, mocker, caplog, command
+):
+    """``mkdocs build`` and ``serve`` (and an unknown command) skip the minutes-long generation.
+
+    The owner, 2026-11-23: only a deploy generates the graphs; the strict build in nox -s lint
+    spent about 490 s of its 830 on them.
+    """
+    graphs_directory = local_build_hook(
+        mocker=mocker, tmp_path=tmp_path, project_root=fixture_repository, command=command
+    )
+    generation = mocker.spy(mkdocs_hooks.load_graph_script(), 'generate_complexity_graphs')
+    caplog.set_level(logging.INFO, logger=mkdocs_hooks.LOG.name)
+
+    mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+
+    assert generation.call_count == 0
+    # The build's log says why the page has no graphs, and how to get them
+    assert (
+        'Complexity graphs: a placeholder (only a deploy generates them; '
+        'GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1 generates them here)'
+    ) in hook_messages(caplog)
+    data = explorer_data(graphs_directory=graphs_directory)
+    assert data['placeholder'] == generate_complexity_graphs.PLACEHOLDER_NOTICE
+    assert (data['commits'], data['modules'], data['packages'], data['series']) == ([], [], [], {})
+    snippet = (graphs_directory / GRAPHS_SNIPPET_NAME).read_text(encoding='utf-8')
+    assert snippet.startswith(f'**{generate_complexity_graphs.PLACEHOLDER_HEADING}**')
+    assert (
+        '<div class="complexity-explorer" data-source="../graphs/complexity-explorer.json"></div>'
+    ) in snippet
+    # Never taken for current graphs: a later deploy generates
+    assert not (graphs_directory / GENERATED_FROM_NAME).exists()
+
+
+def test_the_placeholder_holds_every_key_the_explorer_reads():
+    """The placeholder is the generated data's format (docs/js/complexity.js reads it alike)."""
+    generated = complexity_history(revisions=[], modules=[], packages=[])
+
+    placeholder = generate_complexity_graphs.placeholder_history()
+
+    assert set(placeholder) == {*generated, 'placeholder'}
+    assert placeholder['metrics'] == generated['metrics']
+    assert placeholder['plotly'] == PLOTLY_JS_URL
+
+
+def test_a_local_build_keeps_graphs_generated_from_this_commit(
+    fixture_repository, tmp_path, mocker, caplog
+):
+    """Graphs already generated from HEAD (main, or a deploy build) are kept, not replaced."""
+    graphs_directory = local_build_hook(
+        mocker=mocker, tmp_path=tmp_path, project_root=fixture_repository, command='build'
+    )
+    generate_if_stale(project_root=fixture_repository, graphs_directory=graphs_directory)
+    generated = explorer_data(graphs_directory=graphs_directory)
+    caplog.set_level(logging.INFO, logger=mkdocs_hooks.LOG.name)
+
+    mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+
+    assert explorer_data(graphs_directory=graphs_directory) == generated
+    assert 'placeholder' not in generated
+    assert 'Complexity graphs: kept, generated from this commit' in hook_messages(caplog)
+
+
+def test_a_local_build_replaces_another_commits_graphs_with_the_placeholder(
+    fixture_repository, tmp_path, mocker
+):
+    """Graphs from an older commit are not shown as this one's: the placeholder replaces them."""
+    graphs_directory = local_build_hook(
+        mocker=mocker, tmp_path=tmp_path, project_root=fixture_repository, command='serve'
+    )
+    generate_if_stale(project_root=fixture_repository, graphs_directory=graphs_directory)
+    git(
+        repository=fixture_repository,
+        arguments=['commit', '--allow-empty', '--quiet', '-m', 'A third commit'],
+    )
+
+    mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+
+    assert 'placeholder' in explorer_data(graphs_directory=graphs_directory)
+    published = {path.name for path in graphs_directory.iterdir()}
+    assert published - {GENERATION_LOCK_NAME} == {EXPLORER_DATA_NAME, GRAPHS_SNIPPET_NAME}
+
+
+def test_the_placeholder_needs_no_repository(tmp_path, mocker):
+    """Without graphs to keep, git is never asked: a placeholder build needs no repository."""
+    not_a_repository = tmp_path / 'not-a-repository'
+    not_a_repository.mkdir()
+    graphs_directory = local_build_hook(
+        mocker=mocker, tmp_path=tmp_path, project_root=not_a_repository, command='build'
+    )
+    performance = mocker.patch.object(mkdocs_hooks, 'generate_performance_graphs')
+
+    mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+
+    assert 'placeholder' in explorer_data(graphs_directory=graphs_directory)
+    performance.assert_called_once_with()
+
+
+def test_a_placeholder_builds_an_explorer_page_the_hook_accepts(
+    fixture_repository, tmp_path, mocker
+):
+    """The skipped build's complexity page names only files the site has (missing_explorer_files).
+
+    The page holds the placeholder snippet's explorer element (mkdocs passes its HTML through)
+    and the site the placeholder data beside it, as mkdocs copies docs/quality/graphs/.
+    """
+    graphs_directory = local_build_hook(
+        mocker=mocker, tmp_path=tmp_path, project_root=fixture_repository, command='build'
+    )
+    mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+    site = make_explorer_site(tmp_path / 'site')
+    snippet = (graphs_directory / GRAPHS_SNIPPET_NAME).read_text(encoding='utf-8')
+    (site / 'quality' / 'complexity' / 'index.html').write_text(
+        f'<div class="md-content">{snippet}</div>', encoding='utf-8'
+    )
+    (site / 'quality' / 'graphs' / EXPLORER_DATA_NAME).write_bytes(
+        (graphs_directory / EXPLORER_DATA_NAME).read_bytes()
+    )
+
+    assert mkdocs_hooks.missing_explorer_files(site_directory=site) == []
+
+
+@pytest.mark.parametrize(
+    ('command', 'setting', 'wanted'),
+    [
+        ('gh-deploy', None, True),
+        ('gh-deploy', '', True),
+        ('gh-deploy', '0', True),
+        ('gh-deploy', '1', True),
+        ('build', None, False),
+        ('build', '0', False),
+        ('build', '1', True),
+        ('serve', '', False),
+        ('serve', '1', True),
+        (None, None, False),
+        (None, '1', True),
+    ],
+)
+def test_only_a_deploy_or_the_setting_generates_the_graphs(mocker, command, setting, wanted):
+    """A deploy always generates; a local build only with GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1."""
+    mocker.patch.object(mkdocs_hooks.BUILD_STATE, 'command', command)
+    mocker.patch.dict(os.environ)
+    os.environ.pop(mkdocs_hooks.COMPLEXITY_GRAPHS_VARIABLE, None)
+    if setting is not None:
+        os.environ[mkdocs_hooks.COMPLEXITY_GRAPHS_VARIABLE] = setting
+
+    assert mkdocs_hooks.complexity_graphs_wanted() is wanted
+
+
+def test_the_setting_makes_a_local_build_generate(fixture_repository, tmp_path, mocker):
+    """GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1 on ``mkdocs build`` generates the real graphs."""
+    graphs_directory = local_build_hook(
+        mocker=mocker, tmp_path=tmp_path, project_root=fixture_repository, command='build'
+    )
+    os.environ[mkdocs_hooks.COMPLEXITY_GRAPHS_VARIABLE] = mkdocs_hooks.COMPLEXITY_GRAPHS_ON
+
+    mkdocs_hooks.on_pre_build(config=MkDocsConfig())
+
+    data = explorer_data(graphs_directory=graphs_directory)
+    assert 'placeholder' not in data
+    assert data['modules']
+    assert (graphs_directory / GENERATED_FROM_NAME).is_file()
+
+
+@pytest.mark.parametrize('setting', ['yes', 'true', '2', ' 1'])
+def test_an_unknown_setting_stops_the_build(mocker, setting):
+    """A misspelt setting is refused by name, never read as on or off."""
+    mocker.patch.object(mkdocs_hooks.BUILD_STATE, 'command', 'build')
+    mocker.patch.dict(os.environ, {mkdocs_hooks.COMPLEXITY_GRAPHS_VARIABLE: setting})
+
+    with pytest.raises(PluginError, match=mkdocs_hooks.COMPLEXITY_GRAPHS_VARIABLE):
+        mkdocs_hooks.complexity_graphs_wanted()
 
 
 def test_the_mkdocs_hook_loads_the_graph_script_once(mocker):
