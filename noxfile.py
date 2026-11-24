@@ -918,6 +918,7 @@ def test(session: nox.Session) -> None:
 # 2026-11-20). tests/test_ci_config.py holds the list to exactly the test files that name one,
 # less MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES
 MARKDOWN_TEST_FILES = (
+    'tests/benchmarks/test_demo_player_benchmarks.py',
     'tests/replay/tools/test_performance_pages.py',
     'tests/test_ansible_ai_service.py',
     'tests/test_ci_change_scope.py',
