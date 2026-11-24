@@ -99,6 +99,31 @@ Points that matter for replay:
 - Presenting asks the doors (`presents_frames`): a watched replay's inner frames are not
   presented; the viewer's outer tick presents the latest one.
 
+### What is drawn again: dirty sprites
+
+The scene's sprites draw through `pygame.sprite.LayeredDirty`, which redraws only sprites marked
+dirty, and the background under where they were:
+
+- **A sprite that changes every frame** (an animation, an actor, a live demo picture) keeps
+  `dirty = 2`.
+- **Any other sprite** keeps pygame's default `dirty = 1` and is marked `dirty = 1` again whenever
+  its picture or place changes (where it swaps its `image` or moves its `rect`); the group draws
+  it and clears the mark. Hiding or showing needs nothing more: pygame's `visible` setter marks it.
+  Never clear the mark yourself after changing the picture (the group would never draw it), and
+  leave a hidden sprite at `dirty = 0` (the group clears a mark only when it draws, so a hidden
+  dirty sprite redraws its area every frame).
+- **The scene** marks every sprite dirty once, on the frame after it becomes active or after
+  `SceneManager._force_scene_redraw` (`Scene.dirty`), then not again; becoming active also
+  repaints its whole background and presents the whole surface once.
+- **`Scene.rects`** decides only what the present sends (None: the whole screen, for a scene that
+  draws outside its sprites; a list: those rects). Every window the engine opens is SCALED, and
+  the browser's canvas shows the whole surface on any update, so it never changes the window's
+  cost; the cost saved is the drawing.
+
+`glitchygames.testing.full_repaint` compares every frame with a full repaint (its background with
+every visible sprite drawn again); `tests/replay/test_frames_equal_a_full_repaint.py` runs it over
+every golden and bundled demo, so a sprite changed without a mark fails there.
+
 ## The end of the frame: `_finish_frame`
 
 In this order: pace (the timer backend's deadline, else the pygame clock; a target of 0 or a

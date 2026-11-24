@@ -945,6 +945,9 @@ MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES = {
     'tests/benchmarks/test_logging_cost.py': (
         'writes test-results/logging-cost.md, its results table; a benchmark, no Markdown read'
     ),
+    'tests/replay/test_frames_equal_a_full_repaint.py': (
+        "names plans/future-work.md only in an exclusion's reason text; reads no Markdown"
+    ),
 }
 
 

@@ -1095,6 +1095,26 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
 
 ## Performance and pacing
 
+- **Sprites that still redraw every frame** (2026-11-21, after `fix/static-sprites-full-screen-update`
+  stopped every scene marking every sprite dirty each frame; the rule is in
+  docs/architecture/playback/how-a-frame-runs.md, "What is drawn again"). Dirty sprites at draw,
+  per frame, before and after, from every golden and demo: Bitmappy 35 to 14, Clockwork Keep 19 to
+  7, the joystick demo 42 to 26, Zombies' neighborhood 59 to 42 (all from the engine fix). What is
+  left is each game's own marks:
+  - Mr. Muncher: 255 of 255 (its sprockets, pictures and side panels; dev session 53's stacked
+    `perf/mr-muncher-dirty-sprites`).
+  - Brave Adventurer: 92 to 91 (classic) and 83 (papyrus): its own sprites are `dirty = 2` or
+    re-marked every frame, the same shape as Mr. Muncher's. Not triaged.
+  - Zombies Ain't My Neighbors' title: its five `TextPicture`s are `dirty = 2` (about 66,600
+    pixels alpha-blended a frame, 0.35-0.4 ms in Chrome); `dirty = 1` with a mark in
+    `show_image`, after the font helpers move into the engine
+    (plans/2026-11-20-game-code-into-the-engine.md, sub-plan 1).
+  - The wall-clock win was not measured: the load average was about 70 on 2026-11-21 and draw
+    times swung by 30%. Measure on a quiet machine or from the replay ledger.
+  - The full-repaint sweep excludes Brave Adventurer's and Clockwork Keep's HUD strip (score text
+    blitted straight onto the screen, moved into sprites by the game-code plan) and all of Drawing
+    Fire (its conversion to sprites, in this file); drop each exclusion when its work lands.
+
 - **Give the replay-ledger rows a home outside git** (the owner, 2026-11-22: "We're pushing too
   many large-ish files up, and I really don't want to use lfs - we'll push them to s3 or
   something"). By then `quality/replay-ledger/` held 7,368 row files (17.6 MB, about 2.4 KB each)
