@@ -301,11 +301,10 @@ The bundle built without serving must list `<package>.zip` in its `pyscript.toml
 
 ### 7. Commit
 
-The `replay-metrics` pre-commit hook (`scripts/measure_staged_replays.py`, which runs
-`glitchygames unmeasured`, then `glitchygames measure --code-tree TREE --rows-directory DIR`)
-measures every recording on the new code and stages the rows (about 12 s). It refuses a commit
-with untracked files under `src/` or a partial commit, so stage the whole member and its
-registration (`git add -A src tests scripts docs`) before committing.
+Stage the whole member and its registration (`git add -A src tests scripts docs`) and commit.
+No commit hook measures the recordings any more (the owner stopped committing replay-ledger rows,
+2026-11-22); `nox -s measure-staged` (`scripts/measure_staged_replays.py`) still measures them by
+hand, if wanted, and stages rows that are left uncommitted until they have their new home.
 
 ## Special cases
 

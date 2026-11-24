@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Generate the complexity explorer's data for the documentation site (docs/quality/complexity.md).
 
-The data is generated, never committed: every mkdocs build (``mkdocs build``, ``serve``,
-``gh-deploy``, so ``nox -s docs-deploy`` and ``docs-serve`` too) generates it first through the
-hook scripts/mkdocs_hooks.py, which calls ``generate_if_stale`` (regenerated only when HEAD
-changed); running this script regenerates it unconditionally. The steps:
+The data is generated, never committed. A deploy (``mkdocs gh-deploy``, so ``nox -s
+docs-deploy``) generates it first through the hook scripts/mkdocs_hooks.py, which calls
+``generate_if_stale`` (regenerated only when HEAD changed). Every other docs build (``mkdocs
+build``, ``serve``: ``nox -s lint``, ``lint-docs``, ``docs-serve``) calls
+``write_placeholder_unless_current`` instead: graphs generated from HEAD are kept, otherwise a
+placeholder snippet and explorer data (``PLACEHOLDER_NOTICE``, no measurements) are written, so
+the page and its explorer still build (the owner, 2026-11-23: the generation took about 490 s of
+the strict docs build's 830 on CircleCI). ``GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1`` makes any
+build generate. Running this script regenerates the data unconditionally and records HEAD
+(``GENERATED_FROM_NAME``), so a later local build keeps it. The steps:
 
 1. check the current commit (HEAD) out in a temporary detached git worktree: wily checks every
    revision it measures out in the working tree it runs in (and refuses a dirty one), so it never
@@ -28,7 +34,9 @@ changed); running this script regenerates it unconditionally. The steps:
    module or package, picked by metric, kind, path filter and count;
 6. write ``GRAPHS_SNIPPET_NAME``, the markdown docs/quality/complexity.md includes (pymdownx
    snippets; zensical.yml's ``exclude_docs`` keeps it from becoming a page of its own). Without it
-   the page builds with its own text only, so ``mkdocs build --strict`` passes either way.
+   the page builds with its own text only and the docs hook's explorer check
+   (``missing_explorer_files``) stops the build, which is why a build that skips the generation
+   writes the placeholder snippet, holding the explorer, instead.
 
 Everything is made in a staging directory inside the output directory
 (``STAGING_DIRECTORY_PREFIX``, hidden from mkdocs); each finished file then replaces its
@@ -47,6 +55,7 @@ Usage:
 Output (gitignored):
     docs/quality/graphs/complexity-explorer.json  -- what the explorer draws
     docs/quality/graphs/complexity_graphs.md      -- the snippet complexity.md includes
+    docs/quality/graphs/generated-from-commit.txt -- the commit they were generated from
 
 Exit codes: ``SUCCESS``; ``INTERNAL_ERROR`` when git, radon or wily fails (its output is logged).
 """
@@ -121,6 +130,15 @@ SHORT_COMMIT_LENGTH = 7
 
 # The commit the graphs in GRAPHS_DIR were generated from (generate_if_stale)
 GENERATED_FROM_NAME = 'generated-from-commit.txt'
+# What a build that skipped the generation shows (write_placeholder_unless_current): the
+# placeholder snippet's heading, and the notice docs/js/complexity.js shows instead of a chart
+PLACEHOLDER_HEADING = 'Not measured in this build.'
+PLACEHOLDER_NOTICE = (
+    'The complexity graphs are generated only when the docs are '
+    'deployed (nox -s docs-deploy), as measuring the whole git history takes minutes. '
+    'To see them locally, run uv run python scripts/generate_complexity_graphs.py, then build '
+    'the docs again, or build with GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1.'
+)
 # The lock a generation holds, in the output directory (hidden from mkdocs, gitignored with it)
 GENERATION_LOCK_NAME = '.generation.lock'
 # How long a build waits for another's generation before giving up
@@ -700,12 +718,39 @@ def head_commit(*, project_root: Path) -> str:
     ).strip()
 
 
+def generated_from(*, graphs_directory: Path) -> str | None:
+    """Return the commit the published graphs were generated from (``GENERATED_FROM_NAME``).
+
+    Args:
+        graphs_directory: Where the graphs are.
+
+    Returns:
+        Its full hash, or None when there is no marker (nothing generated, or the placeholder).
+
+    """
+    generated_from_path = graphs_directory / GENERATED_FROM_NAME
+    if not generated_from_path.is_file():
+        return None
+    return generated_from_path.read_text(encoding='utf-8').strip()
+
+
+def mark_generated_from(*, graphs_directory: Path, commit: str) -> None:
+    """Record the commit the published graphs were generated from (``GENERATED_FROM_NAME``).
+
+    Args:
+        graphs_directory: Where the graphs are.
+        commit: The commit, read before the generation began (HEAD may move meanwhile).
+
+    """
+    (graphs_directory / GENERATED_FROM_NAME).write_text(f'{commit}\n', encoding='utf-8')
+
+
 def generate_if_stale(*, project_root: Path, graphs_directory: Path) -> bool:
     """Generate the graphs unless they were already generated from the current commit.
 
     The graphs measure committed history only, so they change only when HEAD does: the commit
     they were made from is kept in ``GENERATED_FROM_NAME`` next to them, and a build with the
-    same HEAD (every ``mkdocs serve`` rebuild, a second ``mkdocs build``) skips the minute the
+    same HEAD (a second deploy build, a build after ``main`` ran) skips the minutes the
     generation takes. The check and the generation hold ``generation_lock``, so a build that
     waited for another's generation finds the graphs current.
 
@@ -718,16 +763,96 @@ def generate_if_stale(*, project_root: Path, graphs_directory: Path) -> bool:
 
     """
     commit = head_commit(project_root=project_root)
-    generated_from_path = graphs_directory / GENERATED_FROM_NAME
     with generation_lock(graphs_directory=graphs_directory):
-        if (
-            generated_from_path.is_file()
-            and generated_from_path.read_text(encoding='utf-8').strip() == commit
-        ):
+        if generated_from(graphs_directory=graphs_directory) == commit:
             LOG.info('Complexity graphs are current (commit %s)', commit[:12])
             return False
         generate_complexity_graphs(project_root=project_root, graphs_directory=graphs_directory)
-        generated_from_path.write_text(f'{commit}\n', encoding='utf-8')
+        mark_generated_from(graphs_directory=graphs_directory, commit=commit)
+    return True
+
+
+def placeholder_history() -> dict[str, Any]:
+    """Return the explorer's data for a build that skipped the generation: nothing measured.
+
+    The format ``complexity_history`` writes, with no commits, modules, packages or series,
+    plus ``placeholder``: the notice docs/js/complexity.js shows instead of a chart.
+
+    Returns:
+        The data.
+
+    """
+    return {
+        'placeholder': PLACEHOLDER_NOTICE,
+        'commits': [],
+        'metrics': [{'key': metric, 'label': label} for metric, label in METRICS],
+        'modules': [],
+        'packages': [],
+        'default_count': TOP_MODULE_COUNT,
+        'plotly': PLOTLY_JS_URL,
+        'series': {},
+    }
+
+
+def placeholder_snippet() -> str:
+    """Return the markdown docs/quality/complexity.md includes when nothing was measured.
+
+    ``PLACEHOLDER_HEADING``, then the explorer element reading the placeholder data, which
+    shows ``PLACEHOLDER_NOTICE`` in place of the chart; so the built page passes the docs hook's
+    explorer check (``missing_explorer_files``) exactly as a deployed one does.
+
+    Returns:
+        The markdown.
+
+    """
+    return '\n'.join((
+        f'**{PLACEHOLDER_HEADING}**',
+        '',
+        f'<div class="complexity-explorer" data-source="{EXPLORER_DATA_URL_FROM_PAGE}"></div>',
+        '',
+    ))
+
+
+def write_placeholder_unless_current(*, project_root: Path, graphs_directory: Path) -> bool:
+    """Publish the placeholder data and snippet, unless graphs generated from HEAD are there.
+
+    A docs build that does not deploy (``mkdocs build``, ``serve``) calls this instead of
+    ``generate_if_stale``: real graphs from this commit are kept; anything else (nothing, or
+    another commit's graphs) is replaced by the placeholder, published as a generation
+    publishes (staged, then each file in one step, under ``generation_lock``). The commit
+    marker is removed first, so a placeholder is never taken for current graphs.
+
+    Args:
+        project_root: The repository.
+        graphs_directory: Where the graphs are.
+
+    Returns:
+        True when the placeholder was written, False when HEAD's graphs were kept.
+
+    """
+    with generation_lock(graphs_directory=graphs_directory):
+        commit = generated_from(graphs_directory=graphs_directory)
+        # git is asked only when there are graphs to keep: a placeholder needs no repository
+        if commit is not None and commit == head_commit(project_root=project_root):
+            LOG.info('Complexity graphs from this commit (%s) are kept', commit[:12])
+            return False
+        (graphs_directory / GENERATED_FROM_NAME).unlink(missing_ok=True)
+        staging_directory = Path(
+            tempfile.mkdtemp(prefix=STAGING_DIRECTORY_PREFIX, dir=graphs_directory)
+        )
+        try:
+            (staging_directory / EXPLORER_DATA_NAME).write_text(
+                json.dumps(placeholder_history(), separators=(',', ':')), encoding='utf-8'
+            )
+            (staging_directory / GRAPHS_SNIPPET_NAME).write_text(
+                placeholder_snippet(), encoding='utf-8'
+            )
+            publish_staged_graphs(
+                staging_directory=staging_directory, graphs_directory=graphs_directory
+            )
+        finally:
+            shutil.rmtree(staging_directory, ignore_errors=True)
+    LOG.info('Wrote the complexity placeholder (graphs are generated only on deploy)')
     return True
 
 
@@ -735,10 +860,13 @@ def main() -> None:
     """Generate the complexity graphs for the documentation site."""
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     try:
+        commit = head_commit(project_root=PROJECT_ROOT)
         with generation_lock(graphs_directory=GRAPHS_DIR):
             graphs = generate_complexity_graphs(
                 project_root=PROJECT_ROOT, graphs_directory=GRAPHS_DIR
             )
+            # A local docs build then keeps these rather than writing the placeholder
+            mark_generated_from(graphs_directory=GRAPHS_DIR, commit=commit)
     except ComplexityGraphError as error:
         # The failed tool's own output is the useful part; a traceback would bury it
         sys.stderr.write(f'{error}\n')

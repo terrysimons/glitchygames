@@ -1,10 +1,12 @@
 """Aliasing checks (AUD-WAVE-006): the band-limited mip tables and the rendered waves."""
 
 import math
+import tracemalloc
 
 import numpy as np
 import pytest
 
+from glitchygames.audio import render
 from glitchygames.audio.render import render_sound
 from glitchygames.audio.waves import WAVE_TABLE_LENGTH, Wave
 from tests.audio.measuring import alias_floor_db
@@ -73,3 +75,41 @@ def test_a_rendered_custom_wave_reads_a_band_limited_table():
     mixed = Wave.mix(square=0.5, saw=0.5)
     samples = render_sound(single_note_spec(wave=mixed, hz=HIGHEST_FREQUENCY, length=1.0)).samples
     assert alias_floor_db(samples, HIGHEST_FREQUENCY, SAMPLE_RATE) <= -60.0
+
+
+def long_gliding_note(*, seconds: float) -> np.ndarray:
+    """A note's frequencies, gliding 110 to 880 Hz, so every table band and phase is read."""
+    return np.linspace(110.0, 880.0, num=int(seconds * SAMPLE_RATE), dtype=np.float64)
+
+
+def test_a_long_table_note_reads_in_little_memory():
+    """A 100 s note (a tune's drone) holds about three note-long arrays, not a dozen (#287).
+
+    Linux job 5155: rendering the listening pipe tunes grew 484 MiB, as the whole-note read
+    made a dozen 33 MiB temporaries at once, and the memory guard stopped the run.
+    """
+    frequencies = long_gliding_note(seconds=100.0)
+    wave = Wave('saw')
+    wave.band_limited_table(highest_frequency=880.0, sample_rate=SAMPLE_RATE)
+    tracemalloc.start()
+    try:
+        samples = render._table_samples(wave, frequencies, sample_rate=SAMPLE_RATE)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert len(samples) == len(frequencies)
+    assert peak < 4 * frequencies.nbytes
+
+
+def test_the_table_read_block_size_never_changes_the_samples(mocker):
+    """Blocks (TABLE_READ_BLOCK_SAMPLES) give the same samples, bit for bit, as one whole read."""
+    frequencies = long_gliding_note(seconds=2.5 * render.TABLE_READ_BLOCK_SAMPLES / SAMPLE_RATE)
+    wave = Wave('saw')
+    in_blocks = render._table_samples(wave, frequencies, sample_rate=SAMPLE_RATE)
+    mocker.patch.object(render, 'TABLE_READ_BLOCK_SAMPLES', len(frequencies) + 1)
+
+    whole = render._table_samples(wave, frequencies, sample_rate=SAMPLE_RATE)
+
+    assert in_blocks.tobytes() == whole.tobytes()
+    assert frequencies[0] == 110.0  # the caller's frequencies are left as they were

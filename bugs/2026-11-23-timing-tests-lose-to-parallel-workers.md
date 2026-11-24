@@ -1,0 +1,32 @@
+# Wall-Clock Timing Tests Fail When the Workers Take Every CPU
+
+- **Description**: #287's Windows job (5141) ran 4 xdist workers on the medium executor's 4 CPUs (that branch's change; it was 2). One test of 10,229 failed: `tests/timing/test_fast_timer_os.py::test_fast_timer_windows_1ms_option_tighter`, "the timer trailed the OS sleep by 18914500 ns (median upper bound), over this run's 3000000 ns". Everything else passed. The same branch's other numbers: Linux on 6 machines took 1,028 s against 1,842 (9% more machine-minutes), with memory peaks of 1,108 to 1,345 MiB under the 1500 MiB limit; Windows' slowest machine took 1,312 s against 1,542.
+- **Status**: Fixed on `ci/more-parallel-linux-and-windows` (#287, 2026-11-23); CI must confirm
+- **Priority**: Medium. It failed the Windows job, and any wall-clock test would fail the same way whenever every core is busy.
+- **Root Cause**: with a worker on every CPU there is no spare core. The timer test's spinning thread competes with the other workers, so it measures the contention, not the timer. The paired design (`test_fast_timer_os.py`'s module comment) cancels a slow machine, but not a pre-empted spin that the OS's own sleep doesn't feel.
+- **Test gap**: nothing kept the tests that time real work out of the parallel run. CLAUDE.md says wall-clock timings don't belong in the normal suite, yet five such tests ran beside every other test, on as many workers as the job chose.
+- **Decision** (the owner, 2026-11-23): keep the 4 Windows workers, and run the tests that time real work alone.
+- **Fix**:
+  - A registered marker, `wall_clock(reason)` (`tests/harness.py`), on the five tests that time real work against a tolerance:
+    - `tests/timing/test_fast_timer_os.py`: `test_fast_timer_basic_sleep_accuracy`, `test_fast_timer_spin_tighten_accuracy`, `test_fast_timer_windows_1ms_option_tighter`;
+    - `tests/animation/test_animation_hardware.py`: `test_hardware_rendering_performance`;
+    - `tests/animation/test_animation_visual.py`: `test_animation_rendering_performance`.
+  - `nox -s test` runs two pytest runs:
+    - every other test on its workers (`-m "not wall_clock"`, coverage rule off);
+    - then the marked tests alone, in one process (`-n 0 -m wall_clock`), appending to the first run's coverage so the 100% rule covers both, with its own JUnit report (`test-results/junit-wall-clock.xml`).
+  - On a split CI machine each run is split on its own (the split plugin runs after `-m` deselects), so each marked test runs on exactly one machine, and that machine's coverage data holds both runs. A machine dealt no marked test collects nothing; exit 5 passes.
+  - `nox -s test-random`, the pre-push hook, splits its shuffled run the same way.
+- **Sweep** (2026-11-23): every test file that reads the real clock (`time.perf_counter`, `time.monotonic`, `clock.measured_seconds`, sleeps) was checked.
+  - The five above bound a duration.
+  - `test_last_operation_timestamp` (Bitmappy's multi-controller performance tests) checks order only.
+  - The rest patch the clock (`tests/test_clock.py`, `tests/world/test_finish_frame.py`, `tests/scenes/test_scene.py`, `tests/timing/test_timing.py`) or only order two readings (`tests/timing/test_timers.py`).
+  - The benchmarks run apart already (`--benchmark-only`).
+- **Tests**:
+  - `tests/test_ci_config.py::test_the_test_session_runs_the_wall_clock_tests_alone_after_the_rest` (one machine and a split one) and `test_the_shuffled_pre_push_run_times_the_wall_clock_tests_alone_too` pin the two runs.
+  - `tests/test_suite_collection.py::test_every_test_that_times_real_work_runs_alone` holds the swept files: a test there that reads the real clock is marked, or listed with why it bounds no duration.
+  - Each failed first.
+  - Locally, the two steps on `tests/timing` ran 136 tests, then 2 (1 skipped off Windows). The append kept the first run's coverage: 26,938 statements missed with it, 26,990 without. A file with no marked test exits 5.
+- **What CI must confirm**: the Windows job passes with 4 workers, and how long the serial step adds to each machine.
+- **Reporter**: the owner, from CircleCI job 5141 (#287)
+- **Date Reported**: 2026-11-23
+- **Files**: `noxfile.py`, `tests/harness.py`, `tests/timing/test_fast_timer_os.py`, `tests/animation/test_animation_hardware.py`, `tests/animation/test_animation_visual.py`, `tests/test_ci_config.py`, `tests/test_suite_collection.py`, `docs/architecture/playback/testing.md`, `CLAUDE.md`
