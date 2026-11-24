@@ -665,3 +665,150 @@ the demo belongs on this docs branch.
 Reviewed the demo and reran the checks (ruff, basedpyright and ty repo-wide, the member's tests
 and the workspace guards, its drawing tests on the native driver), then committed this record on
 the docs branch and the demo on `feature/mascot-demo`, stacked on it.
+
+## 78. User (2026-11-23)
+
+> What is the branch for this demo?
+
+## 79. Claude
+
+`feature/mascot-demo`, stacked on `docs/spare-credits-exploration-plan` (the plans and this
+record); not pushed yet, and its PR would target the docs branch.
+
+## 80. User (2026-11-23)
+
+> Put them in mascot-demo
+
+## 81. User (2026-11-23)
+
+> open src/demos/mascot-demo/sheets/grimwire-sheet.png
+
+## 82. Claude
+
+Committed the Nixie and Grimwire character sheets in the demo's `sheets/` folder (outside the
+package, so the wheel does not ship them) and opened Grimwire's.
+
+## 83. User (2026-11-23)
+
+> Awesome.  What's left in the demo?
+
+## 84. Claude
+
+Left: the full suite, push and PR; the owner's pick of an owl; the weak flight art; four issues
+found in existing code (`play(name)` not rewinding, animations freezing unless `dirty = 2`, a text
+line class copied in three demos, the README's demo list missing the sound board demo).
+
+## 85. User (2026-11-23)
+
+> Also support ne, se, nw, sw as a direction and make sure we have sprites for all of those
+> directions.  Fix the current issues.
+
+## 86. User (2026-11-23)
+
+> Here is a note offered by a side agent:
+>
+> > Heads up · Making the engine's play() rewind an animation could freeze sprites in games that
+> > call play() every frame, and it's going on the demo branch.
+> >
+> > **Rewinding play() may freeze other games' sprites**
+> > - You asked to fix the issues, so the main agent is changing **`play()`**, the engine function
+> >   that starts a sprite's animation. Right now, calling it on the animation that's already
+> >   playing doesn't send it back to frame 1.
+> > - That "doesn't rewind" behavior may be something games rely on. Code that calls
+> >   `play('walk')` every frame works today. If `play()` rewinds, that sprite would sit stuck on
+> >   frame 1.
+> > - The change also lands on the mascot demo branch, so every game gets it with a demo PR.
+> > - **Before accepting it**, ask the main agent to:
+> > - find every place that calls `play()` and check none calls it every frame;
+> > - check that the saved replays still match;
+> > - consider an opt-in rewind option instead of changing what `play()` does by default.
+>
+> Make a TODO to audit the codebase.
+
+## 87. Claude
+
+Diagonals already worked with two keys and both owls had all 24 directional animations; added
+the numeric keypad (one key per direction) and a test requiring every direction's sprites. Fixed
+the four issues with regression tests that failed first: `play(name)` now starts from the first
+frame; `Scene.update` advances every playing animated sprite; one engine `TextLine` replaces the
+three copies; the README lists the sound board demo. No caller in the repository calls
+`play(name)` every frame, and every game's, demo's and app's tests and replays passed. The audit
+to-do is in the bug record `bugs/2026-11-23-animated-sprite-play-and-scene-update-froze-animations.md`.
+
+## 88. User (2026-11-23)
+
+> I want to run it locally first.
+
+## 89. Claude
+
+`uv run mascot-demo` from the worktree, with what to try; no push until the owner says so.
+
+## 90. User (2026-11-23)
+
+> Remind me what the names and meanings were
+
+## 91. Claude
+
+Nixie (the glowing numeral tube; a water spirit), Triode (the three-part tube), Ohm (resistance;
+the meditative "om"), Hertz (frequency, after its pulsing eyes), Grimwire (a grimoire that is
+also wiring); the choice was between Nixie and Grimwire.
+
+## 92. User (2026-11-23)
+
+> Ok, now build the other owls sprite contact sheets and then add them to the demo.
+
+## 93. User (2026-11-23)
+
+> i'd like to see the contact sheets once ready
+
+## 94. Claude
+
+Wrote a round-2 brief (Triode tall and slim, Ohm a squat pebble with an Ω halo, Hertz small and
+spiky with oscilloscope eyes) and had three agents draw them in parallel; showed each sheet as it
+finished.
+
+## 95. User (2026-11-23)
+
+> Make the demo's background be a sort of gunmetal blue
+
+## 96. User (2026-11-23)
+
+> more blue than gray but subtle
+
+## 97. Claude
+
+The background is now `#263650` (38, 54, 80), tested; then added Triode, Ohm and Hertz to the
+demo (Tab cycles all five), with their sheets.
+
+## 98. User (2026-11-23)
+
+> This is great.  I love the variability in style.  Now that we've done a few, can you think of
+> any more?
+
+## 99. Claude
+
+Proposed more owls, each on a different real owl species: units (Kelvin, Henry, Watt, Farad,
+Joule), components (Diode, Relay, Fuse, Patch) and arcane tech (Hex, Qubit, Ferro, Byte); flagged
+Tesla and Volta as names to avoid.
+
+## 100. User (2026-11-23)
+
+> Ok, love all of those, now how about more on the magic side as well?
+
+## 101. Claude
+
+Proposed magic owls: Retort, Quicksilver, Athanor, Augur, Nyx, Cantrip, Wyrd, Cinder, Bramble,
+Tempest, Lich, Strix, Glamour; noted that Irish-myth owls (a púca, an ogham owl) would fit the
+language game but blur the Lucid Circuit and game separation.
+
+## 102. User (2026-11-23)
+
+> Since this is a demo, lets do the púca and the ogham owl.  Do the res, too.  Don't use names
+> from other works.  Go ahead.
+
+## 103. Claude
+
+Building all 28 (Quicksilver renamed Argent: it is a Marvel character). One shared brief gives
+each owl its own species, palette and personality; the ogham owl spells OGAM with verified strokes
+that are never mirrored. Agents draw them in waves of seven. The demo now loads only the owl on
+screen (each takes about 0.11 s to load) and Shift+Tab goes back.
