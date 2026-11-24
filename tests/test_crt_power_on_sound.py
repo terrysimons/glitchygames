@@ -861,6 +861,7 @@ def play_the_real_sequence_without_waiting(mocker) -> None:
 class TestInRealRuns:
     """The engine plays the sound with the picture, and only then (AUD-CRT-002)."""
 
+    @pytest.mark.draws_frames
     def test_the_power_on_plays_its_sound_and_carries_the_tail_into_the_game(
         self, mocker, channel_calls
     ):
@@ -874,6 +875,7 @@ class TestInRealRuns:
         fades = [arguments for _index, arguments in calls_named(channel_calls, 'fadeout')]
         assert (TAIL_FADE_MILLISECONDS,) in fades
 
+    @pytest.mark.draws_frames
     def test_the_power_ons_audio_engine_is_the_games(self, mocker):
         """Made before the power-on from the engine's options and partition (rulings R34, R35)."""
         engine = build_engine(
@@ -905,6 +907,7 @@ class TestInRealRuns:
         assert engine.channel_partition is not None
         assert len(engine.channel_partition.library) == 12
 
+    @pytest.mark.draws_frames
     def test_the_async_start_gets_the_cues_too(self, mocker):
         engine = build_engine(mocker, extra_arguments=('--crt-power-on', 'on'))
         cues_seen: list[Any] = []
@@ -927,6 +930,7 @@ class TestInRealRuns:
         (cues,) = cues_seen
         assert isinstance(cues, CrtPowerOnSound)
 
+    @pytest.mark.draws_frames
     def test_the_sound_follows_the_configured_background(self, mocker):
         engine = build_engine(
             mocker,
@@ -946,6 +950,7 @@ class TestInRealRuns:
         (cues,) = cues_seen
         assert CHANNEL_THREE_HISS in cues.sounds
 
+    @pytest.mark.draws_frames
     def test_no_sound_with_the_option_off(self, mocker):
         """``--crt-power-on-sound off`` silences it; the picture still plays."""
         engine = build_engine(
@@ -961,6 +966,7 @@ class TestInRealRuns:
         assert player.call_args.kwargs['sound_cues'] is None
         assert system_voices_started(voice_plays) == 0
 
+    @pytest.mark.draws_frames
     def test_no_sound_under_headless(self, mocker):
         """--headless moves the run to SDL's dummy driver: neither the picture nor its sound plays.
 
@@ -984,6 +990,7 @@ class TestInRealRuns:
         made.assert_not_called()
         assert system_voices_started(voice_plays) == 0
 
+    @pytest.mark.draws_frames
     def test_no_sound_with_a_recording_or_its_replay(self, mocker, tmp_path):
         """Even where someone watches, a recorded or replayed run has nothing before frame 0."""
         recording = tmp_path / 'run.jsonl.gz'
@@ -1013,6 +1020,7 @@ class TestInRealRuns:
         made.assert_not_called()
         assert system_voices_started(voice_plays) == 0
 
+    @pytest.mark.draws_frames
     def test_without_the_power_on_no_audio_engine_is_made_early(self, mocker):
         """No power-on, no CRT: the game's audio engine is made on first use, as before."""
         engine = build_engine(mocker, extra_arguments=('--crt-power-on', 'off'))
@@ -1235,6 +1243,7 @@ def test_the_shared_sound_plays_from_a_second_context():
     second.close(wait_seconds=0.0)
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run_environment')
 def test_two_game_runs_in_one_process_compile_the_crt_once(mocker):
     """The test harness's repeated engines (and the Arcade's) power on with no CRT compile."""

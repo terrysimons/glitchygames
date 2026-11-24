@@ -32,7 +32,6 @@ one did, INTERNAL_ERROR (70) when a run never reached the moment.
 from __future__ import annotations
 
 import argparse
-import contextlib
 import os
 import signal
 import sys
@@ -216,13 +215,13 @@ def reach_the_moment(*, when: str, run: RunningProcess[str], temporary: Path) ->
 def end_the_run(*, run: RunningProcess[str]) -> None:
     """End whatever is left of the run, however the trial ended (the moment never came, Ctrl-C).
 
-    As Ctrl-C stops it (SIGINT first: its tests' cleanup runs), then SIGKILL to anything still in
-    its group: in ``sigterm-leader`` mode the controller is gone, so ``stop_command`` (which
-    waits for the leader) signals nothing, and its workers would run on.
+    As Ctrl-C stops it (SIGINT first: its tests' cleanup runs). In ``sigterm-leader`` mode the
+    controller is already gone: ``stop_command`` then gives what it left in its group (its
+    workers) the SIGINT, and empties the group (a hand-written SIGKILL here returned before the
+    killed workers were reaped, and the guard saw them:
+    bugs/2026-11-21-orphan-trial-test-saw-a-dying-worker.md).
     """
     stop_command(process=run, first_signal=signal.SIGINT)
-    with contextlib.suppress(ProcessLookupError, PermissionError):
-        os.killpg(run.pid, signal.SIGKILL)
 
 
 def run_trial(*, mode: str, when: str, test: str) -> TrialResult | None:

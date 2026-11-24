@@ -19,10 +19,10 @@ The API's dependencies (`fastapi`, `uvicorn`, `pydantic`, `httpx2`, `apng`, `pil
 uv sync --all-packages
 ```
 
-For development (running tests):
+For development (running tests: some need the docs extras and cookiecutter):
 
 ```bash
-uv sync --extra dev --all-packages
+uv sync --all-extras --all-groups --all-packages
 ```
 
 ### Install the Local AI Service
