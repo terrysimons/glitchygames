@@ -1023,16 +1023,50 @@ class TestDrawsFramesOnly:
 
         result.assert_outcomes(passed=1, deselected=2)
 
-    def test_a_run_whose_collected_tests_are_all_unmarked_stops(self, inner_selection_tests):
-        """Nothing to compare is an error, not an agreeing comparison."""
+    def test_a_run_whose_collected_tests_are_all_unmarked_runs_nothing(self, inner_selection_tests):
+        """Nothing to run is pytest's "no tests ran", not an error: a targeted run may draw nothing.
+
+        A driver comparison that runs nothing is refused where it compares (a run that recorded
+        no test: scripts/driver_frame_matrix.py, BUGS.md #192).
+        """
         result = inner_selection_tests.runpytest_inprocess(
             '-p', PLUGIN_MODULE, frame_fingerprints.DRAWS_FRAMES_ONLY_OPTION, '-k', 'unmarked'
         )
 
-        assert result.ret == pytest.ExitCode.USAGE_ERROR
-        result.stderr.fnmatch_lines([
-            '*--draws-frames-only: none of the 1 collected test(s) is marked draws_frames*'
-        ])
+        assert result.ret == pytest.ExitCode.NO_TESTS_COLLECTED
+        result.assert_outcomes(deselected=3)
+
+    def test_recording_drawing_tests_only_leaves_the_others_out(
+        self, inner_selection_tests, tmp_path
+    ):
+        """--frame-fingerprints-drawing-only: every test runs, only the marked ones are recorded."""
+        directory = tmp_path / 'run'
+
+        result = inner_selection_tests.runpytest_inprocess(
+            '-p',
+            PLUGIN_MODULE,
+            f'{FINGERPRINTS_OPTION}={directory}',
+            frame_fingerprints.DRAWING_ONLY_OPTION,
+        )
+
+        result.assert_outcomes(passed=3)
+        assert set(read_recorded_frames(directory=directory)) == {
+            'test_selection.py::test_marked',
+            'test_selection.py::test_marked_and_slow',
+        }
+
+    def test_recording_drawing_tests_only_can_be_asked_by_the_environment(
+        self, inner_selection_tests, monkeypatch, tmp_path
+    ):
+        """GLITCHYGAMES_FRAME_FINGERPRINTS_DRAWING_ONLY, for the run it names, as the others."""
+        directory = tmp_path / 'run'
+        monkeypatch.setenv(FINGERPRINTS_VARIABLE, str(directory))
+        monkeypatch.setenv(frame_fingerprints.DRAWING_ONLY_VARIABLE, '1')
+        monkeypatch.setenv(OWNER_VARIABLE, str(os.getpid()))
+
+        inner_selection_tests.runpytest_inprocess('-p', PLUGIN_MODULE).assert_outcomes(passed=3)
+
+        assert 'test_selection.py::test_unmarked' not in read_recorded_frames(directory=directory)
 
     def test_without_the_option_every_test_runs(self, inner_selection_tests):
         """The option is off by default."""
@@ -1112,3 +1146,221 @@ class TestTheDrawsFramesCheckDirectly:
         finally:
             pygame.init()
             show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+
+# Inner tests for a re-run that stops: each presents twelve frames, frame N filled with grey N*20
+INNER_LONG_TESTS = textwrap.dedent(
+    """
+    import pygame
+    import pytest
+
+
+    def present_twelve():
+        display = pygame.display.get_surface()
+        for frame in range(12):
+            display.fill((frame * 20, frame * 20, frame * 20))
+            pygame.display.flip()
+
+
+    @pytest.fixture
+    def presents_in_teardown():
+        yield
+        pygame.display.flip()
+
+
+    def test_long(presents_in_teardown):
+        present_twelve()
+
+
+    def test_long_catching_errors():
+        # As an engine's frame loop catches its game's errors: the stop is not an error
+        try:
+            present_twelve()
+        except Exception:
+            pytest.fail('the stop reached an except Exception')
+
+
+    def test_long_not_stopped():
+        present_twelve()
+    """
+)
+LONG = 'test_long.py::test_long'
+LONG_CATCHING = 'test_long.py::test_long_catching_errors'
+LONG_NOT_STOPPED = 'test_long.py::test_long_not_stopped'
+
+
+# Each test's inner run presents frames in this process, so the test itself draws
+@pytest.mark.draws_frames
+class TestAReRunStopsAfterItsFrames:
+    """A re-run given where to stop ends its test there, as a skip, after saving its frames."""
+
+    @pytest.fixture
+    def long_tests(self, pytester: pytest.Pytester) -> Iterator[pytest.Pytester]:
+        """A pytester directory holding the long inner tests, the display shown again afterwards.
+
+        Yields:
+            The pytester.
+
+        """
+        pytester.makepyfile(test_long=INNER_LONG_TESTS)
+        yield pytester
+        show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+    def run_with_request(
+        self, *, pytester: pytest.Pytester, directory: Path, request: FrameImageRequest
+    ) -> pytest.RunResult:
+        """Run the long inner tests recording into ``directory`` under an image request.
+
+        Returns:
+            The inner run's result.
+
+        """
+        request_path = directory.parent / 'request.json'
+        request_path.write_text(request.model_dump_json(), encoding='utf-8')
+        return pytester.runpytest_inprocess(
+            '-p',
+            PLUGIN_MODULE,
+            f'{FINGERPRINTS_OPTION}={directory}',
+            f'{IMAGES_REQUEST_OPTION}={request_path}',
+        )
+
+    def test_the_test_stops_after_its_last_requested_frame_as_a_skip(self, long_tests, tmp_path):
+        """Frames 3 to 5 saved, the test ended after present 5, skipped (not failed)."""
+        directory = tmp_path / 'run'
+        result = self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(
+                positions_by_test={LONG: (3, 4, 5)}, stop_after_by_test={LONG: 5}
+            ),
+        )
+
+        result.assert_outcomes(passed=2, skipped=1)
+        record = read_recorded_frames(directory=directory)[LONG]
+        assert len(record.presented) == 6
+        assert record.final is None
+        assert record.stopped_after == 5
+        assert record.outcome == 'skipped'
+        saved = sorted(path.name for path in (directory / 'images').glob('*/*.png'))
+        assert saved == ['frame-3.png', 'frame-4.png', 'frame-5.png']
+        fifth = pygame.image.load(frame_image_path(directory=directory, nodeid=LONG, position=5))
+        assert fifth.get_at((0, 0))[:3] == (100, 100, 100)
+
+    def test_the_stop_passes_through_code_that_catches_errors(self, long_tests, tmp_path):
+        """A test catching Exception around its presents still ends as a skip there."""
+        directory = tmp_path / 'run'
+        result = self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(
+                positions_by_test={LONG_CATCHING: (1,)}, stop_after_by_test={LONG_CATCHING: 1}
+            ),
+        )
+
+        result.assert_outcomes(passed=2, skipped=1)
+        assert read_recorded_frames(directory=directory)[LONG_CATCHING].stopped_after == 1
+
+    def test_the_frame_clock_is_noted_at_each_requested_present(self, pytester, tmp_path):
+        """The served game time at each saved present, for the animations' gaps; no others."""
+        pytester.makepyfile(
+            test_clocked=textwrap.dedent(
+                """
+                import pygame
+
+                from glitchygames import clock
+
+
+                def test_clocked(monkeypatch):
+                    served = {'seconds': 0.0}
+                    monkeypatch.setattr(clock, 'frame_clock_seconds', lambda: served['seconds'])
+                    for _frame in range(6):
+                        pygame.display.flip()
+                        served['seconds'] += 1 / 60
+                """
+            )
+        )
+        directory = tmp_path / 'run'
+
+        result = self.run_with_request(
+            pytester=pytester,
+            directory=directory,
+            request=FrameImageRequest(positions_by_test={'test_clocked.py::test_clocked': (2, 4)}),
+        )
+        show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+
+        result.assert_outcomes(passed=1)
+        record = read_recorded_frames(directory=directory)['test_clocked.py::test_clocked']
+        assert record.frame_clock_at == pytest.approx({2: 2 / 60, 4: 4 / 60})
+
+    def test_the_run_facts_are_noted_with_the_saved_frames(self, long_tests, tmp_path):
+        """The display's refresh rate as pygame reports it (none on dummy); no FPS, no engine.
+
+        It draws, so compare-drivers runs it on the native driver too, where the display has a
+        real refresh rate (the dummy driver's 60 Hz is SDL's stand-in: None).
+        """
+        directory = tmp_path / 'run'
+
+        self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(positions_by_test={LONG_NOT_STOPPED: (3,)}),
+        )
+
+        record = read_recorded_frames(directory=directory)[LONG_NOT_STOPPED]
+        if pygame.display.get_driver() == 'dummy':
+            assert record.refresh_rate_hz is None
+        else:
+            assert record.refresh_rate_hz == pygame.display.get_current_refresh_rate()
+        assert record.configured_fps is None
+        assert record.test_order_seed is None
+
+    def test_a_test_with_no_stop_runs_to_its_end(self, long_tests, tmp_path):
+        """Positions alone (a final frame asked for): every present, and the final frame."""
+        directory = tmp_path / 'run'
+        result = self.run_with_request(
+            pytester=long_tests,
+            directory=directory,
+            request=FrameImageRequest(positions_by_test={LONG_NOT_STOPPED: (10, 11, 12)}),
+        )
+
+        result.assert_outcomes(passed=3)
+        record = read_recorded_frames(directory=directory)[LONG_NOT_STOPPED]
+        assert len(record.presented) == 12
+        assert record.final is not None
+        assert record.stopped_after is None
+
+
+class TestRunFacts:
+    """The run facts the recorder notes for a re-run's animation, read on their own."""
+
+    def test_the_configured_fps_is_the_running_engines(self, mocker):
+        """The engine's resolved target (--target-fps, else the scene's TARGET_FPS)."""
+        engine = mocker.Mock(options={'target_fps': 30.0})
+        mocker.patch('glitchygames.engine.game_engine.current_engine', return_value=engine)
+
+        assert frame_fingerprints.configured_fps() == engine.options['target_fps']
+
+    def test_no_running_engine_has_no_configured_fps(self):
+        """Outside an engine (most drawing tests): None, shown as "n/a"."""
+        assert frame_fingerprints.configured_fps() is None
+
+    def test_a_real_drivers_refresh_rate_is_what_pygame_reports(self, mocker):
+        """A native driver's display rate, as pygame reads it."""
+        mocker.patch('pygame.display.get_driver', return_value='cocoa')
+        mocker.patch('pygame.display.get_current_refresh_rate', return_value=120)
+
+        assert frame_fingerprints.display_refresh_rate() == 120  # the stand-in's rate
+
+    def test_the_dummy_drivers_stand_in_rate_is_not_a_refresh_rate(self, mocker):
+        """SDL's dummy driver answers 60 Hz for a display that does not exist: None."""
+        mocker.patch('pygame.display.get_driver', return_value='dummy')
+        mocker.patch('pygame.display.get_current_refresh_rate', return_value=60)
+
+        assert frame_fingerprints.display_refresh_rate() is None
+
+    def test_a_stopped_display_has_no_refresh_rate(self, mocker):
+        """No display (pygame's error) is None, never a made-up number."""
+        mocker.patch('pygame.display.get_driver', return_value='cocoa')
+        mocker.patch('pygame.display.get_current_refresh_rate', side_effect=pygame.error('none'))
+
+        assert frame_fingerprints.display_refresh_rate() is None

@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict
 
 from glitchygames import ai_link, clock
 from glitchygames.machine_state import in_continuous_integration
-from glitchygames.process import OutputCapture, run_command
+from glitchygames.process import OutputCapture, run_command, stop_command
 from tests.ansible_inventory import every_host
 from tests.ansible_rendering import (
     Architecture,
@@ -5449,17 +5449,15 @@ def test_two_setup_runs_at_once_never_both_download(tmp_path: Path):
     """
     setup = LinuxSetup(tmp_path=tmp_path)
     setup.set_cores(count=4, capacities={})
-    first = start_setup(setup=setup, extra={'CURL_DELAY_SECONDS': '1'})
-    try:
-        wait_until_downloading(setup=setup)
-        second = start_setup(setup=setup, extra={})
-        second_output, second_errors = second.communicate(timeout=120)
-        second_finished_first = first.poll() is None
-        first_output, first_errors = first.communicate(timeout=120)
-    finally:
-        with contextlib.suppress(ProcessLookupError):
-            os.killpg(first.pid, signal.SIGKILL)
-        first.wait(timeout=10)
+    with start_setup(setup=setup, extra={'CURL_DELAY_SECONDS': '1'}) as first:
+        try:
+            wait_until_downloading(setup=setup)
+            with start_setup(setup=setup, extra={}) as second:
+                second_output, second_errors = second.communicate(timeout=120)
+            second_finished_first = first.poll() is None
+            first_output, first_errors = first.communicate(timeout=120)
+        finally:
+            stop_command(process=first, first_signal=signal.SIGKILL)
 
     assert second.returncode == 0, second_output + second_errors
     assert 'is already running; it finishes the job' in second_output
@@ -5483,13 +5481,13 @@ def test_a_run_after_one_that_was_killed_proceeds_at_once(tmp_path: Path):
     """
     setup = LinuxSetup(tmp_path=tmp_path)
     setup.set_cores(count=4, capacities={})
-    killed = start_setup(setup=setup, extra={'CURL_DELAY_SECONDS': '30'})
-    try:
-        wait_until_downloading(setup=setup)
-    finally:
-        with contextlib.suppress(ProcessLookupError):
-            os.killpg(killed.pid, signal.SIGKILL)
-        killed.communicate(timeout=10)
+    with start_setup(setup=setup, extra={'CURL_DELAY_SECONDS': '30'}) as killed:
+        try:
+            wait_until_downloading(setup=setup)
+        finally:
+            # The whole group goes, as a power cut takes it, and nothing of it is left holding
+            # the pipes (stop_command kills any member the group signal missed)
+            stop_command(process=killed, first_signal=signal.SIGKILL)
 
     result = setup.run()
 
@@ -5888,16 +5886,14 @@ def test_ansible_waits_out_a_setup_run_already_going_and_needs_its_own_to_finish
     """
     setup = LinuxSetup(tmp_path=tmp_path)
     setup.set_cores(count=4, capacities={})
-    first = start_setup(setup=setup, extra={'CURL_DELAY_SECONDS': '1'})
-    try:
-        wait_until_downloading(setup=setup)
-        second = start_setup(setup=setup, extra={})
-        second_output, second_errors = second.communicate(timeout=120)
-        first_output, first_errors = first.communicate(timeout=120)
-    finally:
-        with contextlib.suppress(ProcessLookupError):
-            os.killpg(first.pid, signal.SIGKILL)
-        first.wait(timeout=10)
+    with start_setup(setup=setup, extra={'CURL_DELAY_SECONDS': '1'}) as first:
+        try:
+            wait_until_downloading(setup=setup)
+            with start_setup(setup=setup, extra={}) as second:
+                second_output, second_errors = second.communicate(timeout=120)
+            first_output, first_errors = first.communicate(timeout=120)
+        finally:
+            stop_command(process=first, first_signal=signal.SIGKILL)
     found_the_lock_taken = subprocess.CompletedProcess(
         args=[], returncode=second.returncode, stdout=second_output, stderr=second_errors
     )

@@ -697,11 +697,11 @@ class TestNativeRunTimeLimit:
     def test_a_native_run_has_the_limit_and_the_stack_dump(self, mocker, tmp_path, name):
         command = self.pytest_command(mocker=mocker, tmp_path=tmp_path, configuration_name=name)
 
-        assert '--timeout=120' in command
+        assert '--timeout=360' in command
         assert '--timeout-method=thread' in command
-        assert 'faulthandler_timeout=110' in command
+        assert 'faulthandler_timeout=350' in command
         # Before the test selection, which ends the command
-        assert command.index('--timeout=120') < command.index('tests/test_x.py')
+        assert command.index('--timeout=360') < command.index('tests/test_x.py')
 
     @pytest.mark.parametrize('name', ['dummy-1', 'dummy-2', 'x11-macos', 'x11-linux'])
     def test_the_other_runs_have_no_limit(self, mocker, tmp_path, name):

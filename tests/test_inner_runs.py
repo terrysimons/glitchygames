@@ -193,3 +193,25 @@ def test_a_projects_own_pyproject_settings_still_win(pytester: pytest.Pytester) 
 
     assert config_file_read(result.outlines) == 'pyproject.toml'
     result.assert_outcomes(passed=1)
+
+
+def test_an_inner_run_writes_no_junit_report(pytester):
+    """The outer run's --junitxml (pyproject.toml's addopts) never reaches an inner run.
+
+    CircleCI reads test-results/junit.xml for its test results and the split's timings; an inner
+    run writing it would replace the job's report. The project's own configuration and
+    pytester's removal of PYTEST_ADDOPTS keep the option out: pinned here. (#286's job 5096 log
+    showed the outer run's own "generated xml file" line right after a failed inner run's
+    output; it was not the inner run's.)
+    """
+    pytester.makepyfile(
+        test_inner="""
+        def test_no_report(pytestconfig):
+            assert pytestconfig.option.xmlpath is None
+        """
+    )
+
+    result = pytester.runpytest_inprocess()
+
+    result.assert_outcomes(passed=1)
+    assert 'generated xml file' not in result.stdout.str()
