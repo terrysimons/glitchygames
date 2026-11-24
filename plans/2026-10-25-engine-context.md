@@ -3,8 +3,9 @@
 Status: **folded into the Arcade's master plan on 2026-11-08** (the owner: "Rewrite the plan
 order"): each remaining sub-plan is now part of the Arcade sub-plan that needs it
 ([2026-10-23-arcade-showcase.md](2026-10-23-arcade-showcase.md), Sub-plans: sub-plan 2 is Arcade
-1; 3, 4, 6 and 7 are Arcade 3; 5 is Arcade 4; 8 goes with Arcade 5; sub-plan 3's browser and
-thread rules with Arcade 8). This file stays as the reference for the audit table and the
+1; 3, 4, 6 and 7 are Arcade 3; 5 is Arcade 4; 8 was to go with Arcade 5, and was moved to a
+later Arcade sub-plan by the owner on 2026-11-20, not done; sub-plan 3's browser and thread rules
+with Arcade 8). This file stays as the reference for the audit table and the
 decisions. Sub-plan 1 implemented and verified on feature/engine-context-state (commits
 9d3a162e^..364f4910, the documentation commits included; whole-branch verification in its
 Task 10), merged as #108. Sub-plan 2
@@ -436,10 +437,15 @@ its own is the playback core's decision.
    (`test_ten_inner_games_per_outer_frame`). Row S8 is only partly done (above).
 8. **The replay viewer's inner game in its own context**: the first existing user; the viewer
    stays the outer game in the default context; every watched-replay test and golden replay
-   unchanged.
+   unchanged. **Moved, not done** (the owner, 2026-11-20): Arcade sub-plan 5
+   ([2026-11-20-arcade-5-playback-core.md](2026-11-20-arcade-5-playback-core.md), decision 1 of
+   its owner's decisions) built `DemoPlayer` on `InnerGame` and the viewer's pacer
+   (`src/glitchygames/replay/pacer.py`) without it; the viewer still runs in its game's own
+   engine. The move is a later Arcade sub-plan, starting from the design questions that plan
+   lists under "The viewer's own context".
 
-After sub-plan 8 the Arcade spec's sub-plan 2 (one playback core, then `DemoPlayer`) builds on
-contexts.
+The Arcade spec's playback core (its sub-plan 5) was built on contexts without sub-plan 8: the
+tiles are `InnerGame`s, and the viewer shares their pacing, not their context.
 
 ## Decisions (the owner, 2026-10-25)
 

@@ -179,6 +179,23 @@ class TestValidationAndSerialization:
         assert recipes['beep'].volume == 0.4
         assert recipes['beep'].tones[0].waveform is Waveform.SINE
 
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_a_recipe_file_with_any_line_end_loads_as_with_line_feeds(self, tmp_path, line_end):
+        """A recipe file saved on Windows (CRLF) or an old Mac (lone CR) loads as with LF."""
+        text = (
+            '[recipes.beep]\nvolume = 0.4\n'
+            '[[recipes.beep.tones]]\nwaveform = "sine"\nstart_frequency = 880.0\n'
+            'duration = 0.1\n'
+            '[recipes.beep.tones.envelope]\nattack = 0.001\ndecay = 0.01\n'
+            'sustain_level = 0.5\nrelease = 0.05\n'
+        )
+        lf_path = tmp_path / 'lf.toml'
+        lf_path.write_bytes(text.encode('utf-8'))
+        other_path = tmp_path / 'other.toml'
+        other_path.write_bytes(text.replace('\n', line_end).encode('utf-8'))
+
+        assert load_effects(other_path) == load_effects(lf_path)
+
 
 def _two_tones() -> tuple[Tone, Tone]:
     """Two sine tones, one offset, whose straight sum peaks below 1."""

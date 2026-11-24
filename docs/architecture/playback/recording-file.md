@@ -21,7 +21,7 @@ flowchart TD
     key["Frame line: keyframe<br/>(frame 0, a new scene object, or forced)<br/>frame, scene, sprites (full list)"]
     delta["Frame line: delta<br/>changed / added / removed / order<br/>against the previous frame"]
     always["On every frame line:<br/>dt, event_batches,<br/>content_hash [history], processing_seconds [history]"]
-    sometimes["Only where not empty:<br/>input_changes, control_events, devices_opened,<br/>saves_opened, device_enumeration, scene_start,<br/>redelivered_events"]
+    sometimes["Only where not empty:<br/>input_changes, control_events, devices_opened,<br/>saves_opened, device_enumeration, scene_start,<br/>redelivered_events, audio_seconds, audio_work"]
 
     file --> header
     file --> key
@@ -56,6 +56,7 @@ bool}` for every sprite in the scene's `all_sprites`, in draw order (`sample_sce
 | `scene`, `sprites` | what the frame drew, sampled: the comparison's fingerprint of the frame (driver rule 8) | `end_frame` |
 | `measurement_runs` | each run's provenance (machine, paced or not, versions, commit, machine state) and its summary (`src/glitchygames/recording_history.py`) | `glitchygames report`, `measure` |
 | `content_hash`, `processing_seconds` | per frame, newest run first: what the frame did and how long its work took, per run | `report`, the ledger |
+| `audio_seconds`, `audio_work` | a frame in which the audio engine worked (compiles, decodes, cache reads, live chunks): its total and up to 32 `[kind, name, microseconds]` pieces, this run's alone; no hash covers them, and they are never compared or served (`src/glitchygames/audio/accounting.py`) | no tool yet: kept for reading a recording by hand |
 
 ## What is deliberately not kept
 

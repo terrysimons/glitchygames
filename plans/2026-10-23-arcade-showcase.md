@@ -5,7 +5,8 @@ Status: SPEC (agreed with the user 2026-10-25; drafted 2026-10-23); sub-plan 1 d
 on 2026-11-08, the owner's RunningGame ruling done; Tasks 8-17 done 2026-11-10, the whole-branch
 verification and the performance gate passed); sub-plan 2 done (PR #177, squash-merged 2026-11-11,
 [2026-11-11-arcade-2-demos.md](2026-11-11-arcade-2-demos.md):
-every tile's bundled demo); sub-plan 3 next. Tracked as feature #43 in `plans/future-features.md`.
+every tile's bundled demo); sub-plans 3, 4 and 5 done (Sub-plans, below); sub-plan 6 next.
+Tracked as feature #43 in `plans/future-features.md`.
 This is the master plan: each piece below gets its own sub-plan, linked both ways from here
 (sub-plans link back to this file). Since 2026-11-08 it also holds the engine context plan's
 remaining sub-plans (Sub-plans, below).
@@ -323,13 +324,22 @@ recorded the same options; ten tiles with different games and resolutions make t
    (`tests/test_every_recording_replays_inside_an_inner_game.py`). Left in
    `plans/future-work.md`: the owner's listening check of the switch's hard cuts,
    `INNER_GAMES` declaring only the default sizes, and `pygame.mixer.music` (no game uses it).
-5. **One playback core, then `DemoPlayer`** (section 2 above), with engine context sub-plan 8:
-   the replay viewer's inner game moves onto the core, in its own context. Looping,
-   fast-forward, poster frames, the frame budget. Planned 2026-11-20 in
-   [2026-11-20-arcade-5-playback-core.md](2026-11-20-arcade-5-playback-core.md) (for the owner's
-   review): the audit found no second runner to merge, so the core is the viewer's pacer plus a
-   shared time budget on `InnerGame`, and the viewer's own-context move is proposed as a later
-   sub-plan (its Open questions).
+5. **One playback core, then `DemoPlayer`** (section 2 above). Looping, fast-forward, poster
+   frames, the frame budget. **Done** (Tasks 1-6, 2026-11-20;
+   [2026-11-20-arcade-5-playback-core.md](2026-11-20-arcade-5-playback-core.md), branch
+   `feature/arcade-5-playback-core`): the audit found no second runner to merge, so the core is
+   the viewer's pacer, moved to `src/glitchygames/replay/pacer.py` (`RecordedFramePacer`,
+   `TickBudget`), a silent, sliced `InnerGame.fast_forward`, and `DemoPlayer`
+   (`src/glitchygames/demo_player.py`: loops, restarts once after a divergence and then freezes,
+   poster frames from the host's stream). The proof: every golden and bundled demo, as a
+   `DemoPlayer` beside another, ticked unevenly, fast-forwarded to a seeded poster frame, looped
+   and heard, and again in slow motion one frame a tick, equals its alone replay frame for frame
+   (`tests/test_every_recording_replays_inside_an_inner_game.py`); the cost is
+   `tests/benchmarks/test_demo_player_benchmarks.py` (docs/architecture/engine_context.md,
+   Performance). The budget is real time (the owner's decision 5): a recorded Arcade session
+   replays its inputs exactly, not its tiles' progress frame for frame. Engine context sub-plan 8
+   (the replay viewer's inner game in its own context) was moved by the owner to a later Arcade
+   sub-plan, not done; the design questions are in that plan.
 6. **The Arcade screen, reel and chime:** the app `src/apps/arcade/`, `uv run arcade`, ten tiles
    in three visually separate sections (games, apps, demos; Decisions, 2026-11-12), the
    selected one shown in the showcase area at the top, the highlight, input, the idle time-out, each tile's debug overlay (the spike's
@@ -348,7 +358,8 @@ sub-plan measures goes into the benchmark suite (`pytest --benchmark-only`, `nox
 performance-test`, `tests/benchmarks/`), never a one-off script. Sub-plan 1's per-read and
 per-call costs are `tests/benchmarks/test_engine_context_benchmarks.py` (its Tasks 16 and 17);
 sub-plan 3 adds the cost of ten inner games per Arcade frame, and sub-plan 5 the demo player's
-frame budget against `INNER_FRAME_BUDGET_SECONDS`.
+frame budget against `INNER_FRAME_BUDGET_SECONDS` (`tests/benchmarks/test_demo_player_benchmarks.py`:
+ten players per Arcade frame, a restart's build per demo, the posters' fast-forward).
 
 ## Decisions (the user, 2026-10-23 and 2026-10-25)
 

@@ -37,13 +37,15 @@ the installed package. Coverage maps the installed copies back to `src/`
 
 - A **demo** (a demos-layer member): a program under `src/demos/<demo>/`, run with its console
   script or `python -m <package>`. It is code.
-- A game's **bundled demo recording**: `<package>/demos/<name>.jsonl.gz`, package data inside a
-  game (PaddleSlap's `rally.jsonl.gz`; every Arcade tile has one), replayed by that game's
-  console script. It is data, and
+- A **bundled demo recording**: `<package>/demos/<name>.jsonl.gz`, package data inside a game,
+  demo or app (PaddleSlap's `rally.jsonl.gz`, the Timing demo's `timing.jsonl.gz`; every Arcade
+  tile has one), replayed by that member's console script. It is data, and
   `glitchygames.bundled_demos` finds it (see "Bundled demos" below).
 
-A `demos` directory inside a package is therefore never a demos-layer member, and a demos-layer
-member's recordings (it has none today) would still be that member's own package data.
+!!! note "A `demos` directory is not a demos-layer member"
+    A `demos` directory inside a package is never a demos-layer member. Demos-layer members
+    ship such recordings as their own package data too (`dt_demo/demos/timing.jsonl.gz`,
+    `joystick_demo/demos/pad.jsonl.gz`, `text_input_demo/demos/typing.jsonl.gz`).
 
 ## What a member is
 
@@ -57,7 +59,8 @@ src/<layer>/<member>/
                        the member's root, so nothing in the member directory can be imported by
                        accident in place of the installed package
   tests/               its tests (no __init__.py); a game's golden replay is in
-                       tests/fixtures/replays/golden.jsonl.gz
+                       tests/fixtures/replays/golden.jsonl.gz (a member with several games
+                       names each: golden-classic.jsonl.gz, golden-papyrus.jsonl.gz)
 ```
 
 Its `pyproject.toml` follows Mr. Muncher's (`src/games/mr-muncher/pyproject.toml`):
@@ -104,27 +107,32 @@ uv run pytest --no-cov src/<layer>/<member>/tests  # its tests alone (no coverag
 uv run pytest                                      # everything: the engine's and every member's tests
 ```
 
-A plain `uv sync` keeps every member installed (each is in the root's `dev` dependency group),
-but drops the dev tools: use the full command above. The 100% coverage gate covers the engine
-and every member together, so it is met only by the whole run.
+!!! warning "Use the full sync"
+    A plain `uv sync` keeps every member installed (each is in the root's `dev` dependency
+    group, `tests/test_workspace_config.py::test_a_plain_uv_sync_keeps_every_member_installed`)
+    but drops the dev tools (pytest among them): use the full command above. The 100% coverage
+    gate covers the engine and every member together, so it is met only by the whole run.
 
 Each layer is also an extra of the engine, naming that layer's members, so an installer picks
 the engine alone or with them:
 
 ```bash
-uv build --all-packages                                    # every wheel, into dist/
-                                                           # (nox -s build-wheel does the same)
-pip install --find-links dist glitchygames                 # the engine
-pip install --find-links dist "glitchygames[games]"        # the engine and every game
-pip install --find-links dist "glitchygames[demos,apps]"   # the engine, the demos and the apps
+uv build --all-packages                                       # every wheel, into dist/
+                                                              # (nox -s build-wheel does the same)
+uv pip install --find-links dist glitchygames                 # the engine
+uv pip install --find-links dist "glitchygames[games]"        # the engine and every game
+uv pip install --find-links dist "glitchygames[demos,apps]"   # the engine, the demos and the apps
 ```
 
-The names are not yet on PyPI (neither `glitchygames` nor any game's), so install from the built
-wheels as above: a plain `pip install glitchygames` would fetch whatever package someone else
-published under that name.
+!!! warning "Not on PyPI yet"
+    Neither `glitchygames` nor any member is published, so install from the built wheels as
+    above: installing `glitchygames` by name from the index would fetch whatever package someone
+    else published under that name.
 
-(`uv sync --extra games` does the same in the repository.) A layer with no member yet is an empty
-extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's members.
+`uv sync --extra games` does the same in the repository. A layer with no member yet is an empty
+extra; `tests/test_workspace_config.py` keeps each extra equal to its layer's members
+(`test_each_layer_is_an_extra_naming_exactly_its_members`). The `templates` extra
+(cookiecutter) is separate: it is not a layer.
 
 - **Recordings name games by logical names**: `<layer>.<module path inside the package>:<class>`
   (`games.mr_muncher.game:MrMuncherScene`). A recording therefore does not depend on where the

@@ -147,6 +147,20 @@ class NativeWindowMessagesScene(RecordingScene):
     NATIVE_WINDOW_MESSAGES = True
 
 
+class MidiRecordingScene(RecordingScene):
+    """A game that also records the MIDI events the engine routes to it."""
+
+    NAME = 'MidiRecordingScene'
+
+    def on_midi_in_event(self, event: HashableEvent) -> None:
+        """Record the event."""
+        self.received.append(('on_midi_in_event', event))
+
+    def on_midi_out_event(self, event: HashableEvent) -> None:
+        """Record the event."""
+        self.received.append(('on_midi_out_event', event))
+
+
 def constructed_engine(*, mocker, game: type[Scene]) -> Iterator[GoldenTraceEngine]:
     """Construct a real engine for a game; afterwards put pygame's blocked types back.
 
@@ -203,6 +217,17 @@ def native_window_messages_engine(mocker):
 
 
 @pytest.fixture
+def midi_engine(mocker):
+    """Construct a real engine for a game with MIDI handlers.
+
+    Yields:
+        GoldenTraceEngine: The engine, constructed (not started).
+
+    """
+    yield from constructed_engine(mocker=mocker, game=MidiRecordingScene)
+
+
+@pytest.fixture
 def scene(engine):
     """Start the engine's event managers with RecordingScene active, as start() does.
 
@@ -227,6 +252,45 @@ def process_posted(engine, posted_events: list[pygame.event.Event]) -> bool:
     for event in posted_events:
         pygame.event.post(event)
     return engine.process_events()
+
+
+# One event of each family the engine builds an event manager for, by the manager's attribute:
+# the invariant below hands each to the engine's handler for its type and expects that manager to
+# receive it. A manager the engine builds that is missing here fails the invariant, so a new one
+# gets an entry. The joystick and controller events name the stand-in joystick (an unmapped one,
+# whose joystick events are dispatched; a remap is a device event, never gated by layer).
+MANAGER_FAMILY_EVENTS: dict[str, pygame.event.Event] = {
+    'app_manager': pygame.event.Event(pygame.APP_LOWMEMORY),
+    'audio_manager': pygame.event.Event(pygame.AUDIODEVICEADDED, which=0, iscapture=0),
+    'controller_manager': pygame.event.Event(
+        pygame.CONTROLLERDEVICEREMAPPED, instance_id=JOYSTICK_INSTANCE_ID
+    ),
+    'drop_manager': pygame.event.Event(pygame.DROPBEGIN),
+    'game_manager': pygame.event.Event(events.FPSEVENT, fps=60.0),
+    'joystick_manager': pygame.event.Event(
+        pygame.JOYBUTTONDOWN, button=0, instance_id=JOYSTICK_INSTANCE_ID
+    ),
+    'keyboard_manager': pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a'),
+    'midi_manager': pygame.event.Event(pygame.MIDIIN, device_id=1, status=144, data1=60, data2=127),
+    'mouse_manager': pygame.event.Event(pygame.MOUSEMOTION, pos=(1, 1), rel=(1, 1), buttons=()),
+    'touch_manager': pygame.event.Event(pygame.FINGERDOWN, touch_id=0, finger_id=0, x=0.5, y=0.5),
+    'window_manager': pygame.event.Event(pygame.WINDOWSHOWN),
+}
+
+
+def built_event_manager_names(engine: GameEngine) -> set[str]:
+    """Return the attribute names of the event managers the engine built.
+
+    Returns:
+        set[str]: Each attribute holding an ``*EventManager`` (the font manager is no event
+        manager, and the scene manager routes rather than receives).
+
+    """
+    return {
+        name
+        for name, value in vars(engine).items()
+        if type(value).__name__.endswith('EventManager')
+    }
 
 
 class TestEngineEventSystem:
@@ -388,6 +452,53 @@ class TestEngineEventSystem:
 
         assert handled is True
         assert scene.received_handler_names() == ['on_window_take_focus_event']
+
+    def test_midi_events_reach_the_scenes_midi_handlers(self, midi_engine):
+        """MIDIIN and MIDIOUT reach on_midi_in/out_event through the MIDI manager.
+
+        They went to SceneManager.handle_event, which ignores them, and counted as handled
+        (bugs/2026-11-22-midi-events-skip-the-midi-manager.md).
+        """
+        midi_engine.install_game(scene_class=MidiRecordingScene)
+        pygame.event.clear()
+        scene = midi_engine.scene_manager.active_scene
+
+        handled = process_posted(
+            midi_engine,
+            [
+                pygame.event.Event(pygame.MIDIIN, device_id=1, status=144, data1=60, data2=127),
+                pygame.event.Event(pygame.MIDIOUT, device_id=2, status=128, data1=60, data2=0),
+            ],
+        )
+
+        assert handled is True
+        assert scene.received_handler_names() == ['on_midi_in_event', 'on_midi_out_event']
+        assert [(event.device_id, event.status, event.data1) for _, event in scene.received] == [
+            (1, 144, 60),
+            (2, 128, 60),
+        ]
+
+    def test_every_event_manager_the_engine_builds_is_the_one_its_events_go_through(
+        self, engine, scene, mocker
+    ):
+        """Each family's event reaches the manager the engine built for it, and counts handled.
+
+        The class of bugs/2026-11-22-midi-events-skip-the-midi-manager.md: the MIDI manager was
+        built but its events went around it, so its handlers never ran. Each manager is stood in
+        for by a recording double after it is built: the engine's handler for the family must
+        read the manager it built, and hand it the event.
+        """
+        assert built_event_manager_names(engine) == set(MANAGER_FAMILY_EVENTS)
+        for manager_name, pygame_event in MANAGER_FAMILY_EVENTS.items():
+            recording_manager = mocker.Mock()
+            mocker.patch.object(engine, manager_name, recording_manager)
+            event = HashableEvent.from_pygame(pygame_event)
+
+            handled = engine.event_handlers[event.type](event)
+
+            assert handled is True, manager_name
+            received = [call.args for call in recording_manager.method_calls]
+            assert received == [(event,)], manager_name
 
     def test_game_engine_user_event_handling(self, engine, scene):
         """FPSEVENT, a registered GAMEEVENT and MENUEVENT reach their handlers."""

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import contextlib
+import os
 from pathlib import Path
-from unittest.mock import patch
+
+import pytest
 
 from glitchygames.state.manager import DiskSaveManager
 
@@ -24,19 +26,31 @@ class TestAtomicWrites:
         envelope = json.loads(content)
         assert envelope['data'] == {'score': 100}
 
-    def test_save_file_has_the_same_bytes_on_every_os(self, tmp_path: Path) -> None:
-        """A save's newlines are written as LF, never translated (Windows would write CRLF).
-
-        Its size is then the same everywhere, so the replay sandbox, which counts the
-        content's UTF-8 bytes, lists every slot exactly as the disk store does.
-        """
+    def test_save_file_has_the_os_line_ends(self, tmp_path: Path) -> None:
+        """A save is written in text mode: CRLF on Windows, LF elsewhere (the owner, 2026-11-22)."""
         saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         saves.save('slot_1', {'score': 100, 'name': 'café'})
 
         raw = (tmp_path / 'slot_1.json').read_bytes()
-        assert b'\r' not in raw
-        assert b'\n' in raw
-        assert saves.list_slots()[0].size_bytes == len(raw)
+        text = raw.decode('utf-8').replace('\r\n', '\n')
+        assert '\n' in text
+        assert raw == text.replace('\n', os.linesep).encode('utf-8')
+
+    @pytest.mark.parametrize('line_end', ['\n', '\r\n', '\r'], ids=['lf', 'crlf', 'lone-cr'])
+    def test_a_slots_size_is_its_text_as_read_whatever_the_line_ends(
+        self, tmp_path: Path, line_end: str
+    ) -> None:
+        """The size counts the save's text read with LF, as the replay sandbox counts it.
+
+        So a slot lists at the same size live and in a replay, on Windows (CRLF on disk) as on
+        a Mac, and a save moved between them lists as it did.
+        """
+        saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
+        path = saves.save('slot_1', {'score': 100, 'name': 'café'})
+        text = path.read_bytes().decode('utf-8').replace('\r\n', '\n')
+        path.write_bytes(text.replace('\n', line_end).encode('utf-8'))
+
+        assert saves.list_slots()[0].size_bytes == len(text.encode('utf-8'))
 
     def test_no_temp_files_left_on_success(self, tmp_path: Path) -> None:
         """No .tmp files remain after a successful save."""
@@ -46,7 +60,7 @@ class TestAtomicWrites:
         tmp_files = list(tmp_path.glob('*.tmp'))
         assert tmp_files == []
 
-    def test_original_preserved_on_write_failure(self, tmp_path: Path) -> None:
+    def test_original_preserved_on_write_failure(self, tmp_path: Path, mocker) -> None:
         """If the write fails, the original save file is not corrupted."""
         saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
 
@@ -54,25 +68,21 @@ class TestAtomicWrites:
         saves.save('slot_1', {'score': 100})
 
         # Now simulate a failure during the replace step
-        with (
-            patch.object(Path, 'replace', side_effect=OSError('disk full')),
-            contextlib.suppress(OSError),
-        ):
+        mocker.patch.object(Path, 'replace', side_effect=OSError('disk full'))
+        with contextlib.suppress(OSError):
             saves.save('slot_1', {'score': 999})
 
         # Original data should still be intact
         result = saves.load('slot_1')
         assert result == {'score': 100}
 
-    def test_no_temp_files_left_on_failure(self, tmp_path: Path) -> None:
+    def test_no_temp_files_left_on_failure(self, tmp_path: Path, mocker) -> None:
         """No .tmp files remain after a failed save."""
         saves = DiskSaveManager(app_name='test-game', save_dir=tmp_path)
         tmp_path.mkdir(parents=True, exist_ok=True)
 
-        with (
-            patch.object(Path, 'replace', side_effect=OSError('disk full')),
-            contextlib.suppress(OSError),
-        ):
+        mocker.patch.object(Path, 'replace', side_effect=OSError('disk full'))
+        with contextlib.suppress(OSError):
             saves.save('slot_1', {'score': 100})
 
         tmp_files = list(tmp_path.glob('*.tmp'))

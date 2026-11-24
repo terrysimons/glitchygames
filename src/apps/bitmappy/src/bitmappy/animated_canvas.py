@@ -852,10 +852,11 @@ class AnimatedCanvasSprite(BitmappySprite):  # ruff: ignore[too-many-public-meth
         """Update the canvas sprite."""
         # Animation timing is handled by the scene's update_animation method
 
-        # Force redraw if dirty
+        # Rebuild the picture if dirty, and leave it marked: the group draws the new picture and
+        # clears the mark (LayeredDirty.draw). Clearing it here kept the old picture on screen,
+        # hidden while every scene marked every sprite dirty each frame
         if self.dirty:
             self.force_redraw()
-            self.dirty = 0
 
     def force_redraw(self) -> None:
         """Force a complete redraw of the canvas."""

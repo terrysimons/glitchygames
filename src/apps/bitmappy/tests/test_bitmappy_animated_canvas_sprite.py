@@ -646,11 +646,21 @@ class TestUpdate:
         # Pixel 5 is cell (1, 1): x/y 16..31
         assert _rgb_at(canvas.image, 24, 24) == RED_RGB
 
-    def test_update_clears_dirty_flag(self, mocker):
-        """Test update clears dirty flag after redraw."""
+    def test_update_leaves_the_new_picture_marked_for_the_group(self, mocker):
+        """Update rebuilds the picture and leaves it dirty: the group draws it, then clears it.
+
+        Clearing the mark in update kept the old picture on screen; every scene marking every
+        sprite dirty each frame hid it (fix/static-sprites-full-screen-update).
+        """
         canvas, _ = _make_canvas(mocker)
+        group = pygame.sprite.LayeredDirty(canvas)
         canvas.dirty = 1
         canvas.update()
+        assert canvas.dirty == 1
+
+        group.draw(pygame.Surface((canvas.rect.right + 1, canvas.rect.bottom + 1)))
+        group.draw(pygame.Surface((canvas.rect.right + 1, canvas.rect.bottom + 1)))
+
         assert canvas.dirty == 0
 
     def test_update_does_nothing_when_clean(self, mocker):

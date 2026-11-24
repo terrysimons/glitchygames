@@ -4729,14 +4729,17 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             bool: True if the event was handled, False otherwise.
 
         """
+        # Through the MIDI manager to the active scene's on_midi_*_event, as every family goes
+        # through its manager (bugs/2026-11-22-midi-events-skip-the-midi-manager.md: both went
+        # to scene_manager.handle_event, which ignores them, and counted as handled)
         if event.type == pygame.MIDIIN:
             # MIDIIN device_id, status, data1, data2
-            self.scene_manager.handle_event(event)
+            self.midi_manager.on_midi_in_event(event)
             return True
 
         if event.type == pygame.MIDIOUT:
             # MIDIOUT device_id, status, data1, data2
-            self.scene_manager.handle_event(event)
+            self.midi_manager.on_midi_out_event(event)
             return True
 
         return False
