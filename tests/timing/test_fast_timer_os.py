@@ -252,6 +252,7 @@ def _calibrated_auto_timer(*, windows_timer_1ms: bool) -> FastTimer:
     return timer
 
 
+@pytest.mark.wall_clock(reason='the timer and the OS sleep, paired, against 1 ms (3 ms on CI)')
 def test_fast_timer_basic_sleep_accuracy():
     """The engine's default timer (auto) wakes no later than the OS's own sleep (3 ms)."""
     t = _calibrated_auto_timer(windows_timer_1ms=False)
@@ -261,6 +262,9 @@ def test_fast_timer_basic_sleep_accuracy():
     )
 
 
+@pytest.mark.wall_clock(
+    reason='spin-only sleeps and the OS sleep, paired, against 1 ms (3 ms on CI)'
+)
 def test_fast_timer_spin_tighten_accuracy():
     """Spin-only mode wakes no later than the OS's own sleep of the same length (1 ms)."""
     t = FastTimer(sleep_granularity_ns=0, windows_timer_1ms=False)
@@ -270,6 +274,9 @@ def test_fast_timer_spin_tighten_accuracy():
     )
 
 
+@pytest.mark.wall_clock(
+    reason='the 1 ms-resolution timer and the OS sleep, paired, against 3 ms on CI'
+)
 @pytest.mark.skipif(
     not sys.platform.startswith('win'),
     reason='Windows-only timing resolution test',

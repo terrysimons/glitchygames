@@ -149,6 +149,15 @@ def _search(value: str, pattern: str) -> bool:
     return re.search(pattern, value) is not None
 
 
+def _match(value: str, pattern: str) -> bool:
+    """Ansible's `match` test: the pattern matched at the value's start, as Python's re.match.
+
+    Returns:
+        Whether the pattern matches from the value's first character.
+    """
+    return re.match(pattern, value) is not None
+
+
 def _version(value: str, other: str, operator: str = 'eq') -> bool:
     """Ansible's `version` test, for dotted whole numbers (its default `loose` comparison).
 
@@ -242,6 +251,7 @@ def _environment(
     # Ansible's `is search(pattern)`, which `reject('search', pattern)` also uses
     tests: dict[str, Any] = environment.tests
     tests['search'] = _search
+    tests['match'] = _match
     tests['version'] = _version
     return environment
 

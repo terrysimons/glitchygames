@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Final, override
 
 import pygame
 
+from glitchygames.fonts import font_manager
 from zombies_aint_my_neighbors import text
 from zombies_aint_my_neighbors.neighborhood import NeighborhoodScene, stage_needs
 from zombies_aint_my_neighbors.roster import MAXIMUM_PLAYERS, PLAYER_COLOURS
@@ -141,22 +142,24 @@ class FeatureCardScene(RosterScene):
             # Set up again (after a pause): the sprites already exist
             return
         screen_width, screen_height = self.screen_width, self.screen_height
-        card_font = text.fitted_title_font(
+        card_font = font_manager.fitted_font(
             texts=(self.card_text,),
             width=int(screen_width * TEXT_WIDTH_FRACTION),
             largest=CARD_LARGEST_FONT_SIZE,
         )
         text.TextPicture(
-            image=text.render_text(font=card_font, text=self.card_text, colour=CARD_COLOUR),
+            image=font_manager.render_line(font=card_font, text=self.card_text, color=CARD_COLOUR),
             centre=(screen_width // 2, screen_height // 3),
             name='Feature card',
             groups=self.all_sprites,
         )
-        label_font = text.title_font(size=LABEL_LARGEST_FONT_SIZE)
+        label_font = font_manager.bundled_font(bold=True, size=LABEL_LARGEST_FONT_SIZE)
         column_width = screen_width // MAXIMUM_PLAYERS
         self.player_pictures = tuple(
             text.TextPicture(
-                image=text.render_text(font=label_font, text=f'P{slot_index + 1}', colour=colour),
+                image=font_manager.render_line(
+                    font=label_font, text=f'P{slot_index + 1}', color=colour
+                ),
                 centre=(column_width * slot_index + column_width // 2, screen_height * 2 // 3),
                 name=f'Player P{slot_index + 1}',
                 groups=self.all_sprites,

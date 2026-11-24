@@ -29,7 +29,7 @@ sequenceDiagram
     loop for each of the 12
         ENGINE->>MANAGERS: manager.args(parser)
     end
-    Note over MANAGERS: Layer 2, in this order<br/>App, Audio, Controller (1), Drop,<br/>Font (7), Game (3), Joystick, Keyboard,<br/>Midi, Mouse, Touch, Window<br/>(the 9 without a count add empty groups)
+    Note over MANAGERS: Layer 2, in this order<br/>App, Audio, Controller (1), Drop,<br/>Font (7), Game (4), Joystick, Keyboard,<br/>Midi, Mouse, Touch, Window<br/>(the 9 without a count add empty groups)
     INIT->>PARSER: add_argument_group("Bitmappy v1.0 Options")
     INIT->>GAME: BitmapEditorScene.args(group)
     Note over GAME: Layer 3<br/>-v, -s
@@ -284,6 +284,10 @@ Added by `GameEventManager.args()` in `src/glitchygames/events/game.py`.
 - `-l, --log-level {debug,info,warning,error,critical}` (`choice`, default `warning`): set the logging level (default: warning; a bug report asks for info)
 - `--no-unhandled-events` (`store_true`, default `False`): fail on unhandled events
 - `-p, --profile` (`store_true`, default `False`): enable profiling
+- `--invalid-high-scores {refuse,drop}` (`choice`, default `refuse`): what a high-score table
+  (`glitchygames.state.high_scores`) does with a saved entry it cannot read: refuse it (keep the
+  file as it is, save nothing; the game-over screen still shows the run's score) or drop it with
+  a warning
 
 #### Reserved groups (empty, no arguments yet)
 

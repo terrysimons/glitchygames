@@ -769,6 +769,7 @@ def post_supervisor_goal(*, as_input: bool) -> Callable[[], None]:
 class TestInputPosts:
     """post_input_event is input to the game: a replay serves it whether or not it posts it."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('replay_posts_it_again', [True, False])
     def test_an_input_post_replays_with_or_without_its_poster(
         self, mocker, tmp_path, replay_posts_it_again
@@ -797,6 +798,7 @@ class TestInputPosts:
         assert result.divergence is None, result.report()
         assert result.end_reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_a_code_post_the_replay_never_makes_still_diverges(self, mocker, tmp_path):
         """post_event stays the game's own post (BUGS.md #84's case without post_input_event)."""
         recording_path = record_session(
@@ -855,6 +857,7 @@ def spawned_sprite_records(*, recording_path: Path) -> list[tuple[int, dict[str,
 class TestSpriteSpawns:
     """A /sprite spawn is recorded with its text, so a replay adds the same sprite, AI-free."""
 
+    @pytest.mark.draws_frames
     def test_a_spawn_replays_at_its_frame_and_place(self, mocker, tmp_path):
         """Recorded in the frame it was posted, at its point; the replay matches it."""
         recording_path = record_session(
@@ -964,6 +967,7 @@ def fake_device_hardware(mocker):
 class TestDeviceDispatchReplays:
     """Which layer dispatches each device's events is recorded and replayed identically."""
 
+    @pytest.mark.draws_frames
     def test_a_session_with_a_stick_and_a_pad_replays_with_the_same_dispatch(
         self, mocker, tmp_path
     ):
@@ -1060,6 +1064,7 @@ class TestDeviceDispatchReplays:
 class TestRoundTrip:
     """A recorded session replays without divergence."""
 
+    @pytest.mark.draws_frames
     def test_scripted_session_replays_without_divergence(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         engine = replay_session(recording_path=recording_path, mocker=mocker)
@@ -1069,6 +1074,7 @@ class TestRoundTrip:
         assert result.end_reason == 'end_of_recording'
         assert result.frames_replayed == len(read_trace_result(path=recording_path).trace['frames'])
 
+    @pytest.mark.draws_frames
     def test_clock_reads_replay_exactly(self, mocker, tmp_path):
         # This file's own `clock` names are fake clocks: the engine's is engine_clock here
         from glitchygames import clock as engine_clock
@@ -1103,6 +1109,7 @@ class TestRoundTrip:
 class TestDivergence:
     """The first difference is found, reported and logged."""
 
+    @pytest.mark.draws_frames
     def test_a_one_pixel_change_is_reported_at_its_frame(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
@@ -1119,6 +1126,7 @@ class TestDivergence:
         assert result.end_reason == 'diverged'
         assert result.frames_replayed == 4
 
+    @pytest.mark.draws_frames
     @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_a_watched_divergence_is_logged_and_exits_as_diverged(
         self, mocker, tmp_path, caplog, capsys
@@ -1148,6 +1156,7 @@ class TestDivergence:
         assert f'Exiting with {ExitCode.REPLAY_DIVERGED.describe()}' in caplog.text
         assert 'Replay diverged' not in capsys.readouterr().out
 
+    @pytest.mark.draws_frames
     def test_a_watched_match_is_logged_and_exits_as_success(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         recorded_frame_count = len(read_trace_result(path=recording_path).trace['frames'])
@@ -1305,6 +1314,7 @@ class TestReplayDoors:
         apply_recorded_options(options=options, recorded={'debug_events': False})
         assert options == {'debug_events': True}
 
+    @pytest.mark.draws_frames
     def test_the_real_queue_is_drained_with_the_engines_fastevents_setting(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         mocker.patch.object(GameEngine, 'USE_FASTEVENTS', new=True)
@@ -1448,11 +1458,13 @@ class TestCustomEventsQueuedBeforeTheRun:
     internal event, or taken by a replay for one its code posted: a divergence at frame 0.
     """
 
+    @pytest.mark.draws_frames
     def test_a_recording_holds_none_of_them(self, mocker, tmp_path):
         pygame.event.post(pygame.event.Event(LEFT_OVER_EVENT_TYPE, left='over'))
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         assert LEFT_OVER_EVENT_TYPE not in _recorded_event_types(recording_path=recording_path)
 
+    @pytest.mark.draws_frames
     def test_a_watched_replay_started_with_one_queued_does_not_diverge(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         pygame.event.post(pygame.event.Event(LEFT_OVER_EVENT_TYPE, left='over'))
@@ -1471,6 +1483,7 @@ class TestCustomEventsQueuedBeforeTheRun:
 class TestReplayFps:
     """--replay-fps: FPS events from the recorded frame times (default) or this machine's."""
 
+    @pytest.mark.draws_frames
     def test_the_default_is_recorded(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         engine = replay_session(recording_path=recording_path, mocker=mocker)
@@ -1491,6 +1504,7 @@ class TestReplayFps:
         live_sources = LiveSources(random_seed=RANDOM_SEED)
         assert live_sources.performance_frame_seconds(measured=9.0, frame_seconds=0.5) == 0.5
 
+    @pytest.mark.draws_frames
     def test_recorded_posts_the_recorded_fps_on_another_machine(self, mocker, tmp_path):
         recording_path = record_session(
             tmp_path=tmp_path, mocker=mocker, extra_arguments=EVERY_FRAME_FPS_ARGUMENTS
@@ -1509,6 +1523,7 @@ class TestReplayFps:
         ]
         assert delivered_fps_values == expected_fps_values
 
+    @pytest.mark.draws_frames
     def test_recorded_compares_the_fps_events(self, mocker, tmp_path):
         recording_path = record_session(
             tmp_path=tmp_path, mocker=mocker, extra_arguments=EVERY_FRAME_FPS_ARGUMENTS
@@ -1522,6 +1537,7 @@ class TestReplayFps:
         assert isinstance(divergence.expected, dict)
         assert divergence.expected['attributes']['fps'] == TAMPERED_FPS
 
+    @pytest.mark.draws_frames
     def test_real_posts_measured_fps_and_does_not_compare_it(self, mocker, tmp_path, caplog):
         recording_path = record_session(
             tmp_path=tmp_path, mocker=mocker, extra_arguments=EVERY_FRAME_FPS_ARGUMENTS
@@ -1700,6 +1716,7 @@ class TestRecordedGameCheck:
 class TestRefusals:
     """Recordings that cannot be replayed, or only in part."""
 
+    @pytest.mark.draws_frames
     def test_wrong_game_is_refused(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         rewrite_recording(
@@ -1711,6 +1728,7 @@ class TestRefusals:
         assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
         assert 'SomeOtherGame' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_a_same_named_game_from_another_module_is_refused(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         rewrite_recording(
@@ -1725,6 +1743,7 @@ class TestRefusals:
         assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
         assert 'some_other_package.game' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_a_recording_naming_another_logical_name_is_refused(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         rewrite_recording(
@@ -1736,6 +1755,7 @@ class TestRefusals:
         assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
         assert 'games.some_other_game:DepartureRecordedScene' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_a_recording_made_through_the_engine_holds_logical_names_and_replays(
         self, mocker, tmp_path
     ):
@@ -1774,6 +1794,7 @@ class TestRefusals:
         assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
         assert f'Cannot replay {recording_path}' in caplog.text
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         'change',
         [
@@ -1805,6 +1826,7 @@ class TestRefusals:
         assert len(refusals) == 1
         assert 'The recording is malformed' in refusals[0].getMessage()
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('change', 'reason'),
         [
@@ -1834,6 +1856,7 @@ class TestRefusals:
         assert len(refusals) == 1
         assert reason in refusals[0].getMessage()
 
+    @pytest.mark.draws_frames
     def test_unsupported_format_version_is_refused_without_a_traceback(
         self, mocker, tmp_path, caplog
     ):
@@ -1853,6 +1876,7 @@ class TestRefusals:
         assert 'format_version 99' in refusals[0].getMessage()
         assert refusals[0].exc_info is None
 
+    @pytest.mark.draws_frames
     def test_recording_over_a_replay_is_refused(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         with engine_run_environment(mocker), pytest.raises(SystemExit) as exit_info:
@@ -1866,6 +1890,7 @@ class TestRefusals:
         assert 'record over a replay with --rebaseline NEW --headless' in caplog.text
         assert not (tmp_path / 'over-the-replay.jsonl.gz').exists()
 
+    @pytest.mark.draws_frames
     def test_truncated_recording_replays_to_the_cut_off(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         cut_off_after_frame(recording_path=recording_path, frame_number=2)
@@ -1878,6 +1903,7 @@ class TestRefusals:
             caplog.text
         )
 
+    @pytest.mark.draws_frames
     def test_version_two_recording_replays_every_frame_with_the_pump_count_check(
         self, mocker, tmp_path
     ):
@@ -1896,6 +1922,7 @@ class TestRefusals:
         assert result.end_reason == 'end_of_recording'
         assert result.frames_replayed == len(frames)
 
+    @pytest.mark.draws_frames
     def test_version_two_recording_replays_with_a_warning(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         downgrade_to_version_two(recording_path=recording_path)
@@ -1909,6 +1936,7 @@ class TestRefusals:
         ]
         assert len(warnings) == 1
 
+    @pytest.mark.draws_frames
     def test_different_engine_version_warns_once(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         rewrite_recording(
@@ -1999,6 +2027,7 @@ def record_on_a_window_of_another_size(*, mocker, path: Path) -> None:
 class TestRecordedDisplaySize:
     """A replay opens its window at the recorded display size, or refuses (BUGS.md #191)."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.frames_vary(
         reason='the session runs the real frame loop: each frame moves by its measured frame time'
     )
@@ -2017,6 +2046,7 @@ class TestRecordedDisplaySize:
         assert replay.exit_status == ExitCode.SUCCESS, replay.result.divergence
         assert replay.result.frames_replayed == DISPLAY_SIZE_FRAME_COUNT
 
+    @pytest.mark.draws_frames
     def test_a_window_that_does_not_open_at_the_recorded_size_is_refused(
         self, mocker, tmp_path, caplog
     ):
@@ -2037,6 +2067,7 @@ class TestRecordedDisplaySize:
             f'(the window manager chose another size); refusing to replay it'
         )
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('format_version', [2, 3])
     def test_a_recording_without_a_size_replays_at_its_resolution_with_a_warning(
         self, mocker, tmp_path, caplog, format_version
@@ -2070,6 +2101,7 @@ class TestRecordedDisplaySize:
             )
         ]
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         'screen_size',
         [[800], [800, 0], [800, '480'], [True, 480], '800x480', {'width': 800}],
@@ -2163,6 +2195,7 @@ class QuittingSupervisor:
 class TestHeadless:
     """--headless: dummy SDL drivers for any run; replays then run unpaced and print a report."""
 
+    @pytest.mark.draws_frames
     def test_matching_replay_exits_zero_and_reports(self, mocker, tmp_path, capsys):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         recorded_frame_count = len(read_trace_result(path=recording_path).trace['frames'])
@@ -2175,6 +2208,7 @@ class TestHeadless:
             f'Replay matched {recorded_frame_count} frames (end of recording)\n'
         )
 
+    @pytest.mark.draws_frames
     def test_divergence_exits_one_with_the_sprite_history(self, mocker, tmp_path, capsys):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
@@ -2197,6 +2231,7 @@ class TestHeadless:
             expected_part, got_part = line.split(': ', 1)[1].split(' | ')
             assert expected_part == got_part
 
+    @pytest.mark.draws_frames
     def test_truncated_recording_exits_as_unusable_input(self, mocker, tmp_path, capsys):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         cut_off_after_frame(recording_path=recording_path, frame_number=2)
@@ -2209,6 +2244,7 @@ class TestHeadless:
             'Replay ended early at frame 3: the recording is truncated\n'
         )
 
+    @pytest.mark.draws_frames
     def test_headless_never_sleeps(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         engine_sources = ReplaySources.from_path(
@@ -2219,6 +2255,7 @@ class TestHeadless:
         assert ReplaySources.from_path(path=recording_path).paced_frame_seconds() == 0.0
         assert LiveSources(random_seed=RANDOM_SEED).paced_frame_seconds() is None
 
+    @pytest.mark.draws_frames
     def test_a_headless_replay_runs_every_frame_unpaced(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         pacing_spy = mocker.spy(SceneManager, '_handle_frame_pacing')
@@ -2229,6 +2266,7 @@ class TestHeadless:
         assert paced_seconds == {0.0}
         assert len(pacing_spy.call_args_list) == engine.replay_sources.result.frames_replayed
 
+    @pytest.mark.draws_frames
     def test_a_live_headless_run_starts_runs_paced_and_quits(self, mocker, tmp_path, capsys):
         """--headless without a replay: dummy drivers, normal pacing, and the game's own end."""
         pacing_spy = mocker.spy(SceneManager, '_handle_frame_pacing')
@@ -2336,6 +2374,7 @@ class TestHeadless:
         assert "audio driver 'coreaudio'" in restarts[0]
         assert '22050 Hz, size 8, 1 output channels, 16 mixing channels' in restarts[0]
 
+    @pytest.mark.draws_frames
     def test_a_crashed_headless_replay_reports_where_it_stopped(self, mocker, tmp_path, capsys):
         """A crash ends the replay early: the report says so, not that the replay diverged."""
 
@@ -2358,6 +2397,7 @@ class TestHeadless:
             f'{ExitCode.INTERNAL_ERROR.describe()}\n'
         )
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('exit_status', [0, None])
     def test_a_games_own_successful_exit_before_the_result_is_a_divergence(
         self, mocker, tmp_path, capsys, exit_status
@@ -2381,6 +2421,7 @@ class TestHeadless:
             f'Replay stopped at frame {ACTION_FRAME}: the run ended with '
         )
 
+    @pytest.mark.draws_frames
     def test_a_games_own_failing_exit_before_the_result_keeps_its_status(self, mocker, tmp_path):
         """A game's own failure status is kept: it already says the run did not succeed."""
 
@@ -2398,6 +2439,7 @@ class TestHeadless:
             )
         assert exit_info.value.code == ExitCode.CANNOT_WRITE_OUTPUT
 
+    @pytest.mark.draws_frames
     def test_start_async_drives_a_watched_replay_with_its_viewer(self, mocker, tmp_path):
         """In a browser a watched replay's outer ticks are the page's (run_watched_replay_async)."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -2427,6 +2469,7 @@ class TestHeadless:
                 }
             ]
 
+    @pytest.mark.draws_frames
     def test_start_async_refuses_a_headless_replay(self, mocker, tmp_path):
         """A headless replay never holds between frames, so it would never give control back."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -2442,6 +2485,7 @@ class TestHeadless:
             assert engine.replay_sources is not None
             engine.replay_sources.on_uninstalled()
 
+    @pytest.mark.draws_frames
     def test_a_recording_that_fails_to_close_still_settles_the_replay(
         self, mocker, tmp_path, capsys
     ):
@@ -2493,6 +2537,7 @@ class TestHeadless:
         for option in ('target_fps', 'timer_backend', 'live_voice_pool'):
             assert groups_by_option[option] == 'Graphics Options'
 
+    @pytest.mark.draws_frames
     def test_a_late_end_after_the_replay_finished_reports_its_result_first(
         self, mocker, tmp_path, capsys
     ):
@@ -2550,6 +2595,7 @@ class TestHeadless:
 class TestHeadlessDriverRestore:
     """--headless sets the SDL driver variables to 'dummy'; they come back when the run ends."""
 
+    @pytest.mark.draws_frames
     def test_a_headless_run_puts_the_driver_variables_back_when_it_ends(self, mocker, monkeypatch):
         """A process that goes on after a headless run starts pygame on its own drivers again.
 
@@ -2593,6 +2639,7 @@ class TestHeadlessDriverRestore:
                 UNUSED_AUDIO_DRIVER,
             )
 
+    @pytest.mark.draws_frames
     def test_a_run_that_is_not_headless_leaves_the_driver_variables_alone(
         self, mocker, monkeypatch
     ):
@@ -2814,6 +2861,7 @@ class TestReplayReport:
         with pytest.raises(ValidationError):
             ReplayOptions(no_such_option=3)  # pyright: ignore[reportCallIssue] - the unknown option under test
 
+    @pytest.mark.draws_frames
     def test_the_sources_keep_the_options_they_were_given(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         options = ReplayOptions(exit_policy=ReplayExitPolicy.SUCCESS_AFTER_WRITING)
@@ -2824,6 +2872,7 @@ class TestReplayReport:
         )
         assert ReplaySources.from_path(path=recording_path).options == ReplayOptions()
 
+    @pytest.mark.draws_frames
     def test_the_sources_hold_an_unchanged_sprite_record_once(self, mocker, tmp_path):
         """A recording read for a replay shares its unchanged sprite records between frames.
 
@@ -2851,6 +2900,7 @@ class TestReplayReport:
 class TestRealInput:
     """Real input during a replay: dropped, except the window's close button."""
 
+    @pytest.mark.draws_frames
     def test_real_input_during_replay_never_reaches_the_game(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
@@ -2883,6 +2933,7 @@ class TestRealInput:
         )
         assert not any(getattr(event, 'injected_during_replay', False) for event in delivered)
 
+    @pytest.mark.draws_frames
     def test_closing_the_window_ends_the_replay(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         engine = replay_session(
@@ -2924,6 +2975,7 @@ class TestRealInputBlocking:
         assert all(event_type < pygame.USEREVENT for event_type in blocked_types)
         assert len(blocked_types) == len(REAL_INPUT_EVENT_TYPES)
 
+    @pytest.mark.draws_frames
     def test_real_input_is_blocked_during_the_replay(self, mocker, tmp_path):
         custom_event_type = pygame.event.custom_type()
         observed: dict[str, Any] = {}
@@ -2987,6 +3039,7 @@ class TestRealInputBlocking:
         assert not any(event.type == pygame.JOYAXISMOTION for event in delivered)
         assert not any(getattr(event, 'injected_during_replay', False) for event in delivered)
 
+    @pytest.mark.draws_frames
     def test_the_blocked_state_comes_back_after_the_replay(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         states_before = blocked_states()
@@ -2995,6 +3048,7 @@ class TestRealInputBlocking:
         assert engine.replay_sources.result.end_reason == 'end_of_recording'
         assert blocked_states() == states_before
 
+    @pytest.mark.draws_frames
     def test_the_blocked_state_comes_back_after_an_error_mid_replay(self, mocker, tmp_path):
         observed: dict[str, bool] = {}
 
@@ -3021,6 +3075,7 @@ class TestRealInputBlocking:
         assert engine.replay_sources.result.divergence is not None
         assert blocked_states() == states_before
 
+    @pytest.mark.draws_frames
     def test_an_event_manager_made_mid_replay_does_not_unblock_input(self, mocker, tmp_path):
         """Event managers call set_allowed when made (a scene's widgets make them mid-run)."""
         from glitchygames.events.joystick import JoystickEventManager
@@ -3163,6 +3218,7 @@ class TestRealInputBlocking:
 class TestWatched:
     """A watched replay: recorded pacing, the viewer's keys, pauses and the start screen."""
 
+    @pytest.mark.draws_frames
     def test_escape_ends_a_watched_replay_as_quit(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
@@ -3242,6 +3298,7 @@ class TestWatched:
         assert 59 <= tick_spy.call_count <= 62
         assert sources.result.divergence is None
 
+    @pytest.mark.draws_frames
     def test_paused_replay_holds_until_a_step(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         sources = ReplaySources.from_path(path=recording_path)
@@ -3257,6 +3314,7 @@ class TestWatched:
         assert not sources.hold_frame()  # one frame runs
         assert sources.hold_frame()  # then it holds again
 
+    @pytest.mark.draws_frames
     def test_watched_replay_pauses_at_the_divergence_with_the_overlay_on(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
@@ -3273,6 +3331,7 @@ class TestWatched:
         assert sources.result.end_reason == 'diverged'
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_frames_stepped_past_a_divergence_run_but_are_not_compared(self, mocker, tmp_path):
         """Paused at the divergence, a step runs the next frame; the result stays the first one."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -3300,6 +3359,7 @@ class TestWatched:
         assert sources.result.frames_replayed == 4
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_watched_replay_pauses_at_the_end(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
@@ -3313,6 +3373,7 @@ class TestWatched:
         assert sources.result.frames_replayed == sources.recording.frame_count
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_stepping_or_resuming_past_the_end_does_nothing(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
@@ -3331,6 +3392,7 @@ class TestWatched:
         assert sources.result.end_reason == 'end_of_recording'
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_a_headless_replay_never_holds_and_keeps_keys_blocked(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         sources = ReplaySources.from_path(
@@ -3345,6 +3407,7 @@ class TestWatched:
         sources.pump_events()
         assert pygame.event.get_blocked(pygame.KEYDOWN)
 
+    @pytest.mark.draws_frames
     def test_only_a_watched_replay_waits_for_start(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
@@ -3356,6 +3419,7 @@ class TestWatched:
         assert not harness_replay_sources(manager=manager).options.wait_for_start
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_a_watched_replay_waits_at_the_start_screen_until_space(self, mocker, tmp_path):
         """Only frame 0 runs before Space (its picture behind the message); F3 works while held."""
@@ -3390,6 +3454,7 @@ class TestWatched:
         assert sources.result.frames_replayed == sources.recording.frame_count
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_a_watched_replay_runs_on_outer_ticks_without_sleeping(self, mocker, tmp_path):
         """The browser's driver: one viewer tick per awaited tick, the viewer never sleeping.
@@ -3429,6 +3494,7 @@ class TestWatched:
         assert sources.result.frames_replayed == sources.recording.frame_count
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_closing_the_window_while_held_quits(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         sources = ReplaySources.from_path(
@@ -3441,6 +3507,7 @@ class TestWatched:
         assert sources.stop_requested
         assert sources.result.end_reason == 'quit'
 
+    @pytest.mark.draws_frames
     def test_internal_events_found_while_held_reach_the_next_pump(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         sources = ReplaySources.from_path(path=recording_path)
@@ -3470,6 +3537,7 @@ class TestWatched:
         assert sources.controls.banner == 'End of recording'
         assert sources.result.end_reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_mid_run_controls_keep_the_replay_exact(self, mocker, tmp_path):
         """Pause at a pump, step, change speed and resume: nothing changes what is replayed."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -3521,6 +3589,7 @@ class TestWatched:
         assert sources.result.frames_replayed == sources.recording.frame_count
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_the_status_bar_is_drawn_on_the_presented_frame_only(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
@@ -3538,6 +3607,7 @@ class TestWatched:
         assert not LiveSources(random_seed=RANDOM_SEED).draws_overlay
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_the_clean_frame_comes_back_exactly_on_a_display_with_per_pixel_alpha(
         self, mocker, tmp_path
     ):
@@ -3568,6 +3638,7 @@ class TestWatched:
 class TestWatchedViewerKeys:
     """A watched replay's real keys: read by the viewer, once per press, never by the game."""
 
+    @pytest.mark.draws_frames
     def test_the_viewers_keys_reach_the_controls_never_the_game(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
@@ -3604,6 +3675,7 @@ class TestWatchedViewerKeys:
         assert sources.result.divergence is None
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_a_repeating_viewer_key_acts_once_per_press(self, mocker, tmp_path):
         """Games turn key repeat on (PaddleSlap: set_repeat(1)): a held key acts once."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -3624,6 +3696,7 @@ class TestWatchedViewerKeys:
         run_next_viewer_tick(sources=sources)
         assert not sources.controls.paused
 
+    @pytest.mark.draws_frames
     def test_presses_queued_before_the_replay_are_dropped(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         sources = ReplaySources.from_path(path=recording_path)
@@ -3633,6 +3706,7 @@ class TestWatchedViewerKeys:
         sources.hold_frame()
         assert not sources.controls.paused
 
+    @pytest.mark.draws_frames
     def test_a_key_held_when_the_replay_starts_acts_only_after_its_release(self, mocker, tmp_path):
         """Its queued press is dropped and its OS repeats are not new presses."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -3650,6 +3724,7 @@ class TestWatchedViewerKeys:
         run_next_viewer_tick(sources=sources)
         assert sources.controls.paused
 
+    @pytest.mark.draws_frames
     def test_a_press_release_press_in_the_first_drain_leaves_the_key_held(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         FakeMeasuredClock(mocker=mocker)
@@ -3663,6 +3738,7 @@ class TestWatchedViewerKeys:
         run_next_viewer_tick(sources=sources)
         assert not sources.controls.paused
 
+    @pytest.mark.draws_frames
     def test_the_debug_overlay_is_the_scene_managers(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(recording_path=recording_path)
@@ -3690,6 +3766,7 @@ def run_until_paused(*, sources: ReplaySources) -> int:
 class TestStepBack:
     """Step back, Home and D: the replay restarts and rebuilds up to a pause frame."""
 
+    @pytest.mark.draws_frames
     def test_pause_at_frame_fast_forwards_without_presenting(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(
@@ -3709,6 +3786,7 @@ class TestStepBack:
         assert sources.result.divergence is None
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_headless_pause_at_frame_does_not_pause(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         with pytest.raises(SystemExit) as exit_info:
@@ -3764,6 +3842,7 @@ class TestStepBack:
         assert sources.hold_frame()
         assert sources.controls.current_frame == 130
 
+    @pytest.mark.draws_frames
     def test_a_rebuilt_replay_resumes_exactly_to_the_end(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         manager = start_replay_in_harness(
@@ -3783,6 +3862,7 @@ class TestStepBack:
         assert sources.result.frames_replayed == sources.recording.frame_count
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_the_viewer_state_is_restored(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         viewer_state = ViewerState(speed=4.0, debug_panel=DebugPanel.CAMERA, divergence_frame=3)
@@ -3871,6 +3951,7 @@ class TestStepBack:
         assert sources.stop_requested
         assert sources.result.restart_frame == 9
 
+    @pytest.mark.draws_frames
     @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_step_back_from_a_divergence_relaunches_the_replay(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -3922,6 +4003,7 @@ class TestStepBack:
         # A restart is not the end of a run: no end-of-run reports
         unhandled_report.assert_not_called()
 
+    @pytest.mark.draws_frames
     def test_a_supervised_replay_hands_over_its_handoff_path(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         handoff_path = tmp_path / 'restart.json'
@@ -3940,6 +4022,7 @@ BOOKMARK_RECORD = {'kind': 'breakpoint', 'label': 'bookmark'}
 class TestBookmarkedCopy:
     """S saves the bookmarks as breakpoints in a copy that replays as its source does."""
 
+    @pytest.mark.draws_frames
     def test_saving_with_no_bookmarks_writes_nothing_and_says_so(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         sources = ReplaySources.from_path(path=recording_path)
@@ -3960,6 +4043,7 @@ class TestBookmarkedCopy:
     def test_the_bookmarked_copy_path(self, tmp_path, name, copy_name):
         assert bookmarked_copy_path(recording_path=tmp_path / name) == tmp_path / copy_name
 
+    @pytest.mark.draws_frames
     def test_a_bookmarked_frames_hash_describes_its_breakpoint(self, mocker, tmp_path):
         """The breakpoint is the frame's content now; older runs' hashes stay (final review #2).
 
@@ -3983,6 +4067,7 @@ class TestBookmarkedCopy:
             for frame in read_trace_result(path=rebaselined).trace['frames']
         )
 
+    @pytest.mark.draws_frames
     def test_bookmarked_copy_adds_breakpoints(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         original_bytes = recording_path.read_bytes()
@@ -4005,6 +4090,7 @@ class TestBookmarkedCopy:
         # The original recording is never written
         assert recording_path.read_bytes() == original_bytes
 
+    @pytest.mark.draws_frames
     def test_a_copy_is_marked_and_is_its_own_copy(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         destination = bookmarked_copy_path(recording_path=recording_path)
@@ -4018,6 +4104,7 @@ class TestBookmarkedCopy:
             'session.jsonl.gz'
         )
 
+    @pytest.mark.draws_frames
     def test_an_original_named_like_a_copy_is_never_written(self, mocker, tmp_path):
         recorded_path = record_session(tmp_path=tmp_path, mocker=mocker)
         original_path = tmp_path / 'mine.bookmarked.jsonl.gz'
@@ -4031,6 +4118,7 @@ class TestBookmarkedCopy:
             )
         assert original_path.read_bytes() == original_bytes
 
+    @pytest.mark.draws_frames
     def test_a_truncated_recordings_copy_still_ends_truncated(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         cut_off_after_frame(recording_path=recording_path, frame_number=2)
@@ -4047,6 +4135,7 @@ class TestBookmarkedCopy:
         write_bookmarked_copy(recording_path=destination, bookmarks=[3], destination=destination)
         assert read_trace_result(path=destination).trace['source_truncated'] is True
 
+    @pytest.mark.draws_frames
     def test_a_restart_onto_a_truncated_recordings_copy_keeps_the_banner(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         cut_off_after_frame(recording_path=recording_path, frame_number=2)
@@ -4067,6 +4156,7 @@ class TestBookmarkedCopy:
         assert sources.result.end_reason == 'truncated'
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_a_version_two_recordings_copy_replays_as_version_two(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         downgrade_to_version_two(recording_path=recording_path)
@@ -4101,6 +4191,7 @@ class TestBookmarkedCopy:
         sources.end_frame(frame_number=0, dt=0.0, scene=None, control_events=[])
         assert sources.result.divergence is None
 
+    @pytest.mark.draws_frames
     def test_a_copys_bookmarks_are_loaded_and_count_as_saved(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         destination = bookmarked_copy_path(recording_path=recording_path)
@@ -4125,6 +4216,7 @@ class TestBookmarkedCopy:
         ]
         assert breakpoint_frames == [1, 2, 3]
 
+    @pytest.mark.draws_frames
     def test_saving_unchanged_bookmarks_again_writes_nothing(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         write = mocker.spy(driver_module, 'write_bookmarked_copy')
@@ -4142,6 +4234,7 @@ class TestBookmarkedCopy:
             'bookmarks already saved to session.bookmarked.jsonl.gz'
         )
 
+    @pytest.mark.draws_frames
     def test_an_earlier_sessions_copy_keeps_its_bookmarks(self, mocker, tmp_path):
         """Saving from the original again merges the copy's bookmarks instead of dropping them."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -4157,6 +4250,7 @@ class TestBookmarkedCopy:
         frames = read_trace_result(path=destination).trace['frames']
         assert driver_module.recorded_bookmarks(frames=frames) == [2, 4]
 
+    @pytest.mark.draws_frames
     def test_a_copy_of_another_recording_is_never_written_over(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         destination = bookmarked_copy_path(recording_path=recording_path)
@@ -4184,6 +4278,7 @@ class TestBookmarkedCopy:
         )
         assert 'bookmarked_copy_of' not in header
 
+    @pytest.mark.draws_frames
     def test_a_deleted_copy_is_saved_again(self, mocker, tmp_path):
         """The same bookmarks are written again when the copy saved before is gone."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -4233,6 +4328,7 @@ class TestBookmarkedCopy:
             )
         assert not destination.exists()
 
+    @pytest.mark.draws_frames
     def test_a_bookmarked_copy_replays_without_divergence(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         frame_count = len(read_trace_result(path=recording_path).trace['frames'])
@@ -4253,6 +4349,7 @@ class TestBookmarkedCopy:
 class TestBookmarks:
     """B and S in a watched replay, breakpoints pausing it, and restarts keeping bookmarks."""
 
+    @pytest.mark.draws_frames
     def test_watched_replay_pauses_at_a_recorded_breakpoint(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         bookmarked_path = tmp_path / 'bookmarked.jsonl.gz'
@@ -4272,6 +4369,7 @@ class TestBookmarks:
         assert sources.result.divergence is None
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_a_rebuild_runs_past_a_recorded_breakpoint(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         bookmarked_path = tmp_path / 'bookmarked.jsonl.gz'
@@ -4288,6 +4386,7 @@ class TestBookmarks:
         assert sources.controls.current_frame == 4
         GoldenTraceSceneManager.uninstall()
 
+    @pytest.mark.draws_frames
     def test_b_then_s_writes_the_copy_and_says_where(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         FakeMeasuredClock(mocker=mocker)
@@ -4312,6 +4411,7 @@ class TestBookmarks:
             'bookmarks saved to session.bookmarked.jsonl.gz'
         )
 
+    @pytest.mark.draws_frames
     def test_without_a_recording_file_nothing_is_saved(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         sources = ReplaySources.from_path(path=recording_path)
@@ -4324,6 +4424,7 @@ class TestBookmarks:
             'no recording file to copy the bookmarks into'
         )
 
+    @pytest.mark.draws_frames
     def test_a_save_that_cannot_be_written_says_so(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         mocker.patch.object(
@@ -4341,6 +4442,7 @@ class TestBookmarks:
         )
         assert 'Could not save bookmarks' in caplog.text
 
+    @pytest.mark.draws_frames
     @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_restart_carries_unsaved_bookmarks(self, mocker, tmp_path):
         relaunch = mocker.patch.object(
@@ -4361,6 +4463,7 @@ class TestBookmarks:
         command = relaunch.call_args.kwargs['command']
         assert command[-4:] == ['--replay-trace', str(copy_path), '--replay-pause-at-frame', '3']
 
+    @pytest.mark.draws_frames
     @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_a_restart_whose_copy_cannot_be_saved_warns_about_the_lost_bookmarks(
         self, mocker, tmp_path, caplog
@@ -4407,6 +4510,7 @@ class SetupCountingScene(DepartureRecordedScene):
 class TestSaves:
     """A replay reads recorded saves and never writes real ones."""
 
+    @pytest.mark.draws_frames
     def test_saves_the_first_scene_writes_in_setup_replay_as_they_were_before(
         self, mocker, tmp_path
     ):
@@ -4448,6 +4552,7 @@ class TestSaves:
         assert engine.replay_sources.result.divergence is None
         assert exit_info.value.code == ExitCode.SUCCESS
 
+    @pytest.mark.draws_frames
     def test_replay_never_writes_real_saves(self, mocker, tmp_path):
         save_directory = tmp_path / 'saves'
         mocker.patch(
@@ -4474,6 +4579,7 @@ class TestSaves:
 class TestGhosts:
     """A ghost is a sampled sprite like any other: a session with one replays exactly."""
 
+    @pytest.mark.draws_frames
     def test_a_session_with_a_ghost_replays_without_divergence(self, mocker, tmp_path):
         from glitchygames.replay.ghosts import GhostSample, GhostSprite, GhostTrack
         from glitchygames.state import DiskSaveManager
@@ -4529,6 +4635,7 @@ class TestGhosts:
 class TestEventMerge:
     """Recorded external events plus the replayed code's own posts, checked against the record."""
 
+    @pytest.mark.draws_frames
     def test_missing_internal_event_is_a_divergence(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         add_recorded_internal_event(recording_path=recording_path, frame_number=2)
@@ -4544,6 +4651,7 @@ class TestEventMerge:
         assert divergence.subject == 'UserEvent'
         assert divergence.actual is None
 
+    @pytest.mark.draws_frames
     def test_extra_internal_event_is_a_divergence(self, mocker, tmp_path):
         def post_extra() -> None:
             post_event(pygame.event.Event(pygame.USEREVENT + 42, {}))
@@ -4564,6 +4672,7 @@ class TestEventMerge:
         assert divergence.expected is None
         assert divergence.actual['type'] == pygame.USEREVENT + 42
 
+    @pytest.mark.draws_frames
     def test_internal_events_posted_again_match(self, mocker, tmp_path):
         def post_marker_event() -> None:
             post_event(pygame.event.Event(pygame.USEREVENT + 43, {'pair': (1, 2)}))
@@ -4604,6 +4713,7 @@ class TestEventMerge:
         )
         assert sources.result.end_reason == 'diverged'
 
+    @pytest.mark.draws_frames
     def test_real_input_during_replay_never_reaches_the_game(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         pump_spy = mocker.spy(GoldenTraceEngine, '_pump_events')
@@ -4830,6 +4940,7 @@ class TestRecordedBatchMerging:
 class TestReferences:
     """Recorded references to pygame objects map back to live objects."""
 
+    @pytest.mark.draws_frames
     def test_window_reference_maps_to_none_like_live_display_window_events(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         add_recorded_external_event(
@@ -4858,6 +4969,7 @@ class TestReferences:
         assert engine.replay_sources is not None
         assert engine.replay_sources.result.divergence is None
 
+    @pytest.mark.draws_frames
     def test_unmappable_joystick_event_is_dropped_with_a_warning(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         for frame_number in (1, 2):
@@ -4892,6 +5004,7 @@ class TestReferences:
 class TestControlEventMarkers:
     """Markers the replayed code records again are compared with the recording's."""
 
+    @pytest.mark.draws_frames
     def test_markers_recorded_again_by_the_code_match(self, mocker, tmp_path):
         def mark() -> None:
             SceneManager().record_control_event(kind='test-marker', data={'note': 'n'})
@@ -4901,6 +5014,7 @@ class TestControlEventMarkers:
         assert engine.replay_sources is not None
         assert engine.replay_sources.result.divergence is None
 
+    @pytest.mark.draws_frames
     def test_a_marker_with_integer_keys_matches_its_recording(self, mocker, tmp_path):
         """JSON turns integer keys into strings; the replayed marker is compared in that form."""
 
@@ -4914,6 +5028,7 @@ class TestControlEventMarkers:
         assert engine.replay_sources is not None
         assert engine.replay_sources.result.divergence is None
 
+    @pytest.mark.draws_frames
     def test_a_missing_marker_is_a_divergence(self, mocker, tmp_path):
         def mark() -> None:
             SceneManager().record_control_event(kind='test-marker', data={'note': 'n'})
@@ -5212,6 +5327,7 @@ class TestAuditReplayRuns:
             'extra',
         ]
 
+    @pytest.mark.draws_frames
     def test_the_digest_file_lists_every_replayed_frame_then_no_divergence(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         digest_path = tmp_path / 'digests.jsonl'
@@ -5230,6 +5346,7 @@ class TestAuditReplayRuns:
             frame_digest(frame_record=sampled_part(frame=frame)) for frame in recorded_frames
         ]
 
+    @pytest.mark.draws_frames
     def test_an_unwritable_digest_file_is_refused_before_the_run(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         digest_path = tmp_path / 'digests.jsonl'
@@ -5247,6 +5364,7 @@ class TestAuditReplayRuns:
         assert '--replay-digest' in refusals[0].getMessage()
         assert refusals[0].exc_info is None
 
+    @pytest.mark.draws_frames
     def test_a_digest_file_that_cannot_be_written_at_the_end_still_reports(
         self, mocker, tmp_path, capsys, caplog
     ):
@@ -5270,6 +5388,7 @@ class TestAuditReplayRuns:
         assert len(failures) == 1
         assert failures[0].exc_info is None
 
+    @pytest.mark.draws_frames
     @LIVE_MOUSE_FOCUS_FRAMES_VARY
     def test_the_digest_file_of_a_diverged_replay_ends_with_its_divergence(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -5297,6 +5416,7 @@ class TestAuditReplayRuns:
 class TestAuditOption:
     """--audit on the engine's command line, unit and end to end."""
 
+    @pytest.mark.draws_frames
     def test_the_audit_option_runs_the_audit_instead_of_the_replay(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         audit_spy = mocker.patch.object(
@@ -5317,6 +5437,7 @@ class TestAuditOption:
             command=audit_command(original_argv=sys.orig_argv), path=recording_path
         )
 
+    @pytest.mark.draws_frames
     def test_a_terminating_signal_during_the_audit_ends_it_through_systemexit(
         self, mocker, tmp_path
     ):
@@ -5343,6 +5464,7 @@ class TestAuditOption:
         assert handlers_while_auditing == [game_engine_module.exit_on_signal]
         assert signal.getsignal(signal.SIGTERM) == signal.SIG_DFL
 
+    @pytest.mark.draws_frames
     def test_a_nondeterministic_audit_exits_as_audit_nondeterministic_and_logs_why(
         self, mocker, tmp_path, caplog
     ):
@@ -5363,6 +5485,7 @@ class TestAuditOption:
         assert exit_info.value.code == ExitCode.AUDIT_NONDETERMINISTIC
         assert 'differ first at frame 1' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_an_audit_run_error_exits_with_an_internal_error_and_logs_it(
         self, mocker, tmp_path, caplog
     ):
@@ -5386,6 +5509,7 @@ class TestAuditOption:
         assert exit_info.value.code == ExitCode.OPTIONS_REFUSED
         assert '--audit needs --replay-trace' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_audit_with_real_replay_fps_is_refused(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         audit_spy = mocker.patch.object(game_engine_module, 'audit_recording')
@@ -5408,6 +5532,7 @@ class TestAuditOption:
     def test_a_recording_cannot_override_the_audit_options(self):
         assert {'audit', 'replay_digest', 'headless'} <= REPLAY_LOCAL_OPTIONS
 
+    @pytest.mark.draws_frames
     def test_a_truncated_recording_is_refused_before_the_audit_starts(
         self, mocker, tmp_path, caplog
     ):
@@ -5430,6 +5555,7 @@ class TestAuditOption:
         assert f'Replaying {recording_path}' not in caplog.text
         audit_spy.assert_not_called()
 
+    @pytest.mark.draws_frames
     def test_audit_under_an_interpreter_that_ignores_the_environment_is_refused(
         self, mocker, tmp_path, caplog
     ):
@@ -5595,6 +5721,7 @@ UNCALIBRATED_FAST_TIMER = PacingTimer(
 class TestProcessingComparison:
     """--compare-processing: this machine's processing time against the recording's."""
 
+    @pytest.mark.draws_frames
     def test_a_recording_holds_each_frames_processing_time_and_its_machine(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         times = recorded_processing_times(path=recording_path)
@@ -5628,6 +5755,7 @@ class TestProcessingComparison:
         assert run.machine_state is not None
         assert run.machine_state == current_machine_state()
 
+    @pytest.mark.draws_frames
     def test_a_run_with_a_target_fps_says_its_frames_are_paced(self, mocker, tmp_path):
         recording_path = record_session(
             tmp_path=tmp_path, mocker=mocker, extra_arguments=('--target-fps', '60')
@@ -5641,6 +5769,7 @@ class TestProcessingComparison:
         assert run.pacing_timer.sleep_granularity_ns == DEFAULT_SLEEP_GRANULARITY_NS
         assert run.pacing_timer.sleep_model is not None
 
+    @pytest.mark.draws_frames
     def test_a_paced_game_calibrates_its_timer_as_it_starts(self, mocker, tmp_path):
         """Measured at engine start, before the first frame, so no frame pays for it."""
         measure = mocker.patch(
@@ -5652,6 +5781,7 @@ class TestProcessingComparison:
         # (glitchygames/clock.py) looked up when called
         measure.assert_called_once_with(read_counter_ns=None, sleep=None)
 
+    @pytest.mark.draws_frames
     def test_an_uncapped_run_and_a_replay_never_measure_the_sleep_model(self, mocker, tmp_path):
         """Nothing paces them, so calibrating would only delay their start."""
         recording_path = record_session(
@@ -5665,6 +5795,7 @@ class TestProcessingComparison:
             )
         measure.assert_not_called()
 
+    @pytest.mark.draws_frames
     def test_the_comparison_is_reported_after_the_replay(self, mocker, tmp_path, capsys):
         with_processing_step(mocker, step=0.001)
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -5682,6 +5813,7 @@ class TestProcessingComparison:
         assert processing_line.startswith('Processing: the replay took ')
         assert 'longer than the recording' in processing_line
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('replay_step', 'exit_code'),
         [(0.002, ExitCode.PROCESSING_SLOWER), (0.0005, ExitCode.SUCCESS)],
@@ -5699,6 +5831,7 @@ class TestProcessingComparison:
             )
         assert exit_info.value.code == exit_code
 
+    @pytest.mark.draws_frames
     def test_a_divergence_still_exits_diverged(self, mocker, tmp_path):
         with_processing_step(mocker, step=0.001)
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -5712,6 +5845,7 @@ class TestProcessingComparison:
             )
         assert exit_info.value.code == ExitCode.REPLAY_DIVERGED
 
+    @pytest.mark.draws_frames
     def test_a_recording_without_processing_times_cannot_be_checked(self, mocker, tmp_path, capsys):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
 
@@ -5730,6 +5864,7 @@ class TestProcessingComparison:
         assert exit_info.value.code == ExitCode.UNUSABLE_INPUT
         assert 'Processing: nothing to compare' in capsys.readouterr().out
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('arguments', 'message'),
         [
@@ -5754,6 +5889,7 @@ class TestProcessingComparison:
         assert message in caplog.text
         assert not new_path.exists()
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         'arguments', [('--compare-processing',), ('--max-processing-slowdown', '5')]
     )
@@ -5763,6 +5899,7 @@ class TestProcessingComparison:
         record_session(tmp_path=tmp_path, mocker=mocker, extra_arguments=arguments)
         assert f'{arguments[0]} is ignored without --replay-trace' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_a_rebaseline_records_its_own_processing_times(self, mocker, tmp_path):
         """NEW's times are the current code's, measured as it ran, never OLD's copied over."""
         with_processing_step(mocker, step=0.001)
@@ -5915,6 +6052,7 @@ class TestRebaselineHistory:
         assert exit_status == ExitCode.SUCCESS
         return new_path
 
+    @pytest.mark.draws_frames
     def test_two_rebaselines_stack_three_aligned_runs(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         first = self.rebaselined(
@@ -5934,6 +6072,7 @@ class TestRebaselineHistory:
             recording_content_hash(frames=trace['frames'], run_index=2)
         )
 
+    @pytest.mark.draws_frames
     def test_a_recording_from_before_histories_starts_one(self, mocker, tmp_path):
         """Today's golden fixtures: no histories and no runs; NEW gets one of each, aligned."""
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
@@ -5953,6 +6092,7 @@ class TestRebaselineHistory:
         assert all(len(frame[CONTENT_HASH_FIELD]) == 1 for frame in trace['frames'])
         assert all(len(frame[PROCESSING_SECONDS_FIELD]) == 1 for frame in trace['frames'])
 
+    @pytest.mark.draws_frames
     def test_depths_tuned_apart_keep_the_indexes_aligned(self, mocker, tmp_path):
         mocker.patch.object(recording_history, 'PROCESSING_SECONDS_HISTORY_DEPTH', 3)
         mocker.patch.object(recording_history, 'CONTENT_HASH_HISTORY_DEPTH', 2)
@@ -5973,6 +6113,7 @@ class TestRebaselineHistory:
             assert frame[PROCESSING_SECONDS_FIELD][1] == frame_before[PROCESSING_SECONDS_FIELD][0]
             assert frame[CONTENT_HASH_FIELD][1] == frame_before[CONTENT_HASH_FIELD][0]
 
+    @pytest.mark.draws_frames
     def test_changed_behaviour_changes_exactly_the_frames_it_touched(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
 
@@ -6005,6 +6146,7 @@ class TestRebaselineHistory:
         # Exactly the frames drawn differently, and no others
         assert changed == drawn_differently
 
+    @pytest.mark.draws_frames
     def test_a_rebaseline_that_ends_early_stacks_only_the_frames_it_ran(self, mocker, tmp_path):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         new_path = tmp_path / 'short.jsonl.gz'
@@ -6031,6 +6173,7 @@ class TestRebaselineHistory:
 class TestRebaselineEndedByTheGamesOwnExit:
     """A game's own sys.exit during --rebaseline: success ends it early, failure writes nothing."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('exit_status', [0, None])
     def test_a_games_own_successful_exit_ends_the_rebaseline_early(
         self, mocker, tmp_path, capsys, exit_status
@@ -6068,6 +6211,7 @@ class TestRebaselineEndedByTheGamesOwnExit:
         assert engine.replay_sources.result.divergence is None
         assert engine.replay_sources.result.end_reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_a_games_own_failing_exit_writes_nothing(self, mocker, tmp_path, capsys):
         """A failure status says the run did not succeed: it is kept, and NEW is not written."""
 
@@ -6091,6 +6235,7 @@ class TestRebaselineEndedByTheGamesOwnExit:
 class TestRebaseline:
     """--replay-trace OLD --rebaseline NEW: OLD's inputs on the current code, written to NEW."""
 
+    @pytest.mark.draws_frames
     def test_rebaseline_writes_a_recording_that_then_matches(self, mocker, tmp_path, capsys):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         tamper_first_sprite_rect(recording_path=recording_path, frame_number=3)
@@ -6113,6 +6258,7 @@ class TestRebaseline:
         assert engine.replay_sources.result.divergence is None
         assert engine.replay_sources.result.end_reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_an_unchanged_recording_rebaselines_to_the_same_frames(self, mocker, tmp_path, capsys):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         new_path = tmp_path / 'rebaselined.jsonl.gz'
@@ -6187,6 +6333,7 @@ class TestRebaseline:
         # The new recording captures polled input and markers itself (format 3)
         assert 'input_capture_format_version' not in header
 
+    @pytest.mark.draws_frames
     def test_rebaseline_keeps_internal_origins_and_late_saves(self, mocker, tmp_path):
         from glitchygames.state.sandbox import open_saves
 
@@ -6235,6 +6382,7 @@ class TestRebaseline:
         assert engine.replay_sources is not None
         assert engine.replay_sources.result.divergence is None
 
+    @pytest.mark.draws_frames
     def test_a_crashed_rebaseline_writes_nothing(self, mocker, tmp_path, capsys):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         new_path = tmp_path / 'rebaselined.jsonl.gz'
@@ -6253,6 +6401,7 @@ class TestRebaseline:
         assert 'Replay stopped at frame 1' in output
         assert f'{new_path} was not written' in output
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('arguments', 'message'),
         [
@@ -6430,6 +6579,7 @@ class TestRebaseline:
         with pytest.raises(ValidationError):
             summary.frames_differing = 3
 
+    @pytest.mark.draws_frames
     def test_a_partial_file_that_is_the_recording_is_refused(self, mocker, tmp_path, caplog):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         new_path = tmp_path / 'x.jsonl.gz'
@@ -6442,6 +6592,7 @@ class TestRebaseline:
         assert old_path.read_bytes() == recording_bytes
         assert not new_path.exists()
 
+    @pytest.mark.draws_frames
     def test_an_unwritable_new_recording_is_refused_before_the_run(
         self, mocker, tmp_path, caplog, capsys
     ):
@@ -6462,6 +6613,7 @@ class TestRebaseline:
         # Refused before the replay ran: no report, no summary
         assert not capsys.readouterr().out
 
+    @pytest.mark.draws_frames
     def test_a_failed_final_move_keeps_the_partial_file(self, mocker, tmp_path, caplog, capsys):
         recording_path = record_session(tmp_path=tmp_path, mocker=mocker)
         new_path = tmp_path / 'rebaselined.jsonl.gz'
@@ -6477,6 +6629,7 @@ class TestRebaseline:
         assert str(partial_path) in caplog.text
         assert f'could not be moved to {new_path}' in capsys.readouterr().out
 
+    @pytest.mark.draws_frames
     def test_recorded_input_the_run_never_pumped_is_reported(
         self, mocker, tmp_path, capsys, caplog
     ):
@@ -6507,6 +6660,7 @@ class TestRebaseline:
         assert '1 recorded input event not delivered' in caplog.text
         assert len(read_trace_result(path=new_path).trace['frames']) == frame_count
 
+    @pytest.mark.draws_frames
     def test_a_run_that_ends_before_the_recording_does_is_reported(
         self, mocker, tmp_path, capsys, caplog
     ):

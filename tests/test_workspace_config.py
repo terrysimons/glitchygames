@@ -388,6 +388,7 @@ def run_home_page_example_frames(*, manager: Any, count: int) -> None:
         manager.run_frame()
 
 
+@pytest.mark.draws_frames
 def test_the_home_page_example_draws_a_pixel_the_arrow_keys_move(tmp_path, mocker):
     """docs/index.md says its example draws a pixel and moves it with key events: it does.
 

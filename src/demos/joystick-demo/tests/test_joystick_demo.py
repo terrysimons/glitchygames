@@ -278,6 +278,7 @@ def _shows_header(screen: pygame.Surface, *, lines: list[str]) -> bool:
 class TestReadout:
     """The demo draws every device's live inputs from the frame's snapshot."""
 
+    @pytest.mark.draws_frames
     def test_every_device_gets_a_column_with_its_event_layer(self):
         """The mapped pad shows its controller layer, the stick its joystick layer."""
         with running_demo() as (engine, scene):
@@ -301,6 +302,7 @@ class TestReadout:
             assert _shows_column(scene.screen, column=0, lines=PAD_LINES)
             assert _shows_column(scene.screen, column=1, lines=STICK_LINES)
 
+    @pytest.mark.draws_frames
     def test_device_lines_name_the_device_and_list_its_event_layer(self):
         """device_lines() is the column's text: who the device is, then its positions."""
         with running_demo() as (engine, _scene):
@@ -350,6 +352,7 @@ class TestReadout:
         assert readout.text_lines[0].rect.width == _demo_font().size('')[0]
         assert len(group) == len(readout.sprites())
 
+    @pytest.mark.draws_frames
     def test_joystick_mode_shows_every_device_on_its_joystick_layer(self):
         """--input-mode joystick: the pad's column is its joystick layer."""
         with running_demo(input_mode='joystick') as (engine, scene):
@@ -366,6 +369,7 @@ class TestReadout:
                 'joystick',
             ]
 
+    @pytest.mark.draws_frames
     def test_without_devices_the_header_asks_for_one(self):
         """No device: the header says so and no column is drawn."""
         with running_demo(descriptors=()) as (_engine, scene):
@@ -380,6 +384,7 @@ class TestReadout:
 class TestGauges:
     """Below each device's text, sprites show its axes, held buttons and hats."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(('value', 'offset'), [(-1.0, 0), (0.0, 50), (1.0, 100)])
     def test_an_axis_marker_moves_with_its_axis(self, value, offset):
         """A joystick-layer axis puts its marker at the track's left, middle or right."""
@@ -396,6 +401,7 @@ class TestGauges:
             assert scene.screen is not None
             assert _rgb(scene.screen, readout.axis_markers[1].rect.center) == YELLOW[:3]
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('value', 'offset'), [(-32768, 0), (-32767, 0), (0, 50), (16384, 75), (32767, 100)]
     )
@@ -410,6 +416,7 @@ class TestGauges:
             track_left = readout.axis_tracks[2].rect.left
             assert readout.axis_markers[2].rect.centerx == track_left + offset
 
+    @pytest.mark.draws_frames
     def test_a_button_lamp_is_visible_only_while_held(self):
         """A button's lamp shows while it is held and goes when it is released."""
         with running_demo() as (_engine, scene):
@@ -430,6 +437,7 @@ class TestGauges:
             assert not lamp.visible
             assert _rgb(scene.screen, lamp.rect.center) == BLACK[:3]
 
+    @pytest.mark.draws_frames
     def test_the_hat_dot_moves_with_the_hat(self):
         """The hat's dot sits HAT_STEP pixels from its centre toward each direction held."""
         with running_demo() as (_engine, scene):
@@ -445,6 +453,7 @@ class TestGauges:
 
                 assert dot.rect.center == (centre_x + step * hat_x, centre_y - step * hat_y)
 
+    @pytest.mark.draws_frames
     def test_the_gauges_sit_below_the_devices_text(self):
         """Every gauge is below the device's last line of text, inside its column."""
         with running_demo() as (engine, scene):
@@ -468,6 +477,7 @@ class TestGauges:
                     assert gauge.rect.right <= column_left + joystick_demo.COLUMN_WIDTH
                     assert gauge in scene.all_sprites
 
+    @pytest.mark.draws_frames
     def test_a_pad_mapped_after_it_arrived_gets_its_controller_layers_gauges(self, mocker):
         """A pad first seen on its joystick layer and mapped later shows its controller layer.
 
@@ -511,6 +521,7 @@ class TestGauges:
             assert scene.screen is not None
             assert _shows_column(scene.screen, column=0, lines=joystick_demo.device_lines(pad))
 
+    @pytest.mark.draws_frames
     def test_a_removed_devices_sprites_are_gone(self):
         """A device's text and gauges come with it and go with it."""
         with running_demo(plugged_in_at_start=False) as (engine, scene):
@@ -535,6 +546,7 @@ class TestGauges:
             assert scene.device_readouts == {}
             assert not any(sprite in scene.all_sprites for sprite in sprites)
 
+    @pytest.mark.draws_frames
     def test_the_text_lines_are_text_sprites(self):
         """The header and every device line are text sprites, their text replaced as it changes."""
         with running_demo() as (_engine, scene):
@@ -551,6 +563,7 @@ class TestGauges:
 
             assert readout.text_lines[5].text == 'Axis 1: -0.5'
 
+    @pytest.mark.draws_frames
     def test_update_draws_only_sprites(self):
         """update() draws nothing on the screen: everything shown is the sprite group's."""
         with running_demo() as (_engine, scene):
@@ -576,6 +589,7 @@ class TestGauges:
 class TestHotPlug:
     """Devices plugged in and out are reported in the header and get or lose their column."""
 
+    @pytest.mark.draws_frames
     def test_a_joystick_plugged_in_and_out_is_reported(self):
         """The joystick's added and removed events reach the demo as device notices."""
         with running_demo(plugged_in_at_start=False) as (engine, scene):
@@ -606,6 +620,7 @@ class TestHotPlug:
                 scene.screen, text='No devices: plug one in', topleft=_header_line_topleft(2)
             )
 
+    @pytest.mark.draws_frames
     def test_a_game_pad_plugged_in_and_out_is_reported_once_each_way(self):
         """A mapped pad arrives and leaves on both layers; the demo hears of it once each way."""
         with running_demo(plugged_in_at_start=False) as (engine, scene):
@@ -679,6 +694,7 @@ REPORTED_EVENTS = [
 class TestInputEvents:
     """Each press reaches the demo once, from the device's event layer, and is shown."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(('event', 'report'), REPORTED_EVENTS)
     def test_the_last_input_event_is_shown(self, event, report):
         """The header's last line names the handler the event reached and its device."""
@@ -694,6 +710,7 @@ class TestInputEvents:
             assert scene.screen is not None
             assert _shows(scene.screen, text=report, topleft=_header_line_topleft(4))
 
+    @pytest.mark.draws_frames
     def test_a_mapped_pads_joystick_layer_press_never_reaches_the_demo(self):
         """The pad's joystick-layer copy of a press is dropped: only its controller one shows."""
         with running_demo() as (engine, scene):
@@ -722,6 +739,7 @@ def engine_run(mocker: MockerFixture) -> Generator[None]:
     yield from engine_run_environment(mocker)
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run')
 def test_main_runs_the_demo_headless(mocker: MockerFixture) -> None:
     """main() starts the demo on the real engine; it runs until quit."""
