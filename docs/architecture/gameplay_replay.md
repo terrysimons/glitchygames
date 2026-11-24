@@ -406,7 +406,9 @@ tick paid for, so a slower display keeps the rate): after a stall it runs one bo
 drops the rest, and when the recorded game cannot keep up with the speed the status bar says so and
 shows the real speed (`can't keep up: ×3.2`). So 1x shows about one recorded frame per tick, 8x
 about eight, 1/4x one every fourth tick. Which frames run when never changes what they do, so a
-watched replay is exactly as exact as a headless one.
+watched replay is exactly as exact as a headless one. This pacing is `RecordedFramePacer` and
+each tick's budget a `TickBudget` (`src/glitchygames/replay/pacer.py`, whose docstring is the
+contract for them), shared with an Arcade tile's demo player (In-game playback, below).
 
 It first runs frame 0, then holds on a start screen: that frame dimmed, "Press Spacebar to Start
 Game Replay" centered, and a smaller line naming the debug overlay's keys (`F3: debug overlay
@@ -1164,13 +1166,15 @@ game's golden script).
 
 Bundled demos are recordings shipped in a game's package as package data,
 `<package>/demos/<name>.jsonl.gz`; the Arcade plays one on a tile and loops it. Every member but
-the Sound Board demo has one, eleven in all: PaddleSlap's
+the Sound Board demo has one, eleven in all, from which the Arcade's ten tiles are chosen (the
+Arcade screen's sub-plan decides which ten): PaddleSlap's
 `paddleslap/demos/rally.jsonl.gz`, which its game-over screen plays after 10 seconds without a
 press; Clockwork Keep's `climb`; Zombies Ain't My Neighbors' `neighborhood_four_kids`; Brave Adventurer's `classic` and `papyrus` (both in its
 launcher's package, `brave_adventurer_modes/demos/`, whose console script replays the edition
 each header names); Mr. Muncher's `chase`; Drawing Fire's `battle`; Bitmappy's `drawing` (a
 smiley drawn on the canvas); the dt demo's `timing`, the text-input demo's `typing` and the
-joystick demo's `pad` (a stand-in pad, 'GlitchyGames Demo Pad'). Each is recorded by one
+joystick demo's `pad` (a stand-in pad, 'GlitchyGames Demo Pad'); and Zombies Ain't My
+Neighbors' `neighborhood_four_kids`. Each is recorded by one
 command from its recipe in `scripts/record_bundled_demos.py` (`DEMO_RECIPES`: the scene, the
 input script, the frame count, the package and name, and the session's options):
 
@@ -1195,6 +1199,21 @@ path. `tests/replay/test_bundled_demos.py` replays every one headless (through
 `glitchygames.testing.replays.bundled_demo_paths`, which refuses a demo nothing replays), so a
 change that makes a demo diverge fails in CI before it ships; `glitchygames measure` measures
 the same demos (each game's `--measure` takes its own package's, as `--verify` does).
+
+### A demo in another game's tile
+
+A demo above plays in the game's own scene. Another game (the Arcade) shows a demo in a tile
+of its own screen through a `DemoPlayer` (`src/glitchygames/demo_player.py`, whose docstring is
+the contract): the recording replayed through its game's own command as an inner game, in a
+context of its own ([Engine context](engine_context.md), Inner contexts, rule 10). The host
+ticks each player once a frame with its frame time and a real-time budget the players share;
+the player runs the frames its pacer owes (the watched replay's pacing, above), loops at the
+end, restarts once after a divergence and then freezes, and fast-forwards silently to a poster
+frame. Every frame it runs is the recording's, as alone
+(`tests/test_every_recording_replays_inside_an_inner_game.py`). Because the budget is real
+time, a recording of the host's session replays the host's inputs exactly, but not how far each
+tile had got in each host frame: tiles may be a frame or two apart between runs, as a watched
+replay's viewer already is ([A demo in a tile](playback/speeds-and-timing.md#a-demo-in-a-tile)).
 
 ### Instant replay
 

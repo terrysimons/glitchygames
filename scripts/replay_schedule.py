@@ -1,7 +1,8 @@
 """Simulate a watched replay's schedule: which recorded frames each viewer tick runs and shows.
 
-A watched replay (glitchygames/replay/viewer.py, whose module docstring is the contract) runs
-recorded frames from an accumulator: each 60 Hz outer tick owes the inner game one tick of real
+A watched replay (glitchygames/replay/viewer.py, whose module docstring is the contract, and the
+owing in glitchygames/replay/pacer.py, whose docstring is that part's contract) runs recorded
+frames from an accumulator: each 60 Hz outer tick owes the inner game one tick of real
 time (times the speed), and the tick runs recorded frames while the accumulator holds their
 recorded durations, presenting only the last one it ran. So a tick that runs two frames never
 presents the first. A tick runs a second frame only when the replay is genuinely behind (rule
@@ -10,7 +11,8 @@ short frames (pacing catching up after a slow one) no longer hide a frame; a rec
 faster than 60 FPS, or frames shorter than a tick above 1x, still run several a tick.
 
 This drives the viewer's REAL accumulator (``ReplayViewer.accrue`` and
-``ReplayViewer.should_run_inner_frame``, with their constants), never a copy of it, on an ideal
+``ReplayViewer.should_run_inner_frame``, which delegate to its ``RecordedFramePacer``, with their
+constants), never a copy of it, on an ideal
 clock: every tick exactly ``CONTROL_TICK_SECONDS`` after the last, inner frames costing no time
 (so the tick's real-time budget is never spent). It checks the viewer's schedule rule, not real
 wake-up jitter: a real viewer's ticks wake a little early or late, and it counts a tick within
@@ -20,7 +22,7 @@ ideal clock never needs. The viewer is ticked as a browser ticks it
 watched replay runs: the start screen lets frame 0 run first, Space is pressed on the next tick
 (as tests/replay/tools/test_compare_trace.py's ``watched_replay`` presses it while the viewer
 waits), and the inner game runs on to the end of the recording. Each inner frame lasts its
-next frame's recorded dt (the last frame its own), as ``ReplaySources._inner_frame_seconds``
+next frame's recorded dt (the last frame its own), as ``RecordedFrames.next_frame_seconds``
 gives them (glitchygames/replay/driver.py, rule 4).
 
 A frame is never presented when a later frame ran in the same tick. A frame may go unshown only
@@ -327,7 +329,7 @@ def recorded_frame_seconds(*, path: Path) -> tuple[float, ...]:
 def inner_frame_seconds(*, frame_seconds: tuple[float, ...], frame_index: int) -> float:
     """Return how long an inner frame lasted when recorded, as the replay driver gives it.
 
-    The same rule as ``ReplaySources._inner_frame_seconds`` (glitchygames/replay/driver.py,
+    The same rule as ``RecordedFrames.next_frame_seconds`` (glitchygames/replay/driver.py,
     rule 4): a frame lasts its next frame's dt, the last frame its own; 0.0 past the end.
 
     Args:

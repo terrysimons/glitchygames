@@ -25,7 +25,7 @@ from scripts.replay_schedule import (
 
 from glitchygames.bundled_demos import bundled_demos
 from glitchygames.exit_codes import ExitCode
-from glitchygames.replay.viewer import ReplayViewer
+from glitchygames.replay.pacer import RecordedFramePacer
 from tests.test_our_stored_paths import tracked_files
 from tests.workspace_expectations import MEMBER_PACKAGES
 from tests.workspace_goldens import every_games_golden
@@ -95,14 +95,17 @@ def test_every_committed_recording_presents_its_long_frames_at_twice_the_speed()
     assert schedule_problems(speed=TWICE_THE_SPEED) == []
 
 
-def weakened_owes_beyond_a_tick(viewer: ReplayViewer, *, inner_frame_seconds: float) -> bool:
+def weakened_owes_beyond_a_tick(
+    pacer: RecordedFramePacer, *, frame_seconds: float, speed: float
+) -> bool:
     """A broken behind condition: owing the frame alone (rule 2's deferral then never applies).
 
     Returns:
         True when the accumulator holds the frame's duration.
 
     """
-    return viewer.accumulated_seconds >= inner_frame_seconds
+    del speed
+    return pacer.accumulated_seconds >= frame_seconds
 
 
 def test_a_weakened_behind_condition_is_caught_by_the_guard(mocker):
@@ -112,7 +115,7 @@ def test_a_weakened_behind_condition_is_caught_by_the_guard(mocker):
     breaking cannot hide the frame from it.
     """
     mocker.patch.object(
-        ReplayViewer,
+        RecordedFramePacer,
         '_owes_beyond_a_tick',
         autospec=True,
         side_effect=weakened_owes_beyond_a_tick,
@@ -129,7 +132,7 @@ def test_a_weakened_behind_condition_is_caught_by_the_guard(mocker):
 def test_a_weakened_behind_condition_is_caught_by_the_tool(mocker, capsys):
     """The schedule tool, on the same broken viewer, names rally frame 286 and fails."""
     mocker.patch.object(
-        ReplayViewer,
+        RecordedFramePacer,
         '_owes_beyond_a_tick',
         autospec=True,
         side_effect=weakened_owes_beyond_a_tick,
