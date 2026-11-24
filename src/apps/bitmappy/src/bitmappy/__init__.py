@@ -69,7 +69,6 @@ from .constants import (
     PROGRESS_LOG_MIN_HEIGHT,
     SPRITE_ASPECT_RATIO_TOLERANCE,
     TRANSPARENT_GLYPH,
-    ai_training_state,
 )
 from .controllers import (
     MAX_CONTROLLER_ACTION_HISTORY,
@@ -141,6 +140,7 @@ from .scroll_arrow import ScrollArrowSprite
 from .slider_manager import SliderManager
 from .sprite_inspection import load_ai_training_data
 from .toml_processing import parse_toml_robustly
+from .training_library import ai_training_library
 from .utils import SPRITE_CONFIG_DIR
 
 __all__ = [
@@ -251,7 +251,7 @@ __all__ = [
     'UndoRedoManager',
     'VisualCollisionManager',
     'VisualIndicator',
-    'ai_training_state',
+    'ai_training_library',
     'detect_file_format',
     'get_onion_skinning_manager',
     'load_ai_training_data',

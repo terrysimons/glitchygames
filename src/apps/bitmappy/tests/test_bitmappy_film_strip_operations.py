@@ -7,6 +7,7 @@ fake film strips, canvas and editor that record what the delegate asked of them.
 
 import logging
 import sys
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -19,7 +20,9 @@ from bitmappy.controllers.manager import (
 )
 from bitmappy.controllers.selection import ControllerSelection
 from bitmappy.indicators.collision import VisualCollisionManager
-from bitmappy.onion_skinning import OnionSkinningManager
+
+if TYPE_CHECKING:
+    from bitmappy.onion_skinning import OnionSkinningManager
 
 HANDLER_LOGGER_NAME = 'game.tools.bitmappy.controllers.event_handler'
 GRAY = (128, 128, 128)
@@ -628,16 +631,14 @@ class TestOnionSkinningToggle:
     """Test multi_controller_toggle_onion_skinning."""
 
     @pytest.fixture
-    def onion_manager(self, mocker) -> OnionSkinningManager:
-        """Replace the global onion skinning manager with a fresh one.
+    def onion_manager(self) -> OnionSkinningManager:
+        """Return the test's own onion skinning manager (fresh: the conftest resets it).
 
         Returns:
-            OnionSkinningManager: The fresh manager.
+            OnionSkinningManager: The manager.
 
         """
-        fresh_manager = OnionSkinningManager()
-        mocker.patch.object(onion_skinning, 'onion_skinning_manager', fresh_manager)
-        return fresh_manager
+        return onion_skinning.get_onion_skinning_manager()
 
     def test_unknown_controller_toggles_nothing(self, handler, editor, onion_manager):
         """A controller without a selection toggles nothing."""

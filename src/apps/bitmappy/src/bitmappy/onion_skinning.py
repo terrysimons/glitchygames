@@ -4,9 +4,15 @@
 This module provides onion skinning functionality for the bitmappy sprite editor,
 allowing users to see previous and future frames as semi-transparent overlays
 while editing the current frame.
+
+Each engine context (glitchygames.engine_context) has its own manager, so two Bitmappys in one
+process (an Arcade tile beside a launched Bitmappy) keep their own onion skinning. Code reaches it
+only through ``get_onion_skinning_manager()``, at use time.
 """
 
 import logging
+
+from glitchygames.engine_context import ContextSlot, current_context
 
 LOG = logging.getLogger('game.tools.onion_skinning')
 LOG.addHandler(logging.NullHandler())
@@ -158,15 +164,17 @@ class OnionSkinningManager:
         LOG.debug('Set onion skinning state for animation %s: %s', animation, frame_states)
 
 
-# Global onion skinning manager instance
-onion_skinning_manager = OnionSkinningManager()
+# Each engine context's onion skinning manager, made on first use there
+ONION_SKINNING_MANAGER_SLOT: ContextSlot[OnionSkinningManager] = ContextSlot(
+    name='bitmappy.onion_skinning.manager', factory=OnionSkinningManager
+)
 
 
 def get_onion_skinning_manager() -> OnionSkinningManager:
-    """Get the global onion skinning manager instance.
+    """Get the current engine context's onion skinning manager.
 
     Returns:
-        OnionSkinningManager: The global onion skinning manager
+        OnionSkinningManager: This context's manager, made on its first use here.
 
     """
-    return onion_skinning_manager
+    return current_context().value(slot=ONION_SKINNING_MANAGER_SLOT)

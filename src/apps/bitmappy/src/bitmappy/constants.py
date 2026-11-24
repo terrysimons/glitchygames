@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import sys
 from http import HTTPStatus
-from typing import Any
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE
 
@@ -93,9 +92,3 @@ RETRYABLE_CLIENT_ERROR_STATUS_CODES = frozenset({
     HTTPStatus.CONFLICT,
     HTTPStatus.TOO_MANY_REQUESTS,
 })
-
-# AI training state (module-level global)
-ai_training_state: dict[str, list[dict[str, Any]] | str | None] = {
-    'data': [],
-    'format': None,  # Will be detected from training files
-}
