@@ -144,6 +144,14 @@ def _format_code(session: nox.Session) -> None:
         session.run('ruff', 'format', target)
 
 
+def _check_code_format(session: nox.Session) -> None:
+    """Check the code's import order and formatting with ruff, failing on a difference."""
+    for target in _CODE_DIRS:
+        session.run('ruff', 'check', '--select', 'I', target)
+    for target in _CODE_DIRS:
+        session.run('ruff', 'format', '--check', target)
+
+
 def _taplo_has_no_wheel() -> bool:
     """Whether this is Linux on ARM, where pyproject.toml's marker leaves taplo uninstalled.
 
@@ -160,6 +168,14 @@ def _format_toml(session: nox.Session) -> None:
         session.log('taplo has no Linux ARM wheel; skipping TOML formatting.')
         return
     session.run('taplo', 'format', external=True)
+
+
+def _check_toml_format(session: nox.Session) -> None:
+    """Check the TOML files' formatting with taplo, failing on a difference."""
+    if _taplo_has_no_wheel():
+        session.log('taplo has no Linux ARM wheel; skipping the TOML format check.')
+        return
+    session.run('taplo', 'format', '--check', external=True)
 
 
 def _lint_code(session: nox.Session) -> None:
@@ -245,6 +261,15 @@ def format_all(session: nox.Session) -> None:
     _install_from_lockfile(session)
     _format_code(session)
     _format_toml(session)
+
+
+# CI's format step: nox -s format formats in place, so it always passed there (2026-11-23)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='format-check', default=False)
+def format_check(session: nox.Session) -> None:
+    """Check the code's and the TOML files' formatting, changing nothing; fails on a difference."""
+    _install_from_lockfile(session)
+    _check_code_format(session)
+    _check_toml_format(session)
 
 
 @nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint')
@@ -890,10 +915,9 @@ def test(session: nox.Session) -> None:
 
 # The test files that read Markdown (each names a Markdown file in its code), which a docs-only
 # pull request still runs (nox -s test-markdown, CircleCI's markdown-checks job: the owner,
-# 2026-11-20). tests/test_ci_config.py holds the list to exactly the test files that name one
+# 2026-11-20). tests/test_ci_config.py holds the list to exactly the test files that name one,
+# less MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES
 MARKDOWN_TEST_FILES = (
-    'tests/audio/test_channel_fades.py',
-    'tests/benchmarks/test_logging_cost.py',
     'tests/replay/tools/test_performance_pages.py',
     'tests/test_ansible_ai_service.py',
     'tests/test_ci_change_scope.py',
@@ -910,6 +934,18 @@ MARKDOWN_TEST_FILES = (
     'tests/test_suite_collection.py',
     'tests/test_workspace_config.py',
 )
+# The test files that name a Markdown file but read none of the repository's (a report they write
+# themselves, a path quoted in a reason), each with why: a docs-only change does not run them (the
+# owner, 2026-11-24: #295's markdown-checks job, 5335, ran the channel-fade audio test and lost it
+# to the disk audio driver)
+MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES = {
+    'tests/audio/test_channel_fades.py': (
+        'writes channel-fade-<case>.md, its trial report; records real audio, no Markdown read'
+    ),
+    'tests/benchmarks/test_logging_cost.py': (
+        'writes test-results/logging-cost.md, its results table; a benchmark, no Markdown read'
+    ),
+}
 
 
 @nox.session(python=list(TEST_PYTHONS[-1:]), reuse_venv=False, name='test-markdown', default=False)
