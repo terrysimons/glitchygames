@@ -56,6 +56,14 @@ class TestWriteTextWhole:
 
         assert destination.read_text(encoding='utf-8') == self.TEXT
 
+    def test_the_file_has_the_os_line_ends(self, tmp_path: Path) -> None:
+        """CRLF on Windows, LF elsewhere: a person edits the file in their usual text editor."""
+        destination = tmp_path / 'record.txt'
+
+        write_text_whole(destination=destination, text=self.TEXT)
+
+        assert destination.read_bytes() == self.TEXT.replace('\n', os.linesep).encode('utf-8')
+
     def test_a_write_stopped_anywhere_leaves_the_old_text_or_the_new(
         self, mocker, tmp_path: Path
     ) -> None:
