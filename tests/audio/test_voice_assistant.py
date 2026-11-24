@@ -166,7 +166,10 @@ def ai_replies(mocker):
 def recorded_threads(mocker):
     """Replace threading in voice_assistant with RecordedThread (Lock stays real).
 
-    Returns:
+    The threads are let go after the test: each holds its target, a bound method of the object
+    under test and so its mocks, which the class-level list kept alive until the next test.
+
+    Yields:
         The list of threads created during the test.
 
     """
@@ -176,7 +179,8 @@ def recorded_threads(mocker):
         'threading',
         types.SimpleNamespace(Thread=RecordedThread, Lock=threading.Lock),
     )
-    return RecordedThread.created
+    yield RecordedThread.created
+    RecordedThread.created = []
 
 
 @pytest.fixture

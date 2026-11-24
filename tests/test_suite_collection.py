@@ -38,6 +38,7 @@ from tests.ast_scanning import (
     pytest_plugin_names,
     qualified_name,
 )
+from tests.child_scans import scan_in_child
 from tests.harness import CHECKOUT_ENGINE_DIRECTORY, imported_engine_directory
 from tests.workspace_sources import member_import_packages
 
@@ -1417,6 +1418,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_build_info.py': ('scripts/write_build_stamp.py',),
     'tests/test_build_sdl_x11.py': ('scripts/build_sdl_x11.py',),
     'tests/test_check_licenses.py': ('scripts/check_licenses.py', 'scripts/workspace_packages.py'),
+    'tests/test_check_rebaselined_recordings.py': ('scripts/check_rebaselined_recordings.py',),
     'tests/test_mark_drawing_tests.py': ('scripts/mark_drawing_tests.py',),
     'tests/test_compare_driver_frames.py': ('scripts/compare_driver_frames.py',),
     'tests/test_create.py': ('scripts/create.py',),
@@ -1469,6 +1471,9 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
     'tests/test_reproduce_orphaned_test_processes.py': (
         'scripts/reproduce_orphaned_test_processes.py',
     ),
+    'tests/test_reproduce_process_stop_under_load.py': (
+        'scripts/reproduce_process_stop_under_load.py',
+    ),
     'tests/test_workspace_packages.py': (
         'scripts/workspace_packages.py',
         'scripts/git_checkout.py',
@@ -1495,6 +1500,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/benchmarks/test_logging_cost.py': (
         "measures what logging costs our members' goldens and bundled demos"
     ),
+    'tests/benchmarks/test_demo_player_benchmarks.py': (
+        "measures what demo players of our members' bundled demos cost an Arcade"
+    ),
     'tests/audio/test_audio_engine_goldens.py': (
         "replays our member PaddleSlap's golden under each sound cache mode"
     ),
@@ -1505,6 +1513,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/replay/test_golden_replays.py': "checks our members' goldens with our games' tables",
     'tests/replay/test_replays_log_quietly.py': (
         "replays our members' goldens and bundled demos at the tools' log level"
+    ),
+    'tests/replay/test_frames_equal_a_full_repaint.py': (
+        "replays our members' goldens and bundled demos against a full repaint, frame by frame"
     ),
     'tests/test_every_recording_replays_inside_an_inner_game.py': (
         "replays our members' goldens and bundled demos as inner games, beside each other"
@@ -2170,9 +2181,30 @@ def former_examples_references(*, project_root: Path) -> list[str]:
     )
 
 
+def former_examples_references_found(*, project_root: str) -> list[str]:
+    """Return ``former_examples_references`` for a repository named by a string.
+
+    A scan run in a child process (tests/child_scans.py): it reads every line of every tracked
+    file, which would pin this process's memory. It takes and returns JSON.
+
+    Args:
+        project_root: The repository (a git work tree).
+
+    Returns:
+        The references, sorted.
+
+    """
+    return former_examples_references(project_root=Path(project_root))
+
+
 def test_nothing_names_the_deleted_examples_package():
     """No code, configuration or living document names glitchygames.examples any more."""
-    assert former_examples_references(project_root=PROJECT_ROOT) == []
+    assert (
+        scan_in_child(
+            scan=former_examples_references_found, arguments={'project_root': str(PROJECT_ROOT)}
+        )
+        == []
+    )
 
 
 def test_the_exempt_paths_all_exist_and_still_name_the_deleted_package():
@@ -2216,6 +2248,10 @@ def test_a_reference_outside_the_exempt_paths_is_found(tmp_path):
         'src/engine.py:1: import glitchygames.examples',
         'zensical.yml:1: path: src/glitchygames/examples',
     ]
+    # No finding is lost in the child process the whole repository's scan runs in
+    assert scan_in_child(
+        scan=former_examples_references_found, arguments={'project_root': str(tmp_path)}
+    ) == former_examples_references(project_root=tmp_path)
 
 
 def test_no_test_runs_a_package_as_main_but_through_the_shared_helper():

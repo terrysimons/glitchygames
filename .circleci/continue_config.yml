@@ -275,9 +275,10 @@ commands:
     steps:
       - run:
           name: "Format check"
+          # The check session: nox -s format formats in place, so it could never fail here
           command: |
             export PATH="$HOME/.local/bin:$PATH"
-            nox -s format
+            nox -s format-check
 
   nox-lint:
     steps:

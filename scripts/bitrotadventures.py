@@ -7,6 +7,7 @@ import argparse
 import logging
 from typing import Self
 
+from glitchygames.checks import required
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 
@@ -42,10 +43,10 @@ class BitrotAdventures(Scene):
 
         self.dirty = 1
         # draw a pixel to the screen
-        assert self.screen is not None
-        self.screen.fill((255, 0, 0))
+        screen = required(self.screen, what='the scene screen')
+        screen.fill((255, 0, 0))
         self.dirty = 1
-        self.rects = self.screen.get_rect()
+        self.rects = screen.get_rect()
         self.rects.x = 0
         self.rects.y = 0
         self.rects.width = 100

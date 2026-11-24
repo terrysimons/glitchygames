@@ -24,11 +24,9 @@ from nox.command import CommandFailed
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Mapping, Sequence
 
-# uv installs itself to ~/.local/bin by default; CI prepends that to PATH explicitly, but a
-# direct `nox` invocation may not have it. Add it when uv lives there but isn't reachable yet.
-_local_bin = str(Path.home() / '.local' / 'bin')
-if _local_bin not in os.environ.get('PATH', '').split(os.pathsep):
-    os.environ['PATH'] = _local_bin + os.pathsep + os.environ.get('PATH', '')
+# Importing this file changes nothing in the process (tests import it:
+# test_importing_the_noxfile_leaves_the_environment_alone). Each session sets the environment of
+# the commands it runs; CircleCI puts uv on PATH itself.
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
@@ -146,6 +144,14 @@ def _format_code(session: nox.Session) -> None:
         session.run('ruff', 'format', target)
 
 
+def _check_code_format(session: nox.Session) -> None:
+    """Check the code's import order and formatting with ruff, failing on a difference."""
+    for target in _CODE_DIRS:
+        session.run('ruff', 'check', '--select', 'I', target)
+    for target in _CODE_DIRS:
+        session.run('ruff', 'format', '--check', target)
+
+
 def _taplo_has_no_wheel() -> bool:
     """Whether this is Linux on ARM, where pyproject.toml's marker leaves taplo uninstalled.
 
@@ -162,6 +168,14 @@ def _format_toml(session: nox.Session) -> None:
         session.log('taplo has no Linux ARM wheel; skipping TOML formatting.')
         return
     session.run('taplo', 'format', external=True)
+
+
+def _check_toml_format(session: nox.Session) -> None:
+    """Check the TOML files' formatting with taplo, failing on a difference."""
+    if _taplo_has_no_wheel():
+        session.log('taplo has no Linux ARM wheel; skipping the TOML format check.')
+        return
+    session.run('taplo', 'format', '--check', external=True)
 
 
 def _lint_code(session: nox.Session) -> None:
@@ -247,6 +261,15 @@ def format_all(session: nox.Session) -> None:
     _install_from_lockfile(session)
     _format_code(session)
     _format_toml(session)
+
+
+# CI's format step: nox -s format formats in place, so it always passed there (2026-11-23)
+@nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='format-check', default=False)
+def format_check(session: nox.Session) -> None:
+    """Check the code's and the TOML files' formatting, changing nothing; fails on a difference."""
+    _install_from_lockfile(session)
+    _check_code_format(session)
+    _check_toml_format(session)
 
 
 @nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='lint')
@@ -892,10 +915,10 @@ def test(session: nox.Session) -> None:
 
 # The test files that read Markdown (each names a Markdown file in its code), which a docs-only
 # pull request still runs (nox -s test-markdown, CircleCI's markdown-checks job: the owner,
-# 2026-11-20). tests/test_ci_config.py holds the list to exactly the test files that name one
+# 2026-11-20). tests/test_ci_config.py holds the list to exactly the test files that name one,
+# less MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES
 MARKDOWN_TEST_FILES = (
-    'tests/audio/test_channel_fades.py',
-    'tests/benchmarks/test_logging_cost.py',
+    'tests/benchmarks/test_demo_player_benchmarks.py',
     'tests/replay/tools/test_performance_pages.py',
     'tests/test_ansible_ai_service.py',
     'tests/test_ci_change_scope.py',
@@ -912,6 +935,21 @@ MARKDOWN_TEST_FILES = (
     'tests/test_suite_collection.py',
     'tests/test_workspace_config.py',
 )
+# The test files that name a Markdown file but read none of the repository's (a report they write
+# themselves, a path quoted in a reason), each with why: a docs-only change does not run them (the
+# owner, 2026-11-24: #295's markdown-checks job, 5335, ran the channel-fade audio test and lost it
+# to the disk audio driver)
+MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES = {
+    'tests/audio/test_channel_fades.py': (
+        'writes channel-fade-<case>.md, its trial report; records real audio, no Markdown read'
+    ),
+    'tests/benchmarks/test_logging_cost.py': (
+        'writes test-results/logging-cost.md, its results table; a benchmark, no Markdown read'
+    ),
+    'tests/replay/test_frames_equal_a_full_repaint.py': (
+        "names plans/future-work.md only in an exclusion's reason text; reads no Markdown"
+    ),
+}
 
 
 @nox.session(python=list(TEST_PYTHONS[-1:]), reuse_venv=False, name='test-markdown', default=False)
@@ -1110,7 +1148,7 @@ def describe_suite_order(*, order: SuiteOrder) -> str:
         f'Test order: shuffled, seed {order.seed}{how}. Replay it with '
         f'{SUITE_ORDER_VARIABLE}={order.seed} nox -s test-3.15, or with pytest '
         f'{shlex.join(suite_order_pytest_arguments(order=order))} -n 0; a split CI machine '
-        f'shuffled only its share, the tests kept in test-results/test-split.txt (its '
+        f'shuffled only its share, the tests kept in test-results/test-split-junit.txt (its '
         f'artifacts), so name those tests to replay its order'
     )
 
@@ -2961,10 +2999,14 @@ _BENCHMARK_PATHS = [
 
 @nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
-    """Run performance benchmarks."""
+    """Run performance benchmarks; pass or fail, saving nothing into the repository.
+
+    The results table goes to the log only. ``--benchmark-save`` wrote a run into the tracked
+    ``.benchmarks/`` on every run, which nothing reads (plans/2026-11-04-performance-page-
+    comparison.md, Step 3; the owner, 2026-11-23: no file a benchmark writes may get committed).
+    """
     _install_from_lockfile(session)
 
-    # Run performance tests with pytest-benchmark
     # Override addopts to avoid conflict with --cov flags from pyproject.toml
     session.run(
         'pytest',
@@ -2973,7 +3015,6 @@ def performance_test(session: nox.Session) -> None:
         '-p',
         'no:xdist',
         '--benchmark-only',
-        '--benchmark-save=baseline',
         *_BENCHMARK_PATHS,
     )
 

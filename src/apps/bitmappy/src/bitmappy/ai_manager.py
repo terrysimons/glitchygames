@@ -134,6 +134,12 @@ def shut_down_running_ai_workers() -> None:
         manager.cleanup()
 
 
+# Module-level, so its handler is added once: added in __init__, each instance added another
+# to the one shared logger, never removed (3,545 over Bitmappy's tests, 2026-11-23)
+AI_INTEGRATION_LOG = logging.getLogger('game.tools.bitmappy.ai_integration')
+AI_INTEGRATION_LOG.addHandler(logging.NullHandler())
+
+
 class AIManager:
     """Manages AI sprite generation for the Bitmappy editor.
 
@@ -149,8 +155,7 @@ class AIManager:
 
         """
         self.editor = editor
-        self.log = logging.getLogger('game.tools.bitmappy.ai_integration')
-        self.log.addHandler(logging.NullHandler())
+        self.log = AI_INTEGRATION_LOG
 
         # AI state
         self.pending_ai_requests: dict[str, Any] = {}
