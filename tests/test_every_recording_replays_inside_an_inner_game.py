@@ -792,6 +792,7 @@ def play_unevenly(
     pytest.fail(f'the players did not finish in {MOST_PLAYER_TICKS} ticks')
 
 
+@pytest.mark.heavy_replay(reason='a child-process reference replay beside two inner games')
 @pytest.mark.parametrize(('tile', 'partner'), pair_parameters())
 def test_a_recording_replays_inside_a_tile_beside_another_as_it_does_alone(
     tile: tuple[str, Path],
@@ -984,6 +985,7 @@ def key_repeat_parameters() -> list[object]:
     return parameters
 
 
+@pytest.mark.heavy_replay(reason='a whole recording replayed as an inner game')
 @pytest.mark.parametrize(('console_script', 'recording'), key_repeat_parameters())
 def test_a_tile_leaves_the_outer_key_repeat_as_it_was(
     console_script: str,

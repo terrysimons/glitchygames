@@ -10,14 +10,14 @@ packages, Part 2: every game is its own package", 26 commits, verified by Task 9
 #109, a97efbe9). Part 4 DONE on feature/workspace-packages-4-bitmappy (2026-10-26: Bitmappy is
 its own package, `src/apps/bitmappy/`; commits a97efbe9..1d0994a0 at present, the last hash
 pinned at merge; verified by its Task 7 and the user's manual checks, 2026-10-26, then a
-final-review fix pass; see [its plan](2026-10-26-workspace-packages-4-bitmappy.md); not yet
-merged). Part 3 (the demos) DONE on feature/workspace-packages-3a-src-layout (2026-10-26: Stage A,
+final-review fix pass; see [its plan](2026-10-26-workspace-packages-4-bitmappy.md); merged as
+#110, 73ed261f). Part 3 (the demos) DONE on feature/workspace-packages-3a-src-layout (2026-10-26: Stage A,
 every member in a `src/` layout; Stage B, the three demos are members of the `demos` layer and
 `src/glitchygames/examples/` and `EXAMPLES_LAYERS` are gone; Stage C, engine tests stop borrowing
 members and the guards cover every member; commits 832c76e6..abbbba09 and the C6 commits on top, the
 last hash pinned at merge; then Stage D, the engine owns every recording, replay and
-measurement tool, as game flags and as the `glitchygames` command (D1-D11 done 2026-10-27,
-awaiting the final review and the user's look at `--compare-trace`); see [its
+measurement tool, as game flags and as the `glitchygames` command (D1-D11 done 2026-10-27);
+merged as #111, 3f1999a9; see [its
 plan](2026-10-26-workspace-packages-3-demos.md)); Part 5 (the browser IDE) NOT STARTED.
 Plan written 2026-10-24; amended 2026-10-25: everything under `src/`, decision 7; logical names
 in recordings, decision 8; where recordings live, decision 9; amended 2026-10-26: Part 4 runs
@@ -184,9 +184,8 @@ so each is named `test_<package>_<area>.py` and no name repeats across test root
     confirmed it for the demos the same day): its `pyproject.toml` lists every distribution its
     package imports (Bitmappy's: `glitchygames`, `aisuite` with the root's extras, `numpy`,
     `pydantic`, `pygame-ce`, `tenacity`), and a dependency only a member imports moves out of
-    the root (`tenacity`). The demos follow this rule (Part 3, 2026-10-26). The five games, moved
-    earlier,
-    still list only `glitchygames`; backfilling them is a small follow-up (Future work).
+    the root (`tenacity`). The demos follow this rule (Part 3, 2026-10-26). The games moved
+    earlier listed only `glitchygames` at first; every game now lists what it imports.
 
 ## What every part keeps true
 

@@ -62,6 +62,11 @@ LOG.addHandler(logging.NullHandler())
 TICK_INTERVAL_SAMPLES = 240
 # The measured tick rate is logged once, after this many ticks (startup hitches have passed)
 TICKS_BEFORE_LOGGING_RATE = 120
+# A frame period within this share of a whole number of measured ticks runs on exactly that many
+# ticks (60.01 FPS on a 119.5-120.5 Hz display: every second tick). 2% holds a display that runs
+# a little off its nominal rate and the default target's 0.02% margin over 60 FPS, and is far
+# from the nearest uneven case (60 FPS on 144 Hz: 2.4 ticks)
+WHOLE_TICK_TOLERANCE = 0.02
 
 # A window event that takes something from the window, and the event that gives it back.
 # ACTIVEEVENT, pygame's older form of the same changes, pairs by its state: gain 0 takes, 1 gives
@@ -339,15 +344,46 @@ class HostSources:  # ruff: ignore[too-many-public-methods] - every EngineSource
         self._frames_ended += 1
 
 
+def whole_ticks_per_frame(*, period_seconds: float, tick_seconds: float) -> int | None:
+    """Return how many ticks a frame takes, when the period is a whole number of ticks.
+
+    Args:
+        period_seconds: The inner game's frame period (above 0).
+        tick_seconds: The measured tick interval (0 before any is measured).
+
+    Returns:
+        The whole number of ticks (1 or more) when the period is within
+        ``WHOLE_TICK_TOLERANCE`` of it, else None (also before a tick interval is measured).
+
+    """
+    if tick_seconds <= 0.0:
+        return None
+    ticks = period_seconds / tick_seconds
+    whole_ticks = round(ticks)
+    if whole_ticks < 1 or abs(ticks - whole_ticks) > WHOLE_TICK_TOLERANCE * whole_ticks:
+        return None
+    return whole_ticks
+
+
 class TickPacer:
     """Decides, at each outer tick, whether the inner game runs a frame (``GameHost.run_async``).
 
-    Each tick adds the time since the previous tick to an accumulator. A frame runs when it
-    holds at least the frame period less half a tick (so a period that is a whole number of
-    ticks runs exactly every that many ticks, despite jitter), and then pays one period. A frame
-    owed more than one period after paying (a stall: a background tab, a hitch) re-anchors
-    instead of running a burst of frames, as the engine's own pacing does. A period of 0 or less
-    runs a frame every tick. The first tick always runs one.
+    A period within ``WHOLE_TICK_TOLERANCE`` of a whole number of measured ticks (60 FPS on a
+    120 Hz display: two) runs a frame on exactly every that many ticks, counting a late tick as
+    the ticks its interval spans (a missed animation frame), and starts counting again from each
+    frame: never a frame early to make up time. The frames then come at the display's rate over
+    that number, a little off the target (59.9 FPS for 60.01 at 119.75 Hz); ``dt`` is measured,
+    so game time stays right. An accumulator would keep the target's long-run rate instead, but
+    its leftover drifts by the difference every frame until it sits at the threshold, and then
+    each tick's jitter decides the frame: frames after one tick and then three, a judder
+    (bugs/2026-11-20-browser-frames-juddered-at-120-hz.md).
+
+    Any other period (60 FPS on 144 Hz: 2.4 ticks) uses the accumulator: each tick adds the
+    time since the previous tick, and a frame runs when it holds at least the frame period less
+    half a tick, then pays one period, so frames wait two or three ticks and average the target.
+    A frame owed more than one period after paying (a stall: a background tab, a hitch)
+    re-anchors instead of running a burst of frames, as the engine's own pacing does. A period
+    of 0 or less runs a frame every tick. The first tick always runs one.
 
     It also keeps the median of the recent tick intervals: the rate the outer ticks really
     come at (a browser's animation frames follow the display's refresh, or Safari's 60 Hz cap).
@@ -357,6 +393,9 @@ class TickPacer:
         """Start with no tick seen."""
         self._previous_tick_seconds: float | None = None
         self._accumulated_seconds = 0.0
+        # Ticks since the last frame, on a whole-tick cadence (a late tick counts as the ticks it
+        # spans)
+        self._ticks_since_frame = 0
         self._tick_intervals: collections.deque[float] = collections.deque(
             maxlen=TICK_INTERVAL_SAMPLES
         )
@@ -380,14 +419,30 @@ class TickPacer:
         self._tick_intervals.append(interval_seconds)
         if period_seconds <= 0.0:
             return True
+        tick_seconds_measured = self.measured_tick_seconds()
+        whole_ticks = whole_ticks_per_frame(
+            period_seconds=period_seconds, tick_seconds=tick_seconds_measured
+        )
+        # Both counts run on every tick, so a switch between the cadences (the measured tick
+        # settling in the first ticks) never loses the ticks already waited
         self._accumulated_seconds += interval_seconds
-        half_tick_seconds = self.measured_tick_seconds() / 2
-        if self._accumulated_seconds < period_seconds - half_tick_seconds:
+        if tick_seconds_measured > 0.0:
+            # A late tick counts as the ticks it spans, so a missed one delays only its frame
+            self._ticks_since_frame += max(1, round(interval_seconds / tick_seconds_measured))
+        if whole_ticks is not None:
+            if self._ticks_since_frame < whole_ticks:
+                return False
+            self._ticks_since_frame = 0
+            # Nothing carried over: the next frame is whole ticks from this one
+            self._accumulated_seconds = 0.0
+            return True
+        if self._accumulated_seconds < period_seconds - tick_seconds_measured / 2:
             return False
         self._accumulated_seconds -= period_seconds
         if self._accumulated_seconds >= period_seconds:
             # More than a whole frame behind after this one: start over rather than burst
             self._accumulated_seconds = 0.0
+        self._ticks_since_frame = 0
         return True
 
     def measured_tick_seconds(self: Self) -> float:

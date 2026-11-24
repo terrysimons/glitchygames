@@ -149,6 +149,7 @@ class TestTheBlackFrameCheck:
         finally:
             show_canvas()
 
+    @pytest.mark.draws_frames
     def test_the_guard_passes_a_frame_with_anything_on_it(self, request):
         """A black display with one dim pixel on it is not a rendering bug."""
         display = real_display_surface()
@@ -158,6 +159,7 @@ class TestTheBlackFrameCheck:
 
         _fail_on_entirely_black_frame(item=request.node)
 
+    @pytest.mark.draws_frames
     @pytest.mark.black_frame_expected(reason='checks the opt-out marker itself')
     def test_the_marker_opts_a_test_out(self, request):
         """A test marked black_frame_expected may end on an all-black frame."""

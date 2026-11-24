@@ -446,7 +446,8 @@ def compare_pair_images(
                     )
                 )
                 continue
-            rerun_difference, comparisons = compare_rerun_images(
+            # The window's animations are written next to its images; the matrix lists the images
+            rerun_difference, comparisons, _animations = compare_rerun_images(
                 baseline=rerun_by_label[pair.first],
                 candidate=rerun_by_label[pair.second],
                 baseline_record=first_record,

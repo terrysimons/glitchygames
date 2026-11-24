@@ -11,8 +11,15 @@ for their recordings, ``tests/fixtures/replays/`` there, as at the root): a late
 tests commit leaves it unchanged, so the last measured tree is still the one that lands on main,
 and the ledger's own rows never change the tree they name.
 
-Both are git pathspecs, read by git itself (``git rm``, ``git ls-files``), so their magic
-(``:(glob)``, ``:(exclude)``) means what git says it means.
+Both are git pathspecs, read by git itself (``git ls-files``), so their magic (``:(glob)``,
+``:(exclude)``) means what git says it means.
+
+A tree is made from git's own records alone, never the working tree or a file's content
+(``_measured_tree``): ``ls-files`` lists the entries to drop, ``update-index --force-remove``
+drops them and ``write-tree --missing-ok`` writes the rest. In a blobless clone (CircleCI's
+checkout) the old ``git rm --cached`` refreshed the index against the working tree and fetched
+each missing file from the remote one at a time: a past commit's tree took over a minute and
+timed out (#287's checks-linux, job 5174), once the docs build no longer ran wily first.
 
 The tree functions work on a temporary index (``GIT_INDEX_FILE``), so the real one, and with it
 whatever is staged, is never touched. A failing git command raises ``RuntimeError`` naming it.
@@ -54,9 +61,15 @@ class CodeTreePaths(BaseModel):
 
 
 def _completed_git(
-    *, repository: Path, arguments: list[str], index_file: Path | None = None
+    *,
+    repository: Path,
+    arguments: list[str],
+    index_file: Path | None = None,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run git in ``repository``, on ``index_file`` when given, whatever its exit code.
+
+    ``input_text``, when given, is git's standard input (``--stdin``).
 
     Returns:
         The finished process (stdout and stderr together in ``stdout``).
@@ -71,11 +84,20 @@ def _completed_git(
         timeout_seconds=GIT_TIMEOUT_SECONDS,
         capture_output=OutputCapture.TOGETHER,
         working_directory=repository,
+        input_text=input_text,
     )
 
 
-def run_git(*, repository: Path, arguments: list[str], index_file: Path | None = None) -> str:
+def run_git(
+    *,
+    repository: Path,
+    arguments: list[str],
+    index_file: Path | None = None,
+    input_text: str | None = None,
+) -> str:
     """Run git in ``repository``, on ``index_file`` when given, and return its output.
+
+    ``input_text``, when given, is git's standard input (``--stdin``).
 
     Returns:
         Standard output, stripped.
@@ -85,7 +107,9 @@ def run_git(*, repository: Path, arguments: list[str], index_file: Path | None =
 
     """
     command = ['git', *arguments]
-    completed = _completed_git(repository=repository, arguments=arguments, index_file=index_file)
+    completed = _completed_git(
+        repository=repository, arguments=arguments, index_file=index_file, input_text=input_text
+    )
     if completed.returncode != 0:
         message = f'{" ".join(command)} failed in {repository}: {completed.stdout.strip()}'
         raise RuntimeError(message)
@@ -116,51 +140,57 @@ def untracked_measured_files(*, repository: Path, paths: CodeTreePaths) -> list[
     return [line for line in measured.splitlines() if line and line not in unmeasured]
 
 
+def _drop_from_index(*, repository: Path, index_file: Path, pathspecs: list[str]) -> None:
+    """Drop the index's entries that the pathspecs match, reading nothing but the index.
+
+    ``ls-files`` lists them (NUL-separated, so any file name survives) and ``update-index
+    --force-remove`` drops them: neither looks at the working tree or a file's content, unlike
+    ``git rm --cached``, which refreshes the whole index first (module docstring).
+
+    Args:
+        repository: The repository's working directory.
+        index_file: The temporary index.
+        pathspecs: What to drop (git pathspecs, magic included).
+
+    Raises:
+        RuntimeError: If git fails (the command and its output in the message).
+
+    """
+    listing = ['ls-files', '-z', '--', *pathspecs]
+    # Not run_git: its stripping could cut a file name's trailing space
+    listed = _completed_git(repository=repository, arguments=listing, index_file=index_file)
+    if listed.returncode != 0:
+        message = f'git {" ".join(listing)} failed in {repository}: {listed.stdout.strip()}'
+        raise RuntimeError(message)
+    if listed.stdout:
+        run_git(
+            repository=repository,
+            arguments=['update-index', '-z', '--force-remove', '--stdin'],
+            index_file=index_file,
+            input_text=listed.stdout,
+        )
+
+
 def _measured_tree(*, repository: Path, index_file: Path, paths: CodeTreePaths) -> str:
     """Drop all but the measured paths from a temporary index and return the index's tree.
 
     The measured paths are kept, then the unmeasured ones dropped (ours: the members' tests,
-    but for their recordings).
+    but for their recordings). ``write-tree --missing-ok`` writes the tree from the entries'
+    object names without reading the files, which a blobless clone may not hold.
 
     Returns:
         The tree hash.
 
     """
     kept = [f':(exclude){path}' for path in paths.measured]
-    # --force: git rm refuses a file whose staged content differs from both the working tree
-    # and HEAD (a partly staged edit); only this temporary index is changed, never a file
-    run_git(
-        repository=repository,
-        arguments=[
-            'rm',
-            '-r',
-            '--cached',
-            '--force',
-            '--ignore-unmatch',
-            '--quiet',
-            '--',
-            '.',
-            *kept,
-        ],
-        index_file=index_file,
-    )
-    # git rm with no pathspec is refused ("No pathspec was given"): nothing to drop then
+    _drop_from_index(repository=repository, index_file=index_file, pathspecs=['.', *kept])
     if paths.unmeasured:
-        run_git(
-            repository=repository,
-            arguments=[
-                'rm',
-                '-r',
-                '--cached',
-                '--force',
-                '--ignore-unmatch',
-                '--quiet',
-                '--',
-                *paths.unmeasured,
-            ],
-            index_file=index_file,
+        _drop_from_index(
+            repository=repository, index_file=index_file, pathspecs=list(paths.unmeasured)
         )
-    return run_git(repository=repository, arguments=['write-tree'], index_file=index_file)
+    return run_git(
+        repository=repository, arguments=['write-tree', '--missing-ok'], index_file=index_file
+    )
 
 
 def staged_code_tree(*, repository: Path, paths: CodeTreePaths) -> str:

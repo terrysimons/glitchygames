@@ -12,3 +12,15 @@ ai_log_root: "{{ ai_home }}/Library/Logs/GlitchyGames/AI"
 llama_cpp_install_root: "{{ ai_program_root }}"
 # llama.cpp's own thread count: Metal does the work (plans/lucid-circuit-linux.md, 6.5)
 ai_service_threads: ""
+# The free space at a path, in KiB: this command, then the path, and its output's last line is
+# the number alone (as on Linux, group_vars/linux.yml, where every reader is named). A Mac's df
+# has no --output, and its table names the filesystem first, so a name holding a space moved the
+# field (bugs/2026-11-20-free-space-read-from-the-wrong-column.md). Foundation's file manager
+# gives the number (NSFileSystemFreeSize, the f_bavail statfs(2) gives), and nothing for a path
+# it can't read; osascript runs it as JavaScript, with the path as its argument
+ai_free_space_program: >-
+  ObjC.import("Foundation"); function run(argv) { const attributes =
+  $.NSFileManager.defaultManager.attributesOfFileSystemForPathError(argv[0], null); return
+  attributes.isNil() ? "" : String(Math.floor(ObjC.unwrap(attributes.objectForKey(
+  $.NSFileSystemFreeSize)) / 1024)); }
+ai_free_space_command: [osascript, -l, JavaScript, -e, "{{ ai_free_space_program }}"]

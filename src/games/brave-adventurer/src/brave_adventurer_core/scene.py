@@ -67,7 +67,12 @@ from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
-from glitchygames.state import SaveManager, SaveNotFoundError, open_saves
+from glitchygames.state import SaveManager, open_saves
+from glitchygames.state.high_scores import (
+    HighScoreEntry,
+    HighScoreTable,
+    HighScoreTableSettings,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -739,27 +744,22 @@ class BraveAdventurerSceneBase(Scene):
             )
             self._respawn_player()
 
-    def _save_high_score(self: Self) -> list[dict[str, int]]:
-        """Save the current score to the high scores list.
+    def _save_high_score(self: Self) -> list[dict[str, Any]]:
+        """Save the current score to the high scores list (the engine's HighScoreTable).
 
         Returns:
-            The updated high scores list, sorted descending by score.
+            The updated high scores list, best first (this score alone when the saved table
+            is refused: --invalid-high-scores).
 
         """
-        max_high_scores = 10
-        try:
-            existing = self.saves.load('high_scores')
-            scores: list[dict[str, int]] = existing.get('scores', [])
-        except SaveNotFoundError:
-            scores = []
-
-        scores.append({'score': self.player.score})
-        scores.sort(key=lambda entry: entry.get('score', 0), reverse=True)
-        scores = scores[:max_high_scores]
-
-        self.saves.save('high_scores', {'scores': scores})
-        log.info('Saved high score: %d (total entries: %d)', self.player.score, len(scores))
-        return scores
+        table = HighScoreTable(
+            saves=self.saves,
+            entry_type=HighScoreEntry,
+            settings=HighScoreTableSettings.from_options(options=self.options),
+        )
+        scores = table.record_or_keep(HighScoreEntry(score=self.player.score))
+        log.info('High score: %d (table entries: %d)', self.player.score, len(scores))
+        return [entry.model_dump() for entry in scores]
 
     def _respawn_player(self: Self) -> None:
         """Respawn the player with a fade-out/fade-in animation."""

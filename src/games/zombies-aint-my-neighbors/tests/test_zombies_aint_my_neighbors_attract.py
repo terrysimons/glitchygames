@@ -201,6 +201,7 @@ def test_a_press_after_the_hand_over_builds_no_second_title():
     assert scene.next_scene is title
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('short_demo')
 def test_the_attract_scene_shows_the_demo_and_its_label():
     """The screen shows the replay's picture, letterboxed to the test display, and DEMO."""

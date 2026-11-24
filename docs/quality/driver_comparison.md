@@ -13,7 +13,8 @@ Outside CI, `uv run pytest` (and `nox -s test`) runs the suite twice at once:
 
 1. on `dummy`, in the pytest process and its xdist workers, with coverage and the 99% gate as
    always;
-2. on the native driver, as a child pytest run with the same arguments. The usual workers are
+2. on the native driver, as a child pytest run with the same arguments, running only the tests
+   marked `draws_frames` (the others have no frame to compare; see below). The usual workers are
    split between the two runs (the native run gets two thirds: it is slower per test), so the
    machine is no busier than for one run.
 
@@ -28,9 +29,21 @@ every frame each test presents (`src/glitchygames/testing/frame_fingerprints.py`
 finished, the frames are compared (`src/glitchygames/testing/frame_comparison.py`; its command line
 is `scripts/compare_driver_frames.py`). Any difference, or a
 failure in the native run, fails the run; the differing tests are re-run on both drivers to save
-the differing frames as PNG files with a difference image (the baseline dimmed to grey, differing
-pixels magenta) under `test-results/driver-comparison/pytest/`. The terminal summary names every
-file and the native run's log.
+the frames around each first difference (five before and five after) as PNG files with a
+difference image of each (the baseline dimmed to grey, differing pixels magenta) under
+`test-results/driver-comparison/pytest/`. The window is also one side-by-side animation, native |
+dummy | difference in each frame, so the two drivers stay in step:
+`window-side-by-side-game-speed.apng` (each gap the dummy run's served frame time to the next
+present, at least 17 ms: in a test whose clock never moves, every gap) and
+`window-side-by-side-250ms.apng`, both holding the
+last frame for a second before they loop. Above the frames, a title bar names the test (and the
+seed of a shuffled run), and each panel's caption states what that run recorded: driver, refresh
+rate ("n/a" on dummy), configured FPS ("uncapped" for 0, "n/a" without an engine) and resolution.
+Each panel is stamped with its present and served game time, and the first differing frame has a
+red border; the saved PNGs stay as recorded. A re-run stops its test once those frames are saved, as
+a skip (a test cannot skip ahead to its difference, but need not play on past it); only a window
+that reaches the test's final frame runs the test to its end, saving the final frames too. The
+terminal summary names every file and the native run's log.
 
 The comparison is off, and the summary says why, in CI (`CI=true`), with `--dummy-only` (fast
 iteration), when `SDL_VIDEODRIVER` or `SDL_AUDIODRIVER` is set (that driver runs alone), and on a
@@ -55,6 +68,37 @@ time), watched replays of a live session (the overlay shows the live window's mo
 `dummy` always reports and a background window does not have) and a test that switches the
 display back to the run's driver part way through.
 
+## The `draws_frames` marker
+
+A test **draws** when, from the start of its setup to the end of its body, it presents a frame
+(`pygame.display.flip` or `update`), or it leaves the display showing a picture other than the
+canvas at the display's size (every test starts on the canvas: `tests/display_canvas.py`). Those
+are the two things a comparison compares, so only those tests have frames that can differ. Each
+carries `@pytest.mark.draws_frames`; in a parametrized test whose cases differ, each drawing case
+carries it through `pytest.param(..., marks=pytest.mark.draws_frames)`. A test whose frames vary
+and that draws carries both markers. The comparison's runs pass the frame fingerprints plugin's
+`--draws-frames-only`, which runs only the marked tests (after any `-m` of yours): about 850 of
+the suite's 30,900. In a local run the dummy side records only those tests too
+(`--frame-fingerprints-drawing-only`), so the summary lists no test as recorded on one driver
+only for drawing nothing; a run of files with no drawing tests says "no drawing tests selected:
+nothing to compare" and passes.
+
+The marker cannot go stale: every run (CI too, every driver) checks each test whose body passed,
+and fails it when the marker disagrees with what it did:
+
+- `... draws without the draws_frames marker (presented 3 frame(s)): add @pytest.mark.draws_frames`
+  (or "left a picture other than the blank screen");
+- `... is marked draws_frames but draws nothing (no present, and it leaves the blank screen):
+  remove the marker`.
+
+Each run also lists its disagreements in `test-results/frame-markers.txt`. To mark many tests at
+once, run the suite with `--frame-markers-report-only` (it lists without failing), then `uv run
+python -m scripts.mark_drawing_tests`, which adds the markers the list asks for (and names
+markers to remove by hand), and `ruff format` the changed files. A pytest that a test starts
+(pytester, a tool's run) is not checked. The check costs about 0.4 ms per test that presents
+nothing. The contract is `src/glitchygames/testing/frame_fingerprints.py`'s docstring; the
+decisions are in `plans/2026-11-22-compare-drivers-only-drawing-tests.md`.
+
 ## On demand: `nox -s compare-drivers`
 
 The session compares every driver configuration available on this machine with every other, an
@@ -67,8 +111,8 @@ N-way matrix (`scripts/driver_configurations.py` lists them and finds which run 
 | `x11-macos` | x11 on this Mac, drawing on XQuartz, through SDL built with x11 | macOS, XQuartz, a C compiler and make |
 | `x11-linux` | x11 in the Linux container of `nox -s test-linux-x11`, forwarded to XQuartz over TCP | macOS, XQuartz (TCP enabled), Docker |
 
-The runs go one after another with four workers each (the container's too), so the machine stays
-usable; `-- --workers N` sets another count, and `-- --workers auto` uses every core. The pre-push
+Every run runs only the tests marked `draws_frames` (above). The runs go one after another with
+four workers each (the container's too), so the machine stays usable; `-- --workers N` sets another count, and `-- --workers auto` uses every core. The pre-push
 hook passes `--workers auto`: a push is waited for, and on a 16-core Mac its three runs took 10
 minutes instead of 19, with every configuration agreeing and nothing more varying between the dummy
 runs (measured 2026-11-13). It also passes `--skip-when-frames-cannot-change`: a push that changes
@@ -78,8 +122,8 @@ any other path, a new directory included, is compared; outside a push it always 
 `nox -s compare-drivers -- --drivers dummy,cocoa,x11-macos` chooses configurations
 (`dummy` is always added: it is the baseline; one that cannot run here is refused with the
 reason), and other arguments select tests (`-- tests/scenes`). The tests that differ anywhere are
-re-run on every configuration saving their differing frames, and every differing pair gets both
-PNG files and a difference image under
+re-run on every configuration saving the frames around their first difference (stopping once
+they are saved, as above), and every differing pair gets both PNG files and a difference image under
 `test-results/driver-comparison/nox/differences/<first>-vs-<second>/`.
 
 The report, `test-results/driver-comparison/nox/matrix.md` (and `matrix.json`), holds each
@@ -200,10 +244,10 @@ plays theirs through PulseAudio too.
 
 `nox -s test-linux-x11` runs the suite on Linux for its drivers; `nox -s test-linux-ci` runs it
 the way CircleCI's Linux job does, to reproduce that job's failures here. It reads the job
-(`test-python-3-15-linux`) from `.circleci/config.yml`: its image (`cimg/python` at
+(`test-python-3-15-linux`) from `.circleci/continue_config.yml`: its image (`cimg/python` at
 `PYTHON_VERSION`), its resource class's memory and CPUs (`small`: 2 GB, no swap, and one
 CPU, given to `docker run` as `--memory`, `--memory-swap` and `--cpus`) and its environment
-(`PYTEST_WORKERS=0`: one serial process; `GLITCHYGAMES_TEST_RSS_LIMIT_MB=1400`:
+(`PYTEST_WORKERS=0`: one serial process; `GLITCHYGAMES_TEST_RSS_LIMIT_MB=1500`:
 `tests/memory_guard.py` stops the run past it, naming the test), with `CI=true` and
 `CIRCLECI=true`. The container gets what git would commit from this checkout: tracked files and
 untracked ones that are not ignored, uncommitted changes included, never an ignored file (the

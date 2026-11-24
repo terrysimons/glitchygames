@@ -538,8 +538,10 @@ def test_one_pis_failed_measurement_keeps_the_other_pis_rows(
     assert 'raspberry-pi-5-16gb-ubuntu failed' not in errors
 
 
-def test_a_pi_that_cannot_be_reached_stops_the_push_and_says_how_to_skip(repository, capsys):
-    """Nothing is sent, and the message names the way past."""
+def test_a_pi_that_cannot_be_reached_stops_the_measurement_and_says_how_to_retry(
+    repository, capsys
+):
+    """Nothing is sent, and the message says how to measure again."""
     exit_code = measure(
         repository=repository, raspberry_pis=(unreachable_pi(script_runner=('false',)),)
     )
@@ -547,7 +549,8 @@ def test_a_pi_that_cannot_be_reached_stops_the_push_and_says_how_to_skip(reposit
     errors = capsys.readouterr().err
     assert exit_code == ExitCode.OPTIONS_REFUSED
     assert 'could not reach raspberry-pi-4-4gb-ubuntu' in errors
-    assert 'SKIP=raspberry-pi-replay-metrics' in errors
+    assert 'nox -s measure-on-raspberry-pi' in errors
+    assert 'SKIP=' not in errors
 
 
 def test_one_unreachable_pi_stops_the_push_before_any_pi_measures(
@@ -693,7 +696,6 @@ def test_a_row_named_for_the_pushed_tree_but_measuring_another_is_refused(
         ('{tree}-raspberry-pi-4-row.json', json.dumps({'code_tree': FOREIGN_TREE})),
         (f'{FOREIGN_TREE[:12]}-raspberry-pi-4-row.json', json.dumps({'code_tree': FOREIGN_TREE})),
         ('history-raspberry-pi-4-row.json', json.dumps({'code_tree': FOREIGN_TREE})),
-        ('{tree}-raspberry-pi-4-row.json', 'not json'),
         ('{tree}-raspberry-pi-4-row.json', json.dumps(['a', 'list'])),
         ('{tree}-raspberry-pi-4-row.txt', json.dumps({'code_tree': '{full_tree}'})),
     ],
@@ -701,7 +703,6 @@ def test_a_row_named_for_the_pushed_tree_but_measuring_another_is_refused(
         'named-for-the-tree-holding-another',
         'named-for-another-tree',
         'history-holding-a-tree',
-        'not-json',
         'not-a-row',
         'not-a-row-file',
     ],
@@ -730,6 +731,40 @@ def test_fetching_refuses_any_file_that_is_not_a_row_of_the_pushed_tree(
         )
     assert not (repository / good_row).exists()
     assert not (repository / bad_file).exists()
+
+
+@pytest.mark.parametrize(
+    'cut_at', [0, 1, 20, -1], ids=['empty', 'one-character', 'part-way', 'all-but-the-brace']
+)
+def test_fetching_skips_and_names_a_row_file_cut_short(repository, raspberry_pi, capsys, cut_at):
+    """A row file a stopped write left part written is skipped, named, and blocks no other row.
+
+    Before, it refused every row the Pi sent, on every push of that tree, until someone deleted
+    the file in the Pi's clone (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md). A row file
+    that reads but holds another tree is still refused: that check guards what is staged.
+    """
+    code_tree = code_tree_of(repository=repository)
+    good_row = row_of(code_tree=code_tree, machine='raspberry-pi-4-4gb-ubuntu')
+    cut_row = f'{LEDGER}/{code_tree[:12]}-raspberry-pi-4-cut-row.json'
+    whole = json.dumps({'code_tree': code_tree, 'recording': 'golden.jsonl.gz'})
+    archive = archive_of({
+        good_row: json.dumps({'code_tree': code_tree}).encode(),
+        cut_row: whole[:cut_at].encode(),
+    })
+
+    fetched = measure_on_raspberry_pi._fetch_rows(
+        repository=repository,
+        raspberry_pi=raspberry_pi,
+        archive=archive,
+        ledger_directory=LEDGER,
+        code_tree=code_tree,
+    )
+
+    assert fetched == [good_row]
+    assert (repository / good_row).exists()
+    assert not (repository / cut_row).exists()
+    output = capsys.readouterr().out
+    assert f'raspberry-pi-4-4gb-ubuntu: skipped {cut_row}' in output
 
 
 def test_fetching_refuses_a_file_outside_the_ledger(repository, raspberry_pi):
@@ -1096,22 +1131,18 @@ def test_the_measurement_stops_the_ai_after_the_lock(raspberry_pi, stand_in_bin,
     run_prefix(control_script=stand_in)
 
 
-def test_the_hook_runs_first_at_push_and_stops_the_rest():
-    """The later pre-push checks do not run for a push that is about to stop for its rows."""
+def test_no_git_hook_measures_a_push_on_the_raspberry_pis():
+    """It runs by hand only (nox -s measure-on-raspberry-pi), never as a pre-push hook.
+
+    The owner, 2026-11-22, stopped committing replay-ledger rows, which a push that measured on
+    the Pis had to commit.
+    """
     configuration = (measure_on_raspberry_pi.PROJECT_ROOT / '.pre-commit-config.yaml').read_text(
         encoding='utf-8'
     )
-    hook = configuration[configuration.index('- id: raspberry-pi-replay-metrics') :]
-    hook = hook[: hook.index('\n\n')]
 
-    assert configuration.index('id: raspberry-pi-replay-metrics') < configuration.index(
-        'id: format'
-    )
-    assert 'entry: uv run --locked --extra dev nox -s measure-on-raspberry-pi\n' in hook
-    assert 'stages: [pre-push]' in hook
-    assert 'fail_fast: true' in hook
-    # It runs for any push that changes more than Markdown (tests/test_ci_config.py)
-    assert 'always_run' not in hook
+    assert 'entry: uv run --locked --extra dev nox -s measure-on-raspberry-pi' not in configuration
+    assert 'id: raspberry-pi-replay-metrics' not in configuration
 
 
 @pytest.mark.parametrize(
