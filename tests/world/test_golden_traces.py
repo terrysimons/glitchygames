@@ -1442,6 +1442,7 @@ def test_expected_differences_cover_every_game():
     assert set(EXPECTED_DIFFERENCES) == baselines
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize('game_key', sorted(GOLDEN_TRACE_GAMES))
 def test_game_matches_golden_trace(game_key):
     """Replaying the game's script reproduces its golden trace, up to listed differences."""
@@ -1573,6 +1574,7 @@ def test_the_golden_scripts_games_are_the_games_of_the_members_goldens():
     } == recorded_games
 
 
+@pytest.mark.draws_frames
 @pytest.mark.parametrize('game_key', sorted(GAME_SCENES))
 def test_golden_script_recording_replays_without_divergence(game_key, tmp_path):
     """The game's golden script, recorded and replayed through the harness, does not diverge.

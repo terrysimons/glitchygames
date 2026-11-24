@@ -36,8 +36,9 @@ nox -s infra-test          # pytest infra/tests (CDK templates built with infra/
 nox -s infra-diff -- --profile P     # cdk diff (needs AWS credentials and GLITCHY_SITE_BUDGET_EMAIL, never written in the repo)
 nox -s infra-deploy -- --profile P   # cdk deploy --all (or `-- GlitchyGamesDnsZones --profile P` first); the owner's Mac only
 nox -s site-publish        # Upload src/website (or `-- --source DIR`) and invalidate; `-- --dry-run` changes nothing
-# CircleCI: test-infra on every branch (cimg/python -node image); deploy-site after a merge to main
-# (requires deploy-docs and test-infra: it publishes after the docs), signing in with the job's OIDC token
+                           # Refused off origin/main or with uncommitted source; `-- --allow-unmerged` previews a branch
+# CircleCI: test-website-aws-infrastructure on every branch (cimg/python -node image); deploy-site after a merge to main
+# (requires test-website-aws-infrastructure only: it publishes beside deploy-docs, each under its own lock), signing in with the job's OIDC token
 # (the role's ARN is the CircleCI project environment variable SITE_DEPLOY_ROLE_ARN, kept out of the
 # public config because it names the AWS account; no AWS keys are stored)
 ```

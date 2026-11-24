@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""The pre-push hook that also measures the replays on the Raspberry Pis and copies the rows here.
+"""Measure the replays on the Raspberry Pis and copy the rows here (by hand only).
 
-Run by the pre-commit framework before each push (``.pre-commit-config.yaml``, hook
-``raspberry-pi-replay-metrics``), in addition to what this machine measures at each commit
+Until 2026-11-22 the pre-push hook ``raspberry-pi-replay-metrics``; the owner then stopped
+committing replay-ledger rows (too many files in git; they move to S3, plans/future-work.md), so
+no hook runs it and "the hook" below means this script run by hand (``nox -s
+measure-on-raspberry-pi``). It works in addition to what this machine measures
 (``scripts/measure_staged_replays.py``, which each Pi's clone runs too, so the rules are the same:
 once per code tree per machine). It sends the commit being pushed to a clone on each Pi that only
 this uses (``ansible/raspberry_pi_runner.yml`` makes it), measures there, and copies the row files
@@ -42,7 +44,10 @@ rows the measurement wrote (``history-...``: a recording's earlier runs that lan
 code tree). Here every fetched row is checked again, by its name and by the ``code_tree`` inside
 it (the code tree this repository computes for the commit, as ``measure`` does:
 ``code_tree.commit_code_tree`` with the commit's own measured paths), and a Pi that sends any
-other row has none of its rows copied: the hook fails naming them.
+other row has none of its rows copied: the hook fails naming them. A row file that is not JSON (a
+write stopped part way, before rows were written whole) is skipped and named instead, so it costs
+only itself; it stays in the Pi's clone until someone deletes it there
+(bugs/2026-11-20-ledger-row-writes-are-not-atomic.md).
 
 The push stops when that brought rows, so they can be committed first. ``quality/`` is outside the
 code tree, so a commit of rows alone keeps the tree they name, and the next push finds the Pis
@@ -51,7 +56,7 @@ already measured.
 Rows left in a Pi's clone by a measurement or push that went no further stay there, untracked:
 the next measurement of the same tree counts them, staging them again rather than measuring twice.
 
-``SKIP=raspberry-pi-replay-metrics git push ...`` pushes without measuring on the Pis.
+Measuring on the Pis is optional and by hand: a push never runs it.
 
 Usage (the framework runs it through nox; by hand, then commit what it stages):
     nox -s measure-on-raspberry-pi
@@ -70,6 +75,7 @@ import tarfile
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from enum import StrEnum
 from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import IO, cast
@@ -373,16 +379,29 @@ def _run_on_raspberry_pi(
     )
 
 
-def _is_row_of_tree(
+class _RowFileStatus(StrEnum):
+    """What the hook does with a file a Pi sent."""
+
+    # A row of the pushed code tree, or a history row: copied
+    ROW = 'row'
+    # A row file by its place and name that is not JSON, as a stopped write leaves it: skipped
+    # and named, so it costs only itself (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md)
+    CUT_SHORT = 'cut short'
+    # Anything else (outside the ledger, named or holding another tree): none of the Pi's rows
+    # are copied
+    REFUSED = 'refused'
+
+
+def _row_file_status(
     *, archive: tarfile.TarFile, member: tarfile.TarInfo, ledger_directory: str, code_tree: str
-) -> bool:
-    """Return whether an archived file is a row of the code tree, or a history row.
+) -> _RowFileStatus:
+    """Return what an archived file is: a row of the code tree or a history row, or not.
 
     By its place, its name and the ``code_tree`` it holds: a row named for the tree must hold
-    the tree, and a history row must hold none.
+    the tree, and a history row must hold none. A row file that is not JSON was cut short.
 
     Returns:
-        True for a row this push may stage.
+        Its status.
 
     """
     path = PurePosixPath(member.name)
@@ -397,15 +416,16 @@ def _is_row_of_tree(
     # A regular file always has contents (extractfile gives None only for other members)
     contents = archive.extractfile(member) if is_row_file else None
     if contents is None:
-        return False
+        return _RowFileStatus.REFUSED
     try:
         row: object = json.loads(contents.read())
     except ValueError:
-        return False
+        return _RowFileStatus.CUT_SHORT
     expected_tree = code_tree if is_tree_row else None
-    return (
+    is_row = (
         isinstance(row, dict) and cast('dict[str, object]', row).get('code_tree') == expected_tree
     )
+    return _RowFileStatus.ROW if is_row else _RowFileStatus.REFUSED
 
 
 def _fetch_rows(
@@ -419,8 +439,10 @@ def _fetch_rows(
     """Copy the row files a Pi sent into the repository, without staging them.
 
     Every file must be a row of the pushed code tree (or a history row); otherwise none of the
-    Pi's rows are copied. Safe beside other Pis' fetches: their row files are named for their
-    machines, so no two write the same file, and the ledger directory is already there.
+    Pi's rows are copied. A row file that is not JSON (a write stopped part way left it) is
+    skipped and named instead: it stays in the Pi's clone until someone deletes it there. Safe
+    beside other Pis' fetches: their row files are named for their machines, so no two write the
+    same file, and the ledger directory is already there.
 
     Returns:
         The files written, relative to the repository.
@@ -433,17 +455,20 @@ def _fetch_rows(
     if not archive:
         return []
     with tarfile.open(fileobj=io.BytesIO(archive)) as opened:
-        members = opened.getmembers()
-        refused = [
-            member.name
-            for member in members
-            if not _is_row_of_tree(
-                archive=opened,
-                member=member,
-                ledger_directory=ledger_directory,
-                code_tree=code_tree,
+        # Pairs, not a mapping by name: an archive may hold two members of one name
+        statuses = [
+            (
+                member,
+                _row_file_status(
+                    archive=opened,
+                    member=member,
+                    ledger_directory=ledger_directory,
+                    code_tree=code_tree,
+                ),
             )
+            for member in opened.getmembers()
         ]
+        refused = [member.name for member, status in statuses if status is _RowFileStatus.REFUSED]
         if refused:
             message = (
                 f'{raspberry_pi.name} sent rows that are not of the pushed code tree '
@@ -451,9 +476,19 @@ def _fetch_rows(
                 + ', '.join(refused)
             )
             raise RuntimeError(message)
+        for member, status in statuses:
+            if status is _RowFileStatus.CUT_SHORT:
+                _write_prefixed(
+                    raspberry_pi=raspberry_pi,
+                    line=(
+                        f'skipped {member.name}: not JSON, so a write was stopped part way; '
+                        "delete it in the Pi's clone"
+                    ).encode(),
+                )
+        rows = [member for member, status in statuses if status is _RowFileStatus.ROW]
         # filter='data' refuses a member that would land outside the repository
-        opened.extractall(path=repository, filter='data')
-    return [member.name for member in members]
+        opened.extractall(path=repository, members=rows, filter='data')
+    return [member.name for member in rows]
 
 
 def _stage_rows(*, repository: Path, names: list[str], code_tree: str) -> list[str]:
@@ -701,8 +736,8 @@ def measure_on_raspberry_pis(
     if unreachable:
         names = ', '.join(each.name for each in unreachable)
         sys.stderr.write(
-            f'raspberry-pi-replay-metrics: could not reach {names}; start it and push again, or '
-            'push without measuring on the Pis: SKIP=raspberry-pi-replay-metrics git push ...\n'
+            f'raspberry-pi-replay-metrics: could not reach {names}; start it and measure again '
+            '(nox -s measure-on-raspberry-pi); nothing was sent to any Pi\n'
         )
         return ExitCode.OPTIONS_REFUSED
     commit = run_git(repository=repository, arguments=['rev-parse', f'{commit_name}^{{commit}}'])
@@ -743,8 +778,8 @@ def measure_on_raspberry_pis(
             )
         )
         sys.stderr.write(
-            f'raspberry-pi-replay-metrics: {reason}, or push without measuring on the Pis: '
-            'SKIP=raspberry-pi-replay-metrics git push ...\n'
+            f'raspberry-pi-replay-metrics: {reason} (measuring on the Pis is by hand only: '
+            'nox -s measure-on-raspberry-pi)\n'
         )
     if failed:
         return failed[0].measure_status

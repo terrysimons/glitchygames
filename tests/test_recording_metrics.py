@@ -7,7 +7,9 @@ plans/2026-10-23-recording-metrics-2-behaviour-change-map.md (behaviour changes)
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +37,7 @@ from glitchygames.recording_metrics import (
     LedgerOrigin,
     LedgerRow,
     SpeedChange,
+    append_ledger_rows,
     behaviour_changes,
     describe_fps,
     describe_frame_time_fps,
@@ -52,13 +55,16 @@ from glitchygames.recording_metrics import (
     performance_series,
     processing_comparisons,
     publishable_rows,
+    read_ledger_file,
     read_row_files,
     row_file_name,
     row_label,
     short_commit,
+    write_ledger_file,
     write_row_files,
 )
 from glitchygames.tracing import FRAMES_FIELD, read_trace
+from tests.interrupted_writes import cut_writes_short
 
 # A stand-in project's moved recording, old path -> new ([tool.glitchygames] recording-renames)
 STAND_IN_RECORDING_RENAMES = {
@@ -735,6 +741,118 @@ class TestRowFiles:
         )
 
         assert not row.from_uncommitted_changes
+
+    @pytest.mark.parametrize(
+        'fraction', [0.0, 0.01, 0.5, 0.99], ids=['none', 'start', 'half', 'all-but-the-end']
+    )
+    def test_a_row_file_write_cut_short_leaves_no_file(self, mocker, tmp_path, fraction):
+        """A stopped write leaves nothing a reader or the Pi hook would take as a row.
+
+        A truncated file named for its code tree made the Pi hook refuse every row of that Pi
+        (bugs/2026-11-20-ledger-row-writes-are-not-atomic.md).
+        """
+        row = ledger_row().model_copy(update={'code_tree': TREE})
+        characters = int(len(ledger_text(rows=[row])) * fraction)
+        with (
+            pytest.raises(KeyboardInterrupt),
+            cut_writes_short(mocker=mocker, characters=characters),
+        ):
+            write_row_files(rows=[row], directory=tmp_path)
+
+        assert sorted(path.name for path in tmp_path.iterdir()) == []
+
+
+class TestLedgerWritesAreWholeOrNothing:
+    """Ledger files survive a write stopped at any character (the conservation invariant).
+
+    bugs/2026-11-20-ledger-row-writes-are-not-atomic.md: a reader, a later measurement or the
+    Pi hook must never find a row lost or a file it refuses because a write was stopped.
+    """
+
+    @staticmethod
+    def rows(*hours: int) -> list[LedgerRow]:
+        """Return rows told apart by when they were measured (one per hour given).
+
+        Returns:
+            The rows.
+
+        """
+        return [ledger_row(measured_at=f'2026-10-24T{hour:02}:00:00+00:00') for hour in hours]
+
+    def test_a_rewrite_stopped_anywhere_leaves_the_old_rows_or_all_the_new(self, mocker, tmp_path):
+        old_rows, new_rows = self.rows(1), self.rows(2, 3)
+        for characters in range(len(ledger_text(rows=new_rows)) + 1):
+            path = tmp_path / f'{characters}' / 'ledger.jsonl'
+            path.parent.mkdir()
+            write_ledger_file(path=path, rows=old_rows)
+            with (
+                contextlib.suppress(KeyboardInterrupt),
+                cut_writes_short(mocker=mocker, characters=characters),
+            ):
+                write_ledger_file(path=path, rows=new_rows)
+
+            assert read_ledger_file(path=path).rows in {tuple(old_rows), tuple(new_rows)}
+            assert [child.name for child in path.parent.iterdir()] == ['ledger.jsonl']
+
+    def test_an_append_stopped_anywhere_loses_no_earlier_or_later_row(self, mocker, tmp_path):
+        """Only rows the stopped append had not finished are missing; its cut line is skipped."""
+        (earlier,), cut, (later,) = self.rows(1), self.rows(2, 3), self.rows(4)
+        cut_text = ledger_text(rows=cut)
+        for characters in range(len(cut_text) + 1):
+            path = tmp_path / f'{characters}.jsonl'
+            append_ledger_rows(path=path, rows=[earlier])
+            with (
+                contextlib.suppress(KeyboardInterrupt),
+                cut_writes_short(mocker=mocker, characters=characters),
+            ):
+                append_ledger_rows(path=path, rows=cut)
+
+            append_ledger_rows(path=path, rows=[later])
+
+            written = cut_text[:characters]
+            # A row whose characters all landed reads, even when only its line break was cut
+            cut_line = written.rsplit('\n', maxsplit=1)[-1]
+            cut_line_is_whole = cut_line in cut_text.splitlines()
+            finished = written.count('\n') + cut_line_is_whole
+            parsed = read_ledger_file(path=path)
+            assert parsed.rows == (earlier, *cut[:finished], later)
+            assert parsed.unreadable_lines == int(bool(cut_line) and not cut_line_is_whole)
+
+    def test_appending_makes_a_missing_ledger(self, tmp_path):
+        path = tmp_path / 'pending.jsonl'
+        rows = self.rows(1, 2)
+
+        append_ledger_rows(path=path, rows=rows)
+
+        assert read_ledger_file(path=path).rows == tuple(rows)
+
+    def test_appending_no_rows_writes_nothing(self, tmp_path):
+        path = tmp_path / 'pending.jsonl'
+
+        append_ledger_rows(path=path, rows=[])
+
+        assert not path.exists()
+
+    def test_appending_to_an_empty_ledger_adds_no_blank_line(self, tmp_path):
+        path = tmp_path / 'pending.jsonl'
+        path.write_text('', encoding='utf-8')
+        (row,) = self.rows(1)
+
+        append_ledger_rows(path=path, rows=[row])
+
+        assert path.read_text(encoding='utf-8') == ledger_text(rows=[row])
+
+    @pytest.mark.parametrize(
+        'writer', [write_ledger_file, append_ledger_rows], ids=['rewrite', 'append']
+    )
+    def test_rows_are_on_the_disk_before_the_writer_returns(self, mocker, tmp_path, writer):
+        """Flushed and synced: a power cut after a measurement keeps its rows (a Pi's SD card)."""
+        path = tmp_path / 'ledger.jsonl'
+        synced = mocker.spy(os, 'fsync')
+
+        writer(path=path, rows=self.rows(1))
+
+        assert synced.call_count == 1
 
 
 class TestLandedRows:

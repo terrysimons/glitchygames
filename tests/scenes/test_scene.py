@@ -2,6 +2,7 @@
 
 import contextlib
 import gc
+import re
 import weakref
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,7 @@ from glitchygames.backgrounds import (
     background_pattern_surface,
     set_active_default_background_pattern,
 )
+from glitchygames.checks import MissingValueError
 from glitchygames.color import BLUE, RED
 from glitchygames.engine_context import EngineContext
 from glitchygames.events import ALL_EVENTS, FPSEVENT
@@ -157,6 +159,7 @@ class TestScene:
 
         assert scene.all_sprites == mock_groups
 
+    @pytest.mark.draws_frames
     def test_scene_screenshot_property(self):
         """The screenshot is a copy of what is on the display, not the display itself."""
         scene = Scene()
@@ -2414,6 +2417,7 @@ class TestSceneManagerPostFpsEvent:
 class TestSceneManagerUpdateDisplay:
     """Test SceneManager._update_display method."""
 
+    @pytest.mark.draws_frames
     def test_update_display_update_with_rects(self, mocker):
         """Test _update_display with 'update' type and rects."""
         manager = SceneManager()
@@ -2425,6 +2429,7 @@ class TestSceneManagerUpdateDisplay:
         # Should not raise
         manager._update_display()
 
+    @pytest.mark.draws_frames
     def test_update_display_update_without_rects(self, mocker):
         """Test _update_display with 'update' type and no rects."""
         manager = SceneManager()
@@ -2435,6 +2440,7 @@ class TestSceneManagerUpdateDisplay:
         # Empty rects triggers full display update
         manager._update_display()
 
+    @pytest.mark.draws_frames
     def test_update_display_flip(self, mocker):
         """Test _update_display with 'flip' type."""
         manager = SceneManager()
@@ -2695,6 +2701,7 @@ class TestSceneUpdate:
 class TestSceneRender:
     """Test Scene.render() method."""
 
+    @pytest.mark.draws_frames
     def test_render_draws_the_sprites_onto_the_screen(self):
         """render() clears to the background, draws the sprites, and keeps the changed rects."""
         scene = Scene()
@@ -2902,6 +2909,7 @@ class TestSceneManagerCleanupAndSetup:
 class TestSceneManagerConfigureActiveScene:
     """Test SceneManager._configure_active_scene and sub-methods."""
 
+    @pytest.mark.draws_frames
     def test_configure_active_scene_sets_caption(self, mocker):
         """Test _configure_active_scene sets display caption."""
         manager = SceneManager()
@@ -3218,3 +3226,59 @@ class TestSceneManagerPlayDeeperCoverage:
         manager.start = mocker.Mock()
         manager.play()
         manager.start.assert_called_once()
+
+
+# What a scene raises when its display surface is missing (glitchygames.checks.required)
+NO_DISPLAY_SURFACE = "the scene's display surface is missing"
+
+
+class TestMissingDisplaySurfaceStopsTheScene:
+    """A scene step that draws needs a display surface; without one it stops with an error.
+
+    A scene is built after the display exists, so a missing surface is a bug, never a game's
+    mistake.
+    """
+
+    def test_a_scene_built_before_the_display_exists_stops(self, mocker):
+        """Building a scene reads the display's size, so it needs a display surface."""
+        mocker.patch('glitchygames.scenes.scene.display_surface', return_value=None)
+
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_DISPLAY_SURFACE)}$'):
+            Scene()
+
+    def test_a_scene_whose_display_goes_away_while_it_is_built_stops(self, mocker):
+        """The scene's background is made in the display's format, so it needs the surface too."""
+        # The scene manager reads the display surface once, as it is first built: build it
+        # first, so the two reads below are the scene's own
+        SceneManager()
+        mocker.patch(
+            'glitchygames.scenes.scene.display_surface',
+            side_effect=[pygame.display.get_surface(), None],
+        )
+
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_DISPLAY_SURFACE)}$'):
+            Scene()
+
+    def test_a_screenshot_stops_without_a_display_surface(self):
+        """A screenshot copies the display surface."""
+        scene = Scene()
+        scene.screen = None
+
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_DISPLAY_SURFACE)}$'):
+            _ = scene.screenshot
+
+    def test_a_background_color_stops_without_a_display_surface(self):
+        """A new background color repaints the display surface."""
+        scene = Scene()
+        scene.screen = None
+
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_DISPLAY_SURFACE)}$'):
+            scene.background_color = BLUE
+
+    def test_a_background_pattern_stops_without_a_display_surface(self):
+        """A new background pattern repaints the display surface."""
+        scene = Scene()
+        scene.screen = None
+
+        with pytest.raises(MissingValueError, match=f'^{re.escape(NO_DISPLAY_SURFACE)}$'):
+            scene.background_pattern = BackgroundPattern.CHANNEL_THREE

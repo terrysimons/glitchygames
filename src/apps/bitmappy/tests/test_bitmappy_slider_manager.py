@@ -553,6 +553,7 @@ class TestColorApi:
 class TestSampleColorFromScreen:
     """Test sampling a screen pixel into the sliders."""
 
+    @pytest.mark.draws_frames
     def test_sampled_pixel_sets_sliders_with_opaque_alpha(self, editor, screen):
         """The pixel's RGB goes to the sliders and alpha is forced to 255."""
         screen.fill((12, 34, 56))
@@ -582,6 +583,8 @@ class TestSampleColorFromScreen:
 
         assert editor.color_well.active_color == (255, 255, 255, 255)
         assert 'Error sampling color from screen' in caplog.text
+        # The logged error is the explicit check's, which names what was missing
+        assert 'MissingValueError: the editor screen is missing' in caplog.text
 
     def test_sampling_off_the_screen_leaves_sliders_unchanged(self, editor, screen, caplog):
         """A position outside the screen is logged and samples nothing."""
@@ -592,6 +595,7 @@ class TestSampleColorFromScreen:
         assert editor.color_well.active_color == (255, 255, 255, 255)
         assert 'Error sampling color from screen' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_error_setting_the_sliders_propagates(self, editor, screen, mocker):
         """Only reading the screen is guarded: an error applying the sampled color is raised."""
         screen.fill((12, 34, 56))
@@ -752,6 +756,7 @@ class TestSliderModeIndicatorsInTheRealEditor:
         )
         editor.controller_handler.render_visual_indicators()
 
+    @pytest.mark.draws_frames
     def test_only_the_controllers_slider_shows_its_indicator(self, real_editor, screen):
         """The indicator is drawn centred on the red slider, and on no other slider.
 

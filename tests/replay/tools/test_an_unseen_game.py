@@ -1481,6 +1481,7 @@ def assert_nothing_of_this_repository_was_imported(*, world: World) -> None:
     assert not imported, imported
 
 
+@pytest.mark.heavy_replay(reason='each case runs a replay tool in child processes')
 @pytest.mark.parametrize('case', CASES, ids=[case.id for case in CASES])
 def test_every_tool_runs_an_unseen_game(case, templates, tmp_path):
     """Each tool, through each front end and GAME form, in a project with and without settings.

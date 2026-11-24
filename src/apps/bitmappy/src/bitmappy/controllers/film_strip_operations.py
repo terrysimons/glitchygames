@@ -12,6 +12,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from bitmappy.controllers.selection import ControllerSelection
+from glitchygames.checks import required
 
 if TYPE_CHECKING:
     from bitmappy.controllers.event_handler import ControllerEventHandler
@@ -351,8 +352,10 @@ class FilmStripOperations:
         new_animation = animation_names[new_index]
 
         # Try to preserve the frame index from the previous animation
-        prev_strip_animated_sprite = self.handler.editor.film_strips[new_animation].animated_sprite
-        assert prev_strip_animated_sprite is not None
+        prev_strip_animated_sprite = required(
+            self.handler.editor.film_strips[new_animation].animated_sprite,
+            what=f"the {new_animation!r} film strip's animated sprite",
+        )
         target_frame = controller_selection.preserve_frame_for_animation(
             new_animation,
             prev_strip_animated_sprite.current_animation_frame_count,
@@ -413,8 +416,10 @@ class FilmStripOperations:
         new_animation = animation_names[new_index]
 
         # Try to preserve the frame index from the previous animation
-        next_strip_animated_sprite = self.handler.editor.film_strips[new_animation].animated_sprite
-        assert next_strip_animated_sprite is not None
+        next_strip_animated_sprite = required(
+            self.handler.editor.film_strips[new_animation].animated_sprite,
+            what=f"the {new_animation!r} film strip's animated sprite",
+        )
         target_frame = controller_selection.preserve_frame_for_animation(
             new_animation,
             next_strip_animated_sprite.current_animation_frame_count,

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.color import BLACK
 from glitchygames.scenes import Scene
 
@@ -90,11 +91,11 @@ class PauseScene(Scene):
             screenshot = pygame.Surface((self.screen_width, self.screen_height))
             screenshot.fill((0, 0, 0))
 
-        assert self.scene_manager.game_engine is not None
-        # The running game's scene (engine.game is its class: glitchygames/engine/running_game.py)
-        self.overlay = PauseOverlay(
-            self.scene_manager.game_engine.running_game.instance, screenshot
+        game_engine = required(
+            self.scene_manager.game_engine, what="the scene manager's game engine"
         )
+        # The running game's scene (engine.game is its class: glitchygames/engine/running_game.py)
+        self.overlay = PauseOverlay(game_engine.running_game.instance, screenshot)
         self.all_sprites.add(self.overlay)
 
         self.log.info('Pause scene setup complete')

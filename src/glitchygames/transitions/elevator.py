@@ -1,8 +1,8 @@
-"""Elevator ride transition for Clockwork Keep.
+"""Elevator ride transition: the player rides up between two floors.
 
 A custom transition where the player appears to ride an elevator
-upward through the tower. The old floor scrolls up off screen,
-tower walls stream past, and the new floor scrolls in from below.
+upward through a building. The old floor scrolls up off screen,
+the walls stream past, and the new floor scrolls in from below.
 The elevator and player are pinned at center screen throughout.
 """
 
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, override
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.opacity import make_opaque
 from glitchygames.transitions.base import Transition
 
@@ -141,8 +142,8 @@ class ElevatorTransition(Transition):
 
         """
         # start() made the composite and the platform; render() draws only after start()
-        assert self._composite is not None
-        assert self._elevator_surface is not None
+        composite = required(self._composite, what="the elevator's composite")
+        elevator_surface = required(self._elevator_surface, what="the elevator's platform")
 
         screen_height = screen.get_height()
         screen_width = screen.get_width()
@@ -158,18 +159,17 @@ class ElevatorTransition(Transition):
 
         # Blit the visible portion of the composite
         source_rect = pygame.Rect(0, scroll_y, screen_width, screen_height)
-        screen.blit(self._composite, (0, 0), area=source_rect)
+        screen.blit(composite, (0, 0), area=source_rect)
 
         # Draw elevator platform pinned at center-bottom of screen
-        elevator_x = (screen_width - self._elevator_surface.get_width()) // 2
+        elevator_x = (screen_width - elevator_surface.get_width()) // 2
         elevator_y = screen_height - screen_height // 3
-        screen.blit(self._elevator_surface, (elevator_x, elevator_y))
+        screen.blit(elevator_surface, (elevator_x, elevator_y))
 
         # Draw the Tinker standing on the elevator
         if self._player_surface is not None:
             player_x = (
-                elevator_x
-                + (self._elevator_surface.get_width() - self._player_surface.get_width()) // 2
+                elevator_x + (elevator_surface.get_width() - self._player_surface.get_width()) // 2
             )
             player_y = elevator_y - self._player_surface.get_height()
             screen.blit(self._player_surface, (player_x, player_y))

@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any, override
 import pygame
 import pytest
 
+from glitchygames.checks import MissingValueError
+from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
 from glitchygames.logical_names import logical_name
 from glitchygames.process import OutputCapture, run_command
@@ -30,6 +32,8 @@ from glitchygames.replay.tools.golden_traces import (
     GOLDEN_TRACE_SOURCE,
     RANDOM_SEED,
     GameSceneClasses,
+    GoldenTraceSceneManager,
+    GoldenTraceSceneManagerError,
     InputScript,
     InputScriptError,
     golden_game,
@@ -283,6 +287,7 @@ class SeededWanderScene(Scene):
         self.wanderer.dirty = 1
 
 
+@pytest.mark.draws_frames
 def test_same_random_seed_gives_identical_traces():
     """--random-seed 123 twice plays a seeded game identically; seed 124 plays differently.
 
@@ -315,6 +320,7 @@ def test_same_random_seed_gives_identical_traces():
     assert other_seed_run['frames'] != first_run['frames']
 
 
+@pytest.mark.draws_frames
 def test_a_trace_names_its_game_by_the_scenes_logical_name():
     """The trace's ``game`` is the scene class's logical name; its frame time is fixed."""
     trace = record_trace(scene_class=SeededWanderScene, script=InputScript(), frame_count=1)
@@ -324,6 +330,7 @@ def test_a_trace_names_its_game_by_the_scenes_logical_name():
     assert len(trace['frames']) == 1
 
 
+@pytest.mark.draws_frames
 def test_golden_harness_stopped_early_reports_a_length_divergence(tmp_path):
     """A harness replay stopped before the recording's last frame reports a length divergence."""
     recording_path = tmp_path / 'tower.jsonl.gz'
@@ -367,6 +374,7 @@ def nudged_script() -> InputScript:
     return script
 
 
+@pytest.mark.draws_frames
 def test_a_harness_replay_applies_the_scripts_placements_again(tmp_path):
     """A placement moves a sprite, which no recorded input does: the replay applies it again.
 
@@ -396,6 +404,53 @@ def test_a_run_whose_engine_is_gone_still_tears_down():
 
     assert pygame.event.peek(pygame.USEREVENT) is False
     assert SceneManager() is not manager
+
+
+@pytest.mark.draws_frames
+def test_a_run_whose_scene_ends_mid_recording_names_the_frame():
+    """A scene that ends during the run raises a named error at the frame that lacks it."""
+
+    def end_the_scene(**_observed: Any) -> None:
+        SceneManager().active_scene = None
+
+    with pytest.raises(
+        MissingValueError, match=r"^the golden game's active scene at frame 1 is missing$"
+    ):
+        record_trace(
+            scene_class=NudgedScene,
+            script=InputScript(),
+            frame_count=GOLDEN_FRAME_COUNT,
+            frame_observer=end_the_scene,
+        )
+
+
+def test_an_engine_that_installs_another_scene_manager_raises_a_named_error(mocker):
+    """The harness's scene manager must be the engine's: another is a named error."""
+    mocker.patch.object(GoldenTraceSceneManager, 'install', return_value=mocker.Mock())
+
+    with (
+        pytest.raises(GoldenTraceSceneManagerError, match='did not install'),
+        golden_game(scene_class=NudgedScene, random_seed=RANDOM_SEED),
+    ):
+        pass  # pragma: no cover - the engine's scene manager check raises before the body
+
+
+@pytest.mark.draws_frames
+def test_a_replay_engine_without_replay_sources_raises_a_named_error(tmp_path, mocker):
+    """A harness replay needs the engine's replay sources: without them it names the lack."""
+    recording_path = tmp_path / 'nudged.jsonl.gz'
+    record_trace(
+        scene_class=NudgedScene,
+        script=nudged_script(),
+        frame_count=GOLDEN_FRAME_COUNT,
+        recording_path=recording_path,
+    )
+    mocker.patch.object(GameEngine, '_start_requested_replay', return_value=None)
+
+    with pytest.raises(MissingValueError, match=r"^the golden game's replay sources is missing$"):
+        replay_golden_recording(
+            scene_class=NudgedScene, script=nudged_script(), path=recording_path
+        )
 
 
 def golden_trace_options(
@@ -428,6 +483,7 @@ class NudgedScene(Scene):
         self.all_sprites.add(self.mover)
 
 
+@pytest.mark.draws_frames
 def test_the_game_flag_records_a_golden_trace_in_place_of_the_game(
     stand_in_project, tmp_path, monkeypatch
 ):
@@ -462,6 +518,7 @@ def test_the_game_flag_records_a_golden_trace_in_place_of_the_game(
     assert scene_path.read_bytes() == path.read_bytes()
 
 
+@pytest.mark.draws_frames
 def test_the_game_flags_random_seed_reaches_the_harness(stand_in_project, tmp_path, monkeypatch):
     """``--random-seed N`` with ``--record-golden-trace``: the run is the harness's under N."""
     monkeypatch.chdir(stand_in_project)
@@ -486,6 +543,7 @@ def test_the_game_flags_random_seed_reaches_the_harness(stand_in_project, tmp_pa
     assert read_trace(path=path)['frames'] == expected['frames']
 
 
+@pytest.mark.draws_frames
 def test_a_golden_trace_made_without_a_seed_names_the_seed_it_rolled(
     stand_in_project, tmp_path, monkeypatch
 ):
@@ -539,6 +597,7 @@ def test_an_input_script_that_names_none_is_refused_and_nothing_runs(
     assert not path.exists()
 
 
+@pytest.mark.draws_frames
 def test_a_golden_trace_that_cannot_be_written_is_cannot_write_output(
     stand_in_project, tmp_path, monkeypatch, caplog
 ):

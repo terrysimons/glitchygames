@@ -191,6 +191,7 @@ def outcome_reason(manager: Any) -> str:
 class TestPlaybackScope:
     """Entering, playing and leaving a playback scope."""
 
+    @pytest.mark.draws_frames
     def test_playback_returns_to_the_untouched_live_scene(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -226,6 +227,7 @@ class TestPlaybackScope:
             step(manager, frames=LIVE_FRAMES_AFTER)
             assert live_scene.frames_ticked == live_frames_ticked + LIVE_FRAMES_AFTER
 
+    @pytest.mark.draws_frames
     def test_random_streams_are_unchanged_by_a_playback(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -238,6 +240,7 @@ class TestPlaybackScope:
             assert manager.playback_session is None
             assert random_stream(COUNTING_STREAM_NAME).getstate() == expected_state
 
+    @pytest.mark.draws_frames
     def test_any_key_ends_a_demo(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -263,6 +266,7 @@ class TestPlaybackScope:
             step(manager, release(pygame.K_SPACE))
             assert manager.active_scene is live_scene
 
+    @pytest.mark.draws_frames
     def test_input_never_reaches_the_playback_scene(self, tmp_path, mocker: MockerFixture):
         """Without exit_on_input a key press neither ends the scope nor reaches its scene."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
@@ -281,6 +285,7 @@ class TestPlaybackScope:
             assert result is not None
             assert result.divergence is None
 
+    @pytest.mark.draws_frames
     def test_then_another_scene_is_switched_to(self, tmp_path):
         """A demo can return to a scene other than the live one, which is then cleaned up."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -292,6 +297,7 @@ class TestPlaybackScope:
             assert manager.active_scene is title_scene
             assert manager.previous_scene is live_scene
 
+    @pytest.mark.draws_frames
     def test_a_playback_requested_during_a_transition_waits_for_its_end(self, tmp_path):
         """The transition belongs to the live game: the scope begins once it is over."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -319,6 +325,7 @@ class TestPlaybackScope:
             assert result is not None
             assert result.divergence is None
 
+    @pytest.mark.draws_frames
     def test_playback_frames_index_the_recording_from_its_start(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -333,6 +340,7 @@ class TestPlaybackScope:
             assert result.divergence is None
             assert result.frames_replayed == SHORT_RECORDED_FRAMES
 
+    @pytest.mark.draws_frames
     def test_a_scene_that_began_on_a_later_frame_plays_from_there(self, tmp_path):
         """start_frame: the frames before are learned, not served; sprite ids continue."""
         header, frames = record_later_scene(tmp_path=tmp_path)
@@ -352,6 +360,7 @@ class TestPlaybackScope:
             assert result.end_reason == 'end_of_recording'
             assert result.frames_replayed == LATER_SCENE_FRAME + SHORT_RECORDED_FRAMES
 
+    @pytest.mark.draws_frames
     def test_a_divergence_ends_the_scope(self, tmp_path):
         """The recording no longer matches (the game changed): the scope ends there."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
@@ -379,6 +388,7 @@ class TestPlaybackScope:
 class TestPlaybackErrors:
     """An error inside the scope ends it and restores the live game; bad requests start nothing."""
 
+    @pytest.mark.draws_frames
     def test_error_inside_scope_restores_the_live_game(
         self, tmp_path, mocker: MockerFixture, caplog
     ):
@@ -405,6 +415,7 @@ class TestPlaybackErrors:
             step(manager)
             assert live_scene.frames_ticked == 3
 
+    @pytest.mark.draws_frames
     def test_error_while_entering_restores_the_live_game(
         self, tmp_path, mocker: MockerFixture, caplog
     ):
@@ -427,6 +438,7 @@ class TestPlaybackErrors:
             assert BUG_REPORT_HINT in caplog.messages
             assert outcome_reason(manager) == 'error'
 
+    @pytest.mark.draws_frames
     def test_a_recording_without_a_scene_start_starts_nothing(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         header, frames = recorded_trace(path=recording_path)
@@ -447,6 +459,7 @@ class TestPlaybackErrors:
         assert 'holds no scene start' in caplog.text
         assert f'has no frame {len(frames)}' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_an_unknown_scene_class_starts_nothing(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         header, frames = recorded_trace(path=recording_path)
@@ -457,6 +470,7 @@ class TestPlaybackErrors:
             )
         assert 'no loaded scene class matches NoSuchScene' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_a_loaded_class_under_another_logical_name_is_named_in_full(self, tmp_path, caplog):
         """The warning names the logical name it looked for (BUGS.md #224 item 46).
 
@@ -484,6 +498,7 @@ class TestPlaybackErrors:
             )
         assert 'cannot be read' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_a_header_without_a_seed_starts_nothing(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         header, frames = recorded_trace(path=recording_path)
@@ -494,6 +509,7 @@ class TestPlaybackErrors:
             )
         assert 'cannot be replayed' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_scopes_do_not_nest(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -609,6 +625,7 @@ class TestPlaybackErrors:
         assert found_from_main is None
         assert 'Several scene classes are named Game' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_a_recorded_start_names_the_scenes_module_and_qualified_name(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         _header, frames = recorded_trace(path=recording_path)
@@ -617,6 +634,7 @@ class TestPlaybackErrors:
         assert start.scene_class == CountingScene.__qualname__
         assert start.scene == logical_name(scene_class=CountingScene)
 
+    @pytest.mark.draws_frames
     def test_a_start_recorded_without_a_module_still_reads(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         _header, frames = recorded_trace(path=recording_path)
@@ -689,6 +707,7 @@ class TestPlaybackSourcesDefersToTheInstalledDoors:
 class TestPlaybackSourcesServeTheRecording:
     """Saves are sandboxed and the playback scene's own posts are matched by the replay."""
 
+    @pytest.mark.draws_frames
     def test_real_saves_untouched_by_a_playback(self, tmp_path):
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=SavingCountingScene
@@ -715,6 +734,7 @@ class TestPlaybackSourcesServeTheRecording:
             assert result is not None
             assert result.divergence is None
 
+    @pytest.mark.draws_frames
     def test_playback_scene_posts_reach_the_replay_merge(self, tmp_path):
         """The playback scene's posts are matched with the recording's (no missing event)."""
         recording_path = record_counting_scene(
@@ -730,6 +750,7 @@ class TestPlaybackSourcesServeTheRecording:
             assert result.divergence is None
             assert result.frames_replayed == SHORT_RECORDED_FRAMES
 
+    @pytest.mark.draws_frames
     def test_live_posts_queued_before_the_scope_are_dropped(self, tmp_path):
         """The live game's post still queued when the scope begins is not the recording's."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -747,6 +768,7 @@ class TestPlaybackSourcesServeTheRecording:
 class TestRecordingDuringAPlayback:
     """A session recorded through a playback holds what the live session did, and replays."""
 
+    @pytest.mark.draws_frames
     def test_the_session_recording_holds_the_scope_and_replays(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         session_path = tmp_path / 'session.jsonl.gz'
@@ -780,6 +802,7 @@ class TestRecordingDuringAPlayback:
             assert replay_sources.result.divergence is None
             assert replay_sources.result.frames_replayed == len(session_frames)
 
+    @pytest.mark.draws_frames
     def test_a_session_whose_scope_began_after_a_long_frame_replays_exactly(
         self, tmp_path, mocker: MockerFixture
     ):
@@ -881,6 +904,7 @@ class TestRecordingDuringAPlayback:
 class TestQuitDuringAPlayback:
     """Only the player's real QUIT quits the game; the recording's ends the scope."""
 
+    @pytest.mark.draws_frames
     def test_the_playback_scenes_own_quit_ends_the_scope_not_the_game(self, tmp_path):
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=QuittingCountingScene
@@ -894,6 +918,7 @@ class TestQuitDuringAPlayback:
             assert manager.active_scene is live_scene
             assert outcome_reason(manager) == 'recording_quit'
 
+    @pytest.mark.draws_frames
     def test_a_recorded_window_quit_ends_the_scope_not_the_game(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         header, frames = recorded_trace(path=recording_path)
@@ -912,6 +937,7 @@ class TestQuitDuringAPlayback:
             assert manager.active_scene is live_scene
             assert outcome_reason(manager) == 'recording_quit'
 
+    @pytest.mark.draws_frames
     def test_a_real_quit_during_a_scope_tears_the_live_game_down(
         self, tmp_path, mocker: MockerFixture
     ):
@@ -938,6 +964,7 @@ class TestQuitDuringAPlayback:
             live_cleanup.assert_called_once()
             assert outcome_reason(manager) == 'quit'
 
+    @pytest.mark.draws_frames
     def test_the_runs_end_drops_a_requested_playback(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -952,6 +979,7 @@ class TestQuitDuringAPlayback:
 class TestPolledInputInAPlayback:
     """The playback scene polls the recording's input; the live scene gets its own back."""
 
+    @pytest.mark.draws_frames
     def test_polled_input_does_not_leak_either_way(self, tmp_path, mocker: MockerFixture):
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=InputReadingScene
@@ -979,6 +1007,7 @@ class TestPolledInputInAPlayback:
 class TestLiveEventsKeptThroughAPlayback:
     """The live game's events that arrive during a scope reach it after the scope."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         'held_event',
         [
@@ -1007,6 +1036,7 @@ class TestLiveEventsKeptThroughAPlayback:
             assert [event.type for event in pump.spy_return] == [held_event.type]
             assert pump.spy_return[0].dict == held_event.dict
 
+    @pytest.mark.draws_frames
     def test_live_posts_queued_before_the_scope_are_posted_again_after_it(
         self, tmp_path, mocker: MockerFixture
     ):
@@ -1145,6 +1175,7 @@ class LivePostingSupervisor:
 class TestScopePostsNeverReachTheLiveGame:
     """A playback scene's posts still queued when its scope ends are dropped (never live)."""
 
+    @pytest.mark.draws_frames
     def test_a_live_supervisors_post_in_the_exit_frame_reaches_the_live_game(self, tmp_path):
         """A supervisor ends the scope, then posts for the live game: the post is the live one's."""
         recording_path = record_counting_scene(
@@ -1168,6 +1199,7 @@ class TestScopePostsNeverReachTheLiveGame:
                 {'from_live_supervisor': supervisor.posted_frame_number}
             ]
 
+    @pytest.mark.draws_frames
     def test_a_live_supervisors_post_during_the_scope_reaches_the_live_game_after_it(
         self, tmp_path
     ):
@@ -1195,6 +1227,7 @@ class TestScopePostsNeverReachTheLiveGame:
                 {'from_live_supervisor': supervisor.posted_frame_number}
             ]
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('poster', [post_event, post_input_event])
     @pytest.mark.parametrize('ends_the_scope', [True, False])
     def test_a_session_with_a_live_supervisors_scope_post_replays_exactly(
@@ -1245,6 +1278,7 @@ class TestScopePostsNeverReachTheLiveGame:
             assert replay_sources.result.frames_replayed == len(session_frames)
         assert replayed_user_events == live_user_events
 
+    @pytest.mark.draws_frames
     def test_a_session_whose_played_scene_posts_input_replays_exactly(self, tmp_path):
         """The played scene's own supervisor posts input again; each run drops its copy."""
         recording_path = record_counting_scene(
@@ -1287,6 +1321,7 @@ class TestScopePostsNeverReachTheLiveGame:
             assert replay_sources.result.divergence is None
             assert replay_sources.result.frames_replayed == len(session_frames)
 
+    @pytest.mark.draws_frames
     def test_a_post_made_in_update_in_the_last_frame_is_dropped(self, tmp_path):
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=UpdatePostingScene
@@ -1306,6 +1341,7 @@ class TestScopePostsNeverReachTheLiveGame:
             step(manager, frames=LIVE_FRAMES_AFTER)
             assert live_scene.user_events == []
 
+    @pytest.mark.draws_frames
     def test_a_quit_its_event_handler_asked_for_as_the_scope_ends_is_dropped(self, tmp_path):
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=QuitOnItsOwnEventScene
@@ -1321,6 +1357,7 @@ class TestScopePostsNeverReachTheLiveGame:
             assert manager.quit_requested is False
             assert manager.active_scene is live_scene
 
+    @pytest.mark.draws_frames
     def test_a_session_with_dropped_scope_posts_replays_exactly(self, tmp_path):
         """The live doors drop the posts before the recorder sees them; a replay drops them too."""
         recording_path = record_counting_scene(
@@ -1356,6 +1393,7 @@ class TestScopePostsNeverReachTheLiveGame:
             assert replay_sources.result.divergence is None
             assert replay_sources.result.frames_replayed == len(session_frames)
 
+    @pytest.mark.draws_frames
     def test_a_live_post_made_after_the_scope_still_arrives(self, tmp_path, mocker: MockerFixture):
         """Only the scope's own posts are dropped, once: the live game's next posts arrive."""
         recording_path = record_counting_scene(
@@ -1466,6 +1504,7 @@ class TestALiveSupervisorsInputIsThePlayers:
     of the session without the supervisor agree.
     """
 
+    @pytest.mark.draws_frames
     def test_a_supervisors_press_ends_a_demo(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -1480,6 +1519,7 @@ class TestALiveSupervisorsInputIsThePlayers:
             assert manager.active_scene is title_scene
             assert outcome_reason(manager) == 'exit_input'
 
+    @pytest.mark.draws_frames
     def test_a_supervisors_press_does_not_end_an_instant_style_scope(self, tmp_path):
         """Without exit on input, the press reaches nothing, as the player's would."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -1492,6 +1532,7 @@ class TestALiveSupervisorsInputIsThePlayers:
             manager.remove_supervisor(supervisor=supervisor)
             assert outcome_reason(manager) == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_a_session_whose_supervisor_pressed_during_a_demo_replays_without_it(self, tmp_path):
         """BUGS.md #196, second cause: live, the press ended the demo; the replay agrees."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
@@ -1515,6 +1556,7 @@ class TestALiveSupervisorsInputIsThePlayers:
 
         record_a_session_then_replay_it(tmp_path=tmp_path, play_in_the_session=play_in_the_session)
 
+    @pytest.mark.draws_frames
     def test_a_session_whose_supervisor_released_during_a_scope_replays_without_it(self, tmp_path):
         """The release is held for the live game, delivered after the scope, live and replayed."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -1540,6 +1582,7 @@ class TestALiveSupervisorsInputIsThePlayers:
 
         record_a_session_then_replay_it(tmp_path=tmp_path, play_in_the_session=play_in_the_session)
 
+    @pytest.mark.draws_frames
     def test_an_input_press_pending_as_a_demo_begins_ends_it(self, tmp_path):
         """Posted before the scope, pumped by its first frame: the player's, as in the replay."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
@@ -1715,6 +1758,7 @@ class TestASupervisorPostsAnyEvent:
         )
         return received, session_path
 
+    @pytest.mark.draws_frames
     def test_outside_a_scope_it_reaches_the_game_once_live_and_replayed(self, tmp_path):
         def play_in_the_session(manager: Any) -> None:
             step(manager, frames=LIVE_FRAMES_BEFORE + LIVE_FRAMES_AFTER)
@@ -1727,6 +1771,7 @@ class TestASupervisorPostsAnyEvent:
         assert received[False] == received[True]
         assert recorded_game_event_origins(path=session_path) == ['external']
 
+    @pytest.mark.draws_frames
     def test_during_a_demo_it_reaches_the_game_after_the_demo(self, tmp_path):
         """It is no press: the demo plays on, and the event reaches the game after it."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -1754,6 +1799,7 @@ class TestASupervisorPostsAnyEvent:
         # Pumped by the scope, then posted again (as input) after it: each pump's copy
         assert recorded_game_event_origins(path=session_path) == ['external', 'external']
 
+    @pytest.mark.draws_frames
     def test_during_a_scope_without_exit_on_input_it_reaches_the_game_after_it(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
 
@@ -1776,6 +1822,7 @@ class TestASupervisorPostsAnyEvent:
         assert len(received[True]) == 1
         assert received[False] == received[True]
 
+    @pytest.mark.draws_frames
     def test_just_before_a_scope_it_reaches_the_game_after_it(self, tmp_path):
         """Posted in the frame that asks for the demo, pumped by the scope's first frame."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -1801,6 +1848,7 @@ class TestASupervisorPostsAnyEvent:
         # Pumped by the scope, then redelivered after it, as the player's
         assert recorded_game_event_origins(path=session_path) == ['external', 'external']
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         'posting_call',
         [LIVE_FRAMES_BEFORE, LIVE_FRAMES_BEFORE + SUPERVISOR_SCOPE_FRAME],
@@ -1871,6 +1919,7 @@ class TestASupervisorPostsAnyEvent:
 class TestLiveVoicesThroughAPlayback:
     """The live scene's synth voices wait, paused, behind a scope and play on after it."""
 
+    @pytest.mark.draws_frames
     def test_a_live_scenes_voice_survives_the_scope(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -1908,6 +1957,7 @@ JOYSTICK_MODE_ARGUMENTS = ('--input-mode', 'joystick')
 class TestRumbleThroughAPlayback:
     """A playback never rumbles the player's real controllers, fast-forwarded or shown."""
 
+    @pytest.mark.draws_frames
     def test_a_playback_scenes_rumble_never_reaches_a_device(self, tmp_path, mocker: MockerFixture):
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, scene_class=PulsingScene
@@ -1932,6 +1982,7 @@ class TestRumbleThroughAPlayback:
             step(manager)
             device.rumble.assert_called_once()
 
+    @pytest.mark.draws_frames
     def test_rumble_asks_no_devices_door(self, tmp_path, mocker: MockerFixture):
         """Rumble goes to input_devices, so a recording holds no per-send joystick count.
 
@@ -1971,6 +2022,7 @@ class TestRumbleThroughAPlayback:
 class TestDevicesInAPlayback:
     """A playback opens its recording's devices in its mode; the live ones wait (#184.3)."""
 
+    @pytest.mark.draws_frames
     def test_a_joystick_mode_recording_plays_without_a_controller_manager(self, tmp_path):
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES, extra_arguments=JOYSTICK_MODE_ARGUMENTS
@@ -1995,6 +2047,7 @@ class TestDevicesInAPlayback:
             assert engine.controller_manager is live_controller_manager
             assert engine.input_devices is live_devices
 
+    @pytest.mark.draws_frames
     def test_a_playback_without_an_engine_has_no_devices_to_set_aside(
         self, tmp_path, mocker: MockerFixture
     ):
@@ -2030,6 +2083,7 @@ class TestDevicesInAPlayback:
 class TestOnlyScopedErrorsAreContained:
     """An error of the installed doors under a scope propagates as it would outside one."""
 
+    @pytest.mark.draws_frames
     def test_a_session_recorder_error_propagates(self, tmp_path, mocker: MockerFixture):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -2046,6 +2100,7 @@ class TestOnlyScopedErrorsAreContained:
 class TestUnusableRequests:
     """Malformed recordings and requests that cannot be honoured start nothing."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('damage', ['bad_id', 'missing_id'])
     def test_a_malformed_recording_starts_nothing(self, tmp_path, caplog, damage):
         header, frames = record_later_scene(tmp_path=tmp_path)
@@ -2064,6 +2119,7 @@ class TestUnusableRequests:
             )
         assert 'cannot be replayed' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_a_request_in_the_frame_of_a_scene_switch_is_dropped(
         self, tmp_path, mocker: MockerFixture, caplog
     ):
@@ -2146,6 +2202,7 @@ def arriving_scene_start_frame(*, frames: list[dict[str, Any]]) -> int:
 class TestScenesThatBeganMidRun:
     """A playback starts at the scene's first logic frame, in the state it began that frame."""
 
+    @pytest.mark.draws_frames
     def test_a_scene_switched_to_at_a_frames_end_plays_from_its_first_logic_frame(self, tmp_path):
         header, frames = record_switching_session(
             tmp_path=tmp_path,
@@ -2169,6 +2226,7 @@ class TestScenesThatBeganMidRun:
             assert result.divergence is None
             assert outcome_reason(manager) == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_a_scene_that_arrived_by_a_transition_plays_from_its_first_logic_frame(self, tmp_path):
         transition_frames = round(TEST_FADE_SECONDS / FRAME_SECONDS)
         recorded_frames = SWITCHING_TICK + transition_frames + RECORDED_FRAMES
@@ -2194,6 +2252,7 @@ class TestScenesThatBeganMidRun:
             assert result.divergence is None
             assert outcome_reason(manager) == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('switch_tick', [SWITCHING_TICK, SWITCHING_TICK + 1])
     def test_fps_events_of_a_scene_that_began_mid_run_play_again_exactly(
         self, tmp_path, mocker: MockerFixture, switch_tick
@@ -2236,6 +2295,7 @@ class TestScenesThatBeganMidRun:
             assert result.divergence is None
             assert outcome_reason(manager) == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_a_start_without_its_first_logic_frame_is_refused(self, tmp_path, caplog):
         """A start the playback cannot align (no first logic frame recorded) starts nothing."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -2247,6 +2307,7 @@ class TestScenesThatBeganMidRun:
             )
         assert 'cannot be aligned' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_an_unreadable_scene_start_is_refused(self, tmp_path, caplog):
         """A scene start that does not validate (an unknown field) starts nothing."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -2267,6 +2328,7 @@ KEY_RELEASE = pygame.event.Event(pygame.KEYUP, key=pygame.K_SPACE, mod=0, unicod
 class TestPlaybacksBackToBack:
     """Attract-mode loops: a scope that ends into a scene starting the next one."""
 
+    @pytest.mark.draws_frames
     def test_a_release_held_by_a_demo_reaches_the_title_never_the_next_demo(
         self, tmp_path, mocker: MockerFixture
     ):
@@ -2293,6 +2355,7 @@ class TestPlaybacksBackToBack:
             assert [call.args[0] for call in key_up.call_args_list] == [title]
             assert manager._playback_requesting_scene is None
 
+    @pytest.mark.draws_frames
     def test_a_scene_starting_right_after_a_scope_plays_back_exactly(self, tmp_path):
         """The events redelivered in its first logic frame are recorded, so it replays."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -2379,6 +2442,7 @@ class PlaybackEndingSupervisor:
 class TestScopeHousekeeping:
     """The requesting scene is forgotten, teardown drops held posts, events keep their order."""
 
+    @pytest.mark.draws_frames
     def test_the_requesting_scene_is_forgotten(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -2401,6 +2465,7 @@ class TestScopeHousekeeping:
             manager.terminate()
             assert manager._playback_requesting_scene is None
 
+    @pytest.mark.draws_frames
     def test_a_failure_entering_the_scope_pops_the_scoped_doors(
         self, tmp_path, mocker: MockerFixture
     ):
@@ -2418,6 +2483,7 @@ class TestScopeHousekeeping:
             assert manager.playback_session is None
             assert not has_scoped_sources()
 
+    @pytest.mark.draws_frames
     def test_teardown_drops_the_held_live_posts(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -2430,6 +2496,7 @@ class TestScopeHousekeeping:
             assert not [event for event in pygame.event.get() if event.type == pygame.USEREVENT]
             assert take_redelivered_events() == []
 
+    @pytest.mark.draws_frames
     def test_held_events_come_back_in_their_original_order(self, tmp_path, mocker: MockerFixture):
         """A live post held on the first pump comes back before a release held later."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -2448,6 +2515,7 @@ class TestScopeHousekeeping:
             step(manager)
             assert [event.type for event in pump.spy_return] == [pygame.USEREVENT, pygame.KEYUP]
 
+    @pytest.mark.draws_frames
     def test_an_untracked_post_queued_before_the_scope_comes_back_after_it(
         self, tmp_path, mocker: MockerFixture
     ):
@@ -2472,6 +2540,7 @@ class TestScopeHousekeeping:
                 (pygame.USEREVENT, {'untracked': True})
             ]
 
+    @pytest.mark.draws_frames
     def test_an_untracked_post_during_the_scope_is_the_playbacks_and_diverges(self, tmp_path):
         """A custom event posted outside post_event mid-scope goes to the replay's merge.
 
@@ -2494,6 +2563,7 @@ class TestScopeHousekeeping:
             assert result.divergence is not None
             assert result.divergence.field == 'unexpected internal event'
 
+    @pytest.mark.draws_frames
     def test_a_played_scene_whose_cleanup_fails_is_logged_and_the_live_game_returns(
         self, tmp_path, mocker: MockerFixture, caplog
     ):
@@ -2517,6 +2587,7 @@ class TestScopeHousekeeping:
         assert failures[0].exc_info is not None
         assert 'the played scene could not clean up' in str(failures[0].exc_info[1])
 
+    @pytest.mark.draws_frames
     def test_a_cut_off_recording_ends_as_truncated(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         cut_off_after_frame(recording_path=recording_path, frame_number=SHORT_RECORDED_FRAMES - 1)
@@ -2532,6 +2603,7 @@ class TestScopeHousekeeping:
 class TestPlayRecordingDemos:
     """SceneManager.play_recording: an attract-mode demo that returns to a scene."""
 
+    @pytest.mark.draws_frames
     def test_a_demo_runs_and_returns(self, tmp_path):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:
@@ -2544,6 +2616,7 @@ class TestPlayRecordingDemos:
             assert manager.playback_session is None
             assert outcome_reason(manager) == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_a_key_in_the_demos_last_frame_ends_it_as_exit_input(self, tmp_path):
         """Two reasons to end in one frame: the first found (the key, at the pump) is kept."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -2563,6 +2636,7 @@ class TestPlayRecordingDemos:
             assert result is not None
             assert result.end_reason == 'end_of_recording'
 
+    @pytest.mark.draws_frames
     def test_the_games_end_playback_after_the_exit_press_keeps_exit_input(self, tmp_path):
         """A live supervisor's end_playback() in the frame a key ended the demo changes nothing.
 
@@ -2585,6 +2659,7 @@ class TestPlayRecordingDemos:
             assert manager.active_scene is title_scene
             assert outcome_reason(manager) == 'exit_input'
 
+    @pytest.mark.draws_frames
     def test_any_key_ends_the_demo(self, tmp_path, mocker: MockerFixture):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         key_down = mocker.spy(CountingScene, 'on_key_down_event')
@@ -2601,6 +2676,7 @@ class TestPlayRecordingDemos:
             step(manager)
             key_down.assert_not_called()
 
+    @pytest.mark.draws_frames
     def test_an_unusable_demo_is_logged_and_nothing_starts(self, tmp_path, caplog):
         broken_path = tmp_path / 'broken.jsonl.gz'
         broken_path.write_bytes(b'not a trace')
@@ -2616,6 +2692,7 @@ class TestPlayRecordingDemos:
             'WARNING'
         }
 
+    @pytest.mark.draws_frames
     def test_a_recording_of_another_game_is_logged_and_nothing_starts(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         header, frames = recorded_trace(path=recording_path)
@@ -2631,6 +2708,7 @@ class TestPlayRecordingDemos:
             assert manager.playback_session is None
         assert 'No demo: no loaded scene class matches NoSuchScene' in caplog.text
 
+    @pytest.mark.draws_frames
     def test_a_recording_whose_header_saves_are_not_a_mapping_is_logged(self, tmp_path, caplog):
         """The playback's saves start from the header's: a header that holds none is refused."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
@@ -2650,6 +2728,7 @@ class TestPlayRecordingDemos:
             "The recording header saves is not a mapping: ['not', 'a', 'mapping']"
         ) in caplog.text
 
+    @pytest.mark.draws_frames
     def test_a_diverging_demo_ends_early_and_says_so(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=20)
         tamper_sprite_in_frame(recording_path=recording_path, frame_number=TAMPERED_FRAME + 1)
@@ -2668,6 +2747,7 @@ class TestPlayRecordingDemos:
         ]
         assert len(diverged_warnings) == 1
 
+    @pytest.mark.draws_frames
     def test_a_cut_off_demo_plays_to_its_cut_off_and_logs_at_info(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         cut_off_after_frame(recording_path=recording_path, frame_number=SHORT_RECORDED_FRAMES - 1)
@@ -2683,6 +2763,7 @@ class TestPlayRecordingDemos:
             and record.name.startswith(('game.replay', 'game.scenes'))
         ]
 
+    @pytest.mark.draws_frames
     def test_after_a_demo_that_switches_scenes_game_over_restarts_the_live_game(
         self, tmp_path, mocker: MockerFixture
     ):
@@ -2705,6 +2786,7 @@ class TestPlayRecordingDemos:
             (restarted_game,), _keywords = switch_to_scene.call_args
             assert type(restarted_game) is KeyReleaseCountingScene
 
+    @pytest.mark.draws_frames
     def test_a_demo_asked_for_during_a_demo_is_refused(self, tmp_path, caplog):
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
         with running_scene(CountingScene) as manager:

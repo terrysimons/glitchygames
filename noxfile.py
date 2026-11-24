@@ -3,6 +3,7 @@
 import argparse
 import contextlib
 import dataclasses
+import hashlib
 import json
 import os
 import platform
@@ -21,7 +22,13 @@ import nox
 from nox.command import CommandFailed
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Mapping, Sequence
+    from collections.abc import Callable, Generator, Mapping, Sequence
+
+# uv installs itself to ~/.local/bin by default; CI prepends that to PATH explicitly, but a
+# direct `nox` invocation may not have it. Add it when uv lives there but isn't reachable yet.
+_local_bin = str(Path.home() / '.local' / 'bin')
+if _local_bin not in os.environ.get('PATH', '').split(os.pathsep):
+    os.environ['PATH'] = _local_bin + os.pathsep + os.environ.get('PATH', '')
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
@@ -163,7 +170,11 @@ def _lint_code(session: nox.Session) -> None:
 
 
 def _lint_docs(session: nox.Session) -> None:
-    """Lint documentation with mkdocs strict build."""
+    """Lint documentation with mkdocs strict build.
+
+    A local build: the complexity graphs are not generated (a placeholder stands in for them;
+    only ``docs-deploy`` measures the history, scripts/mkdocs_hooks.py).
+    """
     session.run('mkdocs', 'build', '--strict', '--config-file', _DOCS_CONFIGURATION)
 
 
@@ -183,7 +194,9 @@ def _lint_circleci(session: nox.Session) -> None:
     if not shutil.which('circleci'):
         session.log('circleci CLI not found on PATH; skipping config validation.')
         return
-    session.run('circleci', 'config', 'validate', external=True)
+    # Both: the setup configuration and the configuration it continues with
+    session.run('circleci', 'config', 'validate', '.circleci/config.yml', external=True)
+    session.run('circleci', 'config', 'validate', str(_CIRCLECI_CONFIG), external=True)
 
 
 def _lint_github_actions(session: nox.Session) -> None:
@@ -416,8 +429,9 @@ def docs_deploy(session: nox.Session) -> None:
     ``nox -s replay-metrics``'s measurement (``--skip-dirty``: nothing is measured on a checkout
     with uncommitted changes). ``mkdocs gh-deploy`` then builds the site (its hook,
     scripts/mkdocs_hooks.py, first generates the complexity graphs from HEAD's whole git history
-    when they were made from another commit: about a minute, and the performance graphs from the
-    published run ledger plus the pending rows, which it publishes with the site), commits it to
+    when they were made from another commit: several minutes, and only a deploy does it; every
+    other docs build writes a placeholder; and the performance graphs from the published run
+    ledger plus the pending rows, which it publishes with the site), commits it to
     gh-pages and pushes it. Only after that succeeded are the now-published pending rows
     removed (``glitchygames clear-published``), and only when the pending ledger holds rows: a
     deploy without any (CircleCI's) skips it, and so the editable install it would build first.
@@ -445,7 +459,7 @@ def docs_deploy(session: nox.Session) -> None:
     if not build_only:
         # Only main is published: a branch's history would publish its measured rows as landed
         # though their code never reached main (glitchygames/code_tree.py landed_code_trees)
-        session.run('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main', external=True)
+        _require_head_on_origin_main(session)
     # A deploy publishes the merged ledger in place of the published one, so it must start from
     # what gh-pages holds now: only a build tolerates a failed fetch
     session.run(
@@ -480,8 +494,12 @@ def docs_deploy(session: nox.Session) -> None:
 
 # mkdocs serve's address when no --dev-addr is given (zensical.yml sets no dev_addr)
 _DOCS_SERVE_DEFAULT_ADDRESS = ('127.0.0.1', 8000)
-# How far past a taken port docs-serve looks for a free one to suggest
+# How far above, then below, a taken port docs-serve looks for a free one to suggest
 _DOCS_SERVE_PORTS_TO_TRY = 20
+# The TCP ports an address may name: bind() refuses one above 65535 (OverflowError), and 0
+# means "any port"
+_LOWEST_PORT = 1
+_HIGHEST_PORT = 65535
 
 
 def _docs_serve_address(*, arguments: list[str]) -> tuple[str, int]:
@@ -493,6 +511,9 @@ def _docs_serve_address(*, arguments: list[str]) -> tuple[str, int]:
     Returns:
         The host and port.
 
+    Raises:
+        ValueError: The port is not a number from 1 to 65535, naming the address as given.
+
     """
     address = None
     for index, argument in enumerate(arguments):
@@ -503,6 +524,12 @@ def _docs_serve_address(*, arguments: list[str]) -> tuple[str, int]:
     if address is None:
         return _DOCS_SERVE_DEFAULT_ADDRESS
     host, _, port = address.rpartition(':')
+    if not (port.isascii() and port.isdigit() and _LOWEST_PORT <= int(port) <= _HIGHEST_PORT):
+        message = (
+            f'--dev-addr {address}: the port must be a number from {_LOWEST_PORT} to '
+            f'{_HIGHEST_PORT}'
+        )
+        raise ValueError(message)
     return host, int(port)
 
 
@@ -526,17 +553,24 @@ def _address_in_use(*, host: str, port: int) -> bool:
     return False
 
 
-def _free_port_after(*, host: str, port: int) -> int:
-    """Return the first port after ``port`` that nothing holds on ``host``.
+def _free_port_near(*, host: str, port: int) -> int | None:
+    """Return a port near ``port`` that nothing holds on ``host``, within 1-65535.
+
+    Looks at the ``_DOCS_SERVE_PORTS_TO_TRY`` ports above ``port``, nearest first, then at as
+    many below it, so a taken 65535 still gets a suggestion. Never probes outside 1-65535:
+    probing 65536 raised ``OverflowError``
+    (bugs/2026-11-22-free-port-search-leaves-the-port-range.md).
 
     Returns:
-        The port; past ``_DOCS_SERVE_PORTS_TO_TRY`` taken ones, the one after them, unchecked.
+        The port, or None when every port looked at is taken.
 
     """
-    for candidate in range(port + 1, port + 1 + _DOCS_SERVE_PORTS_TO_TRY):
+    above = range(port + 1, min(port + _DOCS_SERVE_PORTS_TO_TRY, _HIGHEST_PORT) + 1)
+    below = range(port - 1, max(port - _DOCS_SERVE_PORTS_TO_TRY, _LOWEST_PORT) - 1, -1)
+    for candidate in (*above, *below):
         if not _address_in_use(host=host, port=candidate):
             return candidate
-    return port + 1 + _DOCS_SERVE_PORTS_TO_TRY
+    return None
 
 
 def _listening_process(session: nox.Session, *, port: int) -> str | None:
@@ -585,29 +619,41 @@ def _listening_process(session: nox.Session, *, port: int) -> str | None:
 
 @nox.session(venv_backend='none', name='docs-serve', default=False)
 def docs_serve(session: nox.Session) -> None:
-    """Serve the docs locally, built as docs-deploy builds them (graphs included, strict).
+    """Serve the docs locally, built strictly as docs-deploy builds them, but for the graphs.
 
-    ``mkdocs serve --strict`` builds the site (its hook generates the complexity graphs when they
-    were made from another commit; each reload with the same HEAD skips that) and serves it at
+    ``mkdocs serve --strict`` builds the site and serves it at
     http://127.0.0.1:8000/glitchygames/, rebuilding as files change, until Ctrl-C. Nothing is
-    pushed. Arguments after ``--`` go to ``mkdocs serve``.
+    pushed. Arguments after ``--`` go to ``mkdocs serve``. The complexity page shows a
+    placeholder: only a deploy generates the complexity graphs (scripts/mkdocs_hooks.py), unless
+    they were generated from HEAD already (``nox -s code-complexity -- --graphs``) or
+    ``GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1`` is set, which generates them first (minutes).
 
     Each run builds in a fresh environment of its own (``uv run --isolated``: the locked
     versions, the built packages as ``_install_from_lockfile`` installs them, removed when the
     run ends; about 15 seconds). A session venv is recreated by every run before its code runs,
     so a second run deleted the first's packages mid-build (2026-11-13); now two runs on two
     addresses both work. A taken address is refused before the build, naming its holder where
-    ``lsof`` can and a free address: mkdocs binds only after the whole build, about five minutes.
+    ``lsof`` can and a free address near it (or that none within 20 ports is): mkdocs binds only
+    after the whole build, about five minutes. So is a port outside 1-65535.
 
     Usage:
         nox -s docs-serve                               # Serve at http://127.0.0.1:8000/
         nox -s docs-serve -- --dev-addr 127.0.0.1:8001  # Another address
+        GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1 nox -s docs-serve  # With the complexity graphs
     """
-    host, port = _docs_serve_address(arguments=session.posargs)
+    try:
+        host, port = _docs_serve_address(arguments=session.posargs)
+    except ValueError as refusal:
+        session.error(str(refusal))
     if _address_in_use(host=host, port=port):
         holder = _listening_process(session, port=port)
         held_by = f' (by {holder})' if holder is not None else ''
-        free_port = _free_port_after(host=host, port=port)
+        free_port = _free_port_near(host=host, port=port)
+        if free_port is None:
+            session.error(
+                f'{host}:{port} is in use{held_by}: stop it, or serve on another address '
+                f'(no free port within {_DOCS_SERVE_PORTS_TO_TRY} of {port})'
+            )
         session.error(
             f'{host}:{port} is in use{held_by}: stop it, or serve on another address: '
             f'nox -s docs-serve -- --dev-addr {host}:{free_port}'
@@ -759,7 +805,14 @@ TEST_PYTHONS = ('3.15',)
 
 @nox.session(python=list(TEST_PYTHONS), reuse_venv=False)
 def test(session: nox.Session) -> None:
-    """Run the tests on one Python of TEST_PYTHONS (nox -s test runs them all)."""
+    """Run the tests on one Python of TEST_PYTHONS (nox -s test runs them all).
+
+    GLITCHYGAMES_TEST_ORDER picks the order (``choose_suite_order``): unset or ``fixed``, the
+    files' own; ``roll``, a coin flip for fixed or shuffled and a seed (CircleCI's test jobs; on
+    CircleCI both come from the workspace, job and machine, so a rerun repeats them); a number,
+    that seed's shuffle. The order is logged before the run and after a failure, and written to
+    test-results/test-order.txt.
+    """
     # The installed copy is built (not editable), so it has no git checkout: the stamp gives it
     # HEAD's commit, which the replay-metrics tests' child rebaselines record and compare. It is
     # written into the installed copy, never the checkout, so a build running alongside neither
@@ -772,8 +825,9 @@ def test(session: nox.Session) -> None:
     # frames); a driver the caller set is passed on and runs alone.
 
     # PYTEST_WORKERS, when set, is the xdist worker count as given (0: run serially in this
-    # process, no worker; CircleCI's Linux job sets it). Otherwise, in CI, use half the CPUs the
-    # job may use, to avoid resource exhaustion, or run serially with too few for two workers.
+    # process, no worker; CircleCI's Linux job sets 0, its Windows job 4, one a CPU). Otherwise,
+    # in CI, use half the CPUs the job may use, to avoid resource exhaustion, or run serially
+    # with too few for two workers.
     # Locally, -n auto (from pyproject.toml addopts) uses all cores.
     args: list[str] = []
     requested_workers = os.environ.get('PYTEST_WORKERS')
@@ -796,12 +850,112 @@ def test(session: nox.Session) -> None:
     # A CircleCI job split across machines (GLITCHYGAMES_TEST_SPLIT, tests/circleci_test_split.py)
     # runs one machine's share: no share reaches the 100% coverage rule, so it is off here and
     # applied once to every machine's data combined (coverage-combine); and the JUnit report
-    # names each test's file (xunit1), from which CircleCI learns the timings it splits by
+    # names each test's file, class and name (xunit1), from which CircleCI learns the timings it
+    # splits by
     args.extend(split_share_pytest_arguments(environment=os.environ))
 
+    # The suite's order (GLITCHYGAMES_TEST_ORDER; CircleCI's test jobs roll it), printed before
+    # the run and again after a failure, whose log starts 26,000 tests back
+    try:
+        order = choose_suite_order(environment=os.environ)
+    except ValueError as refusal:
+        session.error(str(refusal))
+    description = describe_suite_order(order=order)
+    session.log(description)
+    write_suite_order_record(order=order, description=description)
+    args.extend(suite_order_pytest_arguments(order=order))
+
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
-    # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
-    session.run('pytest', *args)
+    # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion. Two runs:
+    # every test but the wall_clock ones on the workers chosen above, then those alone, in this
+    # process (WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS), collecting only the files that hold them
+    # (WALL_CLOCK_TEST_FILES), adding to the first run's coverage, so the 100% rule is applied
+    # once, to both
+    failed = False
+    try:
+        session.run('pytest', *args, *WALL_CLOCK_EXCLUDED_PYTEST_ARGUMENTS)
+    except CommandFailed:
+        failed = True
+    try:
+        session.run(
+            'pytest',
+            *args,
+            *WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS,
+            *WALL_CLOCK_TEST_FILES,
+            success_codes=NO_TESTS_IS_SUCCESS,
+        )
+    except CommandFailed:
+        failed = True
+    if failed:
+        session.error(f'The tests failed. {description}')
+
+
+# The test files that read Markdown (each names a Markdown file in its code), which a docs-only
+# pull request still runs (nox -s test-markdown, CircleCI's markdown-checks job: the owner,
+# 2026-11-20). tests/test_ci_config.py holds the list to exactly the test files that name one
+MARKDOWN_TEST_FILES = (
+    'tests/audio/test_channel_fades.py',
+    'tests/benchmarks/test_logging_cost.py',
+    'tests/replay/tools/test_performance_pages.py',
+    'tests/test_ansible_ai_service.py',
+    'tests/test_ci_change_scope.py',
+    'tests/test_ci_config.py',
+    'tests/test_claude_md.py',
+    'tests/test_code_tree.py',
+    'tests/test_docs_claims.py',
+    'tests/test_gen_ref_pages.py',
+    'tests/test_generate_complexity_graphs.py',
+    'tests/test_instrument_audit_quote_check.py',
+    'tests/test_measure_staged_replays.py',
+    'tests/test_our_stored_paths.py',
+    'tests/test_read_only_views.py',
+    'tests/test_suite_collection.py',
+    'tests/test_workspace_config.py',
+)
+
+
+@nox.session(python=list(TEST_PYTHONS[-1:]), reuse_venv=False, name='test-markdown', default=False)
+def test_markdown(session: nox.Session) -> None:
+    """Run the tests that read Markdown (MARKDOWN_TEST_FILES): a docs-only change's tests.
+
+    On the installed, stamped engine as the test session has it, the dummy drivers only, in the
+    files' own order. Coverage is off: a part of the suite can't reach the 100% rule, and the
+    change touched no code.
+    """
+    _install_from_lockfile(session)
+    _stamp_installed_engine(session)
+    session.run('pytest', *MARKDOWN_TEST_FILES, '--no-cov', '--dummy-only')
+
+
+# The tests that time real work against a tolerance (tests/harness.py's wall_clock marker) run
+# alone, in one process, after the rest: under CPU contention they measure the machine, not the
+# code. #287's Windows job (5141) ran 4 workers on 4 CPUs, and a timer accuracy test trailed the
+# OS sleep by 19 ms against its 3 ms bound (the owner, 2026-11-23: keep the workers, run these
+# alone). The first run leaves them out and its coverage rule off; the second appends to its
+# coverage data, applies the rule to both (a split machine's share keeps it off), and writes its
+# own JUnit report. A split machine dealt none of them collects nothing: pytest's exit 5 passes.
+# The second run is given only the files that hold them (WALL_CLOCK_TEST_FILES), not the whole
+# suite to collect and then deselect (31-48 s a CI machine, nearly all collection).
+# tests/test_ci_config.py holds the list to exactly the files that use the marker. A split
+# machine's share is unchanged: the splitter (tests/circleci_test_split.py) runs after the
+# marker's deselection, so it is dealt the same wall_clock tests whatever files were collected
+WALL_CLOCK_MARKER = 'wall_clock'
+WALL_CLOCK_TEST_FILES = (
+    'tests/animation/test_animation_hardware.py',
+    'tests/animation/test_animation_visual.py',
+    'tests/timing/test_fast_timer_os.py',
+)
+WALL_CLOCK_EXCLUDED_PYTEST_ARGUMENTS = ('-m', f'not {WALL_CLOCK_MARKER}', '--cov-fail-under=0')
+WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS = (
+    '-n',
+    '0',
+    '-m',
+    WALL_CLOCK_MARKER,
+    '--cov-append',
+    '--junitxml=test-results/junit-wall-clock.xml',
+)
+# pytest's exit statuses OK and NO_TESTS_COLLECTED (pytest.ExitCode; nox runs without pytest)
+NO_TESTS_IS_SUCCESS = [0, 5]
 
 
 # A machine's share of a split CI job (tests/circleci_test_split.py): its coverage rule off, its
@@ -823,6 +977,163 @@ def split_share_pytest_arguments(*, environment: Mapping[str, str]) -> list[str]
     if environment.get('GLITCHYGAMES_TEST_SPLIT') is None:
         return []
     return list(SPLIT_SHARE_PYTEST_ARGUMENTS)
+
+
+# The test session's order switch: unset or "fixed" keeps the files' order; "roll" flips a coin
+# for fixed or shuffled and, shuffled, draws the seed (CircleCI's test jobs set it: the owner,
+# 2026-11-20, "roll to decide if we're randomizing or not, and then also roll the seed if we are
+# randomizing"); a number replays that seed's shuffle
+SUITE_ORDER_VARIABLE = 'GLITCHYGAMES_TEST_ORDER'
+SUITE_ORDER_FIXED = 'fixed'
+SUITE_ORDER_ROLL = 'roll'
+# On CircleCI a roll is a function of the machine, not a draw, so a rerun repeats its first run's
+# roll (the owner, 2026-11-20: "Yes"). The workflow's workspace ID is new each pipeline and, by a
+# community report not yet seen here, kept by "Rerun workflow from failed", which gets a new
+# workflow ID: the two differ only on a rerun. Unset or empty (a local run), the roll is a draw
+CIRCLECI_WORKSPACE_VARIABLE = 'CIRCLE_WORKFLOW_WORKSPACE_ID'
+CIRCLECI_WORKFLOW_VARIABLE = 'CIRCLE_WORKFLOW_ID'
+CIRCLECI_JOB_VARIABLE = 'CIRCLE_JOB'
+CIRCLECI_NODE_INDEX_VARIABLE = 'CIRCLE_NODE_INDEX'
+# The order and how it was chosen, for the job's artifacts (test-results/ is stored when: always)
+SUITE_ORDER_RECORD = Path('test-results') / 'test-order.txt'
+
+
+@dataclasses.dataclass(frozen=True)
+class SuiteOrder:
+    """The order the test session runs the suite in.
+
+    A dataclass, not pydantic: the noxfile runs in nox's own environment (CI's nox is a uv tool
+    without the project's packages).
+
+    Attributes:
+        seed: pytest-randomly's seed for a shuffled run, or None for the files' own order.
+        rolled: Whether a coin flip chose it (``roll``), rather than the environment naming it.
+        workspace: The CircleCI workspace a roll came from, or None (a draw, or not rolled).
+        machine: The CircleCI job and machine index a roll came from, or None.
+        rerun: Whether the workflow is a rerun (its ID differs from its workspace's).
+
+    """
+
+    seed: int | None
+    rolled: bool
+    workspace: str | None = None
+    machine: str | None = None
+    rerun: bool = False
+
+
+def choose_suite_order(
+    *, environment: Mapping[str, str], draw: Callable[[int], int] | None = None
+) -> SuiteOrder:
+    """Choose the suite's order from GLITCHYGAMES_TEST_ORDER, rolling it when asked to.
+
+    Args:
+        environment: The session's environment.
+        draw: Draws a whole number below its argument; None uses ``secrets.randbelow``. A roll
+            without a CircleCI workspace draws twice: below 2 for the coin (1 shuffles), then
+            the seed. With one, nothing is drawn: SHA-256 of the workspace, job and machine
+            index gives the coin (its first byte's low bit) and the seed (its next four bytes).
+
+    Returns:
+        The order.
+
+    Raises:
+        ValueError: If the variable holds anything but ``fixed``, ``roll`` or a seed in
+            pytest-randomly's range.
+
+    """
+    if draw is None:
+        draw = secrets.randbelow
+    value = environment.get(SUITE_ORDER_VARIABLE)
+    if value is None or value == SUITE_ORDER_FIXED:
+        return SuiteOrder(seed=None, rolled=False)
+    if value == SUITE_ORDER_ROLL:
+        workspace = environment.get(CIRCLECI_WORKSPACE_VARIABLE) or None
+        if workspace is None:
+            if draw(2) == 0:
+                return SuiteOrder(seed=None, rolled=True)
+            return SuiteOrder(seed=draw(RANDOM_ORDER_SEED_LIMIT), rolled=True)
+        job = environment.get(CIRCLECI_JOB_VARIABLE, '')
+        node_index = environment.get(CIRCLECI_NODE_INDEX_VARIABLE, '0')
+        digest = hashlib.sha256(f'{workspace}\n{job}\n{node_index}'.encode()).digest()
+        seed = int.from_bytes(digest[1:5], 'big') % RANDOM_ORDER_SEED_LIMIT
+        return SuiteOrder(
+            seed=seed if digest[0] % 2 else None,
+            rolled=True,
+            workspace=workspace,
+            machine=f'{job} machine {node_index}',
+            rerun=environment.get(CIRCLECI_WORKFLOW_VARIABLE, workspace) != workspace,
+        )
+    if value.isdecimal() and int(value) < RANDOM_ORDER_SEED_LIMIT:
+        return SuiteOrder(seed=int(value), rolled=False)
+    message = (
+        f'{SUITE_ORDER_VARIABLE}={value!r}: expected {SUITE_ORDER_FIXED!r}, {SUITE_ORDER_ROLL!r} '
+        f'or a seed from 0 to {RANDOM_ORDER_SEED_LIMIT - 1}'
+    )
+    raise ValueError(message)
+
+
+def suite_order_pytest_arguments(*, order: SuiteOrder) -> list[str]:
+    """Return the pytest arguments for an order: none for fixed, pytest-randomly's for a seed.
+
+    Args:
+        order: The order.
+
+    Returns:
+        The arguments (a shuffle reorders only, as nox -s test-random does).
+
+    """
+    if order.seed is None:
+        return []
+    return [*RANDOM_ORDER_PYTEST_ARGUMENTS, f'--randomly-seed={order.seed}']
+
+
+def describe_suite_order(*, order: SuiteOrder) -> str:
+    """Describe an order for the job's log, with how to replay a shuffled one.
+
+    Args:
+        order: The order.
+
+    Returns:
+        One line starting "Test order:".
+
+    """
+    if order.workspace is not None:
+        run = 'rerun: same roll as its first run' if order.rerun else 'first run'
+        how = f' (rolled from CircleCI workspace {order.workspace}, {order.machine}; {run})'
+    elif order.rolled:
+        how = ' (rolled at random: no CircleCI workspace)'
+    else:
+        how = ''
+    if order.seed is None:
+        return f"Test order: fixed{how}, the files' own order"
+    return (
+        f'Test order: shuffled, seed {order.seed}{how}. Replay it with '
+        f'{SUITE_ORDER_VARIABLE}={order.seed} nox -s test-3.15, or with pytest '
+        f'{shlex.join(suite_order_pytest_arguments(order=order))} -n 0; a split CI machine '
+        f'shuffled only its share, the tests kept in test-results/test-split.txt (its '
+        f'artifacts), so name those tests to replay its order'
+    )
+
+
+def write_suite_order_record(*, order: SuiteOrder, description: str) -> None:
+    """Write the order and how it was chosen to SUITE_ORDER_RECORD, for the job's artifacts.
+
+    Args:
+        order: The order.
+        description: Its log line (``describe_suite_order``), written first.
+
+    """
+    lines = [
+        description,
+        f'order={"fixed" if order.seed is None else "shuffled"}',
+        f'seed={"" if order.seed is None else order.seed}',
+        f'rolled={"yes" if order.rolled else "no"}',
+        f'workspace={order.workspace or ""}',
+        f'machine={order.machine or ""}',
+        f'rerun={"yes" if order.rerun else "no"}',
+    ]
+    SUITE_ORDER_RECORD.parent.mkdir(parents=True, exist_ok=True)
+    SUITE_ORDER_RECORD.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
 # Where a split CI job's machines leave their coverage data (``.coverage.<name>`` files), and
@@ -873,8 +1184,9 @@ def coverage_combine(session: nox.Session) -> None:
 
 
 # pytest-randomly, turned on for a shuffled run (pyproject.toml's addopts block it everywhere
-# else, so CI and every other run keep the files' order): reorder only, with random.seed() left
-# as each test sets it, so a shuffled run differs from the others in its order alone
+# else, so every other run keeps the files' order; the test session's GLITCHYGAMES_TEST_ORDER,
+# which CircleCI rolls, turns it on too): reorder only, with random.seed() left as each test
+# sets it, so a shuffled run differs from the others in its order alone
 RANDOM_ORDER_PYTEST_ARGUMENTS = ('-p', 'randomly', '--randomly-dont-reset-seed')
 # The seeds pytest-randomly takes (it seeds numpy's generator, whose seeds are 32-bit)
 RANDOM_ORDER_SEED_LIMIT = 2**32
@@ -916,21 +1228,47 @@ def test_random(session: nox.Session) -> None:
     else:
         seed = secrets.randbelow(RANDOM_ORDER_SEED_LIMIT)
     environment = (*SHUFFLED_RUN_ENVIRONMENT, SHUFFLED_RUN_PYTHON)
+    shuffled = (
+        *environment,
+        'pytest',
+        *RANDOM_ORDER_PYTEST_ARGUMENTS,
+        f'--randomly-seed={seed}',
+        '--no-cov',
+        '--log-cli-level=WARNING',
+    )
+    dummy_drivers = {'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'}
+    # As the test session: every test but the wall_clock ones on every core, then those alone,
+    # in one process, collecting only the files that hold them (WALL_CLOCK_TEST_FILES)
+    failed = False
     try:
         session.run(
-            *environment,
-            'pytest',
-            *RANDOM_ORDER_PYTEST_ARGUMENTS,
-            f'--randomly-seed={seed}',
+            *shuffled,
             '-n',
             'auto',
-            '--no-cov',
-            '--log-cli-level=WARNING',
+            '-m',
+            f'not {WALL_CLOCK_MARKER}',
             f'--junitxml=test-results/junit-random-{SHUFFLED_RUN_PYTHON}.xml',
-            env={'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
+            env=dummy_drivers,
             external=True,
         )
     except CommandFailed:
+        failed = True
+    try:
+        session.run(
+            *shuffled,
+            '-n',
+            '0',
+            '-m',
+            WALL_CLOCK_MARKER,
+            f'--junitxml=test-results/junit-random-{SHUFFLED_RUN_PYTHON}-wall-clock.xml',
+            *WALL_CLOCK_TEST_FILES,
+            env=dummy_drivers,
+            external=True,
+            success_codes=NO_TESTS_IS_SUCCESS,
+        )
+    except CommandFailed:
+        failed = True
+    if failed:
         replay = shlex.join([
             *environment,
             'pytest',
@@ -1198,8 +1536,12 @@ def test_linux_x11(session: nox.Session) -> None:
 # CPUs of its resource classes (https://circleci.com/docs/configuration-reference/#resourceclass),
 # where the container's checkout goes and where its test-results/ come back to (git-ignored), the
 # uv cache kept between runs, and where the list of files to copy is mounted
-_CIRCLECI_CONFIG = Path('.circleci/config.yml')
+# The workflows' configuration (.circleci/config.yml only chooses which tests run, then continues
+# with this one)
+_CIRCLECI_CONFIG = Path('.circleci/continue_config.yml')
 _CIRCLECI_LINUX_JOB = 'test-python-3-15-linux'
+# The reusable command that installs the Linux jobs' system packages (the job runs it)
+_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES = 'install-linux-system-dependencies'
 _CIRCLECI_DOCKER_RESOURCES = {'small': ('2g', '1'), 'medium': ('4g', '2'), 'large': ('8g', '4')}
 _LINUX_CI_RESULTS = Path('test-results/linux-ci')
 _LINUX_CI_PLATFORM = 'linux/amd64'
@@ -1284,26 +1626,61 @@ def _circleci_job(*, configuration: str, name: str) -> str:
     return match['body']
 
 
-def _linux_ci_job_packages(*, configuration: str) -> list[str]:
-    """Return the apt packages the Linux job installs, from its own install line.
+def _circleci_command(*, configuration: str, name: str) -> str:
+    """Return a reusable command's definition under ``commands:`` (its lines, as text).
 
-    Read from the job rather than listed again here, so the Docker reproduction installs exactly
-    what the job does (a second list drifted: hidapi's build packages, CircleCI job 3629).
+    Args:
+        configuration: The CircleCI configuration's text.
+        name: The command.
+
+    Returns:
+        From the line after ``  <name>:`` to the next command's (or the end of ``commands:``).
+
+    Raises:
+        ValueError: If the configuration has no such command.
+
+    """
+    commands = configuration[
+        configuration.index('\ncommands:\n') : configuration.index('\njobs:\n') + 1
+    ]
+    match = re.search(rf'^  {name}:\n(?P<body>(?:(?:    .*)?\n)+)', commands, flags=re.MULTILINE)
+    if match is None:
+        message = f'{_CIRCLECI_CONFIG} has no command {name}'
+        raise ValueError(message)
+    return match['body']
+
+
+def _linux_ci_job_packages(*, configuration: str) -> list[str]:
+    """Return the apt packages the Linux job installs, from the install line it runs.
+
+    Read from the configuration rather than listed again here, so the Docker reproduction
+    installs exactly what the job does (a second list drifted: hidapi's build packages, CircleCI
+    job 3629). The job installs them through the shared command
+    ``_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES`` (deploy-docs runs it too).
 
     Args:
         configuration: The CircleCI configuration's text.
 
     Returns:
-        The packages, in the job's order.
+        The packages, in the install line's order.
 
     Raises:
-        ValueError: If the job has no ``sudo apt-get install -y`` line.
+        ValueError: If the job does not run that command, or the command has no
+            ``sudo apt-get install -y`` line.
 
     """
     job = _circleci_job(configuration=configuration, name=_CIRCLECI_LINUX_JOB)
-    install = re.search(r'^\s+sudo apt-get install -y (?P<packages>\S.*)$', job, flags=re.MULTILINE)
+    if f'      - {_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES}\n' not in job:
+        message = f'{_CIRCLECI_LINUX_JOB} does not run {_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES}'
+        raise ValueError(message)
+    command = _circleci_command(
+        configuration=configuration, name=_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES
+    )
+    install = re.search(
+        r'^\s+sudo apt-get install -y (?P<packages>\S.*)$', command, flags=re.MULTILINE
+    )
     if install is None:
-        message = f'{_CIRCLECI_LINUX_JOB} has no "sudo apt-get install -y" line'
+        message = f'{_CIRCLECI_LINUX_SYSTEM_DEPENDENCIES} has no "sudo apt-get install -y" line'
         raise ValueError(message)
     return install['packages'].split()
 
@@ -1445,9 +1822,15 @@ def _linux_ci_script(
         f'sudo chown "$(id -u):$(id -g)" {_LINUX_CI_UV_CACHE}',
         # The checkout step: what git would commit, never ignored files (the host's caches,
         # Hypothesis's database, __pycache__) nor a submodule's contents, which CircleCI's
-        # checkout leaves empty. A copy: the session writes its outputs and a build stamp
+        # checkout leaves empty. A copy: the session writes its outputs and a build stamp. cp, not
+        # tar: under Docker Desktop's amd64 emulation on Apple silicon, GNU tar 1.35 could not
+        # stat any file in a subdirectory of the mounted checkout ("Cannot stat: Function not
+        # implemented", 9,765 of 9,793 files, 2026-11-23), while cp copies them all
         f'mkdir -p {project}',
-        f'tar -C /source --null -T {_LINUX_CI_FILE_LIST} -cf - | tar -C {project} -xf -',
+        (
+            f'cd /source && xargs -0 -a {_LINUX_CI_FILE_LIST} '
+            f'cp --parents --no-dereference --preserve=mode,timestamps -t {project}'
+        ),
         # A .git cloned from the repository's own git directory (mounted read-only at its own
         # path: a worktree's .git names it), which another user owns: a safe directory
         "git config --global --add safe.directory '*'",
@@ -1509,7 +1892,7 @@ def _linux_ci_script(
 def test_linux_ci(session: nox.Session) -> None:
     """Run the tests as CircleCI's Linux job does, in Docker, with its memory and CPUs.
 
-    Reads the job (``test-python-3-15-linux``) from .circleci/config.yml: its image
+    Reads the job (``test-python-3-15-linux``) from .circleci/continue_config.yml: its image
     (``cimg/python:<PYTHON_VERSION>``), its resource class's memory and CPUs (``small``:
     2 GB and 1 CPU; the container gets no swap, as the job has none) and its environment
     (``PYTEST_WORKERS=0``: serial; ``GLITCHYGAMES_TEST_RSS_LIMIT_MB``: tests/memory_guard.py),
@@ -1777,6 +2160,10 @@ _WORKERS_OPTION = '--workers'
 _EVERY_CORE = 'auto'
 _COMPARE_DRIVERS_SEED = 20261023
 _FRAME_FINGERPRINTS_PLUGIN = 'glitchygames.testing.frame_fingerprints'
+# The plugin's option that runs only the tests marked draws_frames: the others present nothing
+# and leave the canvas, so they have no frame to compare (the plugin fails a test whose marker
+# is wrong; plans/2026-11-22-compare-drivers-only-drawing-tests.md)
+_DRAWS_FRAMES_ONLY_OPTION = '--draws-frames-only'
 # pytest's exit codes the comparison continues after: all passed, or some tests failed (a
 # failure on one configuration is a finding, reported with the frames)
 _PYTEST_FINISHED_CODES = [0, 1]
@@ -1992,13 +2379,16 @@ _NATIVE_CONFIGURATION_NAMES = ('cocoa', 'windows', 'wayland', 'x11')
 # Native runs only, never CI or a plain pytest: on 2026-11-20 a hung
 # pygame.mixer.init (SDL's audio thread crashed and pygame-ce's parachute handler spun on it,
 # #252) held the native run until it was killed by hand. A crash now fails at once; this limit
-# still catches a hang that is not a crash. The slowest healthy test
-# takes about 30 s, so 120 s is four times that. The thread method ends the worker process (xdist
-# reports the crash and replaces the worker) where the signal method would not interrupt a call
-# stuck inside a C library. Caveat: `os._exit` runs no fixture teardown, so a hung test's
-# children (in sessions of their own) may outlive the worker (not tested; the bug record
+# still catches a hang that is not a crash. It is longer than any test's own wait on a child
+# (300 s at most; tests/test_per_test_limit.py checks it), so under load a test's own timeout,
+# which stops and reaps its child, fires first: at 120 s, at a load average of 176, the limit
+# ended a test waiting on its Mr. Muncher replay (bugs/2026-11-20-process-stop-tests-failed-
+# under-load.md). The thread method ends the worker process (xdist reports the crash and
+# replaces the worker) where the signal method would not interrupt a call stuck inside a C
+# library. `os._exit` runs no fixture teardown, so tests/per_test_limit.py kills and reaps the
+# test's children first (it left them running: reproduced 2026-11-22; the bug record
 # bugs/2026-11-20-native-run-burned-two-hours-on-a-broken-coreaudio.md)
-_NATIVE_RUN_TIMEOUT_SECONDS = 120
+_NATIVE_RUN_TIMEOUT_SECONDS = 360
 # Ten seconds before that, faulthandler (pytest's faulthandler_timeout) writes every thread's
 # stack to the worker's real stderr. pytest-timeout's own stack dump goes through the terminal
 # writer, which an xdist worker does not forward (measured: nothing is shown), so without this
@@ -2037,7 +2427,9 @@ def _run_fingerprinted_tests(
 ) -> None:
     """Run tests on one driver configuration with the frame fingerprints plugin.
 
-    Coverage is off (it would only slow the runs); the live log shows warnings only.
+    Coverage is off (it would only slow the runs); the live log shows warnings only. Only the
+    tests marked ``draws_frames`` run (``--draws-frames-only``): no other test has frames to
+    compare.
 
     Args:
         session: The nox session.
@@ -2060,6 +2452,7 @@ def _run_fingerprinted_tests(
         _FRAME_FINGERPRINTS_PLUGIN,
         f'--frame-fingerprints={directory}',
         f'--frame-fingerprints-seed={_COMPARE_DRIVERS_SEED}',
+        _DRAWS_FRAMES_ONLY_OPTION,
         *(
             _NATIVE_RUN_TIMEOUT_ARGUMENTS
             if configuration['name'] in _NATIVE_CONFIGURATION_NAMES
@@ -2264,8 +2657,9 @@ def compare_drivers(session: nox.Session) -> None:
     the pre-push hook's); scripts/driver_frame_matrix.py compares every pair. With
     `--skip-when-frames-cannot-change` (the pre-push hook's) a push changing only paths that cannot
     change a frame (`_path_cannot_change_frames`) is not compared. The
-    differing tests are re-run on every configuration saving PNGs of their differing frames,
-    and each differing pair gets a difference image (differing pixels magenta) under
+    differing tests are re-run on every configuration saving PNGs of the frames around their
+    first difference (each re-run stops once it has saved them, unless they reach the test's
+    final frame), and each differing pair gets a difference image (differing pixels magenta) under
     test-results/driver-comparison/nox/differences/<first>-vs-<second>/. The report,
     test-results/driver-comparison/nox/matrix.md, has each run's time, a summary per pair, the
     patterns of agreement and a table per test (first differing frame, differing pixels,
@@ -2829,8 +3223,8 @@ def code_complexity(session: nox.Session) -> None:
     Tools: complexity_report.py (wily: the working tree's changes against HEAD, the history measured
     in a temporary worktree so the working tree is never checked out over), and
     generate_complexity_graphs.py (the docs' complexity explorer data, generated in a temporary
-    worktree from the whole history into docs/quality/graphs/, which git ignores; every mkdocs
-    build does too)
+    worktree from the whole history into docs/quality/graphs/, which git ignores; a deploy's
+    docs build does too, and a later local docs build of the same HEAD shows them)
 
     Usage:
         nox -s code-complexity              # The working tree's changes against HEAD
@@ -2937,6 +3331,16 @@ def infra_deploy(session: nox.Session) -> None:
     _run_cdk(session, 'deploy', *stacks, '--require-approval', 'broadening')
 
 
+def _require_head_on_origin_main(session: nox.Session) -> None:
+    """Fail the session unless HEAD is on origin/main (what the deploys may publish).
+
+    Args:
+        session: The nox session.
+
+    """
+    session.run('git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main', external=True)
+
+
 # What site-publish publishes when given nothing: the website (for now its page and the mockup)
 # (docs/specs/2026-10-27-glitchy-games-website-design.md, What gets published at launch)
 _SITE_DEFAULT_SOURCE = 'src/website'
@@ -2949,14 +3353,31 @@ def site_publish(session: nox.Session) -> None:
     CircleCI's deploy-site job runs it after a merge to main (OIDC credentials); the owner can
     run it from the Mac with their own profile.
 
+    A publish is refused unless HEAD is on origin/main and the source has no uncommitted changes:
+    the docs and the site deploy side by side, each under its own lock (the owner, 2026-11-20), so
+    only what main holds may reach the site. ``--dry-run`` changes nothing and skips the checks;
+    ``--allow-unmerged`` skips them on purpose, for a preview from a branch.
+
     Usage:
         nox -s site-publish                                   # src/website
         nox -s site-publish -- --source build/browser/site    # Another directory
         nox -s site-publish -- --dry-run                      # Print the plan, change nothing
+        nox -s site-publish -- --allow-unmerged               # Publish a branch's preview
     """
-    arguments = list(session.posargs)
+    arguments = [argument for argument in session.posargs if argument != '--allow-unmerged']
     if '--source' not in arguments:
         arguments = ['--source', _SITE_DEFAULT_SOURCE, *arguments]
+    if '--allow-unmerged' not in session.posargs and '--dry-run' not in arguments:
+        _require_head_on_origin_main(session)
+        source = arguments[arguments.index('--source') + 1]
+        changes = session.run(
+            'git', 'status', '--porcelain', '--', source, external=True, silent=True
+        )
+        if changes and changes.strip():
+            session.error(
+                f'{source} has uncommitted changes; commit them, or preview with '
+                f'--allow-unmerged:\n{changes}'
+            )
     session.run(
         'uv',
         'run',

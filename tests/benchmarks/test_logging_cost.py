@@ -16,10 +16,10 @@ are printed and written to ``test-results/logging-cost.md``.
 Not in the test run (``nox -s test``, every CI job's tests): it replays every recording three
 times (about a minute and a half), so it runs only under ``--benchmark-only`` and is skipped
 otherwise. pytest-benchmark's own switch is not enough: it turns benchmarks off only under
-xdist, and the Linux CI job runs serially. CI does run it: the macOS job's ``nox -s
-performance-test`` passes ``--benchmark-only`` (.circleci/config.yml), where a rebaseline that
-fails, or a quiet run that logs below warning, fails the job. Locally: the command in
-docs/quality/performance.md.
+xdist, and the Linux CI job runs serially. CI does run it: the macOS job's
+``nox -s performance-test`` passes ``--benchmark-only`` (.circleci/continue_config.yml), where
+a rebaseline that fails, or a quiet run that logs below warning, fails the job. Locally: the
+command in docs/quality/performance.md.
 """
 
 from __future__ import annotations

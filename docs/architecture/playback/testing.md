@@ -13,9 +13,9 @@ flowchart TD
         doors["Doors guard<br/>tests/test_engine_doors.py"]
         memory["Memory guard<br/>(CI Linux only)"]
     end
-    subgraph tools ["On demand, and in the commit hook"]
+    subgraph tools ["On demand"]
         verify["glitchygames verify"]
-        measure["glitchygames measure<br/>(pre-commit replay-metrics)"]
+        measure["glitchygames measure<br/>(by hand: nox -s measure-staged)"]
         rebaseline["--rebaseline<br/>(after an intended change)"]
         audit["--audit<br/>(determinism)"]
     end
@@ -98,16 +98,15 @@ refusal, every exit code.
   golden follows an intended change. NEW replaces OLD only as a deliberate, reviewed step.
 - **`glitchygames measure`** rebaselines each recording headless into a temporary file, in a
   child, and turns the result into ledger rows (`src/glitchygames/replay/tools/measure.py`).
-  - The `replay-metrics` pre-commit hook (`scripts/measure_staged_replays.py`) runs it whenever
-    this machine has not measured the staged code tree, so every commit carries its measurements.
+  - `nox -s measure-staged` (`scripts/measure_staged_replays.py`) runs it by hand whenever this
+    machine has not measured the staged code tree. It was the `replay-metrics` pre-commit hook
+    until the owner stopped committing replay-ledger rows (2026-11-22; they move to S3).
 
 ```mermaid
 flowchart LR
     change["intended change<br/>to a game"] --> rb["--rebaseline OLD NEW<br/>(review the summary)"]
     rb --> replace["replace OLD with NEW<br/>(deliberate step)"]
     replace --> commit["git commit"]
-    commit --> hook["replay-metrics hook:<br/>measure = rebaseline each recording<br/>into a temp file"]
-    hook --> rows["ledger rows<br/>staged into the commit"]
     commit --> suite["test run: golden replays<br/>must match"]
 ```
 
@@ -160,7 +159,7 @@ test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
 `tests/test_memory_guard.py`).
 
 - It is on only when `GLITCHYGAMES_TEST_RSS_LIMIT_MB` is set; CircleCI's Linux and Raspberry Pi
-  jobs set 1400.
+  jobs set 1500 (1400 from 2026-11-19 until every machine collected the whole suite, #286).
 - A background thread samples memory every `SAMPLE_INTERVAL_SECONDS`, and each test's start and
   end are checked too.
 - It reads the container's memory (cgroup v2) where there is one, else this process's resident
@@ -171,24 +170,112 @@ test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
 ## A CI job split across machines
 
 **Intent:** one CircleCI job ran past CircleCI's one-hour job limit running the whole suite on
-one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs on two
-(`parallelism: 2`), each running a share (`tests/circleci_test_split.py`;
+one machine (Linux, jobs 3705 and 3707), so the Linux test job runs on six machines and the
+Windows one on three (`parallelism`; two until 2026-11-20, Linux three until 2026-11-23), each
+running a share (`tests/circleci_test_split.py`;
 `tests/test_circleci_test_split.py`).
 
 - It is on only when `GLITCHYGAMES_TEST_SPLIT` is `circleci`; the split jobs set it, and any
   other value stops the run. It needs CircleCI's `CIRCLE_NODE_TOTAL`, `CIRCLE_NODE_INDEX` and
   `circleci` command, so it is never set locally (`nox -s test-linux-ci` leaves it out).
-- Before collection, every test file pytest would collect, golden replays included, is listed
-  without importing any and goes to `circleci tests split --split-by=timings`. Only the files it
-  returns are collected; the rest are skipped before pytest imports them, which saves each
-  machine about 150 MiB over collecting everything and deselecting half. A test collected from a
-  file the listing missed stops the run, naming it. The share is written to
+- The share is chosen test by test, not file by file (the owner, 2026-11-23): whole files once
+  put all 42 heavy inner-game replay cases on one machine (#285's Windows job 5051: 1,914 s
+  against 1,312 and 1,297), concentrating the most taxing tests where load, timeouts and races
+  bite. Every machine collects the whole suite (about 150 MiB more than collecting its own files,
+  and a module-scoped fixture is set up on each machine that runs one of its tests: costs the
+  owner accepted), then keeps its share.
+- Tests marked `heavy_replay(reason=...)` are dealt first, round-robin in node-id order, so the
+  machines' counts differ by at most one from their first run. Every other test, named as its
+  JUnit report names it (`classname.name`, `junit_family=xunit1`, which the test session adds for
+  a split job), goes sorted to `circleci tests split --split-by=timings --timings-type=testname`.
+  Every collected test runs on exactly one machine. CircleCI's docs do not say which JUnit
+  attributes `testname` matches: when none match, the splitter weighs the tests by name and says
+  so in `test-results/test-split-messages-<pid>.txt`. The share is written to
   `test-results/test-split.txt`.
-- CircleCI's timings come from the JUnit reports, which name each test's file
-  (`junit_family=xunit1`, which the test session adds for a split job).
 - No share reaches the 100% coverage rule alone, so the test session turns it off for a share;
   each machine keeps its `.coverage` in `coverage-data/<job>/`, and a `coverage-combine-*` job
   combines them on the job's Python and applies the rule (`nox -s coverage-combine-3.15`).
+
+## Tests that time real work
+
+**Intent:** a test that times real work against a tolerance measures the machine, not the code,
+when other tests share its CPUs. #287's Windows job (5141) ran four workers on four CPUs, and a
+timer accuracy test trailed the OS sleep by 19 ms against its 3 ms bound; the owner, 2026-11-23,
+kept the workers and set these tests apart.
+
+- Such a test carries `@pytest.mark.wall_clock(reason=...)` (registered in `tests/harness.py`).
+  `tests/test_suite_collection.py` holds the swept files to it: a test there that reads the real
+  clock is marked, or listed with why it bounds no duration.
+- `nox -s test` runs the suite twice: every other test on its workers (`-m "not wall_clock"`,
+  coverage rule off), then the marked tests alone, in one process (`-n 0 -m wall_clock`), given only the files that
+  hold them (`noxfile.WALL_CLOCK_TEST_FILES`, held to the files using the marker by
+  `tests/test_ci_config.py`) so the suite is not collected twice, appending to the first run's coverage, so the 100% rule is applied to both, and writing
+  `test-results/junit-wall-clock.xml`. On a split CI machine each run is split on its own, and a
+  machine dealt no marked test collects nothing (exit 5, which passes). `nox -s test-random`,
+  the pre-push hook, splits its shuffled run the same way.
+
+## The suite's order in CI
+
+**Intent:** catch a test that passes only after, or only before, another on every CI platform and
+driver, not only in the pre-push hook's shuffled run (`nox -s test-random`: 3.15, the dummy
+drivers, the owner's Mac). Every ordinary run keeps the files' order (`-p no:randomly` in
+`pyproject.toml`'s `addopts`).
+
+- The test session reads `GLITCHYGAMES_TEST_ORDER`: unset or `fixed` keeps the files' order;
+  `roll` flips a coin for fixed or shuffled and, for shuffled, draws a seed; a number shuffles
+  with that seed. Anything else stops the run (`noxfile.choose_suite_order`).
+- CircleCI's test jobs (macOS, Linux, Windows, the Raspberry Pi) set `roll`, so each machine of
+  each job rolls for itself. On CircleCI nothing is drawn: SHA-256 of the workflow's workspace
+  ID (`CIRCLE_WORKFLOW_WORKSPACE_ID`), the job and the machine index gives the coin and the seed.
+  Each pipeline has a new workspace, so each push rolls anew, and "Rerun workflow from failed"
+  keeps it, so a rerun repeats its first run's roll and a shuffle-only failure comes back rather
+  than vanishing. That a rerun keeps the workspace ID (and gets a new `CIRCLE_WORKFLOW_ID`) is a
+  community report, not CircleCI documentation: compare a rerun's order with its first run's
+  before relying on it. Without a workspace (a local run) a roll is a random draw.
+- The job's log names the order before the tests start ("Test order: shuffled, seed N" or
+  "Test order: fixed"), with the workspace, the machine and whether the workflow is a first run
+  or a rerun (its workflow ID differs from its workspace ID), and again after a failure, with the
+  command that replays it. The same goes to `test-results/test-order.txt` (in the job's
+  artifacts, uploaded even when the tests fail). A split machine shuffled only its share: name
+  the tests kept in its `test-results/test-split.txt` to replay its order; a rerun may give a
+  machine slightly different tests if CircleCI's timings changed in between.
+- A shuffle only reorders (`--randomly-dont-reset-seed`, as `nox -s test-random`), so coverage,
+  the driver comparison and each test's own randomness are unchanged.
+
+- The first rolled run found one (CircleCI job 4458, seed 4083822362): the zombies game's
+  scene-name test imported every module of the package, `__main__` included, and a later
+  `python -m` test then tripped runpy's warning that `__main__` was already imported. The walk
+  now skips `__main__`, and every `python -m` test runs through
+  `glitchygames.testing.entry_points.run_package_as_main`, which removes `<package>.__main__`
+  from `sys.modules` first; `tests/test_suite_collection.py` fails on any direct
+  `runpy.run_module` in a test.
+
+## Docs-only pull requests
+
+**Intent:** a pull request that changes only Markdown (a plan, a bug file, the docs' prose, a
+rule) needn't wait for the test jobs: a plan-only one waited hours for the single macOS queue,
+holding back code pull requests (the owner, 2026-11-20).
+
+- `.circleci/config.yml` is a setup configuration: its one small job lists the branch's change
+  since it left main (`git diff --name-only --no-renames` against the merge-base, both sides of a
+  rename) and runs `scripts/ci_change_scope.py`, which uses Python's standard library only, so
+  nothing is installed first. It continues with `.circleci/continue_config.yml`, which holds every
+  job, passing the `test-scope` parameter.
+- "Markdown only" is the pre-commit hooks' own definition: every changed path matches their
+  `exclude`, `\.md$` (a Markdown-only commit runs no hook). One definition:
+  `tests/test_ci_change_scope.py` holds the script's pattern to the hooks' file.
+- `test-scope` is `markdown` for such a branch: the macOS, Linux and Windows test jobs, the
+  coverage combines and `checks-linux` (whose only Markdown check is the strict docs build) are
+  left out (each carries `filters: pipeline.parameters.test-scope ==
+  "all"`), and `markdown-checks` runs on one Linux machine instead: the strict docs build and the
+  tests that read Markdown (`nox -s test-markdown`). Main, a tag, any other change, or a change git
+  can't list gets `all`.
+- The tests that read Markdown are `noxfile.MARKDOWN_TEST_FILES`, which
+  `tests/test_ci_config.py` holds to exactly the test files that name a Markdown file in their
+  code (a string ending `.md`, or a `*.md` pattern; docstrings and comments don't count). A test
+  that reads Markdown another way isn't detected: add it to the list by hand.
+- The workflow is still `build-and-test`, the check main's ruleset requires, so a docs-only pull
+  request can still merge.
 
 ## Memory by test file
 

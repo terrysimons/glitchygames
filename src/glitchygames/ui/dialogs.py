@@ -183,14 +183,13 @@ class InputConfirmationDialogScene(Scene):
         dialog_width = self.screen_width // 2
         dialog_height = self.screen_height // 2
 
-        assert self.screen is not None
         self.dialog = InputDialog(
             name=self.NAME,
             dialog_text=self.DIALOG_TEXT,  # Use this instance's DIALOG_TEXT
             confirm_text=self.CONFIRMATION_TEXT,
             cancel_text=self.CANCEL_TEXT,
-            x=self.screen.get_rect().center[0] - (dialog_width // 2),
-            y=self.screen.get_rect().center[1] - (dialog_height // 2),
+            x=self.screen_width // 2 - (dialog_width // 2),
+            y=self.screen_height // 2 - (dialog_height // 2),
             width=dialog_width,
             height=dialog_height,
             parent=self,
@@ -533,14 +532,13 @@ class DeleteAnimationDialogScene(Scene):
 
         message = f"Type '{animation_name}' to confirm deletion:"
 
-        assert self.screen is not None
         self.dialog = InputDialog(
             name=self.NAME,
             dialog_text=message,
             confirm_text='Delete',
             cancel_text='Cancel',
-            x=self.screen.get_rect().center[0] - (dialog_width // 2),
-            y=self.screen.get_rect().center[1] - (dialog_height // 2),
+            x=self.screen_width // 2 - (dialog_width // 2),
+            y=self.screen_height // 2 - (dialog_height // 2),
             width=dialog_width,
             height=dialog_height,
             parent=self,
@@ -660,14 +658,13 @@ class DeleteFrameDialogScene(Scene):
         message1 = f"Delete this frame from '{animation_name}'?"
         message2 = "Type 'YES' to confirm:"
 
-        assert self.screen is not None
         self.dialog = InputDialog(
             name=self.NAME,
             dialog_text=message1,
             confirm_text='Delete',
             cancel_text='Cancel',
-            x=self.screen.get_rect().center[0] - (dialog_width // 2),
-            y=self.screen.get_rect().center[1] - (dialog_height // 2),
+            x=self.screen_width // 2 - (dialog_width // 2),
+            y=self.screen_height // 2 - (dialog_height // 2),
             width=dialog_width,
             height=dialog_height,
             parent=self,
@@ -680,7 +677,6 @@ class DeleteFrameDialogScene(Scene):
         from glitchygames.ui import TextSprite
 
         dialog_text_rect = self.dialog.dialog_text_sprite.rect
-        assert dialog_text_rect is not None
         self.second_label = TextSprite(
             text=message2,
             x=int(dialog_text_rect.x),

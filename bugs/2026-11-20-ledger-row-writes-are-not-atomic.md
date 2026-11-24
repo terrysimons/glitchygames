@@ -1,0 +1,25 @@
+# Ledger Row Writes Are Not Atomic
+
+- **Description**: A measurement writes each finished recording's ledger row with `Path.write_text` (`src/glitchygames/recording_metrics.py`, `write_row_files`), which truncates the file and then writes it; the pending ledger appends with `open('a').write(...)` (`src/glitchygames/replay/tools/measure.py`). A SIGINT, kill or power cut during either write can leave a truncated row. Found by reading the code (the coordinating session's question, 2026-11-20, after a pre-push measurement on the Pis was stopped with SIGINT); not observed. The window is small (one row is a few hundred bytes), but every stopped push measuring on the Pis is a chance.
+- **Status**: Fixed (2026-11-21, branch `fix/ledger-writes-are-whole-or-nothing`)
+- **Priority**: Low to Medium (rare, but the Pi case below blocks a Pi's rows for every later push of that tree until someone deletes a file by hand on the Pi)
+- **What a truncated row does** (each from the code, not reproduced):
+  - Read locally, it is harmless: `parse_ledger` skips a line that isn't JSON or isn't a row, so the recording counts as unmeasured and is measured again. A row is written only after its recording's measurement finished, so there is no half-measured row, only a half-written one.
+  - In a Pi's measuring clone it blocks that Pi: the re-measurement writes a new file (its name holds the new `measured_at`), so the truncated file stays, untracked. The next push's hook archives every row file named for the tree, and `scripts/measure_on_raspberry_pi.py`'s `_is_row_of_tree` refuses a file that isn't JSON, so `_fetch_rows` copies none of that Pi's rows and the hook fails, naming the file, on every push of that tree.
+  - In the pending ledger (`--pending`, the default without `--rows-directory`), a truncated last line has no line break, so the next appended row joins it on the same line and both are skipped as unreadable: that row is lost silently.
+- **Root Cause**: a file other runs read is written in place instead of whole-or-nothing.
+- **Test gap**: no test interrupts a write; the tests write rows only to completion.
+- **Fix options** (for the owner, after the freeze): write each row file to a temporary name in the same folder and `os.replace` it into place (atomic on POSIX and Windows); for the pending ledger, write each row as one `write` of a complete line and, before appending, end a file whose last byte isn't a line break with one (so a partial line can't swallow the next row); have the Pi hook skip (and name) an unreadable row file instead of refusing all of a Pi's rows, or delete it on the Pi before measuring. Tests: a write interrupted after N bytes (an injected failure) leaves no file that a later read or the hook would take.
+- **Fix** (2026-11-21): the options above, all taken.
+  - Row files and the pending ledger's rewrite (`measure.clear_published`) go through `recording_metrics.write_ledger_file`, which uses `output_files.write_text_whole`. That writes the partial file, syncs it to the disk and replaces the file, so a stop or a power cut leaves the old text or the new.
+  - The pending ledger's append goes through `recording_metrics.append_ledger_rows`: complete lines in one synced write, after ending a cut last line with a line break.
+  - The Pi hook's `_fetch_rows` skips and names a row file that is not JSON instead of refusing every row of that Pi. A readable row of another tree is still refused.
+  - A sibling this record missed: `clear_published` rewrote the pending ledger in place, so a stop at its first byte emptied it and lost every pending row. It was proven by a test that failed before the fix.
+- **Tests**:
+  - Regression tests that failed before the fix, in `tests/test_recording_metrics.py`, `tests/replay/tools/test_measure.py` and `tests/test_measure_on_raspberry_pi.py`. `tests/interrupted_writes.py` cuts writes short.
+  - The invariant: a rewrite or an append stopped at every character keeps the old rows or all the new, and loses no earlier or later row.
+  - The source guard, `tests/test_ledger_write_source_guard.py`: in the ledger-writing modules, only the allowed writers open a file for writing. `scripts/measure_on_raspberry_pi.py` is not scanned, because engine tests never reach `scripts/`; it writes no ledger itself, but its local `tarfile.extractall` of a Pi's rows is not whole-or-nothing. A cut extraction leaves a truncated, untracked row that readers skip and the next push overwrites.
+- **Siblings**: the sweep of every file write in `src/` and `scripts/` found user saves that are not whole-or-nothing. They are recorded in bugs/2026-11-21-sprite-saves-are-not-atomic.md.
+- **Reporter**: Claude
+- **Date Reported**: 2026-11-20
+- **Files**: `src/glitchygames/recording_metrics.py` (`write_row_files`), `src/glitchygames/replay/tools/measure.py` (the pending append), `scripts/measure_on_raspberry_pi.py` (`_is_row_of_tree`, `_fetch_rows`)

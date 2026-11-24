@@ -1,6 +1,7 @@
 """Tests for paddle game objects."""
 
 import pygame
+import pytest
 
 from glitchygames.game_objects.paddle import BasePaddle, HorizontalPaddle, VerticalPaddle
 from glitchygames.movement.horizontal import Horizontal
@@ -150,6 +151,7 @@ class TestPaddleDrawing(BasePaddleTest):
         )
         assert matching_pixels == SIZE_20 * SIZE_100
 
+    @pytest.mark.draws_frames
     def test_paddle_draws_onto_the_display(self):
         """Drawing the paddle's group puts its color on the display at its rect, nothing else."""
         display = pygame.display.get_surface()

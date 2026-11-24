@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import pygame
 import pytest
 
+from glitchygames.checks import MissingValueError
 from glitchygames.crt_power_on import PowerOnOutcome
 from glitchygames.crt_power_on_sound import CrtPowerOnSound
 from glitchygames.engine import GameEngine
@@ -209,6 +210,7 @@ class TestEngineLifecycle:
         engine.process_events()
         assert engine.scene_manager.quit_requested is True
 
+    @pytest.mark.draws_frames
     def test_game_engine_start_runs_the_game_until_it_quits(self, mocker):
         """start() builds the game, runs its frames until it quits, and returns normally."""
         game_class = first_frame_game()
@@ -227,6 +229,7 @@ class TestEngineLifecycle:
         assert engine.scene_manager.active_scene is None
         shutdown.assert_called_once_with(run_ended_by=None)
 
+    @pytest.mark.draws_frames
     def test_game_engine_start_with_profiling(self, mocker, capsys):
         """A --profile run profiles the whole run and prints the profile after the teardown."""
         game_class = first_frame_game()
@@ -237,6 +240,7 @@ class TestEngineLifecycle:
         assert engine.running_game.instance.frames_run == 1
         assert PROFILE_REPORT_MARKER in capsys.readouterr().out
 
+    @pytest.mark.draws_frames
     def test_game_engine_start_without_profiling_prints_no_profile(self, mocker, capsys):
         """Without --profile, no profile is printed."""
         engine = build_engine(mocker, game=first_frame_game())
@@ -256,6 +260,7 @@ class TestEngineLifecycle:
         assert exit_info.value.code == ExitCode.INTERNAL_ERROR
         assert exit_info.value.__cause__ is run_error
 
+    @pytest.mark.draws_frames
     def test_start_method_initializes_real_managers(self, mocker):
         """start() makes the game and the engine's event managers, wired to the scene manager."""
         game_class = first_frame_game()
@@ -323,6 +328,7 @@ class TestEngineLifecycle:
 
         assert logged_crash_scene_names(caplog) == [game_class.NAME]
 
+    @pytest.mark.draws_frames
     def test_start_method_error_message_with_previous_scene(self, mocker, caplog):
         """A crash in the scene switched to is logged with its name, not the previous scene's."""
         crashing_scene_class = first_frame_game(run_error=RuntimeError('Test exception'))
@@ -405,6 +411,7 @@ class TestStartExitStatus:
         assert all(record.exc_info is None for record in caplog.records)
         assert BUG_REPORT_HINT not in caplog.text
 
+    @pytest.mark.draws_frames
     def test_signal_handlers_are_restored_even_when_the_teardown_does_not(self, mocker):
         """start() restores what it installed itself, so a mocked _shutdown leaks nothing."""
         handlers_before = {
@@ -420,7 +427,9 @@ class TestStartExitStatus:
         } == handlers_before
 
     @pytest.mark.parametrize(
-        'run_error', [None, RuntimeError('the game broke')], ids=['clean run', 'crashed run']
+        'run_error',
+        [pytest.param(None, marks=pytest.mark.draws_frames), RuntimeError('the game broke')],
+        ids=['clean run', 'crashed run'],
     )
     def test_a_teardown_failure_exits_as_an_internal_error(self, mocker, caplog, run_error):
         """A _shutdown that raises never leaves Python to exit 1; every error is logged."""
@@ -479,6 +488,7 @@ class TestHostedRuns:
         assert isinstance(engine.host.sources, HostSources)
         assert isinstance(engine.host.sources.inner, LiveSources)
 
+    @pytest.mark.draws_frames
     def test_start_async_runs_the_game_until_it_quits(self, mocker):
         """start_async builds the game, runs its frames on the ticks, and ends normally."""
         game_class = first_frame_game()
@@ -515,6 +525,7 @@ class TestHostedRuns:
         with pytest.raises(RuntimeError, match='runs live games and watched replays only'):
             asyncio.run(engine.start_async(wait_for_tick=wait_for_tick))
 
+    @pytest.mark.draws_frames
     def test_start_calibrates_a_paced_games_timer(self, mocker):
         """The blocking run paces with the timer, so --timer-backend auto measures it first."""
         engine = build_engine(mocker, game=first_frame_game(), extra_arguments=PACED_ARGUMENTS)
@@ -525,6 +536,7 @@ class TestHostedRuns:
         # Again at its first paced frame (FastTimer.start_frame), where it does nothing
         calibrate.assert_called()
 
+    @pytest.mark.draws_frames
     def test_start_async_never_calibrates_the_timer(self, mocker):
         """The async run's outer tick is its wait: the timer never paces it, so it is not measured.
 
@@ -765,6 +777,36 @@ class TestGameFlagTools:
         # A game takes --log-level, so its tool's crash tells the player to rerun it at info
         assert bug_report_hints_follow_each_traceback(caplog)
 
+    def test_a_tool_that_returns_no_exit_code_exits_internal_error_naming_the_bug(
+        self, mocker, caplog
+    ):
+        """A game-handler tool always ends the run; one that returns None is a bug, not a pass."""
+        tool = tool_that_runs_no_game(calls=[], exit_code=ExitCode.SUCCESS)
+        mocker.patch.object(registry, 'TOOLS', (*registry.TOOLS, tool))
+        mocker.patch.object(game_engine_module, 'run_game_flag_tool', return_value=None)
+
+        with pytest.raises(SystemExit) as exit_information:
+            build_engine(
+                mocker,
+                game=GameWhoseConstructorRaises,
+                extra_arguments=('--report-thing', 'run.jsonl.gz'),
+            )
+
+        assert exit_information.value.code == ExitCode.INTERNAL_ERROR
+        assert 'MissingValueError' in caplog.text
+        assert "the game-flag tool's exit code is missing" in caplog.text
+
+    def test_a_frame_stream_address_that_does_not_read_raises_a_named_error(self, mocker):
+        """--replay-frame-stream is refused before the replay starts when it does not read."""
+        engine = GameEngine.__new__(GameEngine)
+
+        with pytest.raises(
+            MissingValueError, match=r'^the replay frame stream\'s address is missing$'
+        ):
+            engine._connect_the_frame_stream(
+                sources=mocker.Mock(), options={'replay_frame_stream': 'not-an-address'}
+            )
+
     def test_ctrl_c_in_a_tool_exits_interrupted(self, mocker):
         """Ctrl-C (KeyboardInterrupt) during a tool exits INTERRUPTED, as during a run."""
         tool = raising_tool(error=KeyboardInterrupt())
@@ -965,6 +1007,7 @@ def game_noting_when_it_is_built(*, run_log: list[str]) -> type[FirstFrameGame]:
 class TestCrtPowerOnBeforeEveryGame:
     """The power-on sequence plays on the game's canvas before the game is built."""
 
+    @pytest.mark.draws_frames
     def test_start_plays_it_before_the_game_is_built(self, mocker):
         run_log: list[str] = []
         engine = build_engine(
@@ -982,6 +1025,7 @@ class TestCrtPowerOnBeforeEveryGame:
 
         assert run_log == ['power on', 'game built']
 
+    @pytest.mark.draws_frames
     def test_start_async_plays_the_async_sequence_first(self, mocker):
         run_log: list[str] = []
         engine = build_engine(
@@ -1002,6 +1046,7 @@ class TestCrtPowerOnBeforeEveryGame:
 
         assert run_log == ['power on (async)', 'game built']
 
+    @pytest.mark.draws_frames
     def test_the_game_is_handed_its_screen_and_doors(self, mocker):
         engine = build_engine(
             mocker, game=first_frame_game(), extra_arguments=('--crt-power-on', 'on')
@@ -1018,6 +1063,7 @@ class TestCrtPowerOnBeforeEveryGame:
         # And its sound (--crt-power-on-sound on, the default): glitchygames/crt_power_on_sound.py
         assert isinstance(player.call_args.kwargs['sound_cues'], CrtPowerOnSound)
 
+    @pytest.mark.draws_frames
     def test_closing_the_window_during_it_quits_the_game(self, mocker):
         """The QUIT is handed back to the game, which then ends the run normally."""
         engine = build_engine(
@@ -1031,6 +1077,7 @@ class TestCrtPowerOnBeforeEveryGame:
         (call,) = posted.call_args_list
         assert call.kwargs['event'].type == pygame.QUIT
 
+    @pytest.mark.draws_frames
     def test_a_skip_hands_nothing_to_the_game(self, mocker):
         engine = build_engine(
             mocker, game=first_frame_game(), extra_arguments=('--crt-power-on', 'on')
@@ -1044,6 +1091,7 @@ class TestCrtPowerOnBeforeEveryGame:
 
         posted.assert_not_called()
 
+    @pytest.mark.draws_frames
     def test_by_default_it_never_plays_on_the_test_driver(self, mocker):
         """Auto on SDL's dummy driver: no test pays for the sequence."""
         engine = build_engine(mocker, game=first_frame_game())
@@ -1109,6 +1157,7 @@ def option_shown(*, record: logging.LogRecord, name: str) -> str:
 class TestStartupOptions:
     """Every engine start logs the run's options once, at CRITICAL (the owner, 2026-10-28)."""
 
+    @pytest.mark.draws_frames
     def test_the_start_line_names_the_game_not_the_engine(self, mocker, caplog):
         """'Starting game engine for game: <the game's NAME>', as the options block names it.
 
@@ -1128,6 +1177,7 @@ class TestStartupOptions:
         assert start_lines == [f'Starting game engine for game: {game_class.NAME}']
         assert game_class.NAME != type(engine).NAME
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('level', ['debug', 'info', 'warning', 'error', 'critical'])
     def test_the_options_show_once_at_every_level(self, mocker, caplog, level):
         """At any --log-level, the default warning included, one CRITICAL block per start."""
@@ -1142,6 +1192,7 @@ class TestStartupOptions:
         assert record.levelno == logging.CRITICAL
         assert option_shown(record=record, name='log_level') == repr(level)
 
+    @pytest.mark.draws_frames
     def test_a_secret_looking_option_is_redacted(self, mocker, caplog):
         """--api-key's value never reaches the log; the block shows <redacted> in its place."""
         engine = build_engine(
@@ -1159,6 +1210,7 @@ class TestStartupOptions:
             game_engine_module.REDACTED_OPTION_VALUE
         )
 
+    @pytest.mark.draws_frames
     def test_a_rolled_seed_is_shown_as_the_seed_the_run_uses(self, mocker, caplog):
         """No --random-seed: the block shows the rolled seed, not None, so the run can be redone.
 
@@ -1173,6 +1225,7 @@ class TestStartupOptions:
         (record,) = startup_option_records(caplog, game_name=game_class.NAME)
         assert option_shown(record=record, name='random_seed') == str(engine.random_seed)
 
+    @pytest.mark.draws_frames
     def test_a_given_seed_is_shown(self, mocker, caplog):
         """--random-seed 5: the block shows 5."""
         game_class = first_frame_game()

@@ -358,6 +358,7 @@ class TestPresentation:
         finally:
             discard_audio_engine()
 
+    @pytest.mark.draws_frames
     def test_a_hidden_overlay_builds_no_audio_snapshot(self, manager, mocker):
         """The overlay off costs nothing: no snapshot is built for a frame it does not draw."""
         discard_audio_engine()

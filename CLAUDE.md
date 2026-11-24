@@ -36,10 +36,10 @@ Everything runs on Python 3.15: the tests (`noxfile.TEST_PYTHONS`), every other 
 it stays only the oldest the code must parse and type-check as (`requires-python`, ruff's
 `target-version`, the type checkers' python version), because the browser builds' Pyodide 314 runs
 it: nothing tests on 3.14, so keep to what 3.14 has. Move those to 3.15 when a Pyodide on 3.15
-ships. Each Linux and Windows job is split across two machines (`parallelism: 2`), as the suite
-alone ran past CircleCI's one-hour job limit on Linux. A split job's machines each run a share
-(`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a `coverage-combine-*` job holds
-their coverage, combined, to 100%.
+ships. The Linux job is split across six machines and Windows across three (`parallelism`), as the
+suite alone ran past CircleCI's one-hour job limit on Linux. A split job's machines each run a
+share (`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a `coverage-combine-*` job
+holds their coverage, combined, to 100%. Machines roll test order; Markdown-only PRs skip tests.
 
 The packages are not on PyPI yet: outside the repository, `uv build --all-packages` and install
 from `dist/` (extras: `games`, `apps`, `templates` for cookiecutter).
@@ -51,7 +51,7 @@ pytest                      # full suite, 100% coverage; outside CI also on the 
                             # failing on any frame that differs (see Testing Guidelines)
 pytest --dummy-only         # fast iteration: dummy driver only
                             # addopts already has -n auto and -p no:randomly (fixed order;
-                            # only nox -s test-random shuffles)
+                            # nox -s test-random shuffles; GLITCHYGAMES_TEST_ORDER: noxfile.py)
 ruff format src tests scripts noxfile.py
 ruff check src tests scripts noxfile.py     # --select I --fix for import order
 basedpyright                # pyrightconfig.json
@@ -294,11 +294,11 @@ sprites/`. Docs: docs/architecture/bitmappy.md.
 
 ### Browser
 
-`nox -s browser -- <game>` builds a browser bundle. The page installs its own clipboard
-(`browser/browser_clipboard.py`) and user files (`src/glitchygames/user_files.py`); on-screen
-touch buttons (`browser/touch_controls.js`) send ordinary key events, checked by
-`tests/test_browser_touch_controls.py`. The shared pause and game-over screens resume with Space
-and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Muncher's is P).
+`nox -s browser -- <game>` builds a browser bundle; `scripts/measure_browser_frames.py --headed`
+times it in Chrome. The page installs its own clipboard (`browser/browser_clipboard.py`) and user
+files (`src/glitchygames/user_files.py`); touch buttons (`browser/touch_controls.js`) send key
+events (`tests/test_browser_touch_controls.py`). The shared pause and game-over screens resume with
+Space and quit with Esc, so a game's own pause must not be on Esc (Mr. Muncher's is P).
 
 ## Testing Guidelines
 
@@ -306,7 +306,7 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
   in a test (hardware, network, third-party tools, the clock, injected failures) with targeted
   `mocker` calls. Assert on pixels, not draw calls, without assuming the display's pixel format.
 - Wall-clock timings never belong in the normal suite; measure time in benchmarks
-  (`pytest --benchmark-only`).
+  (`pytest --benchmark-only`). A test that must is marked `wall_clock` (runs alone, serially).
 - Tests import the installed packages and never edit `sys.path` (`uv sync` installs them
   editable; `nox -s test` installs a non-editable copy, so it tests what a wheel would ship). Member tests live in
   `src/<layer>/<member>/tests/`, are named `test_<distribution with - as _>*.py`, and import
@@ -317,15 +317,15 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
   tests.
 - `tests/harness.py` defaults SDL to the dummy drivers; macOS joystick drivers are off, so tests
   see only stand-in devices (`tests/input/stand_in_devices.py`).
-- Driver comparison: outside CI, `pytest` also runs on the native driver and fails on any
-  differing frame (PNGs in `test-results/driver-comparison/pytest/`). A test whose frames
-  legitimately vary carries `@pytest.mark.frames_vary(reason=...)`.
+- Driver comparison: outside CI, `pytest` also runs the drawing tests on the native driver and
+  fails on any differing frame. A test that draws carries `@pytest.mark.draws_frames` (the plugin
+  fails it otherwise); one whose frames vary also `frames_vary(reason=...)`.
   Docs: docs/quality/driver_comparison.md.
 - A test that leaves a process running fails (`tests/child_process_guard.py`, the harness's
   autouse `no_child_process_left_running`, BUGS.md #275). Stop a child you start with its whole
-  group (`process.stop_command`), and a child pytest run with
-  `stop_command(first_signal=signal.SIGINT)`, as Ctrl-C does, so each test's cleanup runs
-  (SIGTERM kills a worker with no cleanup). `uv run python -m
+  group (`process.stop_command`, never a hand-written `os.killpg`: macOS can miss a process forked
+  during it), and a child pytest run with `stop_command(first_signal=signal.SIGINT)`, as Ctrl-C
+  does, so each test's cleanup runs (SIGTERM kills a worker with no cleanup). `uv run python -m
   scripts.reproduce_orphaned_test_processes MODE WHEN` reproduces the stops.
 - The display rule (`tests/display_canvas.py`): each test starts on the canvas pattern, and a test
   whose last frame is entirely black fails as a rendering bug (opt-out
@@ -334,7 +334,7 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
 - Sprite-file checks: call `glitchygames.testing.sprite_files`' `check_*` functions; don't copy them.
 - `GLITCHYGAMES_TEST_SPLIT=circleci` (set by the split CI jobs, never locally: it needs
   CircleCI's `circleci tests split` and `CIRCLE_NODE_*`) runs one machine's share of the
-  collected test files, with the share's coverage rule off (`tests/circleci_test_split.py`).
+  collected tests (`heavy_replay` ones dealt out), coverage off (`tests/circleci_test_split.py`).
 - Coverage is 100% with no configured exclusions; a deliberate defensive line carries
   `# pragma: no cover` with its reason.
 - Run the linters after modifying files.
@@ -344,11 +344,11 @@ and quit with Esc, so a game's own pause must not be on an Esc button (Mr. Munch
 
 ## Code Style
 
-Python 3.15 (code must still parse and type-check as 3.14: lint and type checks target it, for
-the browser builds' Pyodide), ruff (100-character
+Python 3.15 (parses and type-checks as 3.14 for the browser builds' Pyodide), ruff (100-character
 lines, import order), Google-style docstrings, basedpyright and ty. Data classes are pydantic
-models. Bugs: one file each in `bugs/` (`YYYY-MM-DD-short-slug.md`); the older numbered entries are
-in BUGS.md.
+models. No `assert` outside tests (`-O` strips it): `glitchygames.checks.required(value, what=...)`
+for a value never None, else an explicit raise. Bugs: one file each in `bugs/`
+(`YYYY-MM-DD-short-slug.md`); the older numbered entries are in BUGS.md.
 
 ## Docs
 

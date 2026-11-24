@@ -384,15 +384,19 @@ def test_a_partial_commit_that_needs_measuring_is_refused(mocker, repository, ca
     assert 'git commit <path>' in capsys.readouterr().err
 
 
-def test_the_hook_is_configured_to_run_before_each_commit():
-    """.pre-commit-config.yaml runs it at the pre-commit stage, once per commit."""
+def test_no_git_hook_measures_a_commit_into_the_repository():
+    """It runs by hand only: no commit carries replay-ledger rows (the owner, 2026-11-22).
+
+    The rows were too many files for git; they move to S3 (plans/future-work.md). No hook may run
+    this session, and the hooks install no pre-commit stage at all.
+    """
     configuration = (measure_staged_replays.PROJECT_ROOT / '.pre-commit-config.yaml').read_text(
         encoding='utf-8'
     )
 
-    assert 'id: replay-metrics' in configuration
-    assert 'entry: uv run --locked --extra dev nox -s measure-staged\n' in configuration
-    assert 'stages: [pre-commit]' in configuration
+    assert 'entry: uv run --locked --extra dev nox -s measure-staged' not in configuration
+    assert 'id: replay-metrics' not in configuration
+    assert 'stages: [pre-commit]' not in configuration
 
 
 def test_main_measures_this_repository_into_its_ledger_directory(mocker):
@@ -408,14 +412,15 @@ def test_main_measures_this_repository_into_its_ledger_directory(mocker):
     )
 
 
-def test_installing_the_hooks_installs_the_measuring_one_too():
-    """pre-commit install sets up both stages; direnv runs it, so a fresh clone measures."""
+def test_installing_the_hooks_installs_only_the_pre_push_stage():
+    """pre-commit install sets up the pre-push checks alone; direnv runs it on a fresh clone."""
     root = measure_staged_replays.PROJECT_ROOT
     configuration = (root / '.pre-commit-config.yaml').read_text(encoding='utf-8')
     environment = (root / '.envrc').read_text(encoding='utf-8')
 
-    assert 'default_install_hook_types: [pre-commit, pre-push]' in configuration
+    assert 'default_install_hook_types: [pre-push]' in configuration
     assert 'pre-commit install' in environment
+    assert '"$hooks_directory/pre-commit"' not in environment
 
 
 def test_an_unmeasured_listing_that_fails_measures_so_the_failure_is_said(
