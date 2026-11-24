@@ -263,6 +263,7 @@ class TestAnimationHardware:
             for color in FRAME_COLORS
         ]
 
+    @pytest.mark.wall_clock(reason='renders and reads back frames against MAX_PERFORMANCE_TIME')
     @pytest.mark.draws_frames
     def test_hardware_rendering_performance(self):
         """Test that rendering and reading back the display performs within acceptable limits."""

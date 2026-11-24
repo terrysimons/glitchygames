@@ -41,7 +41,7 @@ all:
             raspberry-pi-4-4gb-ubuntu:
               ansible_host: 172.23.23.155
               raspberry_pi_hostname: rpi4-ubuntu-2610
-              # .circleci/config.yml's build-and-test-raspberry-pi-4-4gb-ubuntu names this
+              # .circleci/continue_config.yml's build-and-test-raspberry-pi-4-4gb-ubuntu names this
               # (tests/test_ci_config.py)
               raspberry_pi_resource_class: terrysimons/raspberry-pi-4-4gb-ubuntu
               raspberry_pi_description: Raspberry Pi 4 with a real display
@@ -63,7 +63,7 @@ all:
               # (read 2026-11-20) although avahi runs on it
               ansible_host: 172.23.23.140
               raspberry_pi_hostname: rpi5-8gb-ubuntu-2610
-              # .circleci/config.yml's build-and-test-raspberry-pi-5-8gb-ubuntu names this
+              # .circleci/continue_config.yml's build-and-test-raspberry-pi-5-8gb-ubuntu names this
               # (tests/test_ci_config.py)
               raspberry_pi_resource_class: terrysimons/raspberry-pi-5-8gb-ubuntu
               raspberry_pi_description: Raspberry Pi 5 (8 GB) with a real display
@@ -84,7 +84,7 @@ all:
               # below keeps
               ansible_host: rpi5-ubuntu-2604.local
               raspberry_pi_hostname: rpi5-ubuntu-2604
-              # .circleci/config.yml's build-and-test-raspberry-pi-5-16gb-ubuntu names this
+              # .circleci/continue_config.yml's build-and-test-raspberry-pi-5-16gb-ubuntu names this
               # (tests/test_ci_config.py)
               raspberry_pi_resource_class: terrysimons/raspberry-pi-5-16gb-ubuntu
               raspberry_pi_description: Raspberry Pi 5 (16 GB, overclocked to 3.0 GHz) with a real display
@@ -139,7 +139,7 @@ all:
               # Its hostname as it came: the playbook names each host, and any other name would
               # change the mDNS name it is reached by
               raspberry_pi_hostname: glitchygames-pi5-16gb-raspberrypios
-              # .circleci/config.yml's build-and-test-raspberry-pi-5-16gb-raspberry-pi-os names
+              # .circleci/continue_config.yml's build-and-test-raspberry-pi-5-16gb-raspberry-pi-os names
               # this (tests/test_ci_config.py)
               raspberry_pi_resource_class: terrysimons/raspberry-pi-5-16gb-raspberry-pi-os
               raspberry_pi_description: Raspberry Pi 5 (16 GB, overclocked to 3.0 GHz) on Raspberry Pi OS with a real display
