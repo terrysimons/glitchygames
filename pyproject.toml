@@ -311,7 +311,15 @@ norecursedirs = [
   ".hypothesis",
   "__pycache__",
 ]
-addopts = "--import-mode=importlib -p no:randomly -n auto --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=zombies_aint_my_neighbors --cov=dt_demo --cov=joystick_demo --cov=sound_board_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
+# --dist worksteal: whenever xdist runs workers (here -n auto; every nox session's -n, CircleCI's
+# PYTEST_WORKERS, the native driver's child run), a worker that runs out of tests takes queued
+# ones from a busy worker. The default (--dist load) hands each worker its tests in chunks of
+# neighbouring tests up front, so one file's slow cases sat queued behind each other on one
+# worker while the others idled: on #287's Windows job (5210) machine 0's last ~860 reports kept
+# one worker busy 525 s and another 7 s. Locally (2026-11-23, -n 4, four files including the 42
+# inner-game replays) load put all 42 on one worker: 266 s for 94 s of work a worker; worksteal
+# spread them 21/5/6/10: 114 s for 107 s. One definition for every run (tests/test_ci_config.py)
+addopts = "--import-mode=importlib -p no:randomly -n auto --dist worksteal --cov=glitchygames --cov=mr_muncher --cov=brave_adventurer_core --cov=brave_adventurer --cov=brave_adventurer_papyrus --cov=brave_adventurer_modes --cov=clockwork_keep --cov=paddleslap --cov=drawing_fire --cov=zombies_aint_my_neighbors --cov=dt_demo --cov=joystick_demo --cov=sound_board_demo --cov=text_input_demo --cov=bitmappy --cov-fail-under=100 --log-cli-level=DEBUG --junitxml=test-results/junit.xml"
 # A test still running after this many seconds (its fixtures included) gets every thread's
 # traceback printed, once, so a hang names its test and where it waits; the test is not stopped.
 # Far past any test's own time. A crash is reported at once instead (tests/harness.py,

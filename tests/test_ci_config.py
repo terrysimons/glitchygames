@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import os
 import re
 import shlex
 import shutil
@@ -345,6 +346,44 @@ def test_circleci_installs_uv_at_its_pinned_version():
         'https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.sh',
         'https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.ps1',
     }
+
+
+# A fresh interpreter's report of what importing noxfile changed in its own environment
+NOXFILE_IMPORT_PROBE = (
+    'import json, os\n'
+    'before = dict(os.environ)\n'
+    'import noxfile\n'
+    'after = dict(os.environ)\n'
+    'print(json.dumps(sorted(key for key in before.keys() | after.keys()'
+    ' if before.get(key) != after.get(key))))\n'
+)
+
+
+def test_importing_the_noxfile_leaves_the_environment_alone():
+    """Importing noxfile changes no environment variable of the importing process.
+
+    Tests import noxfile (this file does), so a change made at import time leaks into every later
+    test of that process, at a moment that depends on the test order: #288 (CircleCI's automated
+    fixer) added ~/.local/bin to PATH there, which could change which uv, git or python a later
+    test runs. A fresh interpreter imports it with ~/.local/bin left out of PATH, where that
+    change would happen.
+    """
+    local_bin = str(Path.home() / '.local' / 'bin')
+    environment = dict(os.environ)
+    environment['PATH'] = os.pathsep.join(
+        entry for entry in environment.get('PATH', '').split(os.pathsep) if entry != local_bin
+    )
+
+    completed = run_command(
+        command=[sys.executable, '-c', NOXFILE_IMPORT_PROBE],
+        environment=environment,
+        timeout_seconds=60.0,
+        capture_output=OutputCapture.APART,
+        working_directory=PROJECT_ROOT,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout.strip().splitlines()[-1]) == []
 
 
 def test_the_linux_ci_session_installs_what_the_linux_job_installs():
@@ -2353,7 +2392,7 @@ def test_the_test_session_writes_its_order_for_the_jobs_artifacts(
     """test-results/test-order.txt holds the order, seed, workspace and kind of run, before pytest.
 
     CircleCI uploads test-results/ with ``when: always``, so a failed job's roll is a file beside
-    its test-split.txt.
+    its test-split-junit.txt.
     """
     import noxfile
 
@@ -2457,6 +2496,34 @@ def test_random_order_is_off_unless_asked_for():
 
     assert '-p' in addopts
     assert addopts[addopts.index('-p') + 1] == 'no:randomly'
+
+
+def test_every_run_with_workers_balances_them_by_work_stealing():
+    """The addopts give xdist --dist worksteal, read by every run, and nothing chooses another.
+
+    One definition: every pytest in the checkout reads addopts (nox's test and test-random
+    sessions, compare-drivers, CircleCI's jobs through PYTEST_WORKERS, the native driver's child
+    run), so a worker that runs out of tests takes queued ones from a busy worker. Under the
+    default (--dist load) #287's Windows job (5210) left one worker 525 s of work at the end
+    and another 7 s.
+    """
+    pyproject = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+    addopts = shlex.split(pyproject['tool']['pytest']['ini_options']['addopts'])
+
+    assert addopts[addopts.index('--dist') + 1] == 'worksteal'
+    assert addopts.count('--dist') == 1
+    for path in (PROJECT_ROOT / 'noxfile.py', CIRCLECI_CONFIG_PATH):
+        text = path.read_text(encoding='utf-8')
+        assert not re.search(r"--dist\b(?!path)|'--dist'|\bloadfile\b|\bloadscope\b", text), path
+
+
+def test_work_stealing_is_accepted_by_a_run_without_workers(pytester):
+    """-n 0 (CircleCI's Linux jobs, every wall_clock run) with addopts' --dist runs in process."""
+    pytester.makepyfile(test_two='def test_one():\n    pass\n\ndef test_two():\n    pass\n')
+
+    result = pytester.runpytest_inprocess('-p', 'no:randomly', '-n', '0', '--dist', 'worksteal')
+
+    result.assert_outcomes(passed=2)
 
 
 # How each shuffled run gets its Python: a throwaway environment from uv.lock, never the
@@ -3037,6 +3104,24 @@ def test_the_performance_session_collects_only_the_benchmark_paths():
     pytest_command = next(command for command in session.commands if command[0] == 'pytest')
     assert '--benchmark-only' in pytest_command
     assert pytest_command[-len(noxfile._BENCHMARK_PATHS) :] == tuple(noxfile._BENCHMARK_PATHS)
+
+
+def test_the_performance_session_saves_no_run_into_the_repository():
+    """No benchmark run is saved: ``.benchmarks/`` is tracked, and nothing reads it.
+
+    The owner, 2026-11-23: benchmarks run in CI, but no file they write may get committed.
+    """
+    import noxfile
+
+    session = RecordingSession(posargs=[])
+    noxfile.performance_test(session)
+
+    pytest_command = next(command for command in session.commands if command[0] == 'pytest')
+    assert not [
+        argument
+        for argument in pytest_command
+        if argument.startswith(('--benchmark-save', '--benchmark-autosave', '--benchmark-json'))
+    ]
 
 
 def test_the_wheel_build_builds_every_workspace_package(mocker):

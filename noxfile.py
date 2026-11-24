@@ -24,11 +24,9 @@ from nox.command import CommandFailed
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Mapping, Sequence
 
-# uv installs itself to ~/.local/bin by default; CI prepends that to PATH explicitly, but a
-# direct `nox` invocation may not have it. Add it when uv lives there but isn't reachable yet.
-_local_bin = str(Path.home() / '.local' / 'bin')
-if _local_bin not in os.environ.get('PATH', '').split(os.pathsep):
-    os.environ['PATH'] = _local_bin + os.pathsep + os.environ.get('PATH', '')
+# Importing this file changes nothing in the process (tests import it:
+# test_importing_the_noxfile_leaves_the_environment_alone). Each session sets the environment of
+# the commands it runs; CircleCI puts uv on PATH itself.
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
@@ -1110,7 +1108,7 @@ def describe_suite_order(*, order: SuiteOrder) -> str:
         f'Test order: shuffled, seed {order.seed}{how}. Replay it with '
         f'{SUITE_ORDER_VARIABLE}={order.seed} nox -s test-3.15, or with pytest '
         f'{shlex.join(suite_order_pytest_arguments(order=order))} -n 0; a split CI machine '
-        f'shuffled only its share, the tests kept in test-results/test-split.txt (its '
+        f'shuffled only its share, the tests kept in test-results/test-split-junit.txt (its '
         f'artifacts), so name those tests to replay its order'
     )
 
@@ -2961,10 +2959,14 @@ _BENCHMARK_PATHS = [
 
 @nox.session(python=PINNED_PYTHONS, reuse_venv=False, name='performance-test', default=False)
 def performance_test(session: nox.Session) -> None:
-    """Run performance benchmarks."""
+    """Run performance benchmarks; pass or fail, saving nothing into the repository.
+
+    The results table goes to the log only. ``--benchmark-save`` wrote a run into the tracked
+    ``.benchmarks/`` on every run, which nothing reads (plans/2026-11-04-performance-page-
+    comparison.md, Step 3; the owner, 2026-11-23: no file a benchmark writes may get committed).
+    """
     _install_from_lockfile(session)
 
-    # Run performance tests with pytest-benchmark
     # Override addopts to avoid conflict with --cov flags from pyproject.toml
     session.run(
         'pytest',
@@ -2973,7 +2975,6 @@ def performance_test(session: nox.Session) -> None:
         '-p',
         'no:xdist',
         '--benchmark-only',
-        '--benchmark-save=baseline',
         *_BENCHMARK_PATHS,
     )
 

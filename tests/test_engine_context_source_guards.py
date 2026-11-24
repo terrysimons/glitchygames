@@ -10,12 +10,13 @@ tests/test_engine_context.py (Part 3, Stage D, Task D9 fix round 1), which tests
 from __future__ import annotations
 
 import ast
+import functools
+from pathlib import Path
 from typing import TYPE_CHECKING
-
-import pytest
 
 from glitchygames.engine_context import declared_context_slots
 from tests.ast_scanning import PROJECT_ROOT, qualified_name
+from tests.child_scans import scan_in_child
 from tests.test_engine_context import (
     ENGINE_SLOT_PREFIX,
     ISOLATION_CHECKS,
@@ -29,11 +30,10 @@ from tests.test_read_only_views import (
     module_name_of_file,
     scanned_file,
 )
-from tests.workspace_sources import scanned_source_files
+from tests.workspace_sources import scanned_source_files, write_project_with_member_module
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
 # A module that reads a module view as it is imported: a module-level import (line 4), module-level
 # attribute reads (lines 6 and 7) and a class-body read (line 14). The reads in a function body
@@ -58,29 +58,19 @@ class Holder:
 """
 
 
-@pytest.fixture(autouse=True, scope='module')
-def parsed_files_freed_after_this_file() -> Iterator[None]:
-    """Let go of every file ``scanned_file`` parsed when this file's tests are done.
-
-    The syntax trees are about 100 MiB: kept for the rest of a serial run, they pushed CircleCI's
-    2 GB Linux job past its memory limit (2026-11-17). tests/test_read_only_views.py has the twin.
-    """
-    yield
-    scanned_file.cache_clear()
-
-
-def engine_module_views() -> frozenset[str]:
+def engine_module_views() -> list[str]:
     """Return every module view the engine declares, as ``'<module>.<name>'``.
 
     A module view is a name its module marks in ``READ_ONLY_MODULE_VIEWS`` (the rule of
     tests/test_read_only_views.py's ``declared_views``); a module ``__getattr__`` without the
-    mark (a lazy import) declares none.
+    mark (a lazy import) declares none. It parses every engine file: run it in a child process
+    (tests/child_scans.py).
 
     Returns:
-        The qualified names.
+        The qualified names, sorted.
 
     """
-    return frozenset(
+    return sorted(
         f'{scanned.module_name}.{name}'
         for source_path in engine_source_files()
         for scanned in [scanned_file(source_path)]
@@ -152,21 +142,42 @@ def import_time_module_view_reads(*, source_path: Path, module_views: frozenset[
     return [f'{line}: {read}' for line, read in sorted(reads)]
 
 
-def test_no_module_reads_a_context_as_it_is_imported():
-    """Rule 2, over the engine and every workspace member: no context read, no module view."""
-    module_views = engine_module_views()
-    offenders = {
+def import_time_reads_found(
+    *, project_root: str, module_views: list[str] | None = None
+) -> dict[str, list[str]]:
+    """Return each scanned file's context and module-view reads run as it is imported (rule 2).
+
+    A scan run in a child process (tests/child_scans.py), so its syntax trees never pin this
+    process's memory: it takes and returns JSON.
+
+    Args:
+        project_root: The workspace whose engine and members are scanned.
+        module_views: The module views, as ``'<module>.<name>'``; None for the engine's
+            (``engine_module_views``).
+
+    Returns:
+        The allowlist key -> its reads, for each file with any.
+
+    """
+    views = frozenset(engine_module_views() if module_views is None else module_views)
+    return {
         allowlist_key: reads
-        for allowlist_key, path in scanned_source_files(project_root=PROJECT_ROOT)
+        for allowlist_key, path in scanned_source_files(project_root=Path(project_root))
         if (
             reads := [
                 *import_time_context_reads(source_path=path),
-                *import_time_module_view_reads(source_path=path, module_views=module_views),
+                *import_time_module_view_reads(source_path=path, module_views=views),
             ]
         )
     }
 
-    assert offenders == {}
+
+def test_no_module_reads_a_context_as_it_is_imported():
+    """Rule 2, over the engine and every workspace member: no context read, no module view."""
+    assert (
+        scan_in_child(scan=import_time_reads_found, arguments={'project_root': str(PROJECT_ROOT)})
+        == {}
+    )
 
 
 def test_the_import_time_scan_finds_module_view_reads(tmp_path):
@@ -174,9 +185,9 @@ def test_the_import_time_scan_finds_module_view_reads(tmp_path):
     planted_path = tmp_path / 'planted.py'
     planted_path.write_text(PLANTED_IMPORT_TIME_VIEW_READS, encoding='utf-8')
 
-    assert import_time_module_view_reads(
-        source_path=planted_path, module_views=engine_module_views()
-    ) == [
+    module_views = frozenset(scan_in_child(scan=engine_module_views))
+
+    assert import_time_module_view_reads(source_path=planted_path, module_views=module_views) == [
         '4: glitchygames.performance.performance_manager',
         '6: glitchygames.performance.performance_manager',
         '7: glitchygames.performance.performance_manager',
@@ -210,18 +221,39 @@ def declared_slot_names_in_source(*, source_path: Path) -> list[str]:
     return names
 
 
+def slot_names_declared(*, project_root: str) -> list[str]:
+    """Return the name of every slot a workspace's engine and members declare.
+
+    A scan run in a child process (tests/child_scans.py), so its syntax trees never pin this
+    process's memory: it takes and returns JSON.
+
+    Args:
+        project_root: The workspace.
+
+    Returns:
+        The names, sorted, each once.
+
+    """
+    return sorted({
+        name
+        for _allowlist_key, path in scanned_source_files(project_root=Path(project_root))
+        for name in declared_slot_names_in_source(source_path=path)
+    })
+
+
+@functools.cache
 def engine_slot_names() -> set[str]:
     """Return the name of every slot the engine and the workspace members declare.
+
+    Scanned once, in a child process; only the names are kept.
 
     Returns:
         The names.
 
     """
-    return {
-        name
-        for _allowlist_key, path in scanned_source_files(project_root=PROJECT_ROOT)
-        for name in declared_slot_names_in_source(source_path=path)
-    }
+    return set(
+        scan_in_child(scan=slot_names_declared, arguments={'project_root': str(PROJECT_ROOT)})
+    )
 
 
 def test_every_engine_slot_has_an_isolation_check():
@@ -236,3 +268,41 @@ def test_the_slot_scan_agrees_with_the_slots_declared_at_run_time():
     }
 
     assert declared_engine_slot_names == engine_slot_names()
+
+
+# A member module reading a context and a module view as it is imported (lines 3 and 4), and
+# declaring one slot
+PLANTED_MEMBER_READS = """\
+from glitchygames.engine_context import ContextSlot, current_context
+from glitchygames import performance
+CONTEXT = current_context()
+MANAGER = performance.performance_manager
+PLANTED_SLOT = ContextSlot(name='space_game.planted', default=None)
+"""
+
+
+def test_the_scans_find_the_same_reads_and_slots_in_a_child_process(tmp_path):
+    """No finding is lost in the child: each guard's scan answers there what it answers here."""
+    member_key = write_project_with_member_module(
+        project_root=tmp_path, source=PLANTED_MEMBER_READS
+    )
+    reads_arguments = {
+        'project_root': str(tmp_path),
+        'module_views': ['glitchygames.performance.performance_manager'],
+    }
+    slots_arguments = {'project_root': str(tmp_path)}
+
+    in_this_process = (
+        import_time_reads_found(**reads_arguments),
+        slot_names_declared(**slots_arguments),
+    )
+    in_a_child = (
+        scan_in_child(scan=import_time_reads_found, arguments=reads_arguments),
+        scan_in_child(scan=slot_names_declared, arguments=slots_arguments),
+    )
+
+    assert in_a_child == in_this_process
+    assert in_this_process == (
+        {member_key: ['3: current_context', '4: glitchygames.performance.performance_manager']},
+        ['space_game.planted'],
+    )
