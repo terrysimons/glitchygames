@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Self
 
 from glitchygames.ai_link import service_locations
+from glitchygames.process import stop_command
 from scripts.ai_behaviour.capture import FIXTURES_DIRECTORY
 from scripts.ai_behaviour.questions import QUESTIONS, BehaviourQuestion
 from scripts.ai_behaviour.run import DEFAULT_CONFIGURATION, DEFAULT_REPEATS, summary
@@ -158,6 +159,9 @@ class Worker:
             stderr=log,
             text=True,
             env=dict(os.environ),
+            # POSIX only (Windows ignores it): a group of its own, so stop_command can end it
+            # with anything it started
+            start_new_session=True,
         )
         self._send(target.model_dump_json())
 
@@ -196,12 +200,22 @@ class Worker:
         return result
 
     def close(self) -> None:
-        """End the worker: no more questions."""
-        if self.process.stdin is not None:
-            self.process.stdin.close()
-        self.process.wait(timeout=WORKER_CLOSE_SECONDS)
-        if self.process.stdout is not None:
-            self.process.stdout.close()
+        """End the worker: no more questions.
+
+        Its input is closed, and it ends on its own. One still running ``WORKER_CLOSE_SECONDS``
+        later is stopped with its group and reaped (``stop_command``), so the wait running out
+        never leaves it running. Its output pipe is closed however this ends.
+        """
+        try:
+            if self.process.stdin is not None:
+                self.process.stdin.close()
+            try:
+                self.process.wait(timeout=WORKER_CLOSE_SECONDS)
+            except subprocess.TimeoutExpired:
+                stop_command(process=self.process)
+        finally:
+            if self.process.stdout is not None:
+                self.process.stdout.close()
 
     def __enter__(self) -> Self:
         """Use it in a with block.

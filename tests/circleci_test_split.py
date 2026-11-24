@@ -52,10 +52,14 @@ Each machine runs its share alone, so none reaches the 100% coverage rule: the t
 the rule off with this variable, and a job after the split ones combines their coverage data and
 applies it (``nox -s coverage-combine``).
 
-The share is written to ``test-results/test-split.txt`` (every test, the kept ones marked; node
-ids, which pytest takes back to replay a share's order), for the job's artifacts. Under
-pytest-xdist each worker collects and asks the splitter for the same list, and only the first
-worker writes the file. Registered in the root conftest.py's ``pytest_plugins``. Tests:
+The share is written to ``test-results/test-split-<report>.txt`` (every test, the kept ones
+marked; node ids, which pytest takes back to replay a share's order), for the job's artifacts,
+``<report>`` being the run's JUnit report's name without ``.xml`` (``split_record_path``): a
+machine runs pytest twice (the test session's wall_clock run follows the main one), and one file
+for both let the second overwrite the first's record (job 5210's machine 0 kept only "2 of 5
+tests"). A run with no JUnit report writes ``test-results/test-split.txt``. Under pytest-xdist
+each worker collects and asks the splitter for the same list, and only the first worker writes
+the file. Registered in the root conftest.py's ``pytest_plugins``. Tests:
 tests/test_circleci_test_split.py.
 """
 
@@ -85,7 +89,10 @@ CURRENT_TEST_VARIABLE: Final = 'PYTEST_CURRENT_TEST'
 SPLITTER_COMMAND: Final = ('tests', 'split', '--split-by=timings', '--timings-type=testname')
 # The marker of a test dealt out round-robin before the timing split
 HEAVY_MARKER: Final = 'heavy_replay'
-SPLIT_RECORD: Final = Path('test-results') / 'test-split.txt'
+# A run's share record: SPLIT_RECORD_DIRECTORY / f'test-split-<JUnit report stem>.txt', or
+# DEFAULT_SPLIT_RECORD for a run with no JUnit report (split_record_path)
+SPLIT_RECORD_DIRECTORY: Final = Path('test-results')
+DEFAULT_SPLIT_RECORD: Final = SPLIT_RECORD_DIRECTORY / 'test-split.txt'
 # Each process's list for the splitter, and what the splitter said on its standard error (under
 # pytest-xdist each worker writes its own)
 SPLIT_INPUT: Final = Path('test-results') / f'test-split-input-{os.getpid()}.txt'
@@ -135,8 +142,34 @@ def repeated_junit_names(
     return sorted(name for name, count in counts.items() if count > 1)
 
 
+def check_machine(*, index: int, total: int) -> None:
+    """Refuse a machine that is not one of ``total``: ``total`` at least 1, ``index`` below it.
+
+    An index at or past the total would be dealt no heavy test and leave a share unrun on every
+    machine, silently.
+
+    Args:
+        index: This machine's index, from 0.
+        total: The number of machines.
+
+    Raises:
+        pytest.UsageError: If ``total`` is below 1 or ``index`` is not in ``range(total)``.
+
+    """
+    if total < 1 or not 0 <= index < total:
+        message = (
+            f'a CircleCI machine is one of {NODE_TOTAL_VARIABLE} (at least 1), numbered from 0 '
+            f'by {NODE_INDEX_VARIABLE}: not machine {index} of {total}'
+        )
+        raise pytest.UsageError(message)
+
+
 def deal_heavy_tests(*, node_ids: Sequence[str], index: int, total: int) -> frozenset[str]:
     """Return the heavy tests machine ``index`` of ``total`` runs: every ``total``-th, sorted.
+
+    Any count deals evenly: with more heavy tests than machines each gets ``count // total`` or
+    one more; with fewer, the first ``count`` machines get one each and the rest none; one
+    machine gets them all.
 
     Args:
         node_ids: Every heavy test's node id, in any order.
@@ -147,6 +180,7 @@ def deal_heavy_tests(*, node_ids: Sequence[str], index: int, total: int) -> froz
         This machine's heavy tests.
 
     """
+    check_machine(index=index, total=total)
     return frozenset(sorted(set(node_ids))[index::total])
 
 
@@ -203,6 +237,7 @@ def choose_share(
         This machine's dealt heavy tests and the other tests the splitter keeps.
 
     """
+    check_machine(index=index, total=total)
     heavy = set(heavy_node_ids)
     others = [node_id for node_id in node_ids if node_id not in heavy]
     names = [junit_test_name(node_id=node_id) for node_id in others]
@@ -260,7 +295,25 @@ def _split_requested() -> bool:
     return True
 
 
-def _write_record(*, node_ids: Sequence[str], heavy: set[str], kept: frozenset[str]) -> None:
+def split_record_path(*, junit_report: str | None) -> Path:
+    """Return where a run writes its share: named after its JUnit report, so each run has its own.
+
+    Args:
+        junit_report: The run's ``--junitxml`` path, or None when it writes no report.
+
+    Returns:
+        ``test-results/test-split-<report stem>.txt``, or ``test-results/test-split.txt``
+        without a report.
+
+    """
+    if not junit_report:
+        return DEFAULT_SPLIT_RECORD
+    return SPLIT_RECORD_DIRECTORY / f'test-split-{Path(junit_report).stem}.txt'
+
+
+def _write_record(
+    *, record: Path, node_ids: Sequence[str], heavy: set[str], kept: frozenset[str]
+) -> None:
     if os.environ.get('PYTEST_XDIST_WORKER') not in {None, 'gw0'}:
         return
     node = f'{os.environ[NODE_INDEX_VARIABLE]} of {os.environ[NODE_TOTAL_VARIABLE]}'
@@ -272,8 +325,8 @@ def _write_record(*, node_ids: Sequence[str], heavy: set[str], kept: frozenset[s
         ),
         *(f'{"kept " if node_id in kept else "     "}{node_id}' for node_id in node_ids),
     ]
-    SPLIT_RECORD.parent.mkdir(parents=True, exist_ok=True)
-    SPLIT_RECORD.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    record.parent.mkdir(parents=True, exist_ok=True)
+    record.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -305,7 +358,12 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         total=int(os.environ[NODE_TOTAL_VARIABLE]),
         run_splitter=run_circleci_splitter,
     )
-    _write_record(node_ids=node_ids, heavy=heavy, kept=kept)
+    _write_record(
+        record=split_record_path(junit_report=config.option.xmlpath),
+        node_ids=node_ids,
+        heavy=heavy,
+        kept=kept,
+    )
     deselected = [item for item in items if item.nodeid not in kept]
     if deselected:
         config.hook.pytest_deselected(items=deselected)
