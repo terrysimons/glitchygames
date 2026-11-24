@@ -925,6 +925,33 @@ def test_a_worker_answers_from_its_own_version(tmp_path):
         worker.ask(question_name='q')
 
 
+def test_a_worker_that_outlives_its_close_is_stopped_and_its_pipes_closed(tmp_path, mocker):
+    """A worker still running when its close's wait runs out is stopped, reaped and closed.
+
+    The close waited for the worker, then closed its output: a wait that timed out raised past
+    the close and left the worker running with its output pipe open (the pipe-leak sweep,
+    2026-11-22).
+    """
+    from scripts.ai_behaviour import paired
+
+    # Takes the server line, then ignores the end of its input and keeps running
+    mocker.patch.object(
+        paired,
+        'WORKER_PROGRAM',
+        'import sys, time\nsys.stdin.readline()\nwhile True:\n    time.sleep(1)\n',
+    )
+    mocker.patch.object(paired, 'WORKER_CLOSE_SECONDS', 0.2)
+    target = AskedOf(base_url='http://127.0.0.1:9', api_key='key', alias='bonsai-2-2b')
+
+    with (tmp_path / 'worker.log').open('w', encoding='utf-8') as log_file:
+        worker = Worker(tree=tmp_path, target=target, log=log_file)
+        worker.close()
+
+    assert worker.process.returncode is not None
+    assert worker.process.stdout is not None
+    assert worker.process.stdout.closed
+
+
 def test_a_version_is_the_working_tree_or_a_refs_scripts(tmp_path):
     """A ref's scripts are exported, reading the working tree's snapshots; a bad ref is named."""
     assert exported_tree(ref=WORKING_TREE, directory=tmp_path) == PROJECT_ROOT

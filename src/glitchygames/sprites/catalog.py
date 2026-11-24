@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from glitchygames.exit_codes import ExitCode
+from glitchygames.output_files import write_text_whole
 from glitchygames.sprites.tags import TAGS_KEY, normalize_sprite_tags
 
 if TYPE_CHECKING:
@@ -105,8 +106,7 @@ def read_sprite_text(path: Path) -> SpriteText | None:
         The text, or None when the file has no ``[sprite]`` table.
 
     """
-    with path.open('rb') as file:
-        data = tomllib.load(file)
+    data = tomllib.loads(path.read_text(encoding='utf-8'))
     sprite = data.get('sprite')
     if not isinstance(sprite, dict):
         return None
@@ -230,19 +230,23 @@ def export_sprite_texts(sprites: Iterable[SpriteText], output: Path) -> int:
         How many sprites were written.
 
     """
-    count = 0
-    with output.open('w', encoding='utf-8') as file:
-        for sprite in sprites:
-            record = {
+    lines = [
+        json.dumps(
+            {
                 'path': str(sprite.path),
                 'name': sprite.name,
                 'description': sprite.description,
                 'tags': list(sprite.tags),
                 'text': sprite.text(),
-            }
-            file.write(json.dumps(record, ensure_ascii=False) + '\n')
-            count += 1
-    return count
+            },
+            ensure_ascii=False,
+        )
+        + '\n'
+        for sprite in sprites
+    ]
+    # Whole or nothing: a stopped export leaves the earlier file
+    write_text_whole(destination=output, text=''.join(lines))
+    return len(lines)
 
 
 def build_parser() -> argparse.ArgumentParser:

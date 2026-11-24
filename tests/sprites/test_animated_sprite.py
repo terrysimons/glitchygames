@@ -3,6 +3,7 @@
 import gc
 import logging
 import math
+import os
 import shutil
 import tempfile
 import tomllib
@@ -52,6 +53,7 @@ from glitchygames.sprites.pixel_utils import (
     normalize_pixel_for_color_map,
 )
 from glitchygames.sprites.root_sprite import RootSprite
+from tests.interrupted_writes import cut_writes_short
 
 # The engine's own sprite test data (Bitmappy keeps its sprite library)
 SPRITE_FIXTURES_DIRECTORY = Path(__file__).resolve().parents[1] / 'fixtures' / 'sprites'
@@ -5309,3 +5311,87 @@ class TestDebugLoggingDoesNotGrowWithTheSprite:
         large = self._logged_characters(caplog, size=64)
 
         assert large - small < 64
+
+
+class TestAnimatedSpriteSaveIsWholeOrNothing:
+    """An interrupted save leaves the earlier file as it was.
+
+    bugs/2026-11-21-sprite-saves-are-not-atomic.md
+    """
+
+    def test_a_save_stopped_part_way_leaves_the_earlier_file_whole(self, tmp_path, mocker):
+        sprite = AnimatedSprite()
+        frame = SpriteFrame(pygame.Surface((2, 2)), duration=FRAME_DURATION)
+        frame.pixels = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]
+        sprite.add_animation('idle', [frame])
+        sprite.set_animation('idle')
+        save_path = tmp_path / 'animated.toml'
+        save_path.write_text('the earlier file, whole\n', encoding='utf-8')
+
+        with (
+            cut_writes_short(mocker=mocker, characters=10),
+            pytest.raises(KeyboardInterrupt),
+        ):
+            sprite.save(str(save_path), 'toml')
+
+        assert save_path.read_text(encoding='utf-8') == 'the earlier file, whole\n'
+        assert sorted(path.name for path in tmp_path.iterdir()) == ['animated.toml']
+
+
+class TestAnimatedSpriteFilesLoadWithEitherLineEnd:
+    """A file with CRLF (Windows) or LF line ends loads the same, and saves with the OS's."""
+
+    def _two_frame_sprite_text(self, tmp_path):
+        sprite = AnimatedSprite()
+        first = SpriteFrame(pygame.Surface((2, 1)), duration=FRAME_DURATION)
+        first.pixels = [(255, 0, 0), (0, 255, 0)]
+        second = SpriteFrame(pygame.Surface((2, 1)), duration=FRAME_DURATION)
+        second.pixels = [(0, 0, 255), (255, 255, 0)]
+        sprite.add_animation('idle', [first, second])
+        sprite.set_animation('idle')
+        lf_path = tmp_path / 'lf.toml'
+        sprite.save(str(lf_path), 'toml')
+        text = lf_path.read_bytes().decode('utf-8').replace('\r\n', '\n')
+        lf_path.write_bytes(text.encode('utf-8'))
+        return text
+
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_a_crlf_file_loads_the_same_frames_as_an_lf_file(self, tmp_path, line_end):
+        """Windows' CRLF and old Macs' lone CR are read as line feeds before parsing."""
+        text = self._two_frame_sprite_text(tmp_path)
+        crlf_path = tmp_path / 'crlf.toml'
+        crlf_path.write_bytes(text.replace('\n', line_end).encode('utf-8'))
+
+        from_lf = AnimatedSprite(filename=str(tmp_path / 'lf.toml'))
+        from_crlf = AnimatedSprite(filename=str(crlf_path))
+
+        def frames(sprite):
+            return [frame.read_only_pixels for frame in sprite.frames['idle']]
+
+        assert frames(from_crlf) == frames(from_lf)
+        assert len(frames(from_lf)) == 2
+        assert from_crlf.to_text() == text
+
+    def test_a_crlf_file_saves_again_with_the_os_line_ends(self, tmp_path):
+        text = self._two_frame_sprite_text(tmp_path)
+        crlf_path = tmp_path / 'crlf.toml'
+        crlf_path.write_bytes(text.replace('\n', '\r\n').encode('utf-8'))
+        saved_path = tmp_path / 'saved.toml'
+
+        AnimatedSprite(filename=str(crlf_path)).save(str(saved_path), 'toml')
+
+        assert saved_path.read_bytes() == text.replace('\n', os.linesep).encode('utf-8')
+
+    def test_a_crlf_file_saved_and_loaded_again_has_the_same_text(self, tmp_path):
+        """The text in memory never carries a file's line ends, through any round trip."""
+        text = self._two_frame_sprite_text(tmp_path)
+        crlf_path = tmp_path / 'crlf.toml'
+        crlf_path.write_bytes(text.replace('\n', '\r\n').encode('utf-8'))
+        saved_path = tmp_path / 'saved.toml'
+
+        from_crlf = AnimatedSprite(filename=str(crlf_path))
+        from_crlf.save(str(saved_path), 'toml')
+        reloaded = AnimatedSprite(filename=str(saved_path))
+
+        assert from_crlf.to_text() == text
+        assert reloaded.to_text() == text

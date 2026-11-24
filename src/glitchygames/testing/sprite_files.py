@@ -410,7 +410,7 @@ def check_text_and_file_loads_agree(*, sprite_file: Path) -> None:
     from_file = _loaded_state(sprite=AnimatedSprite(str(sprite_file)))
     from_text = _loaded_state(
         sprite=sprite_from_text(
-            text=sprite_file.read_bytes().decode('utf-8'), source_name=str(sprite_file)
+            text=sprite_file.read_text(encoding='utf-8'), source_name=str(sprite_file)
         )
     )
     for part, file_value in from_file.items():
@@ -487,7 +487,7 @@ def check_save_keeps_the_parsed_document(*, sprite_file: Path) -> None:
             top-level table that differs.
 
     """
-    text = sprite_file.read_bytes().decode('utf-8')
+    text = sprite_file.read_text(encoding='utf-8')
     source_name = str(sprite_file)
     original_document = _without_opaque_alpha(
         document=parse_sprite_toml(text=text, source_name=source_name)
@@ -521,8 +521,7 @@ def check_sprite_tags_are_well_formed(*, sprite_file: Path) -> None:
         AssertionError: The tags are malformed; the message names the file and each problem.
 
     """
-    with sprite_file.open('rb') as file:
-        data = tomllib.load(file)
+    data = tomllib.loads(sprite_file.read_text(encoding='utf-8'))
     problems = sprite_tags_problems(data.get('sprite', {}).get(TAGS_KEY))
     if problems:
         message = f'{sprite_file}: {"; ".join(problems)}'

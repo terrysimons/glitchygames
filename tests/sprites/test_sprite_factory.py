@@ -349,3 +349,24 @@ class TestLoadSpriteParsesOnce:
         sprite = AnimatedSprite(str(mixed_file))
 
         assert list(sprite.animation_data) == ['walk']
+
+
+@pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+def test_a_crlf_sprite_file_loads_as_an_lf_one(tmp_path, line_end):
+    """Windows' CRLF and old Macs' lone CR are read as line feeds before parsing."""
+    text = (
+        '[sprite]\nname = "two_colors"\npixels = """\nRG\nGR\n"""\n'
+        '[colors.R]\nred = 255\ngreen = 0\nblue = 0\n'
+        '[colors.G]\nred = 0\ngreen = 255\nblue = 0\n'
+    )
+    lf_path = tmp_path / 'lf.toml'
+    lf_path.write_bytes(text.encode('utf-8'))
+    other_path = tmp_path / 'other.toml'
+    other_path.write_bytes(text.replace('\n', line_end).encode('utf-8'))
+
+    from_lf = SpriteFactory.load_sprite(filename=str(lf_path))
+    from_other = SpriteFactory.load_sprite(filename=str(other_path))
+
+    assert pygame.image.tobytes(from_other.image, 'RGBA') == pygame.image.tobytes(
+        from_lf.image, 'RGBA'
+    )

@@ -79,7 +79,8 @@ def write_text_whole(*, destination: Path, text: str) -> None:
 
     Args:
         destination: The record's file.
-        text: Its whole text (written as UTF-8).
+        text: Its whole text, with LF line ends, written as UTF-8 with the OS's line ends
+            (CRLF on Windows), so a person can edit the file in their usual text editor.
 
     """
 

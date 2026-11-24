@@ -308,8 +308,7 @@ def load_effects(path: Path) -> dict[str, Effect]:
         Recipes by name.
 
     """
-    with path.open('rb') as recipe_file:
-        document = tomllib.load(recipe_file)
+    document = tomllib.loads(path.read_text(encoding='utf-8'))
     return {
         name: Effect.from_dict(name, data) for name, data in document.get('recipes', {}).items()
     }

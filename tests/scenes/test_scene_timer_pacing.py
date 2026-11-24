@@ -108,13 +108,15 @@ def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
         if iterations['n'] >= 3:
             sm.quit_requested = True
 
-    orig_update_display = sm._update_display
+    # Every present goes through _show_frame (a switch's first frame flips the whole surface;
+    # the rest update their dirty rects), so it counts each frame once
+    orig_show_frame = sm._show_frame
 
-    def wrapped_update_display():
-        orig_update_display()
+    def wrapped_show_frame(*, full_update):
+        orig_show_frame(full_update=full_update)
         loop_guard()
 
-    monkeypatch.setattr(sm, '_update_display', wrapped_update_display)
+    monkeypatch.setattr(sm, '_show_frame', wrapped_show_frame)
 
     scene = PacedScene()
     sm.switch_to_scene(scene)

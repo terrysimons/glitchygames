@@ -1145,3 +1145,48 @@ def test_a_sound_table_with_neither_instrument_nor_file_raises_a_named_error(tmp
             dependencies={},
             problems=[],
         )
+
+
+def _write_sound_fixtures(*, folder: Path, line_end: str) -> None:
+    """Write every fixture sound file (they refer to each other) with the given line ends."""
+    folder.mkdir(exist_ok=True)
+    for source in (FIXTURES / 'sounds').glob('*.toml'):
+        text = source.read_text(encoding='utf-8')
+        (folder / source.name).write_bytes(text.replace('\n', line_end).encode('utf-8'))
+
+
+def _loaded(path: Path) -> tuple[object, object, object]:
+    """Load a sound file afresh (not from the cache) and return what it defines.
+
+    Returns:
+        Its sounds, instruments and waves.
+
+    """
+    clear_sound_file_cache()
+    sound_file = load_sound_file(path)
+    return sound_file.sounds, sound_file.instruments, sound_file.waves
+
+
+@pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+def test_a_sound_file_with_any_line_end_loads_as_with_line_feeds(tmp_path, line_end):
+    """A sound file saved on Windows (CRLF) or an old Mac (lone CR) loads as one with LF."""
+    _write_sound_fixtures(folder=tmp_path, line_end='\n')
+    from_lf = _loaded(tmp_path / 'extras.toml')
+
+    _write_sound_fixtures(folder=tmp_path, line_end=line_end)
+
+    assert _loaded(tmp_path / 'extras.toml') == from_lf
+
+
+def test_a_sound_file_written_with_the_os_line_ends_loads_as_written(tmp_path):
+    """Written in text mode (CRLF on Windows), a sound file reads back as the same sounds."""
+    _write_sound_fixtures(folder=tmp_path, line_end='\n')
+    from_lf = _loaded(tmp_path / 'extras.toml')
+    texts = {path: path.read_text(encoding='utf-8') for path in tmp_path.glob('*.toml')}
+
+    for path, text in texts.items():
+        path.write_text(text, encoding='utf-8')
+
+    extras = tmp_path / 'extras.toml'
+    assert extras.read_bytes() == texts[extras].replace('\n', os.linesep).encode('utf-8')
+    assert _loaded(extras) == from_lf

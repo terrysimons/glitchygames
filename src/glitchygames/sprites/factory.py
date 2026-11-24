@@ -168,8 +168,8 @@ class SpriteFactory:
             ``parse_sprite_toml`` raises for the same text, naming the file.
 
         """
-        # Bytes decoded, as AnimatedSprite._load_toml reads a file: the same text, the same error
-        text = Path(filename).read_bytes().decode('utf-8')
+        # Read as AnimatedSprite._load_toml reads a file: the same text, the same error
+        text = Path(filename).read_text(encoding='utf-8')
         return parse_sprite_toml(text=text, source_name=filename)
 
     @staticmethod

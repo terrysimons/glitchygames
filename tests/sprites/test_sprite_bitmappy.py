@@ -1,6 +1,7 @@
 """Bitmappy sprite functionality tests."""
 
 import logging
+import os
 
 import pygame
 import pytest
@@ -11,6 +12,7 @@ from glitchygames.sprites import (
     Singleton,
     SingletonBitmappySprite,
 )
+from tests.interrupted_writes import cut_writes_short
 from tests.logged_messages import logged_message, logged_messages
 
 
@@ -504,3 +506,89 @@ class TestDebugLoggingDoesNotGrowWithTheSprite:
         large = self._logged_characters(caplog, tmp_path, size=64)
 
         assert large - small < 64
+
+
+class TestStaticSaveIsWholeOrNothing:
+    """An interrupted save leaves the earlier file as it was.
+
+    bugs/2026-11-21-sprite-saves-are-not-atomic.md
+    """
+
+    def test_a_save_stopped_part_way_leaves_the_earlier_file_whole(self, tmp_path, mocker):
+        sprite_path = tmp_path / 'two_colors.toml'
+        sprite_path.write_text(
+            '[sprite]\nname = "two_colors"\npixels = """\nRG\nGR\n"""\n'
+            '[colors.R]\nred = 255\ngreen = 0\nblue = 0\n'
+            '[colors.G]\nred = 0\ngreen = 255\nblue = 0\n',
+            encoding='utf-8',
+        )
+        sprite = BitmappySprite(x=0, y=0, filename=str(sprite_path))
+        save_path = tmp_path / 'saved.toml'
+        save_path.write_text('the earlier file, whole\n', encoding='utf-8')
+
+        with (
+            cut_writes_short(mocker=mocker, characters=10),
+            pytest.raises(KeyboardInterrupt),
+        ):
+            sprite._save_static_only(str(save_path), 'toml')
+
+        assert save_path.read_text(encoding='utf-8') == 'the earlier file, whole\n'
+        assert sorted(path.name for path in tmp_path.iterdir()) == ['saved.toml', 'two_colors.toml']
+
+
+class TestStaticFilesLoadWithEitherLineEnd:
+    """A file with CRLF (Windows) or LF line ends loads the same, and saves with the OS's."""
+
+    TEXT = (
+        '[sprite]\nname = "two_colors"\npixels = """\nRG\nGR\n"""\n'
+        '[colors.R]\nred = 255\ngreen = 0\nblue = 0\n'
+        '[colors.G]\nred = 0\ngreen = 255\nblue = 0\n'
+    )
+
+    def _load(self, path, line_end):
+        path.write_bytes(self.TEXT.replace('\n', line_end).encode('utf-8'))
+        return BitmappySprite(x=0, y=0, filename=str(path))
+
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_a_crlf_file_loads_the_same_pixels_as_an_lf_file(self, tmp_path, line_end):
+        """Windows' CRLF and old Macs' lone CR are read as line feeds before parsing."""
+        from_lf = self._load(tmp_path / 'lf.toml', '\n')
+        from_crlf = self._load(tmp_path / 'crlf.toml', line_end)
+
+        assert from_crlf.pixels == from_lf.pixels
+        assert from_crlf.image.get_size() == from_lf.image.get_size() == (2, 2)
+        assert '\r' not in repr(from_crlf.deflate(file_format='toml'))
+
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_a_crlf_file_is_shown_as_an_lf_file_is(self, tmp_path, line_end):
+        """The text rendering reads the file through the same line-feed step."""
+        sprite = self._load(tmp_path / 'lf.toml', '\n')
+        (tmp_path / 'crlf.toml').write_bytes(self.TEXT.replace('\n', line_end).encode('utf-8'))
+
+        shown_lf = sprite._render_file_str(str(tmp_path / 'lf.toml'))
+        shown_crlf = sprite._render_file_str(str(tmp_path / 'crlf.toml'))
+
+        assert shown_crlf == shown_lf
+
+    def test_a_crlf_file_saves_again_with_the_os_line_ends(self, tmp_path):
+        lf_saved = tmp_path / 'from_lf.toml'
+        crlf_saved = tmp_path / 'from_crlf.toml'
+
+        self._load(tmp_path / 'lf.toml', '\n')._save_static_only(str(lf_saved), 'toml')
+        self._load(tmp_path / 'crlf.toml', '\r\n')._save_static_only(str(crlf_saved), 'toml')
+
+        text = crlf_saved.read_bytes().decode('utf-8').replace('\r\n', '\n')
+        assert crlf_saved.read_bytes() == lf_saved.read_bytes()
+        assert crlf_saved.read_bytes() == text.replace('\n', os.linesep).encode('utf-8')
+
+    def test_a_crlf_file_saved_and_loaded_again_has_the_same_sprite(self, tmp_path):
+        """What is in memory never carries a file's line ends, through any round trip."""
+        saved_path = tmp_path / 'saved.toml'
+        from_lf = self._load(tmp_path / 'lf.toml', '\n')
+        from_crlf = self._load(tmp_path / 'crlf.toml', '\r\n')
+
+        from_crlf._save_static_only(str(saved_path), 'toml')
+        reloaded = BitmappySprite(x=0, y=0, filename=str(saved_path))
+
+        assert from_crlf.deflate(file_format='toml') == from_lf.deflate(file_format='toml')
+        assert reloaded.deflate(file_format='toml') == from_lf.deflate(file_format='toml')

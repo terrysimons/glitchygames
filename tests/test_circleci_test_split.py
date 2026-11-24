@@ -20,18 +20,21 @@ from tests import circleci_test_split
 from tests.circleci_test_split import (
     CIRCLECI_SPLIT,
     CURRENT_TEST_VARIABLE,
+    DEFAULT_SPLIT_RECORD,
     HEAVY_MARKER,
     NODE_INDEX_VARIABLE,
     NODE_TOTAL_VARIABLE,
-    SPLIT_RECORD,
+    SPLIT_RECORD_DIRECTORY,
     SPLIT_VARIABLE,
     SPLITTER_COMMAND,
+    check_machine,
     choose_share,
     deal_heavy_tests,
     junit_test_name,
     repeated_junit_names,
     run_circleci_splitter,
     split_names,
+    split_record_path,
 )
 
 INNER_RUN_ARGUMENTS = ('-p', 'tests.circleci_test_split', '-p', 'no:randomly', '--assert=plain')
@@ -260,18 +263,112 @@ def test_every_collected_test_runs_on_exactly_one_machine(total):
 
 @pytest.mark.parametrize(
     ('heavy_count', 'total'),
-    [(42, 3), (43, 3), (44, 3), (2, 3), (7, 2), (214, 6), (38, 6), (5, 6)],
+    [
+        # More heavy tests than machines
+        (42, 3),
+        (43, 3),
+        (44, 3),
+        (7, 2),
+        (214, 6),
+        (38, 6),
+        # Fewer
+        (2, 3),
+        (5, 6),
+        (1, 6),
+        (0, 3),
+        # As many
+        (3, 3),
+        (6, 6),
+        # One machine
+        (214, 1),
+        (1, 1),
+        (0, 1),
+    ],
 )
 def test_the_machines_heavy_test_counts_differ_by_at_most_one(heavy_count, total):
-    """Dealt round-robin in a stable order: no machine gets the heavy tests together."""
+    """Dealt round-robin in a stable order: each machine gets the count's even share.
+
+    Every machine gets ``heavy_count // total`` heavy tests or one more, and the shares are
+    disjoint and hold every heavy test, for more heavy tests than machines, fewer, and as many.
+    """
     heavy = [f'tests/test_heavy.py::test_case[{number}]' for number in range(heavy_count)]
-    counts = [
-        len(deal_heavy_tests(node_ids=list(reversed(heavy)), index=index, total=total))
+    shares = [
+        deal_heavy_tests(node_ids=list(reversed(heavy)), index=index, total=total)
+        for index in range(total)
+    ]
+    counts = [len(share) for share in shares]
+
+    assert sorted(node_id for share in shares for node_id in share) == sorted(heavy)
+    assert set(counts) <= {heavy_count // total, heavy_count // total + 1}
+    assert max(counts) - min(counts) <= 1
+
+
+def test_one_machine_runs_every_test():
+    """``parallelism: 1``: the one machine is dealt every heavy test and keeps every other.
+
+    CircleCI's splitter on one machine prints every name it is given.
+    """
+    node_ids = [f'tests/test_{file}.py::test_{case}' for file in range(3) for case in range(4)]
+
+    share = choose_share(
+        node_ids=node_ids,
+        heavy_node_ids=node_ids[::5],
+        index=0,
+        total=1,
+        run_splitter=EveryNthSplitter(index=0, total=1),
+    )
+
+    assert share == frozenset(node_ids)
+
+
+@pytest.mark.parametrize('total', [1, 2, 3, 6, 7])
+@pytest.mark.parametrize('heavy_offset', [-1, 0, 1, 20])
+def test_shares_are_disjoint_cover_every_test_and_deal_heavy_tests_evenly(total, heavy_offset):
+    """The invariant for any machine count, with heavy tests fewer than, as many as or more.
+
+    Every test runs on exactly one machine (the shares are disjoint and together hold every
+    test), and each machine's heavy count is the even share of the heavy tests.
+    """
+    heavy_count = max(0, total + heavy_offset)
+    heavy = [f'tests/test_heavy.py::test_replay[{number}]' for number in range(heavy_count)]
+    light = [f'tests/test_light_{file}.py::test_{case}' for file in range(4) for case in range(5)]
+    node_ids = sorted(heavy + light)
+    shares = [
+        choose_share(
+            node_ids=node_ids,
+            heavy_node_ids=heavy,
+            index=index,
+            total=total,
+            run_splitter=EveryNthSplitter(index=index, total=total),
+        )
         for index in range(total)
     ]
 
-    assert sum(counts) == heavy_count
-    assert max(counts) - min(counts) <= 1
+    assert sum(len(share) for share in shares) == len(node_ids)
+    assert frozenset().union(*shares) == frozenset(node_ids)
+    heavy_counts = [len(share & set(heavy)) for share in shares]
+    assert set(heavy_counts) <= {heavy_count // total, heavy_count // total + 1}
+
+
+@pytest.mark.parametrize(('index', 'total'), [(3, 3), (4, 3), (-1, 3), (0, 0), (0, -2)])
+def test_a_machine_outside_the_total_stops_the_run(index, total):
+    """An index at or past the total would run no share at all: refused, before the splitter."""
+    with pytest.raises(pytest.UsageError, match=f'not machine {index} of {total}'):
+        check_machine(index=index, total=total)
+    with pytest.raises(pytest.UsageError):
+        choose_share(
+            node_ids=['tests/a.py::test_one'],
+            heavy_node_ids=[],
+            index=index,
+            total=total,
+            run_splitter=lambda _list: pytest.fail('the splitter ran for a machine out of range'),
+        )
+
+
+@pytest.mark.parametrize(('index', 'total'), [(0, 1), (0, 3), (2, 3), (5, 6)])
+def test_a_machine_within_the_total_is_accepted(index, total):
+    """Every index from 0 to the total less one is a machine."""
+    check_machine(index=index, total=total)
 
 
 def test_heavy_tests_never_reach_the_splitter():
@@ -311,7 +408,7 @@ def test_a_run_a_test_started_keeps_all_its_tests_under_a_split_environment(pyte
     result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
 
     result.assert_outcomes(passed=3)
-    assert not (pytester.path / SPLIT_RECORD).exists()
+    assert not (pytester.path / DEFAULT_SPLIT_RECORD).exists()
 
 
 def test_unset_the_plugin_runs_every_test(pytester, monkeypatch):
@@ -342,7 +439,7 @@ def test_set_the_plugin_runs_only_the_kept_tests_and_records_the_share(pytester,
     assert splitter.given == [
         ['test_kept.test_one', 'test_kept.test_two', 'test_left_out.test_three']
     ]
-    record = (pytester.path / SPLIT_RECORD).read_text(encoding='utf-8').splitlines()
+    record = (pytester.path / DEFAULT_SPLIT_RECORD).read_text(encoding='utf-8').splitlines()
     assert record == [
         '# CircleCI machine 1 of 2: 2 of 3 tests (0 of 0 heavy, dealt)',
         'kept test_kept.py::test_one',
@@ -446,6 +543,55 @@ def test_a_test_whose_name_holds_slashes_backslashes_or_brackets_survives_the_sp
     assert odd in result.stdout.str()
 
 
+@pytest.mark.parametrize(
+    ('junit_report', 'record'),
+    [
+        (None, DEFAULT_SPLIT_RECORD),
+        ('', DEFAULT_SPLIT_RECORD),
+        ('test-results/junit.xml', SPLIT_RECORD_DIRECTORY / 'test-split-junit.txt'),
+        (
+            'test-results/junit-wall-clock.xml',
+            SPLIT_RECORD_DIRECTORY / 'test-split-junit-wall-clock.txt',
+        ),
+    ],
+)
+def test_a_runs_share_record_is_named_after_its_junit_report(junit_report, record):
+    """Each report its own record; a run with no report writes the default one."""
+    assert split_record_path(junit_report=junit_report) == record
+
+
+def test_two_runs_on_one_machine_each_keep_their_own_share_record(pytester, monkeypatch):
+    """The test session's main run and its wall_clock run each leave their share.
+
+    Both wrote test-results/test-split.txt until 2026-11-23, so the second (the wall_clock run)
+    overwrote the first's: job 5210's machine 0 kept only "2 of 5 tests (0 of 0 heavy, dealt)".
+    """
+    split_environment(monkeypatch)
+    monkeypatch.setattr(
+        circleci_test_split,
+        'run_circleci_splitter',
+        StandInSplitter('test_kept.test_one', 'test_left_out.test_three'),
+    )
+    pytester.makepyfile(**INNER_TESTS)
+
+    main = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS, '--junitxml=test-results/junit.xml')
+    wall_clock = pytester.runpytest_inprocess(
+        *INNER_RUN_ARGUMENTS, '--junitxml=test-results/junit-wall-clock.xml', 'test_left_out.py'
+    )
+
+    main.assert_outcomes(passed=2, deselected=1)
+    wall_clock.assert_outcomes(passed=1)
+    main_record = pytester.path / SPLIT_RECORD_DIRECTORY / 'test-split-junit.txt'
+    wall_clock_record = pytester.path / SPLIT_RECORD_DIRECTORY / 'test-split-junit-wall-clock.txt'
+    assert main_record.read_text(encoding='utf-8').splitlines()[0] == (
+        '# CircleCI machine 0 of 2: 2 of 3 tests (0 of 0 heavy, dealt)'
+    )
+    assert wall_clock_record.read_text(encoding='utf-8').splitlines()[0] == (
+        '# CircleCI machine 0 of 2: 1 of 1 tests (0 of 0 heavy, dealt)'
+    )
+    assert not (pytester.path / DEFAULT_SPLIT_RECORD).exists()
+
+
 def test_an_xdist_worker_after_the_first_writes_no_record(pytester, monkeypatch):
     """Every worker splits alike; only the first (or no worker) writes the share's file."""
     split_environment(monkeypatch)
@@ -460,7 +606,7 @@ def test_an_xdist_worker_after_the_first_writes_no_record(pytester, monkeypatch)
     result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
 
     result.assert_outcomes(passed=2, deselected=1)
-    assert not (pytester.path / SPLIT_RECORD).exists()
+    assert not (pytester.path / DEFAULT_SPLIT_RECORD).exists()
 
 
 def test_any_other_value_of_the_variable_stops_the_run(pytester, monkeypatch):

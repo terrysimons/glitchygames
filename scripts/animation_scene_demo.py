@@ -47,7 +47,6 @@ class AnimationScene(Scene):
             logger.exception('Failed to load animation')
             raise
         self.animated_sprite.play()
-        assert self.animated_sprite.rect is not None
         self.animated_sprite.rect.center = (400, 300)  # Center of 800x600 screen
         logger.info(
             'Loaded: %s (%s frames)',
@@ -129,8 +128,6 @@ def main() -> int:
         # Update and render
         scene.update(dt)
         screen.fill((20, 20, 40))
-        assert scene.animated_sprite.image is not None
-        assert scene.animated_sprite.rect is not None
         screen.blit(scene.animated_sprite.image, scene.animated_sprite.rect)
         pygame.display.flip()
 
