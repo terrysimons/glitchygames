@@ -1083,6 +1083,7 @@ class TestJumpInput:
 class TestQuitKey:
     """Q (by position) ends the run."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         'scene_class',
         [BraveAdventurerScene, PapyrusBraveAdventurerScene],
@@ -1245,6 +1246,7 @@ class TestMain:
     for GameEngine's SCALED window, an error under pytest's filterwarnings.
     """
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('golden_name', 'game_module'),
         [('golden-classic', brave_adventurer_game), ('golden-papyrus', papyrus_game)],
@@ -1383,6 +1385,7 @@ class TestRespawnNearTheStart:
 class TestScarabInAPitIsDrawn:
     """A scarab that rolled into a pit is drawn over the pit fill, as the player is (#209.5)."""
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize(
         ('scene_class', 'scarab_class'),
         [(BraveAdventurerScene, Scarab), (PapyrusBraveAdventurerScene, PapyrusScarab)],

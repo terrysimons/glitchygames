@@ -15,6 +15,7 @@ import pytest
 from tests.memory_guard import (
     BYTES_PER_MEBIBYTE,
     CGROUP_SOURCE,
+    CURRENT_TEST_VARIABLE,
     LIMIT_EXIT_STATUS,
     LIMIT_VARIABLE,
     STATM_SOURCE,
@@ -23,7 +24,6 @@ from tests.memory_guard import (
     cgroup_reclaimable_slab_reader,
     guard_from_environment,
     memory_reader,
-    original_standard_error,
     statm_resident_reader,
     stop_the_run,
 )
@@ -321,6 +321,8 @@ def test_the_plugin_stops_a_run_past_the_limit_naming_its_test(pytester, monkeyp
     monkeypatch.setattr(
         'tests.memory_guard.stop_the_run', lambda *, error_descriptor, message: stops(message)
     )
+    # As a run no test started: pytest sets PYTEST_CURRENT_TEST for the test body
+    monkeypatch.delenv(CURRENT_TEST_VARIABLE, raising=False)
     monkeypatch.setenv(LIMIT_VARIABLE, '200')
     pytester.makepyfile(test_inner_run=PLUGIN_RUN_TESTS)
 
@@ -340,6 +342,8 @@ def test_the_plugin_does_nothing_unset(pytester, monkeypatch):
     Checked by the inner run's stash, not by thread names: this process may run the real guard
     (the Linux CI job sets the variable).
     """
+    # As a run no test started, so only this test's own rule can leave the guard out
+    monkeypatch.delenv(CURRENT_TEST_VARIABLE, raising=False)
     monkeypatch.delenv(LIMIT_VARIABLE, raising=False)
     monkeypatch.setattr(
         'tests.memory_guard.stop_the_run',
@@ -507,16 +511,6 @@ def test_stopping_exits_even_when_the_write_fails(mocker):
     exits.assert_called_once_with(LIMIT_EXIT_STATUS)
 
 
-def test_the_original_standard_error_is_a_new_descriptor(pytestconfig):
-    """A duplicate of the run's original standard error (pytest's saved one when capturing)."""
-    descriptor = original_standard_error(config=pytestconfig)
-    try:
-        assert descriptor > 2
-        os.fstat(descriptor)
-    finally:
-        os.close(descriptor)
-
-
 def test_an_xdist_worker_makes_no_guard(pytester, monkeypatch, tmp_path):
     """A worker (its config has workerinput) makes none: the controller's sees the container."""
     statm = tmp_path / 'statm'
@@ -524,6 +518,8 @@ def test_an_xdist_worker_makes_no_guard(pytester, monkeypatch, tmp_path):
     monkeypatch.setattr('tests.memory_guard.STATM_PATH', statm)
     monkeypatch.setattr('tests.memory_guard.CGROUP_DIRECTORY', tmp_path / 'no-cgroup')
     monkeypatch.setattr('tests.memory_guard.system_page_bytes', lambda: 1)
+    # As a run no test started, so only this test's own rule can leave the guard out
+    monkeypatch.delenv(CURRENT_TEST_VARIABLE, raising=False)
     monkeypatch.setenv(LIMIT_VARIABLE, '1600')
     pytester.makeconftest(
         'import pytest\n'
@@ -544,6 +540,38 @@ def test_an_xdist_worker_makes_no_guard(pytester, monkeypatch, tmp_path):
     result.assert_outcomes(passed=1)
 
 
+def test_a_run_a_test_started_makes_no_second_guard(pytester, monkeypatch, tmp_path):
+    """A nested run (pytester, a tool's pytest) inherits the limit, and makes no guard of its own.
+
+    On a serial Linux job the outer run's guard already watches the container: a nested run's
+    second one read the same memory, and its stop (os._exit) would kill the outer run, naming
+    the inner test. A pytest that configures while PYTEST_CURRENT_TEST is set was started by a
+    test (the split plugin's and the draws_frames check's rule).
+    """
+    assert os.environ.get('PYTEST_CURRENT_TEST')
+    statm = tmp_path / 'statm'
+    statm.write_text('5000 300 40 1 0 200 0\n', encoding='ascii')
+    monkeypatch.setattr('tests.memory_guard.STATM_PATH', statm)
+    monkeypatch.setattr('tests.memory_guard.CGROUP_DIRECTORY', tmp_path / 'no-cgroup')
+    monkeypatch.setattr('tests.memory_guard.system_page_bytes', lambda: BYTES_PER_MEBIBYTE)
+    monkeypatch.setattr(
+        'tests.memory_guard.stop_the_run',
+        lambda *, error_descriptor, message: pytest.fail(f'stopped: {message}'),
+    )
+    monkeypatch.setenv(LIMIT_VARIABLE, '200')
+    pytester.makepyfile(
+        test_inner_run=(
+            'from tests.memory_guard import GUARD_KEY\n'
+            'def test_no_guard(request):\n'
+            '    assert GUARD_KEY not in request.config.stash\n'
+        )
+    )
+
+    result = pytester.runpytest_inprocess(*INNER_RUN_ARGUMENTS)
+
+    result.assert_outcomes(passed=1)
+
+
 def test_the_run_summary_names_the_peak_the_guard_saw(pytester, monkeypatch, tmp_path):
     """A healthy run (under the limit) ends with the highest reading and its source."""
     statm = tmp_path / 'statm'
@@ -551,6 +579,8 @@ def test_the_run_summary_names_the_peak_the_guard_saw(pytester, monkeypatch, tmp
     monkeypatch.setattr('tests.memory_guard.STATM_PATH', statm)
     monkeypatch.setattr('tests.memory_guard.CGROUP_DIRECTORY', tmp_path / 'no-cgroup')
     monkeypatch.setattr('tests.memory_guard.system_page_bytes', lambda: BYTES_PER_MEBIBYTE)
+    # As a run no test started: pytest sets PYTEST_CURRENT_TEST for the test body
+    monkeypatch.delenv(CURRENT_TEST_VARIABLE, raising=False)
     monkeypatch.setenv(LIMIT_VARIABLE, '1600')
     pytester.makepyfile(test_inner_run=PLUGIN_RUN_TESTS)
 
@@ -645,6 +675,8 @@ def test_the_run_summary_names_the_containers_slab(pytester, monkeypatch, tmp_pa
         slab_reclaimable=mebibytes(290),
     )
     monkeypatch.setattr('tests.memory_guard.CGROUP_DIRECTORY', cgroup)
+    # As a run no test started: pytest sets PYTEST_CURRENT_TEST for the test body
+    monkeypatch.delenv(CURRENT_TEST_VARIABLE, raising=False)
     monkeypatch.setenv(LIMIT_VARIABLE, '1600')
     pytester.makepyfile(test_inner_run=PLUGIN_RUN_TESTS)
 

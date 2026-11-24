@@ -368,6 +368,7 @@ def test_discarded_event_types_are_presses_only():
     assert not delivered_types & TRANSITION_DISCARDED_EVENT_TYPES
 
 
+@pytest.mark.draws_frames
 def test_jump_pressed_during_elevator_ride_does_not_jump_on_arrival():
     """A jump key pressed and released mid-ride is not delivered when the ride ends."""
     with running_game(ElevatorDepartureScene) as manager:
@@ -397,6 +398,7 @@ def test_jump_pressed_during_elevator_ride_does_not_jump_on_arrival():
         assert highest_y >= arrival_y
 
 
+@pytest.mark.draws_frames
 def test_key_held_before_transition_and_released_during_it_is_not_held_after():
     """A release mid-transition reaches the ActionMap before the arrival scene's first tick."""
     with running_game(DepartureScene) as manager:
@@ -413,6 +415,7 @@ def test_key_held_before_transition_and_released_during_it_is_not_held_after():
         assert not ArrivalScene.shared_actions.is_held('move_right')
 
 
+@pytest.mark.draws_frames
 def test_key_pressed_during_transition_is_never_delivered():
     """A press mid-transition is discarded, not queued for the arrival scene."""
     with running_game(DepartureScene) as manager:
@@ -424,6 +427,7 @@ def test_key_pressed_during_transition_is_never_delivered():
         assert not ArrivalScene.shared_actions.is_held('move_right')
 
 
+@pytest.mark.draws_frames
 def test_quit_during_transition_quits():
     """A quit event during a transition is processed in that frame."""
     with running_game(DepartureScene) as manager:
@@ -433,6 +437,7 @@ def test_quit_during_transition_quits():
         assert manager.quit_requested is True
 
 
+@pytest.mark.draws_frames
 def test_controller_disconnect_during_transition_is_processed(mocker):
     """A joystick removal during a transition reaches the engine's joystick manager."""
     with running_game(DepartureScene) as manager:
@@ -453,6 +458,7 @@ def test_controller_disconnect_during_transition_is_processed(mocker):
         assert removed_handler.call_args.args[0].instance_id == 7
 
 
+@pytest.mark.draws_frames
 def test_stick_pushed_before_transition_and_centred_during_it_is_not_held_after():
     """A stick back inside the deadzone mid-transition is a release: it is delivered."""
     with running_game(DepartureScene, with_joystick=True) as manager:
@@ -466,6 +472,7 @@ def test_stick_pushed_before_transition_and_centred_during_it_is_not_held_after(
         assert not ArrivalScene.shared_actions.is_held('move_right')
 
 
+@pytest.mark.draws_frames
 def test_stick_pushed_during_transition_is_discarded():
     """A stick pushed outside the deadzone mid-transition is a press: it is discarded."""
     with running_game(DepartureScene, with_joystick=True) as manager:
@@ -477,6 +484,7 @@ def test_stick_pushed_during_transition_is_discarded():
         assert not ArrivalScene.shared_actions.is_held('move_right')
 
 
+@pytest.mark.draws_frames
 def test_hat_centred_during_transition_is_delivered_and_pushed_hat_discarded():
     """A hat back at (0, 0) mid-transition is delivered; a pushed hat is not."""
     with running_game(DepartureScene, with_joystick=True) as manager:
@@ -512,6 +520,7 @@ def test_neutral_motion_is_delivered_and_other_presses_discarded(event, is_disca
     assert is_discarded_during_transition(event) is is_discarded
 
 
+@pytest.mark.draws_frames
 def test_quit_key_pressed_and_released_during_transition_does_not_quit():
     """Q pressed mid-transition is discarded, so its release must not quit."""
     with running_game(DepartureScene) as manager:
@@ -525,6 +534,7 @@ def test_quit_key_pressed_and_released_during_transition_does_not_quit():
         assert manager.quit_requested is False
 
 
+@pytest.mark.draws_frames
 def test_quit_key_pressed_before_transition_and_released_during_it_does_not_quit():
     """The arriving scene never saw the Q press, so the release reaching it does not quit.
 
@@ -542,6 +552,7 @@ def test_quit_key_pressed_before_transition_and_released_during_it_does_not_quit
         assert manager.quit_requested is False
 
 
+@pytest.mark.draws_frames
 def test_quit_key_pressed_and_released_in_a_scene_quits():
     """Outside transitions, Q pressed and released in the same scene quits as before."""
     with running_game(DepartureScene) as manager:
@@ -552,6 +563,7 @@ def test_quit_key_pressed_and_released_in_a_scene_quits():
         assert manager.quit_requested is True
 
 
+@pytest.mark.draws_frames
 def test_file_dropped_during_transition_lands_in_the_arriving_scene():
     """A drop is not a press: it is delivered, to the scene that will be active."""
     with running_game(DepartureScene) as manager:
@@ -562,6 +574,7 @@ def test_file_dropped_during_transition_lands_in_the_arriving_scene():
         assert ArrivalScene.dropped_files == [('ArrivalScene', 'sprite.toml')]
 
 
+@pytest.mark.draws_frames
 def test_escape_that_paused_a_scene_cannot_quit_it_after_resume():
     """The press that paused a scene is forgotten when the scene becomes active again.
 

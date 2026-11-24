@@ -98,6 +98,7 @@ def _paint_first_frame(editor, animation, color):
 class TestShiftRightClickSampling:
     """Test shift-right-click screen sampling against plain right-click pixel sampling."""
 
+    @pytest.mark.draws_frames
     def test_regular_right_click_samples_pixel_data(self, editor):
         """A plain right-click on a film strip frame samples the frame's pixel (RGBA)."""
         film_strip_sprite, animation, frame_center = _film_strip_and_first_frame_center(editor)
@@ -111,6 +112,7 @@ class TestShiftRightClickSampling:
         assert result, 'Regular right-click should be handled'
         assert _slider_color(editor) == FRAME_COLOR
 
+    @pytest.mark.draws_frames
     def test_shift_right_click_samples_screen(self, editor):
         """A shift-right-click on a film strip frame samples the screen there (RGB, opaque)."""
         film_strip_sprite, animation, frame_center = _film_strip_and_first_frame_center(editor)
@@ -123,6 +125,7 @@ class TestShiftRightClickSampling:
         assert result, 'Shift-right-click should be handled'
         assert _slider_color(editor) == (*SCREEN_COLOR, 255)
 
+    @pytest.mark.draws_frames
     def test_shift_right_click_samples_screen_rgb_only(self, editor):
         """Sampling the screen takes its RGB and sets the alpha slider to opaque."""
         editor.screen.set_at((100, 100), SCREEN_COLOR)
@@ -132,6 +135,7 @@ class TestShiftRightClickSampling:
 
         assert _slider_color(editor) == (*SCREEN_COLOR, 255)
 
+    @pytest.mark.draws_frames
     def test_regular_right_click_canvas_samples_pixel_data(self, editor):
         """A plain right-click on the canvas samples the canvas pixel there (RGBA)."""
         canvas = editor.canvas
@@ -148,6 +152,7 @@ class TestShiftRightClickSampling:
 
         assert _slider_color(editor) == (255, 128, 64, 200)
 
+    @pytest.mark.draws_frames
     def test_shift_right_click_canvas_samples_screen(self, editor):
         """A shift-right-click on the canvas samples the screen there, not the pixel data."""
         canvas = editor.canvas
@@ -211,6 +216,7 @@ class TestShiftRightClickSampling:
         assert not result, 'Regular right-click outside bounds should not be handled'
         assert _slider_color(editor) == color_before
 
+    @pytest.mark.draws_frames
     def test_shift_right_click_without_parent_scene_handles_gracefully(self, editor):
         """Without a parent scene a shift-right-click is still handled, but samples nothing."""
         film_strip_sprite, _animation, frame_center = _film_strip_and_first_frame_center(editor)
