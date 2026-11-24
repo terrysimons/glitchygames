@@ -243,7 +243,15 @@ sees the same calls).
 
 ### Sub-plan 3: HUD labels as sprites, `Scene.pause()`, and the one checked re-record (candidate 3)
 
-Three parts in one PR, in this order; only part C changes recordings.
+Three parts, in two PRs (the coordinator's ruling, 2026-11-21, so the neutral half lands
+sooner); only part C changes recordings:
+
+- **First PR, from main** (`refactor/engine-scene-pause-and-recording-check`): part B and the
+  check of part C (its comparison and command line, with their planted-defect tests). Neither
+  changes a recording, needs Sub-plan 1 or waits for Arcade sub-plan 5.
+- **Second PR** (`refactor/engine-hud-labels`, on Sub-plan 1 and the first PR): part A and the
+  re-record itself, which land together (part A alone fails every Brave and Clockwork golden),
+  between Arcade sub-plans 5 and 6.
 
 **A. `HudLabel`.** Brave's and Clockwork's HUDs (score, lives, and Clockwork's floor name)
 become sprites in the scene's group, rendered only when their text changes, as Zombies' HUD
@@ -312,25 +320,39 @@ decision; "re-record only deliberately, as a reviewed step").
   `replay/rebaseline.py`) replays OLD's inputs and dt under the new code and records NEW from that
   run, so OLD and NEW are frame for frame the same session and every difference is the code's.
 - **The check** (a reusable comparison in `src/glitchygames/replay/recording_differences.py`,
-  its command line and this step's allowances in `scripts/check_rebaselined_recordings.py`, kept
-  in the tree for the next reviewed re-record): for each OLD/NEW pair it fails unless
+  its command line in `scripts/check_rebaselined_recordings.py`, kept in the tree for the next
+  reviewed re-record; this step's allowances are a plan file the script reads, committed with
+  the re-record, so the script names no step): for each OLD/NEW pair it fails unless
   - both hold the same frame count, scenes per frame, served inputs and dt, saves and device
     fields, and internal events, record by record;
   - every sprite record in every frame is identical (id, rect, visible, group order) once the
     pair's allowed sprite ids are set aside, and NEW's extra ids are exactly the allowed ones;
-  - every header and `scene_start` field is identical except recorded time, source revision and
-    the measurement histories (`content_hash`, `processing_seconds`, `audio_*`), plus the pair's
-    named allowances;
-  - the pixels are identical: OLD replayed on the commit before the change and NEW on the change
-    commit, under the frame fingerprints plugin (`glitchygames/testing/frame_fingerprints.py`),
-    compared with `scripts/compare_driver_frames.py compare before=DIR after=DIR`: no test's
-    frame sequence may differ.
+  - every header and `scene_start` field is identical except the measurement histories
+    (`content_hash`, `processing_seconds`, `audio_*`) and the header fields a rebaseline
+    rewrites whatever the code does (the measurement runs, which hold the source revision,
+    `rebaselined_from`, the engine, pygame and Python versions, `custom_event_types`), plus the
+    pair's named allowances. The recorded start time is compared: a rebaseline keeps OLD's.
+    Custom events compare by their type's name: found while building the check, a rebaseline
+    of an unchanged golden rewrites `custom_event_types` with this process's numbering (Brave's
+    and Clockwork's goldens predate the field and gain it, with `glitchygames.sprite_spawn`
+    added since), so numbers alone would report differences the code did not make;
+  - the pixels are identical: the suite run under the frame fingerprints plugin
+    (`glitchygames/testing/frame_fingerprints.py`) on the commit before the change and on the
+    change commit, compared test by test as `compare_driver_frames.py` compares drivers: no
+    test's frame sequence may differ, no test may be in one run only unless the plan names it
+    with a reason (the tests the change adds, renames or removes; an allowance that matched
+    nothing fails), and the report counts the frames compared. Found in the HUD branch's trial,
+    2026-11-22: with the six rebaselines in place every one of 3651 frames matched, yet the
+    check failed on the HUD branch's renamed and new tests alone; the coordinator ruled for
+    naming them in the plan, as the recording allowances are.
 
   Allowances, per pair and nothing else: Brave's four recordings, the `HudLabel` ids of the score
   and lives labels and their shadows; Clockwork's two, those plus the floor label and its
-  shadow; `drawing` and `typing`, the window-owner plan's window-setting internal events and that
-  event type's entry in the header's custom event types; Zombies' `golden`, the `run` argument
+  shadow; `drawing` and `typing`, the window-owner plan's window-setting internal events (by
+  custom event type name); Zombies' `golden`, the `run` argument
   of frame 291's `FeatureCardScene` start and `opening: false` of frame 311's `TitleScene` start.
+  The pixel step's allowances: the HUD branch's renamed and new tests (Brave's and Clockwork's
+  `TestHud`, the `..._through_scene_pause` renames if the before commit predates them).
 - **The check is proven able to fail** before it is trusted (the global rule): planted on a
   copy, each of these turns it red: a label one pixel off, a non-HUD sprite moved one pixel, an
   extra sprite of another class, one pixel changed outside the HUD, an internal event dropped, a

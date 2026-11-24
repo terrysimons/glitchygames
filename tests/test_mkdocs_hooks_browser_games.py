@@ -307,3 +307,14 @@ def test_the_post_build_hook_stops_a_build_missing_an_explorers_file(tmp_path, m
         PluginError, match=r'requirements/index\.html: \.\./data/requirements\.json'
     ):
         mkdocs_hooks.on_post_build(config)
+
+
+def test_a_file_that_is_not_a_python_module_is_refused_by_name(tmp_path):
+    """A path Python can't load as a module raises ImportError naming it, even under -O."""
+    not_a_module = tmp_path / 'notes.txt'
+    not_a_module.write_text('not code', encoding='utf-8')
+
+    with pytest.raises(ImportError) as raised:
+        mkdocs_hooks.load_script(path=not_a_module, module_name='a_module_no_test_loaded')
+
+    assert str(raised.value) == f'{not_a_module} is not a loadable Python module'

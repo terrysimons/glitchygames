@@ -36,9 +36,10 @@ per frame, and whatever another reader takes never reaches the engine.
   per-subtype callbacks. A fourth, `SPRITE_SPAWN_EVENT`, is the engine's alone (see
   [The sprite spawn event](#the-sprite-spawn-event)).
 - **An unhandled event safety net** — every `on_*_event()` has a default stub
-  that reports the event as unhandled (a warning once per type, or an
-  `UnhandledEventError` under `--no-unhandled-events`), and the engine counts
-  every unhandled event type and logs the table at teardown.
+  that reports the event as unhandled (an `UnhandledEventError` under
+  `--no-unhandled-events`, a warning once per type under `--debug-events`, nothing
+  otherwise), and the engine counts every unhandled event type and logs the table at
+  teardown.
 
 Events flow from SDL through pygame, into specialized event managers that track
 state and synthesize higher-level events, through the scene manager, and finally
@@ -60,8 +61,8 @@ flowchart TB
         PATH_PUMP --> PATH_PROCESS["GameEngine.process_events()"]
         PATH_PROCESS --> PATH_WRAP["HashableEvent.from_pygame()"]
         PATH_WRAP --> PATH_LOOKUP{"event_handlers[event.type]"}
-        PATH_LOOKUP -->|"no entry, or not handled"| PATH_UNHANDLED["process_unimplemented_event()<br/>counted in unhandled_events"]
-        PATH_LOOKUP --> PATH_FAMILY["GameEngine.process_family_event()<br/>(one per event family, table below)"]
+        PATH_LOOKUP -->|"no entry, or the method returns False"| PATH_UNHANDLED["process_unimplemented_event()<br/>counted in unhandled_events"]
+        PATH_LOOKUP --> PATH_FAMILY["the family's GameEngine.process_*_event()<br/>(table below)"]
         PATH_FAMILY --> PATH_MANAGER["the family's event manager"]
         PATH_MANAGER --> PATH_PROXY["its proxy: keeps state, synthesizes events<br/>(one proxy per device for joysticks and controllers)"]
         PATH_PROXY --> PATH_SCENE_MANAGER["SceneManager on_*_event()"]
@@ -82,11 +83,11 @@ flowchart TB
 | `JOY*` (axis, ball, hat, button, device) | `process_joystick_event()` | `JoystickEventManager` (see below) |
 | `KEYDOWN`, `KEYUP` | `process_keyboard_event()` | `KeyboardEventManager` |
 | `MOUSEMOTION`, `MOUSEBUTTON*`, `MOUSEWHEEL` | `process_mouse_event()` | `MouseEventManager` |
-| `FINGERDOWN`, `FINGERMOTION`, `FINGERUP`, `MULTIGESTURE` | `process_touch_event()` | `TouchEventManager` |
+| `FINGERDOWN`, `FINGERMOTION`, `FINGERUP` (`MULTIGESTURE` is unhandled) | `process_touch_event()` | `TouchEventManager` |
 | `DROPBEGIN`, `DROPFILE`, `DROPTEXT`, `DROPCOMPLETE` | `process_drop_event()` | `DropEventManager` |
-| `WINDOWEVENT`, `WINDOW*` | `process_window_event()` | `WindowEventManager` |
-| `FPSEVENT`, `GAMEEVENT`, `MENUEVENT`, `QUIT`, `USEREVENT`, `ACTIVEEVENT`, `VIDEO*`, `SYSWMEVENT` | `process_game_event()` | `GameEventManager` |
-| `MIDIIN`, `MIDIOUT` | `process_midi_event()` | `MidiEventManager` |
+| `WINDOW*` (`WINDOWDISPLAYCHANGED` and `WINDOWICCPROFCHANGED` are unhandled) | `process_window_event()` | `WindowEventManager` |
+| `FPSEVENT`, `GAMEEVENT`, `MENUEVENT`, `QUIT`, `USEREVENT`, `ACTIVEEVENT`, `VIDEORESIZE`, `VIDEOEXPOSE`, `SYSWMEVENT` (every other type in `GAME_EVENTS`, such as `CLIPBOARDUPDATE`, is unhandled) | `process_game_event()` | `GameEventManager` |
+| `MIDIIN`, `MIDIOUT` | `process_midi_event()` | none: passed to `SceneManager.handle_event()`, which ignores them (see [MidiEvents](#midievents-mideventstubs)) |
 | `APP_*` | `process_app_event()` | `AppEventManager` |
 | `TEXTEDITING`, `TEXTINPUT` | `process_text_event()` | none: passed to the scene manager (the active scene's `on_text_*_event`) |
 
@@ -95,8 +96,9 @@ flowchart TB
 Every manager is a `ResourceManager` that passes calls on to a proxy. The proxy implements the
 family's interface (`MouseEvents` for the mouse), keeps the family's state, synthesizes
 higher-level events (drag, drop and focus for the mouse; chords for the keyboard) and calls the
-same handler on its `game`, which is the `SceneManager`. The `SceneManager` hands every
-`on_*_event()` to the active scene (`__getattr__`). The mouse, as an example:
+same handler on its `game`, which is the `SceneManager`. The `SceneManager` hands an
+`on_*_event()` it does not define itself to the active scene (`__getattr__`; see
+[Scene Manager Event Forwarding](#scene-manager-event-forwarding)). The mouse, as an example:
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 400}}}%%
@@ -192,11 +194,13 @@ it was made with (`custom_event_types`), and a replay moves the recorded events 
 process's ids (BUGS.md #211.1).
 
 These constants are defined in `src/glitchygames/events/base.py` (exported by `glitchygames.events`):
+`FPSEVENT` (the FPS counter's updates, usually `USEREVENT + 1`), `GAMEEVENT` (game-specific
+events, told apart by subtype, usually `+ 2`) and `MENUEVENT` (menu item selections, usually `+ 3`).
 
-```py
-FPSEVENT = named_custom_event_type('FPSEVENT')  # FPS counter updates (usually USEREVENT + 1)
-GAMEEVENT = named_custom_event_type('GAMEEVENT')  # Game-specific events, via subtypes (+ 2)
-MENUEVENT = named_custom_event_type('MENUEVENT')  # Menu item selections (+ 3)
+```py title="src/glitchygames/events/base.py"
+FPSEVENT = named_custom_event_type('FPSEVENT')
+GAMEEVENT = named_custom_event_type('GAMEEVENT')
+MENUEVENT = named_custom_event_type('MENUEVENT')
 ```
 
 A game that needs its own event type should allocate it the same way, at import:
@@ -209,8 +213,8 @@ FPSEVENT's id. `named_custom_event_type` skips every id a name already holds.
 
 ### The sprite spawn event
 
-`SPRITE_SPAWN_EVENT` (`glitchygames.sprite_spawn`, in `src/glitchygames/events/sprite_spawn.py`)
-carries a sprite's file text and a world point. The AI console's `/sprite DESCRIPTION` posts one
+`SPRITE_SPAWN_EVENT` (registered under the name `glitchygames.sprite_spawn`, in
+`src/glitchygames/events/sprite_spawn.py`) carries a sprite's file text and a world point. The AI console's `/sprite DESCRIPTION` posts one
 with `recording.post_input_event` once a generated sprite is ready, so a recording keeps it,
 text and all, and a replay adds the same sprite at the same frame and place with no AI and no
 saved file. `GameEngine.process_events` handles it itself, before anything else sees the event:
@@ -235,7 +239,7 @@ flowchart LR
 
     subgraph Producers["Producers"]
         subgraph ENGINE_PRODUCERS["Engine"]
-            SM_FPS["SceneManager\nposts every fps_log_interval_ms"]
+            SM_FPS["SceneManager\nposts every half of fps_log_interval_ms"]
             MENU_ITEM["MenuItem sprites\npost on click"]
         end
         subgraph GAME_PRODUCERS["Your game"]
@@ -245,7 +249,7 @@ flowchart LR
 
     subgraph Consumers["Consumers (e.g. Your game.)"]
         FPS_H["on_fps_event()"]
-        GAME_H["on_game_event()\n+ registered subtype callbacks"]
+        GAME_H["registered subtype callbacks\n(SceneManager.on_game_event())"]
         MENU_H["on_menu_item_event()"]
     end
 
@@ -295,7 +299,7 @@ Any code in the game can fire these events:
 
 ```py
 # From a collision handler, enemy class, pickup sprite, etc.
-# (SceneManager is a singleton: SceneManager().game_engine works anywhere)
+# (SceneManager() returns this engine context's manager, so SceneManager().game_engine works anywhere)
 self.scene_manager.game_engine.post_game_event(
     event_subtype=SCORE_CHANGED,
     event_data={'score': self.score},
@@ -323,9 +327,9 @@ while consuming only one pygame event ID.
 (focus, exposure, property and configure notifications), on Windows each window message
 (`hwnd`, `msg`, `wparam`, `lparam`). SDL leaves the type disabled, and so does the engine:
 `GameEngine` allows every event type through `allow_every_event_type()`
-(`src/glitchygames/events/base.py`), which keeps `SYSWMEVENT` blocked. Before, a plain
-`pygame.event.set_allowed(None)` turned it on, so on a real X server the queue, every
-`--record-trace` recording and every instant-replay journal filled with messages no game read.
+(`src/glitchygames/events/base.py`), which keeps `SYSWMEVENT` blocked. A plain
+`pygame.event.set_allowed(None)` would turn it on, and on a real X server the queue, every
+`--record-trace` recording and every instant-replay journal would fill with messages no game reads.
 
 A game that wants them opts in on its scene class (the one given to `GameEngine`), like
 `TARGET_FPS`:
@@ -458,6 +462,8 @@ classDiagram
         +on_video_expose_event()
         +on_clipboard_update_event()
         +on_locale_changed_event()
+        +on_render_device_reset_event()
+        +on_render_targets_reset_event()
     }
 
     class DropEventManager {
@@ -598,7 +604,7 @@ the joystick and controller managers, the game):
 | `DropEventManager` | `[self.game]` | No pygame subsystem (events only) |
 | `GameEventManager` | `[self.game]` | No pygame subsystem (events only) |
 | `AppEventManager` | `[self.game]` | No pygame subsystem (events only) |
-| `MidiEventManager` | `[self.game, pygame.midi]` | `get_count()`, `get_device_info()`, etc. |
+| `MidiEventManager` | `[self.game, pygame.midi]` (`[self.game]` when this pygame build has no PortMidi) | `get_count()`, `get_device_info()`, etc. |
 
 Managers without a pygame subsystem in their proxy list (like `DropEventManager`)
 only forward events — `__getattr__` falls through to the game object.
@@ -726,8 +732,8 @@ But the three `JOYAXISMOTION` events hit the **stub**, which calls
 - with `no_unhandled_events` (`--no-unhandled-events`, and every test) raises
   `UnhandledEventError`;
 - with `debug_events` (`--debug-events`), logs `Unhandled Event: <name> <event>` at WARNING the first
-  time it sees each event type (a module-level set of seen types), and nothing
-  after;
+  time it sees each event type (the set of seen types belongs to the engine context, so a
+  second game in the process logs its own), and nothing after;
 - otherwise does nothing.
 
 ```
@@ -920,7 +926,7 @@ objects. Each physical controller gets its own proxy identified by `instance_id`
 
 ```mermaid
 flowchart TD
-    subgraph ControllerEventManager["ControllerEventManager (singleton)"]
+    subgraph ControllerEventManager["ControllerEventManager (one per engine context)"]
         CONTROLLERS["controllers dict\ninstance_id -> ControllerEventProxy"]
     end
 
@@ -1249,7 +1255,7 @@ signatures).
 
 ### MouseEvents → MouseEventStubs
 
-??? note "Its 20 handlers: each diagram, then the handler's signature"
+??? note "Its 22 handlers: each diagram, then the handler's signature"
     ```mermaid
     flowchart LR
         M1["MOUSEMOTION"] --> MH1["on_mouse_motion_event"]
@@ -1405,7 +1411,8 @@ signatures).
 
     ```mermaid
     flowchart LR
-        M1["MOUSEMOTION"] -.->|"button held + motion"| MS9("on_left_mouse_drag_event"):::synthesized
+        M1["MOUSEMOTION"] -.->|"button held + motion"| MS9a("on_mouse_drag_event"):::synthesized
+        M1 -.->|"button held + motion"| MS9("on_left_mouse_drag_event"):::synthesized
         M1 -.->|"button held + motion"| MS9b("on_middle_mouse_drag_event"):::synthesized
         M1 -.->|"button held + motion"| MS9c("on_right_mouse_drag_event"):::synthesized
         classDef synthesized stroke-dasharray: 5 5
@@ -1414,6 +1421,16 @@ signatures).
 
     ```py
     # Synthesized — drag events (motion while button held)
+    def on_mouse_drag_event(
+        event: HashableEvent(MOUSEMOTION {
+            'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
+        }),
+        trigger: HashableEvent(MOUSEBUTTONDOWN {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),  # the original button-down; called first, for any button
+    ):
+        ...
+
     def on_left_mouse_drag_event(
         event: HashableEvent(MOUSEMOTION {
             'pos': ..., 'rel': ..., 'buttons': ..., 'touch': ...,
@@ -1451,7 +1468,8 @@ signatures).
 
     ```mermaid
     flowchart LR
-        M3["MOUSEBUTTONUP"] -.->|"released after drag"| MS10("on_left_mouse_drop_event"):::synthesized
+        M3["MOUSEBUTTONUP"] -.->|"released after drag"| MS10a("on_mouse_drop_event"):::synthesized
+        M3 -.->|"released after drag"| MS10("on_left_mouse_drop_event"):::synthesized
         M3 -.->|"released after drag"| MS10b("on_middle_mouse_drop_event"):::synthesized
         M3 -.->|"released after drag"| MS10c("on_right_mouse_drop_event"):::synthesized
         classDef synthesized stroke-dasharray: 5 5
@@ -1460,6 +1478,16 @@ signatures).
 
     ```py
     # Synthesized — drop events (button released after drag)
+    def on_mouse_drop_event(
+        event: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),
+        trigger: HashableEvent(MOUSEBUTTONUP {
+            'pos': ..., 'button': ..., 'touch': ...,
+        }),  # the release itself; called first, for any button
+    ):
+        ...
+
     def on_left_mouse_drop_event(
         event: HashableEvent(MOUSEBUTTONUP {
             'pos': ..., 'button': ..., 'touch': ...,
@@ -1885,7 +1913,7 @@ WINDOWICCPROFCHANGED reach no handler (they are counted as unhandled).
 
 ### TouchEvents → TouchEventStubs
 
-??? note "Its 4 handlers: each diagram, then the handler's signature"
+??? note "Its 3 routed handlers: each diagram, then the handler's signature"
     ```mermaid
     flowchart LR
         T1["FINGERDOWN"] --> TH1["on_touch_down_event"]
@@ -1976,7 +2004,7 @@ WINDOWICCPROFCHANGED reach no handler (they are counted as unhandled).
 
 ### GameEvents → GameEventStubs
 
-??? note "Its 8 handlers: each diagram, then the handler's signature"
+??? note "Its 8 always-routed handlers: each diagram, then the handler's signature"
     ```mermaid
     flowchart LR
         G1["FPSEVENT"] --> GH1["on_fps_event"]
@@ -2103,10 +2131,10 @@ WINDOWICCPROFCHANGED reach no handler (they are counted as unhandled).
 
     `SYSWMEVENT` reaches `on_sys_wm_event` only when the game opts in (see Native window
     messages). `GameEventManager` and the stubs also define `on_clipboard_update_event`,
-    `on_locale_changed_event`, `on_render_device_reset_event`,
-    `on_render_targets_reset_event` and `on_font_changed_event`, but
-    `GameEngine.process_game_event` does not route `CLIPBOARDUPDATE`, `LOCALECHANGED` or the
-    `RENDER_*` types today: they are counted as unhandled.
+    `on_locale_changed_event`, `on_render_device_reset_event` and
+    `on_render_targets_reset_event`, but `GameEngine.process_game_event` does not route
+    `CLIPBOARDUPDATE`, `LOCALECHANGED` or the `RENDER_*` types today: they are counted as
+    unhandled. `FontEventStubs` defines `on_font_changed_event`, which no event type reaches.
 
 ### AppEvents → AppEventStubs
 
@@ -2220,6 +2248,12 @@ which hands them to the active scene's handlers below (`Scene`'s log them); text
 
 ### MidiEvents → MidiEventStubs
 
+!!! warning "MIDI events never reach these handlers today"
+    `GameEngine.process_midi_event` passes `MIDIIN` and `MIDIOUT` to `SceneManager.handle_event()`
+    and reports them handled. That method acts only on `QUIT`, and the engine's
+    `MidiEventManager` is never called, so a scene's `on_midi_in_event` and `on_midi_out_event`
+    do not run (`src/glitchygames/engine/game_engine.py`).
+
 ??? note "Its 2 handlers: each diagram, then the handler's signature"
     ```mermaid
     flowchart LR
@@ -2300,7 +2334,7 @@ Device events (added, removed, remapped) always pass; a scene is also told of ea
 has it (a mapped pad, which arrives and leaves on both layers, once each way).
 
 `--input-mode` filters what the game sees: `auto` (the default) every device as above,
-`joystick` every device on its joystick layer only (SDL blocks controller events), `controller`
+`joystick` every device on its joystick layer only (SDL blocks controller events, and the engine makes no `ControllerEventManager`), `controller`
 mapped pads only (other devices are hidden and their events dropped). `ActionMap` binds the
 same families: `auto` binds a `controller_button` to both. The joystick demo
 (`src/demos/joystick-demo/src/joystick_demo/__init__.py`) lists every device with its event layer's live
@@ -2324,7 +2358,7 @@ for device in self.input_devices:
 ### JoystickEventManager architecture
 
 Unlike other event managers, `JoystickEventManager` manages **multiple proxy
-objects** — one per connected joystick. The outer manager is still a singleton,
+objects** — one per connected joystick. The outer manager is still one shared instance per engine context,
 but it maintains a `self.joysticks` dict keyed by `instance_id`, and routes each
 event to the correct proxy based on the event's joystick identity.
 
@@ -2357,7 +2391,7 @@ the cached `_name` only when that fails; the others return the cached values.
 
 ```mermaid
 flowchart TD
-    EVT["SDL Joystick Event\n(JOYAXISMOTION, etc.)"] --> MGR["JoystickEventManager\n(singleton)"]
+    EVT["SDL Joystick Event\n(JOYAXISMOTION, etc.)"] --> MGR["JoystickEventManager\n(one per engine context)"]
     MGR --> RESOLVE{"Resolve joystick\ninstance_id from event"}
     RESOLVE -->|"event.instance_id\nor fallback event.joy"| LOOKUP["self.joysticks[instance_id]"]
     LOOKUP --> PROXY["JoystickEventProxy #N"]
@@ -2365,7 +2399,7 @@ flowchart TD
     STATE --> GAME["Forward to self.game\non_joy_*_event()"]
 
     ADD["JOYDEVICEADDED"] --> MGR2["JoystickEventManager"]
-    MGR2 --> CREATE["Create new JoystickEventProxy\n(init joystick, cache properties)"]
+    MGR2 --> CREATE["Create new JoystickEventProxy unless the instance id is tracked\n(open it, cache properties)"]
     CREATE --> DICT["self.joysticks[instance_id] = proxy"]
     DICT --> NOTIFY["proxy.on_joy_device_added_event()"]
 
@@ -2403,17 +2437,17 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    EVT["SDL Controller Event\n(CONTROLLERBUTTONDOWN, etc.)"] --> MGR["ControllerEventManager\n(singleton)"]
+    EVT["SDL Controller Event\n(CONTROLLERBUTTONDOWN, etc.)"] --> MGR["ControllerEventManager\n(one per engine context)"]
     MGR --> LOOKUP["self.controllers[event.instance_id]"]
     LOOKUP --> PROXY["ControllerEventProxy #N"]
     PROXY --> STATE["Update state\n(_axes, _buttons)"]
     STATE --> GAME["Forward to self.game\non_controller_*_event()"]
 
     ADD["CONTROLLERDEVICEADDED"] --> MGR2["ControllerEventManager"]
-    MGR2 --> CHECK{"is_controller(device_index)?"}
-    CHECK -->|"Yes"| CREATE["Create ControllerEventProxy\n(init SDL GameController)"]
-    CHECK -->|"No"| SKIP["Log warning, skip"]
-    CREATE --> DICT["self.controllers[proxy.instance_id] = proxy"]
+    MGR2 --> CHECK{"open a ControllerEventProxy\nat event.device_index\n(init SDL GameController)"}
+    CHECK -->|"unplugged again\n(pygame.error)"| SKIP["Log warning, skip"]
+    CHECK -->|"instance id already tracked"| KEEP["Keep the tracked proxy\n(a pad connected at startup is reported twice)"]
+    CHECK -->|"opened"| DICT["self.controllers[proxy.instance_id] = proxy"]
 
     REM["CONTROLLERDEVICEREMOVED"] --> MGR3["ControllerEventManager"]
     MGR3 --> CLEANUP["Notify proxy, then\ndel self.controllers[instance_id]"]
@@ -2430,7 +2464,9 @@ which reads the snapshot.
 #### Button state
 
 Buttons are tracked as a `list[bool]`. The list grows dynamically if a device
-reports a button index beyond the initially detected count.
+reports a button index beyond the initially detected count (the axis, hat and trackball
+lists grow the same way). An event with a negative index is ignored: the proxy neither stores
+it nor forwards it. The snippets below are the state updates, simplified.
 
 ```mermaid
 stateDiagram-v2
@@ -2610,9 +2646,19 @@ attributes: device_index, guid`).
 
 ## Scene Manager Event Forwarding
 
-The `SceneManager` implements every event handler method and forwards to the
+The `SceneManager` is the `game` every manager's proxy calls, and it forwards to the
 `active_scene`. This provides the indirection layer that enables scene switching
-without rewiring event handlers.
+without rewiring event handlers. Most handlers are not defined on the `SceneManager` at all:
+its `__getattr__` answers any `on_*_event` name with the active scene's handler, or, when the
+scene has none (or there is no active scene), with the game engine's, which logs the call once and
+suppresses it (`src/glitchygames/scenes/scene.py`). Four it defines itself:
+
+- `on_key_down_event` takes F3 and F4 for the debug overlay (unless a sprite has keyboard focus),
+  and forwards every other key to the active scene.
+- `on_fps_event` forwards to the active scene.
+- `on_game_event` is not forwarded: it calls the callback registered for the event's subtype
+  (see [Extending GAMEEVENT](#extending-gameevent-in-your-game)).
+- `on_quit_event` sets `quit_requested` and does not forward.
 
 ```mermaid
 flowchart LR
@@ -2627,10 +2673,11 @@ flowchart LR
         GM["GameEventManager"]
         DM["DropEventManager"]
         TM["TouchEventManager"]
+        APM["AppEventManager"]
     end
 
-    subgraph SM["SceneManager (singleton)"]
-        FWD["Forwards all on_*_event()\ncalls to active_scene"]
+    subgraph SM["SceneManager (one per engine context)"]
+        FWD["Forwards on_*_event()\ncalls to active_scene"]
         AS["active_scene reference"]
     end
     end
@@ -2639,7 +2686,7 @@ flowchart LR
         SCENE["Active Scene\non_*_event()"]
     end
 
-    AM & CM & KM & MM & JM & WM & GM & DM & TM --> FWD
+    AM & CM & KM & MM & JM & WM & GM & DM & TM & APM --> FWD
     FWD --> AS
     AS --> SCENE
 ```
@@ -2694,7 +2741,7 @@ stateDiagram-v2
 
 Every transition goes through `SceneManager.switch_to_scene()`. Dialog scenes
 (`src/glitchygames/ui/dialogs.py`) store a reference to `previous_scene` so they can
-return to the editor when the user confirms or cancels. The SceneManager itself is a singleton (one per engine context) — there is only
+return to the editor when the user confirms or cancels. The SceneManager itself is one per engine context — there is only
 one `active_scene` at a time, and only that scene receives events.
 
 ## EVENT_HANDLERS Dict Construction

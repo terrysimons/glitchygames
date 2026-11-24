@@ -309,8 +309,25 @@ def test_second():
 """
 
 
+SECONDS_PER_HOUR = 3600.0
+# Longer than the guard's real interval (0.25 s): a sampling thread would sample in it
+SLOW_COLLECTION_CONFTEST = """
+import time
+
+
+def pytest_collection_finish(session):
+    time.sleep(0.6)
+"""
+
+
 def test_the_plugin_stops_a_run_past_the_limit_naming_its_test(pytester, monkeypatch, tmp_path):
-    """Through pytest's hooks: the first test's start is past the limit, and named."""
+    """Through pytest's hooks: the first test's start is past the limit, and named.
+
+    The thread starts at configure and would sample during collection, before any test runs,
+    and stop the run naming none (CircleCI job 4569, a slow Windows collection). Its interval
+    is an hour here, so the start check is what stops the run; collection is made slow on
+    purpose, which failed every run before the guard read its interval when built.
+    """
     statm = tmp_path / 'statm'
     statm.write_text('5000 300 40 1 0 200 0\n', encoding='ascii')
     stops = RecordedStops()
@@ -321,10 +338,12 @@ def test_the_plugin_stops_a_run_past_the_limit_naming_its_test(pytester, monkeyp
     monkeypatch.setattr(
         'tests.memory_guard.stop_the_run', lambda *, error_descriptor, message: stops(message)
     )
+    monkeypatch.setattr('tests.memory_guard.SAMPLE_INTERVAL_SECONDS', SECONDS_PER_HOUR)
     # As a run no test started: pytest sets PYTEST_CURRENT_TEST for the test body
     monkeypatch.delenv(CURRENT_TEST_VARIABLE, raising=False)
     monkeypatch.setenv(LIMIT_VARIABLE, '200')
     pytester.makepyfile(test_inner_run=PLUGIN_RUN_TESTS)
+    pytester.makeconftest(SLOW_COLLECTION_CONFTEST)
 
     # --assert=plain: this process imported the plugin already, so pytest could not rewrite it
     # (PytestAssertRewriteWarning); it asserts nothing

@@ -92,12 +92,14 @@ the replays, and do they hold still between runs on one machine? Stop here if th
   (`measure.this_machine`).
 - **Show them with Part 1's controls:** the same Platform A and B, grouped by area (Bitmappy, engine).
 
-### Step 3: clean up either way
+### Step 3: stop saving runs, keep what is there
 
-Whatever the audit says, stop `performance-test` saving (`--benchmark-save`) into the repository, add
-`.benchmarks/` to `.gitignore` and delete the committed files (they stay in git history). The 21
-Darwin files are from Python 3.13, last changed in March. `performance-test` stays as CI's pass/fail
-check. If the audit passes, import the Pi's three runs first.
+Done 2026-11-24 (#291): `performance-test` saves no run (`--benchmark-save` removed; the owner,
+2026-11-24: benchmarks run in CI, but no file they write may get committed), so `.benchmarks/` no
+longer grows, and `tests/test_ci_config.py` refuses any save flag. `performance-test` stays as CI's
+pass/fail check. The 24 committed files stay (the owner, 2026-11-24: "Don't delete anything"), and
+`.benchmarks/` is not added to `.gitignore`: 21 Darwin runs on Python 3.13, last changed in March,
+and the Pi's three. If the audit passes, import the Pi's three runs from there.
 
 ## Decisions for the owner
 

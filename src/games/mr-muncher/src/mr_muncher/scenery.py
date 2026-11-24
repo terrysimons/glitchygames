@@ -63,7 +63,8 @@ class Sprocket(Sprite):
             groups=groups,
         )
         self.image = image
-        self.dirty = 2
+        # Still: drawn again only when it is eaten (visible marks it) or a snack blinks
+        self.dirty = 1
 
     @property
     def eaten(self: Self) -> bool:
@@ -83,7 +84,10 @@ class Sprocket(Sprite):
         """
         if self.is_snack:
             lit = math.floor(game_time / SNACK_TWINKLE_SECONDS) % 2 == 0
-            self.image = drawing.snack_picture(tile_size=self.tile_size, lit=lit)
+            picture = drawing.snack_picture(tile_size=self.tile_size, lit=lit)
+            if picture is not self.image:
+                self.image = picture
+                self.dirty = 1
 
 
 class Picture(Sprite):
@@ -113,7 +117,8 @@ class Picture(Sprite):
         super().__init__(
             x=0, y=0, width=image.get_width(), height=image.get_height(), name=name, groups=groups
         )
-        self.dirty = 2
+        # Still: drawn again only when it is shown, hidden (visible marks it) or changed
+        self.dirty = 1
         self.change_image(image=image)
 
     def change_image(self: Self, *, image: pygame.Surface) -> None:
@@ -125,6 +130,7 @@ class Picture(Sprite):
         """
         self.image = image
         self.rect = image.get_rect(center=(round(self.centre[0]), round(self.centre[1])))
+        self.dirty = 1
 
     def move_to(self: Self, *, centre: tuple[float, float]) -> None:
         """Centre the picture on another point.
@@ -173,7 +179,8 @@ class SidePanel(Sprite):
             (holes_width + area.width) // 2 if holes_on_left else (area.width - holes_width) // 2
         )
         self.contents: tuple[object, ...] | None = None
-        self.dirty = 2
+        # Still: drawn again only when draw() changes what it shows
+        self.dirty = 1
         self.draw(contents=(), items=())
 
     def draw(
@@ -196,3 +203,4 @@ class SidePanel(Sprite):
         for picture, top in items:
             panel.blit(picture, (self.text_centre_x - picture.get_width() // 2, top))
         self.image = panel
+        self.dirty = 1
