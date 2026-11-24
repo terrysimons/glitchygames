@@ -61,7 +61,6 @@ from .constants import (
     MAGENTA_TRANSPARENT,
     MAX_COLORS_FOR_AI_TRAINING,
     TRANSPARENT_GLYPH,
-    ai_training_state,
 )
 from .models import AIRequest, AIRequestState, AIResponse, MockEvent
 from .toml_processing import (
@@ -72,6 +71,7 @@ from .toml_processing import (
     parse_toml_robustly,
     quantize_colors_if_needed,
 )
+from .training_library import TRAINING_FORMAT, ai_training_library
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -659,7 +659,7 @@ class AIManager:
         cleaned_content = self._clean_ai_response(content)
 
         # Add description to the content if we have an original prompt
-        if original_prompt and ai_training_state['format'] == 'toml':
+        if original_prompt and ai_training_library().training_format == TRAINING_FORMAT:
             # Parse the TOML content with robust duplicate key handling
             try:
                 data = parse_toml_robustly(cleaned_content, self.log)
@@ -787,9 +787,7 @@ class AIManager:
 
         """
         # Determine file extension based on training format
-        file_extension = (
-            f'.{ai_training_state["format"]}' if ai_training_state['format'] else '.toml'
-        )
+        file_extension = f'.{ai_training_library().training_format or TRAINING_FORMAT}'
 
         with tempfile.NamedTemporaryFile(
             mode='w',

@@ -2514,15 +2514,6 @@ CANVAS_REDRAW_GOLDEN_STATES = {
 }
 
 
-@pytest.fixture
-def isolated_onion_skinning(monkeypatch):
-    """Give the global onion skinning manager its startup state, restored after the test."""
-    onion_manager = onion_skinning.get_onion_skinning_manager()
-    monkeypatch.setattr(onion_manager, 'onion_skinning_enabled', {})
-    monkeypatch.setattr(onion_manager, 'global_onion_skinning_enabled', True)
-    monkeypatch.setattr(onion_manager, 'onion_transparency', 0.5)
-
-
 def _redrawn_canvas_digest(canvas):
     """Redraw a canvas and digest its image's pixels, independent of the display's format.
 
@@ -2534,7 +2525,6 @@ def _redrawn_canvas_digest(canvas):
     return hashlib.sha256(pygame.image.tobytes(canvas.image, 'RGBA')).hexdigest()
 
 
-@pytest.mark.usefixtures('isolated_onion_skinning')
 class TestCanvasRedrawGoldens:
     """A real canvas redraws exactly the recorded pixels in every state."""
 

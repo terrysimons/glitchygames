@@ -10,8 +10,8 @@ if TYPE_CHECKING:
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGBA_COMPONENT_COUNT
 from glitchygames.sprites.tags import TAGS_KEY, normalize_sprite_tags
 
-from .constants import ai_training_state
 from .toml_processing import normalize_toml_data
+from .training_library import TRAINING_FORMAT
 
 
 def _detect_alpha_channel(colors: dict[str, Any]) -> bool:
@@ -184,7 +184,7 @@ def parse_toml_sprite_data(config_file: Path) -> tuple[dict[str, Any], dict[str,
         'name': config_data.get('sprite', {}).get('name', 'Unknown'),
         # What the example is: the AI's example choice scores these first (ai_worker)
         'tags': normalize_sprite_tags(config_data.get('sprite', {}).get(TAGS_KEY)),
-        'format': ai_training_state['format'],
+        'format': TRAINING_FORMAT,
         'sprite_type': 'animated' if 'animation' in config_data else 'static',
         'has_alpha': False,
     }

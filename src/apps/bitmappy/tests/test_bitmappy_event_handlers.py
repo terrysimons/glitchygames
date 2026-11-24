@@ -640,9 +640,8 @@ class TestOnKeyDownEvent:
         """O key toggles onion skinning and redraws the canvas without the onion layer."""
         from bitmappy import onion_skinning
 
-        # A fresh real manager, so the toggle does not leak into other tests
-        onion_manager = onion_skinning.OnionSkinningManager()
-        mocker.patch.object(onion_skinning, 'onion_skinning_manager', onion_manager)
+        # The test's own manager (fresh: the conftest resets it), so the toggle does not leak
+        onion_manager = onion_skinning.get_onion_skinning_manager()
         canvas = _make_two_frame_canvas(
             first_frame_color=(255, 0, 255, 255),
             second_frame_color=(255, 255, 255, 255),

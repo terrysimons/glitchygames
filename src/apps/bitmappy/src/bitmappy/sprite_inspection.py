@@ -9,8 +9,15 @@ from glitchygames.sprites import SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite
 
 from .alpha import convert_sprite_to_alpha_format, parse_toml_sprite_data
-from .constants import LOG, ai_training_state
+from .constants import LOG
 from .pixel_ops import render_frame_to_ascii, render_frames_side_by_side
+from .training_library import (
+    EMPTY_TRAINING_LIBRARY,
+    TRAINING_FORMAT,
+    TrainingLibrary,
+    ai_training_library,
+    install_training_library,
+)
 from .utils import SPRITE_CONFIG_DIR
 
 if TYPE_CHECKING:
@@ -257,27 +264,24 @@ def _log_colorized_sprite_output(
     LOG.debug(f'Successfully printed colorized output for {config_file.name}')
 
 
-def _process_config_file(config_file: Path, training_data: list[dict[str, Any]]) -> None:
-    """Process a single sprite config file and add it to training data.
+def _process_config_file(config_file: Path) -> dict[str, Any] | None:
+    """Read one sprite config file as a training example.
 
     Args:
         config_file: Path to the config file.
-        training_data: List to append training data to.
+
+    Returns:
+        The example, or None when the file cannot be read as a sprite.
 
     """
     LOG.debug(f'Processing config file: {config_file}')
-    if ai_training_state['format'] != 'toml':
-        LOG.warning(f"Unsupported format '{ai_training_state['format']}' for {config_file}")
-        return
-
     # An unreadable or malformed sprite file is skipped: it adds no training data
     try:
         config_data, sprite_data = parse_toml_sprite_data(config_file)
         converted_sprite_data = convert_sprite_to_alpha_format(sprite_data)
     except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
         LOG.warning(f'Error loading sprite config {config_file}: {e}')
-        return
-    training_data.append(converted_sprite_data)
+        return None
 
     # The colorized output is only a log: failing to make it never loses the training data.
     # The file can vanish or lose its permissions between the parse and this second read
@@ -299,39 +303,47 @@ def _process_config_file(config_file: Path, training_data: list[dict[str, Any]])
         import traceback
 
         LOG.warning(f'Traceback: {traceback.format_exc()}')
+    return converted_sprite_data
 
 
-def load_ai_training_data() -> None:
-    """Load AI training data from sprite config files.
+def load_ai_training_data() -> TrainingLibrary:
+    """Load the AI training library from the packaged sprite files, once per process.
 
-    Raises:
-        TypeError: If ai_training_state['data'] is not a list.
+    The first load installs it (bitmappy.training_library); a later one returns the installed
+    library without reading the files again.
+
+    Returns:
+        The installed library.
 
     """
-    training_data = ai_training_state['data']
-    if not isinstance(training_data, list):
-        msg = "ai_training_state['data'] must be a list"
-        raise TypeError(msg)
+    if ai_training_library() is not EMPTY_TRAINING_LIBRARY:
+        LOG.info('AI training data already loaded: %s sprites', len(ai_training_library().examples))
+        return ai_training_library()
 
     LOG.info(f'Loading AI training data from: {SPRITE_CONFIG_DIR}')
     LOG.debug(f'Sprite config directory exists: {SPRITE_CONFIG_DIR.exists()}')
 
     if not SPRITE_CONFIG_DIR.exists():
         LOG.warning(f'Sprite config directory not found: {SPRITE_CONFIG_DIR}')
-        LOG.info(f'Total AI training data loaded: {len(training_data)} sprites')
-        return
+        LOG.info('Total AI training data loaded: 0 sprites')
+        return install_training_library(
+            library=TrainingLibrary.of(examples=[], training_format=None)
+        )
 
-    toml_files = list(SPRITE_CONFIG_DIR.glob('*.toml'))
-
-    if toml_files:
-        config_files = toml_files
-        ai_training_state['format'] = 'toml'
+    config_files = sorted(SPRITE_CONFIG_DIR.glob('*.toml'))
+    if config_files:
         LOG.info(f'Found {len(config_files)} TOML sprite config files')
     else:
-        config_files = []
         LOG.warning('No sprite config files found')
 
-    for config_file in config_files:
-        _process_config_file(config_file, training_data)
-
-    LOG.info(f'Total AI training data loaded: {len(training_data)} sprites')
+    examples = [
+        example
+        for config_file in config_files
+        if (example := _process_config_file(config_file)) is not None
+    ]
+    LOG.info(f'Total AI training data loaded: {len(examples)} sprites')
+    return install_training_library(
+        library=TrainingLibrary.of(
+            examples=examples, training_format=TRAINING_FORMAT if config_files else None
+        )
+    )
