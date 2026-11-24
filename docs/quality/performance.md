@@ -137,8 +137,8 @@ A benchmark rebaselines every golden replay and bundled demo headless three time
 same child command `glitchygames measure` runs: at `--log-level warning` (the replay tools' level
 and a game's default: logging off), at `--log-level info` (what a bug report asks a player to run
 with) and at `--log-level debug` (everything on). It is not part of the test run (`nox -s test`;
-it takes under a minute), but CI runs it with the other benchmarks in the macOS job's
-`nox -s performance-test`, where a failed rebaseline fails the job. Run it alone with
+it takes under a minute), nor of CI: the benchmarks run by hand only (the owner, 2026-11-23).
+A failed rebaseline fails the run. Run it alone with
 
 ```bash
 uv run pytest tests/benchmarks/test_logging_cost.py -o addopts= -p no:xdist --benchmark-only --dummy-only
