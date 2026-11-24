@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 from glitchygames import clock
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGB_COMPONENT_COUNT
+from glitchygames.output_files import write_text_whole
 
 log = logging.getLogger(__name__)
 
@@ -336,8 +337,7 @@ class MultiControllerConfig:
             return cls()
 
         try:
-            with config_path.open(encoding='utf-8') as f:
-                config_data = json.load(f)
+            config_data = json.loads(config_path.read_text(encoding='utf-8'))
 
             return cls(**config_data)
         except (OSError, json.JSONDecodeError, ValueError, TypeError) as e:
@@ -373,8 +373,8 @@ class MultiControllerConfig:
                 'enable_navigation_history': self.enable_navigation_history,
             }
 
-            with Path(config_file).open('w', encoding='utf-8') as f:
-                json.dump(config_data, f, indent=2)
+            # Whole or nothing: a stopped save leaves the earlier config, which still loads
+            write_text_whole(destination=Path(config_file), text=json.dumps(config_data, indent=2))
         except Exception:
             log.exception('Failed to save config to %s', config_file)
             return False

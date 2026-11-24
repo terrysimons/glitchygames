@@ -1466,6 +1466,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/record_scripted_session.py',
     ),
     'tests/test_replay_schedule.py': ('scripts/replay_schedule.py',),
+    'tests/test_reproduce_import_keyerror.py': ('scripts/reproduce_import_keyerror.py',),
     'tests/test_reproduce_killpg_fork_race.py': ('scripts/reproduce_killpg_fork_race.py',),
     'tests/test_reproduce_orphaned_test_processes.py': (
         'scripts/reproduce_orphaned_test_processes.py',
@@ -1525,6 +1526,7 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/replay/test_recording_logical_names.py': (
         'checks the logical names of every committed recording of our members'
     ),
+    'tests/test_base_exception_handler_source_guard.py': SOURCE_GUARD_REASON,
     'tests/test_ci_config.py': "checks the CI configuration against the workspace's members",
     'tests/test_engine_context_source_guards.py': SOURCE_GUARD_REASON,
     'tests/test_engine_doors.py': SOURCE_GUARD_REASON,

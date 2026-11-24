@@ -348,6 +348,20 @@ class TestDetectFileFormat:
 class TestParseTomlSpriteData:
     """Tests for parse_toml_sprite_data function."""
 
+    @pytest.mark.parametrize('line_end', ['\r\n', '\r'], ids=['crlf', 'lone-cr'])
+    def test_a_crlf_file_parses_as_an_lf_file(self, tmp_path, line_end):
+        """Windows' CRLF and old Macs' lone CR are read as line feeds before parsing."""
+        text = (
+            '[sprite]\nname = "test"\npixels = """\n##\n##\n"""\n'
+            '[colors."#"]\nred = 0\ngreen = 0\nblue = 0\n'
+        )
+        lf_path = tmp_path / 'lf.toml'
+        lf_path.write_bytes(text.encode('utf-8'))
+        other_path = tmp_path / 'other.toml'
+        other_path.write_bytes(text.replace('\n', line_end).encode('utf-8'))
+
+        assert parse_toml_sprite_data(other_path) == parse_toml_sprite_data(lf_path)
+
     def test_parse_static_sprite(self):
         """Parses a simple static sprite TOML file."""
         toml_content = b"""
