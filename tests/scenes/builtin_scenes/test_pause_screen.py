@@ -188,6 +188,7 @@ def _paused_game(scene_manager: SceneManager) -> tuple[Game, PauseScene]:
 class TestPauseScreen:
     """Test the Pause Screen functionality."""
 
+    @pytest.mark.draws_frames
     def test_pause_screen_triggered_on_spacebar(self, isolated_scene_manager):
         """SPACE pressed and released during gameplay requests the pause scene."""
         game = Game(options={})
@@ -203,6 +204,7 @@ class TestPauseScreen:
         _draw_the_active_scene(isolated_scene_manager)
         LOG.info('Pause screen condition properly detected')
 
+    @pytest.mark.draws_frames
     def test_pause_screen_resume_on_spacebar(self, isolated_scene_manager):
         """SPACE pressed and released on the pause screen switches back to the paused game."""
         game, pause_scene = _paused_game(isolated_scene_manager)
@@ -214,6 +216,7 @@ class TestPauseScreen:
         _draw_the_active_scene(isolated_scene_manager)
         LOG.info('Pause screen resume properly detected')
 
+    @pytest.mark.draws_frames
     def test_pause_screen_gets_game_engine_reference(self, isolated_scene_manager):
         """Switching to the pause scene hands it the scene manager's game engine."""
         game = Game(options={})
@@ -234,6 +237,7 @@ class TestPauseScreen:
 class TestPauseScreenIntegration:
     """Test Pause Screen integration with the main game."""
 
+    @pytest.mark.draws_frames
     def test_pause_resume_cycle(self, isolated_scene_manager):
         """Pause, draw the pause screen on the display, then resume the same game."""
         game, pause_scene = _paused_game(isolated_scene_manager)
@@ -279,6 +283,7 @@ class TestPauseSceneBehaviour:
         scene_manager.switch_to_scene(pause_scene)
         return pause_scene
 
+    @pytest.mark.draws_frames
     def test_setup_without_a_previous_scene_warns_and_uses_a_black_backdrop(
         self, isolated_scene_manager, caplog
     ):
@@ -306,6 +311,7 @@ class TestPauseSceneBehaviour:
         ):
             isolated_scene_manager.switch_to_scene(PauseScene())
 
+    @pytest.mark.draws_frames
     def test_escape_quits(self, isolated_scene_manager):
         """ESC on the pause screen quits: the scene manager posts QUIT to the real queue."""
         pause_scene = self._pause_scene_after(isolated_scene_manager, previous_scene=None)
@@ -316,6 +322,7 @@ class TestPauseSceneBehaviour:
         assert len(pygame.event.get(eventtype=pygame.QUIT)) == 1
         _draw_the_active_scene(isolated_scene_manager)
 
+    @pytest.mark.draws_frames
     def test_other_key_down_goes_to_the_base_scene(self, isolated_scene_manager):
         """A key other than SPACE or ESC (here Q) reaches the base scene: no quit on the press.
 
@@ -340,6 +347,7 @@ class TestPauseSceneBehaviour:
         assert isolated_scene_manager.active_scene is paused_game
         assert pause_scene._space_pressed is False
 
+    @pytest.mark.draws_frames
     def test_space_release_without_a_press_does_not_resume(self, isolated_scene_manager):
         """A SPACE release whose press the pause scene never saw does not resume."""
         pause_scene = self._pause_scene_after(isolated_scene_manager, previous_scene=Scene())
@@ -349,6 +357,7 @@ class TestPauseSceneBehaviour:
         assert isolated_scene_manager.active_scene is pause_scene
         _draw_the_active_scene(isolated_scene_manager)
 
+    @pytest.mark.draws_frames
     def test_focus_gained_right_after_pausing_does_not_resume(self, isolated_scene_manager):
         """The focus pair the scene switch itself causes (within 0.5 s) is ignored."""
         pause_scene = self._pause_scene_after(isolated_scene_manager, previous_scene=Scene())
@@ -402,6 +411,7 @@ class TestPauseSceneGamepad:
 
         assert isolated_scene_manager.active_scene is paused_game
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
     def test_a_release_whose_press_came_before_the_pause_does_not_resume(
         self, isolated_scene_manager, layer
@@ -416,6 +426,7 @@ class TestPauseSceneGamepad:
         assert isolated_scene_manager.active_scene is pause_scene
         _draw_the_active_scene(isolated_scene_manager)
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
     @pytest.mark.parametrize('button', [pygame.CONTROLLER_BUTTON_B, pygame.CONTROLLER_BUTTON_BACK])
     def test_b_or_back_quits(self, isolated_scene_manager, layer, button):
@@ -428,6 +439,7 @@ class TestPauseSceneGamepad:
         assert len(pygame.event.get(eventtype=pygame.QUIT)) == 1
         _draw_the_active_scene(isolated_scene_manager)
 
+    @pytest.mark.draws_frames
     @pytest.mark.parametrize('layer', GAMEPAD_LAYERS)
     def test_another_button_does_nothing(self, isolated_scene_manager, layer):
         """Any other button neither resumes nor quits."""
