@@ -154,7 +154,10 @@ Where the scrub stands, for whoever picks it up (the session that did steps 1-2 
     root because `quality/` is one of `REPOSITORY_PATH`'s roots. Fix in the checker: skip a
     `](...)` link target in a page under `docs/` (mkdocs checks those, `--strict`), with a test
     in `tests/test_docs_claims.py`.
-  The report must be empty again before step 6 makes it a test.
+  The report must be empty again before step 6 makes it a test. **Empty again** (2026-11-21,
+  `docs/scattered-doc-todos`): the six claims the report then listed (the two names, the three
+  build-written files, the relative link) are `RECORDED_EXCEPTIONS` entries, each with its
+  reason. The quicker way, so the checker fixes above remain open if wanted.
 - **Next, on the reading pass's branch: step 3, the root files.** Decide with the owner, per file, keep, fold into `docs/` or
   retire: `ANIMATION_README.md`, `API_README.md`, `BITMAPPY_ARCHITECTURE.md`,
   `CONTROLLER_CONTROLS_README.md`, `LOADER_README.md` (`README.md` and `CLAUDE.md` stay; read
@@ -167,7 +170,7 @@ Where the scrub stands, for whoever picks it up (the session that did steps 1-2 
 - **Open question for the owner:** read steps 3-5 in sequence (the default so far) or as
   parallel agents, one per area.
 - **When the reading pass closes:** update `plans/future-work.md`'s "Documentation scrub" item
-  (its scope still lists `TEST_UPDATE_PLAN.md`, now removed) and mark it done.
+  and mark it done.
 - **Working notes:**
   - `uv run python -m scripts.docs_claims` (as a module: it imports `scripts.*`);
     `--kind path` and so on narrow it. Exit 1 means claims found.

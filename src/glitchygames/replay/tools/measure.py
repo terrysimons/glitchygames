@@ -93,15 +93,16 @@ from glitchygames.exit_codes import ExitCode
 from glitchygames.machine_state import current_machine_state
 from glitchygames.process import OutputCapture, TimeoutExpired, run_command
 from glitchygames.recording_metrics import (
+    append_ledger_rows,
     describe_processing_fps,
     is_measured,
     ledger_rows_from_rebaseline,
-    ledger_text,
     merge_ledgers,
     parse_ledger,
     published_ledger_text,
     read_ledger_file,
     read_row_files,
+    write_ledger_file,
     write_row_files,
 )
 from glitchygames.replay.processing import machine_description
@@ -705,8 +706,7 @@ def _write_new_rows(
     )
     if settings.rows_directory is None:
         ensure_directory(directory=settings.pending_path.parent, project_root=settings.project_root)
-        with settings.pending_path.open('a', encoding='utf-8') as pending:
-            pending.write(ledger_text(rows=new_rows))
+        append_ledger_rows(path=settings.pending_path, rows=new_rows)
     else:
         write_row_files(
             rows=new_rows,
@@ -884,7 +884,7 @@ def clear_published(*, pending_path: Path, published_text: str) -> None:
     published_keys = {row.key for row in parse_ledger(text=published_text).rows}
     remaining = [row for row in pending if row.key not in published_keys]
     if remaining:
-        pending_path.write_text(ledger_text(rows=remaining), encoding='utf-8')
+        write_ledger_file(path=pending_path, rows=remaining)
     else:
         pending_path.unlink()
     removed = len(pending) - len(remaining)

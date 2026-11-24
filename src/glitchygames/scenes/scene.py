@@ -15,6 +15,7 @@ from glitchygames.backgrounds import (
     background_pattern_surface,
 )
 from glitchygames.camera import Camera2D
+from glitchygames.checks import required
 from glitchygames.collision import CollisionManager
 from glitchygames.color import BLACK, RGB_COMPONENT_COUNT, RGBA_COMPONENT_COUNT
 from glitchygames.debug import DebugFrameInfo, DebugOverlay
@@ -110,6 +111,12 @@ LOG.addHandler(logging.NullHandler())
 
 JITTER_SAMPLE_BUFFER_MAX_SIZE = 512
 SHAKE_BORDER_COLOR = (0, 0, 0)  # Fills the strips a SCREEN shake uncovers
+# What a missing value is called in glitchygames.checks.required's "<what> is missing": values the
+# scene manager and a scene always have where they are read (a bug when they do not)
+ACTIVE_SCENE = "the scene manager's active scene"
+GAME_ENGINE = "the scene manager's game engine"
+MANAGER_SCREEN = "the scene manager's screen"
+SCENE_SCREEN = "the scene's display surface"
 
 # Input dropped while a transition plays (SceneManager._process_transition_events): presses
 # and motion, so nothing pressed during a ride acts when it ends. Releases (KEYUP,
@@ -993,14 +1000,14 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
                 old_player.visible = False
             old_player.dirty = 0
         if recapture_old_scene:
-            assert self.active_scene is not None
-            assert self.screen is not None
-            self.active_scene.update()
+            outgoing_scene = required(self.active_scene, what=ACTIVE_SCENE)
+            screen = required(self.screen, what=MANAGER_SCREEN)
+            outgoing_scene.update()
             if old_player is not None:
                 # Not updated (dirty 0 above, so Scene.update skips its pose), but marked now:
                 # the group erases where the hidden player was drawn
                 old_player.dirty = 1
-            self.active_scene.render(self.screen)
+            outgoing_scene.render(screen)
         old_surface = self.screen.copy() if self.screen else pygame.Surface((800, 600))
         if old_player is not None:
             if old_player_was_hidden is None:
@@ -2204,8 +2211,9 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         installed_frame_seconds = session.sources.installed_frame_seconds
         # Entering the scope asks its doors for the frame time (_enter_playback), and every
         # later frame's time is asked as the frame before it ends (_finish_frame)
-        assert installed_frame_seconds is not None, 'the scope never asked for a frame time'
-        return installed_frame_seconds
+        return required(
+            installed_frame_seconds, what='the frame time the playback scope asked its doors for'
+        )
 
     def _begin_scene_logic_frame(self: Self) -> None:
         """Complete the active scene's start as its first logic frame begins (scene_start.py).
@@ -2311,8 +2319,8 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             self._run_supervisor_slot()
             self._update_frame_services()
             # A transition frame presents, so the display surface exists
-            assert self.screen is not None
-            self._active_transition.render(self.screen)
+            screen = required(self.screen, what=MANAGER_SCREEN)
+            self._active_transition.render(screen)
             self._present_frame(full_update=True)
             if transition_done:
                 self._finalize_transition()
@@ -2479,8 +2487,10 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             # The playback's own scene switches set it to playback scenes
             self.previous_scene = session.saved_previous_scene
             # _enter_playback set it right after the session, with nothing in between to fail
-            assert self._live_rumble_behind_scope is not None
-            self.rumble = self._live_rumble_behind_scope
+            self.rumble = required(
+                self._live_rumble_behind_scope,
+                what='the live rumble controller the playback set aside',
+            )
             self._live_rumble_behind_scope = None
             self._clear_frame_effects()
             # The display shows the playback's last frame: the live scene's first presented
@@ -2598,9 +2608,8 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         # frame's WORLD shake offset), the camera aim and positioning, so sprites spawned in
         # dt_tick are placed before their first render. Scene.update() runs inside
         # _render_scene, after positioning.
-        logic_scene = self.active_scene
         # A scene frame runs the active scene's logic (_update_scene): there is always one
-        assert logic_scene is not None
+        logic_scene = required(self.active_scene, what=ACTIVE_SCENE)
         logic_scene.camera.begin_frame()
         # Logic and the camera aim share one (possibly capped) dt; self.dt stays the raw frame
         # time for the frame services, pacing and FPS statistics
@@ -2673,8 +2682,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             scene_dt: The scene's dt this frame (_scene_frame_seconds).
 
         """
-        scene = self.active_scene
-        assert scene is not None
+        scene = required(self.active_scene, what=ACTIVE_SCENE)
         aim_camera(scene=scene, camera=scene.camera, dt=scene_dt)
 
     def _advance_still_camera_shake(self: Self, *, scene_dt: float) -> None:
@@ -2702,13 +2710,13 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         self.screen as it is (callers refresh it with update_screen() first): without a display
         surface there is nothing to place sprites on, so nothing is done.
         """
-        camera = self._active_camera()
-        if camera is None or self.screen is None:
+        # The active scene's camera (_active_camera): None exactly when no scene is active
+        scene = self.active_scene
+        if scene is None or self.screen is None:
             return
-        assert self.active_scene is not None
         position_world_sprites(
-            sprites=self.active_scene.all_sprites,
-            camera=camera,
+            sprites=scene.all_sprites,
+            camera=scene.camera,
             screen_size=self.screen.get_size(),
         )
 
@@ -2769,10 +2777,10 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         """
         # GAMEEVENT is pygame.USEREVENT + 2
         # Call the event callback if it's registered.
-        assert self.game_engine is not None
+        game_engine = required(self.game_engine, what=GAME_ENGINE)
         try:
             event_subtype: int = getattr(event, 'subtype', 0)
-            self.game_engine.registered_events[event_subtype](event)
+            game_engine.registered_events[event_subtype](event)
         except KeyError:
             self.log.error(  # ruff: ignore[error-instead-of-exception]
                 'Unregistered Event: %s '
@@ -2788,8 +2796,8 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             callback (Callable[..., Any]): The callback to call when the event is triggered.
 
         """
-        assert self.game_engine is not None
-        self.game_engine.register_game_event(event_type=event_type, callback=callback)
+        game_engine = required(self.game_engine, what=GAME_ENGINE)
+        game_engine.register_game_event(event_type=event_type, callback=callback)
 
     # If the game hasn't hooked a call, we should check if the scene manager has.
     #
@@ -2884,15 +2892,15 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             scene_dt: The scene's dt this frame (_scene_frame_seconds).
 
         """
-        assert self.active_scene is not None
+        active_scene = required(self.active_scene, what=ACTIVE_SCENE)
         # Compiles from here on are the frame's, not the scene's setup (sound engine impl 6.5)
         self._awaiting_first_logic_frame = False
         audio_engine = _existing_audio_engine()
         if audio_engine is not None:
             audio_engine.begin_logic_frame()
         # Engine-owned, so a dt_tick override that skips super() still has game time
-        self.active_scene.advance_game_time(seconds=scene_dt)
-        self.active_scene.dt_tick(scene_dt)
+        active_scene.advance_game_time(seconds=scene_dt)
+        active_scene.dt_tick(scene_dt)
 
     def _process_events(self) -> None:
         """Process game engine events."""
@@ -2915,23 +2923,23 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
 
     def _render_scene(self) -> None:
         """Render the active scene."""
-        assert self.active_scene is not None
+        active_scene = required(self.active_scene, what=ACTIVE_SCENE)
         # Update screen reference if needed
         self.update_screen()
-        self.active_scene.update()
+        active_scene.update()
         if self.screen is not None:
-            self.active_scene.render(self.screen)
+            active_scene.render(self.screen)
 
     def _update_display(self) -> None:
         """Update the display based on update type."""
-        assert self.active_scene is not None
+        active_scene = required(self.active_scene, what=ACTIVE_SCENE)
         if self.update_type == 'update':
             # None asks for the whole screen (a scene drawing outside its sprites); a list sends
             # exactly those rects, an empty one nothing (no sprite changed: Scene.rects)
-            if self.active_scene.rects is None:
+            if active_scene.rects is None:
                 pygame.display.update()
             else:
-                pygame.display.update(self.active_scene.rects)
+                pygame.display.update(active_scene.rects)
         elif self.update_type == 'flip':  # pragma: no branch - --update-type: update or flip
             pygame.display.flip()
 
@@ -3045,15 +3053,15 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
 
     def _set_display_caption(self) -> None:
         """Set the display caption for the active scene."""
-        assert self.active_scene is not None
+        active_scene = required(self.active_scene, what=ACTIVE_SCENE)
         caption = ''
 
-        if self.active_scene.NAME:
-            caption = f'{self.active_scene.NAME}'
+        if active_scene.NAME:
+            caption = f'{active_scene.NAME}'
 
-        if self.active_scene.VERSION:
+        if active_scene.VERSION:
             # No NAME: the version alone, without a leading space
-            caption = f'{caption} v{self.active_scene.VERSION}'.strip()
+            caption = f'{caption} v{active_scene.VERSION}'.strip()
 
         # The window's caption is its owner's: an inner context never sets it (row S2 of
         # plans/2026-10-25-engine-context.md; glitchygames/render_target.py)
@@ -3063,22 +3071,20 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
 
     def _configure_scene_fps(self) -> None:
         """Configure FPS for the scene."""
-        assert self.active_scene is not None
+        active_scene = required(self.active_scene, what=ACTIVE_SCENE)
         # Command line FPS takes precedence over scene FPS
         # Set the scene's target_fps to match the scene manager's target_fps
         # (which comes from the engine's options)
-        self.active_scene.target_fps = self.target_fps
+        active_scene.target_fps = self.target_fps
 
     def _log_scene_rendering_info(self) -> None:
         """Log scene rendering information."""
-        assert self.active_scene is not None
-        fps_display = (
-            'unlimited' if self.active_scene.target_fps == 0 else f'{self.active_scene.target_fps}'
-        )
+        active_scene = required(self.active_scene, what=ACTIVE_SCENE)
+        fps_display = 'unlimited' if active_scene.target_fps == 0 else f'{active_scene.target_fps}'
         self.log.info(
             'Rendering Scene "%s(%s)" at %s FPS',
-            self.active_scene.NAME,
-            type(self.active_scene),
+            active_scene.NAME,
+            type(active_scene),
             fps_display,
         )
 
@@ -3089,17 +3095,17 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
 
     def _force_scene_redraw(self) -> None:
         """Force a scene redraw."""
-        assert self.active_scene is not None
-        self.active_scene.dirty = 1
+        active_scene = required(self.active_scene, what=ACTIVE_SCENE)
+        active_scene.dirty = 1
 
     def _redraw_scene_background(self) -> None:
         """Redraw the scene background."""
-        assert self.active_scene is not None
+        active_scene = required(self.active_scene, what=ACTIVE_SCENE)
         # Update screen reference if needed
         self.update_screen()
         # Redraw the new scene's background to clear out any artifacts
         if self.screen is not None:
-            self.screen.blit(self.active_scene.background, (0, 0))
+            self.screen.blit(active_scene.background, (0, 0))
             # The whole surface changed: the next present flips it all, not only the new scene's
             # dirty rects, or the window keeps the old scene around its sprites (hidden by SCALED
             # windows, which present everything; bugs/2026-11-21-a-resumed-scene-presents-only-
@@ -3260,10 +3266,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # its-dirty-rects.md). It never excuses the drawing: a sprite changed without a dirty
         # mark is stale on the surface either way (glitchygames.testing.full_repaint)
         self.rects = None
+        # Assigned from display_surface() itself, then checked: the type checkers infer the
+        # attribute's type from this assignment, and it stays Surface | None as before the assert
+        # sweep. Bitmappy's EditorContext and the scripts' Scene subclasses match that type;
+        # assigning the checked Surface narrowed it and broke both.
         self.screen = display_surface()
-        assert self.screen is not None
-        self.screen_width = self.screen.get_width()
-        self.screen_height = self.screen.get_height()
+        screen = required(self.screen, what=SCENE_SCREEN)
+        self.screen_width = screen.get_width()
+        self.screen_height = screen.get_height()
         # Identity camera for scenes that do not scroll (apply(x, y) returns (x, y)); scrolling
         # games replace it with their own. Never None, so callers need no guards.
         self.camera: Camera2D = Camera2D(
@@ -3275,10 +3285,10 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         # Initial screen state.
 
-        self.screen = display_surface()
-        assert self.screen is not None
+        screen = required(display_surface(), what=SCENE_SCREEN)
+        self.screen = screen
         # In the display's format (BUGS.md #143: convert() returns the converted surface)
-        self.background = pygame.Surface(self.screen.get_size()).convert()
+        self.background = pygame.Surface(screen.get_size()).convert()
         # A scene that sets no background shows the default pattern (glitchygames/backgrounds.py)
         # instead of black, which cannot be told from "nothing rendered"
         self.background_pattern = active_default_background_pattern()
@@ -3393,7 +3403,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             pygame.Surface: The scene screenshot.
 
         """
-        assert self.screen is not None
+        screen = required(self.screen, what=SCENE_SCREEN)
         # In the display's format (BUGS.md #143: convert() returns the converted surface)
         screenshot = pygame.Surface((self.screen_width, self.screen_height)).convert()
         # Opaque black, then the channel-wise maximum with the screen: its red, green and blue
@@ -3402,7 +3412,7 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         # a display with per-pixel alpha (cocoa) leave alpha 0 behind: a black screenshot
         # (BUGS.md #142)
         screenshot.fill(BLACK)
-        screenshot.blit(self.screen, (0, 0), special_flags=pygame.BLEND_RGBA_MAX)
+        screenshot.blit(screen, (0, 0), special_flags=pygame.BLEND_RGBA_MAX)
         return screenshot
 
     @property
@@ -3445,13 +3455,12 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
             raise ValueError(message)
         self._background_color = new_color
         self._background_pattern = None
-        assert self._background_color is not None
-        assert self.screen is not None
-        self.background.fill(self._background_color)
-        self.all_sprites.clear(self.screen, self.background)
+        screen = required(self.screen, what=SCENE_SCREEN)
+        self.background.fill(new_color)
+        self.all_sprites.clear(screen, self.background)
         # The next draw repaints the whole screen from the new background, not only the areas
         # sprites dirty (BUGS.md #166)
-        self.all_sprites.repaint_rect(self.screen.get_rect())
+        self.all_sprites.repaint_rect(screen.get_rect())
 
     @property
     def background_pattern(self: Self) -> BackgroundPattern | None:
@@ -3477,14 +3486,14 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self._background_pattern = new_pattern
         self._background_color = None
-        assert self.screen is not None
+        screen = required(self.screen, what=SCENE_SCREEN)
         self.background.blit(
             background_pattern_surface(pattern=new_pattern, size=self.background.get_size()),
             (0, 0),
         )
-        self.all_sprites.clear(self.screen, self.background)
+        self.all_sprites.clear(screen, self.background)
         # The next draw repaints the whole screen from the new background (BUGS.md #166)
-        self.all_sprites.repaint_rect(self.screen.get_rect())
+        self.all_sprites.repaint_rect(screen.get_rect())
 
     def transition_to(self: Self, next_scene: Scene | None, transition: Transition) -> None:
         """Switch to another scene with a visual transition effect.

@@ -26,6 +26,7 @@ from glitchygames.testing.frame_fingerprints import (
     OWNER_VARIABLE,
     SEED_VARIABLE,
 )
+from tests.child_process_guard import kill_if_running
 from tests.driver_comparison import (
     CI_VARIABLE,
     COMPARE_WITH_VARIABLE,
@@ -57,13 +58,15 @@ INNER_CONFTEST = textwrap.dedent(
 INNER_WINDOW_SIZE = (96, 64)
 INNER_WINDOW_PIXELS = INNER_WINDOW_SIZE[0] * INNER_WINDOW_SIZE[1]
 # Inner tests: one draws the same in both runs; one draws red in the first run and its re-run
-# (recording into dummy/ and dummy-images/) and green in the second run and its re-run
+# (recording into dummy/ and dummy-images/) and green in the second run and its re-run. Both
+# draw, so both carry draws_frames: the second run runs only the tests that do
 INNER_TESTS = textwrap.dedent(
     f"""
     import os
     from pathlib import Path
 
     import pygame
+    import pytest
 
 
     def present(color):
@@ -73,10 +76,12 @@ INNER_TESTS = textwrap.dedent(
         pygame.display.flip()
 
 
+    @pytest.mark.draws_frames
     def test_same_everywhere():
         present((10, 20, 30))
 
 
+    @pytest.mark.draws_frames
     def test_differs_in_the_second_run(request):
         # Not recording at all (--dummy-only): a first run
         directory = request.config.getoption({FINGERPRINTS_OPTION!r}) or os.environ.get(
@@ -218,7 +223,7 @@ class TestWorkersAndCommands:
         assert split_workers(workers=workers) == expected
 
     def test_the_child_command_appends_its_options(self, tmp_path):
-        """This interpreter's pytest, the arguments, then workers, no coverage, its outputs."""
+        """This interpreter's pytest, the arguments, then its options: drawing tests only."""
         command = child_pytest_command(
             arguments=['tests/a.py', '-k', 'name'],
             workers=4,
@@ -237,6 +242,7 @@ class TestWorkersAndCommands:
             '-n',
             '4',
             '--no-cov',
+            '--draws-frames-only',
             f'--junitxml={tmp_path / "junit.xml"}',
             '-o',
             f'cache_dir={tmp_path / "cache"}',
@@ -341,6 +347,28 @@ class TestEndToEnd:
         assert result.ret == pytest.ExitCode.OK
         result.stdout.fnmatch_lines(['*driver comparison: off (--dummy-only given)*'])
 
+    def test_a_run_with_no_drawing_tests_passes_and_says_so(self, inner_project):
+        """Nothing selected draws: the second run has nothing to run, and that is no failure."""
+        inner_project.makepyfile(test_plain='def test_plain():\n    pass\n')
+
+        result = inner_project.runpytest_subprocess(
+            'test_plain.py', timeout=SUBPROCESS_TIMEOUT_SECONDS
+        )
+
+        assert result.ret == pytest.ExitCode.OK
+        result.assert_outcomes(passed=1)
+        result.stdout.fnmatch_lines(['*no drawing tests selected: nothing to compare*'])
+        assert 'failed' not in result.stdout.str().split('driver comparison', 1)[1]
+
+    def test_only_drawing_tests_are_recorded_on_either_side(self, inner_project):
+        """A test that draws nothing is recorded on neither driver, so neither lists it."""
+        inner_project.makepyfile(test_plain='def test_plain():\n    pass\n')
+
+        result = inner_project.runpytest_subprocess(timeout=SUBPROCESS_TIMEOUT_SECONDS)
+
+        result.assert_outcomes(passed=3)
+        result.stdout.fnmatch_lines(['*Recorded on dummy only: 0*'])
+
     def test_a_failure_in_the_second_run_fails_this_run(self, inner_project):
         """A test failing only in the comparison's second run is listed, and fails the run."""
         inner_project.makepyfile(
@@ -348,8 +376,15 @@ class TestEndToEnd:
                 f"""
                 import os
 
+                import pygame
+                import pytest
 
+
+                @pytest.mark.draws_frames
                 def test_fails_in_the_second_run():
+                    pygame.init()
+                    pygame.display.set_mode({INNER_WINDOW_SIZE})
+                    pygame.display.flip()
                     assert {FINGERPRINTS_VARIABLE!r} in os.environ
                 """
             )
@@ -483,8 +518,8 @@ class TestStoppingTheNativeRun:
             assert comparison.native_process.returncode is not None
         finally:
             comparison.stop_native_run()
-            if child_pid is not None and process_exists(pid=child_pid):
-                os.kill(child_pid, signal.SIGKILL)
+            if child_pid is not None:
+                kill_if_running(pid=child_pid)
 
     def test_what_a_native_run_left_running_is_killed_named_and_its_directory_removed(
         self, request, tmp_path

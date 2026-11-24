@@ -20,6 +20,7 @@ from brave_adventurer_papyrus.sprite_utils import (
     prepare_papyrus_sprite,
     refresh_drawn_image,
 )
+from glitchygames.checks import required
 from glitchygames.sprites import AnimatedSprite
 from glitchygames.world import CoordinateSpace
 
@@ -65,8 +66,7 @@ class PapyrusCobra(AnimatedSprite):
 
         # State machine auto-loaded from cobra.toml [[transition]] sections.
         # Timer-based idle → strike → idle cycle defined entirely in TOML.
-        assert self.state_machine is not None, 'cobra.toml declares the [[transition]]s'
-        self.state_machine.set_state('idle')
+        required(self.state_machine, what="cobra.toml's state machine").set_state('idle')
 
     def dt_tick(self: Self, dt: float) -> None:
         """Advance state machine and animation frames.
@@ -78,8 +78,7 @@ class PapyrusCobra(AnimatedSprite):
         self.dt = dt
 
         # State machine handles idle/strike transitions via timer
-        assert self.state_machine is not None, 'cobra.toml declares the [[transition]]s'
-        self.state_machine.evaluate({}, dt)
+        required(self.state_machine, what="cobra.toml's state machine").evaluate({}, dt)
 
         # Its image is the drawn frame, which the engine redraws as the frame changes
         AnimatedSprite.update(self, dt)

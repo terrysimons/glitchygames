@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import pygame
+import pytest
 
 from glitchygames.engine.game_engine import DEFAULT_TARGET_FPS
 from glitchygames.scenes import Scene, SceneManager
@@ -81,6 +82,7 @@ class FakeTimer:
         return deadline_ns
 
 
+@pytest.mark.draws_frames
 def test_scene_manager_uses_timer_for_pacing(monkeypatch, mocker):
     """Test that SceneManager delegates frame pacing to the timer backend."""
     sm = SceneManager()
@@ -140,6 +142,7 @@ def test_scene_manager_falls_back_to_default_target_fps_when_option_missing(mock
     assert sm.target_fps == DEFAULT_TARGET_FPS
 
 
+@pytest.mark.draws_frames
 def test_scene_manager_passes_fractional_target_fps_to_timer(monkeypatch, mocker):
     """Test that a fractional target FPS reaches start_frame without truncation."""
     sm = SceneManager()
@@ -169,6 +172,7 @@ def test_scene_manager_passes_fractional_target_fps_to_timer(monkeypatch, mocker
     assert fake_timer.start_frame_targets[0] == 60.5
 
 
+@pytest.mark.draws_frames
 def test_unpaced_frame_steps_never_touch_the_timer_or_the_pacing_clock(monkeypatch, mocker):
     """An outer driver's steps (paced=False) run real frames but never wait or calibrate.
 
@@ -211,6 +215,7 @@ def test_unpaced_frame_steps_never_touch_the_timer_or_the_pacing_clock(monkeypat
     assert sm.dt > 0
 
 
+@pytest.mark.draws_frames
 def test_frame_steps_end_with_end_frames(monkeypatch, mocker):
     """should_run_frames turns False once a quit is requested; end_frames terminates."""
     sm = SceneManager()

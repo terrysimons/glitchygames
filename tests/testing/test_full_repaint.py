@@ -108,6 +108,7 @@ def change_without_marking(scene: SpriteScene) -> None:
 class TestComparison:
     """Every frame is compared with its full repaint and counted."""
 
+    @pytest.mark.draws_frames
     def test_frames_drawn_by_dirty_rects_match_and_are_counted(self, manager):
         scene = SpriteScene()
         with compare_each_frame_with_a_full_repaint() as comparison:
@@ -117,6 +118,7 @@ class TestComparison:
         assert comparison.compared == 2
         assert comparison.mismatch_count == 0
 
+    @pytest.mark.draws_frames
     def test_a_sprite_changed_without_a_dirty_mark_fails_naming_its_frame_and_sprite(self, manager):
         scene = SpriteScene()
         with compare_each_frame_with_a_full_repaint():
@@ -130,6 +132,7 @@ class TestComparison:
         assert str(tuple(SPRITE_RECT)) in message
         assert f'1 sprites over it: SolidSprite(dirty=0, visible=1, rect={SPRITE_RECT})' in message
 
+    @pytest.mark.draws_frames
     def test_the_same_change_marked_dirty_matches(self, manager):
         scene = SpriteScene()
         with compare_each_frame_with_a_full_repaint() as comparison:
@@ -140,6 +143,7 @@ class TestComparison:
 
         assert comparison.mismatch_count == 0
 
+    @pytest.mark.draws_frames
     def test_a_scene_presenting_the_whole_screen_is_still_compared(self, manager):
         """``rects = None`` decides the present, not the drawing: a missed mark still fails."""
         scene = WholeScreenScene()
@@ -156,6 +160,7 @@ class TestComparison:
 class TestWhatIsLeftOut:
     """A hidden sprite is not in the repaint; a frame with no scene is not compared."""
 
+    @pytest.mark.draws_frames
     def test_a_hidden_sprite_is_not_repainted(self, manager):
         scene = SpriteScene()
         with compare_each_frame_with_a_full_repaint() as comparison:
@@ -177,6 +182,7 @@ class TestWhatIsLeftOut:
 class TestExcludedAreas:
     """What a scene draws outside its sprites is named, masked on both sides, and counted."""
 
+    @pytest.mark.draws_frames
     def test_straight_drawing_differs_from_a_full_repaint(self, manager):
         with compare_each_frame_with_a_full_repaint(raise_on_mismatch=False) as comparison:
             show(manager, StraightDrawingScene())
@@ -185,6 +191,7 @@ class TestExcludedAreas:
         assert str(tuple(STRAIGHT_DRAWN_AREA)) in comparison.mismatches[0]
         assert 'no sprite (the background)' in comparison.mismatches[0]
 
+    @pytest.mark.draws_frames
     def test_an_excluded_area_is_left_out_and_counted(self, manager):
         with compare_each_frame_with_a_full_repaint(
             excluded_areas_of=lambda scene: [STRAIGHT_DRAWN_AREA]
@@ -195,6 +202,7 @@ class TestExcludedAreas:
         assert comparison.frames_with_excluded_areas == 2
         assert comparison.mismatch_count == 0
 
+    @pytest.mark.draws_frames
     def test_a_missed_mark_outside_the_excluded_area_still_fails(self, manager):
         scene = StraightDrawingScene()
         with compare_each_frame_with_a_full_repaint(
@@ -209,6 +217,7 @@ class TestExcludedAreas:
 class TestCounts:
     """The counts a case asserts, so it cannot pass without reaching its hazard."""
 
+    @pytest.mark.draws_frames
     def test_a_frame_after_a_gap_is_counted(self, manager):
         """The scene drew no frame just before (a pause, a transition, another scene)."""
         with compare_each_frame_with_a_full_repaint() as comparison:
@@ -219,6 +228,7 @@ class TestCounts:
 
         assert comparison.after_a_gap == 1
 
+    @pytest.mark.draws_frames
     def test_a_frame_during_a_screen_shake_is_counted(self, manager):
         """A SCREEN shake's offset is applied to a copy at present; the frame is still compared."""
         with compare_each_frame_with_a_full_repaint() as comparison:
@@ -232,6 +242,7 @@ class TestCounts:
         assert comparison.shaken == 1
         assert comparison.mismatch_count == 0
 
+    @pytest.mark.draws_frames
     def test_named_buckets_count_the_frames_they_match(self, manager):
         with compare_each_frame_with_a_full_repaint(
             buckets={'second frame on': lambda scene: scene.scene_manager.frame_number >= 1}
@@ -243,6 +254,7 @@ class TestCounts:
         assert comparison.bucket_counts == {'second frame on': 2}
         assert comparison.counts()['buckets'] == {'second frame on': 2}
 
+    @pytest.mark.draws_frames
     def test_collecting_keeps_the_first_mismatches_and_counts_them_all(self, manager):
         scene = SpriteScene()
         frames = KEPT_MISMATCHES + 5
@@ -277,6 +289,7 @@ def test_differing_area_bounds_every_differing_pixel():
     assert differing_area(drawn=repainted, repainted=repainted.copy()) is None
 
 
+@pytest.mark.draws_frames
 def test_many_sprites_over_a_difference_are_grouped_by_class(manager):
     """Past ``NAMED_SPRITES``, the sprites over the area are counted by class, not listed."""
     scene = SpriteScene()

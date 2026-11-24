@@ -59,6 +59,7 @@ def test_the_plan_values():
     assert (SWITCH_OFF_SECONDS, GAME_OVER_SECONDS) == (0.6, 4.0)
 
 
+@pytest.mark.draws_frames
 def test_the_picture_collapses_to_a_line_then_a_dot():
     """Fewer lit pixels as the switch-off goes on, and GAME OVER not yet shown."""
     scene = game_over()
@@ -71,6 +72,7 @@ def test_the_picture_collapses_to_a_line_then_a_dot():
     assert counts[0] > counts[1] > counts[2]
 
 
+@pytest.mark.draws_frames
 def test_game_over_shows_after_the_switch_off():
     """The words appear once the screen is dark."""
     scene = game_over()

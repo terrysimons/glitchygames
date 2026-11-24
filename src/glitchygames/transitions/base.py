@@ -116,6 +116,10 @@ class Transition:
         them; one large dt fires every cue it passes. A cue at 0.0 fires on the first update
         and a cue at 1.0 on the completing frame.
 
+        Add cues before start(): a cue added while the transition runs, at a progress already
+        passed, makes the cue before it fire again and never fires itself
+        (bugs/2026-11-21-a-cue-added-to-a-running-transition-misfires.md).
+
         Args:
             progress: Raw progress 0.0-1.0 at which to fire.
             callback: Called with no arguments.
