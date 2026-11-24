@@ -63,8 +63,9 @@ if TYPE_CHECKING:
 
     # Type only: the module is optional at runtime (sdl_controller_module). The lazily
     # evaluated `type OpenedController` alias below is what ruff counts as a runtime use
-    import pygame._sdl2.controller
-    import pygame.midi  # ruff: ignore[runtime-import-in-type-checking-block] - see above
+    import pygame._sdl2.controller  # ruff: ignore[runtime-import-in-type-checking-block] - see above
+    from pygame.midi import Input as PygameMidiInput
+    from pygame.midi import Output as PygameMidiOutput
     from pygame.typing import ColorLike
 
 LOG = logging.getLogger('game.input.devices')
@@ -147,8 +148,8 @@ type EnumerationValue = int | bool | str | list[str | int | bool] | None
 # methods share pygame's signatures, so callers use the methods both have)
 type OpenedJoystick = pygame.joystick.JoystickType | ReplayJoystick
 type OpenedController = pygame._sdl2.controller.Controller | ReplayController
-type OpenedMidiInput = pygame.midi.Input | ReplayMidiInput
-type OpenedMidiOutput = pygame.midi.Output | ReplayMidiOutput
+type OpenedMidiInput = PygameMidiInput | ReplayMidiInput
+type OpenedMidiOutput = PygameMidiOutput | ReplayMidiOutput
 
 
 @dataclasses.dataclass(frozen=True)
@@ -636,8 +637,8 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         self._midi_initialized = False
         self._midi_unavailable_logged = False
         # Opened MIDI ports: one per port id and direction, for the life of the registry
-        self._midi_inputs: dict[int, pygame.midi.Input] = {}
-        self._midi_outputs: dict[int, pygame.midi.Output] = {}
+        self._midi_inputs: dict[int, PygameMidiInput] = {}
+        self._midi_outputs: dict[int, PygameMidiOutput] = {}
         self._new_midi_ports: list[MidiPortDescriptor] = []
 
     def joystick_count(self: Self) -> int:
@@ -827,7 +828,7 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         )
         return joystick
 
-    def open_midi_input(self: Self, *, port_id: int) -> pygame.midi.Input:
+    def open_midi_input(self: Self, *, port_id: int) -> PygameMidiInput:
         """Open the MIDI input port ``port_id``, once: a second open returns the first.
 
         A port that is gone, is not an input or cannot be opened raises ``pygame.error``, and the
@@ -856,7 +857,7 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         self._remember_opened_midi_port(call=OPEN_MIDI_INPUT_CALL, descriptor=descriptor)
         return midi_input
 
-    def open_midi_output(self: Self, *, port_id: int) -> pygame.midi.Output:
+    def open_midi_output(self: Self, *, port_id: int) -> PygameMidiOutput:
         """Open the MIDI output port ``port_id``, once: a second open returns the first.
 
         A port that is gone, is not an output or cannot be opened raises ``pygame.error``, and the
@@ -885,7 +886,7 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         self._remember_opened_midi_port(call=OPEN_MIDI_OUTPUT_CALL, descriptor=descriptor)
         return midi_output
 
-    def midi_input_for_port(self: Self, *, port_id: int) -> pygame.midi.Input | None:
+    def midi_input_for_port(self: Self, *, port_id: int) -> PygameMidiInput | None:
         """Return the opened MIDI input port ``port_id``, or None when it was never opened.
 
         Args:
@@ -897,7 +898,7 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         """
         return self._midi_inputs.get(port_id)
 
-    def midi_output_for_port(self: Self, *, port_id: int) -> pygame.midi.Output | None:
+    def midi_output_for_port(self: Self, *, port_id: int) -> PygameMidiOutput | None:
         """Return the opened MIDI output port ``port_id``, or None when it was never opened.
 
         Args:
@@ -1157,10 +1158,12 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
                 (remembered).
 
         """
+        midi_module = self._started_midi_module()
+        if midi_module is None:
+            unavailable = pygame.error(MIDI_UNAVAILABLE_MESSAGE)
+            self._remember_failure(call=call, device_index=port_id, error=unavailable)
+            raise unavailable
         try:
-            midi_module = self._started_midi_module()
-            if midi_module is None:
-                raise pygame.error(MIDI_UNAVAILABLE_MESSAGE)  # ruff: ignore[raise-within-try] - remembered below
             descriptor = _midi_port_descriptor(midi_module=midi_module, kind=kind, port_id=port_id)
         except pygame.error as error:
             self._remember_failure(call=call, device_index=port_id, error=error)
@@ -1659,7 +1662,7 @@ class ReplayMidiOutput:
         """
         del data
 
-    def write_sys_ex(self: Self, when: int, msg: Any) -> None:  # ruff: ignore[any-type] - pygame: list or str
+    def write_sys_ex(self: Self, when: int, msg: list[int] | str) -> None:
         """Drop a system-exclusive message.
 
         Args:
