@@ -55,6 +55,12 @@ HAT_DIRECTION_NAMES: dict[tuple[int, int], str] = {
 }
 
 
+# Module-level, so its handler is added once: added in __init__, each instance added another
+# to the one shared logger, never removed (3,545 over Bitmappy's tests, 2026-11-23)
+CONTROLLER_EVENT_HANDLER_LOG = logging.getLogger('game.tools.bitmappy.controllers.event_handler')
+CONTROLLER_EVENT_HANDLER_LOG.addHandler(logging.NullHandler())
+
+
 class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
     """Manages controller/joystick event handling for the Bitmappy editor.
 
@@ -77,8 +83,7 @@ class ControllerEventHandler:  # ruff: ignore[too-many-public-methods]
 
         """
         self.editor = editor
-        self.log = logging.getLogger('game.tools.bitmappy.controllers.event_handler')
-        self.log.addHandler(logging.NullHandler())
+        self.log = CONTROLLER_EVENT_HANDLER_LOG
 
         # Controller-specific state
         self.controller_drags: dict[int, dict[str, Any]] = {}
