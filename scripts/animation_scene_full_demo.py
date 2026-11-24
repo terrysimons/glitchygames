@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.engine import GameEngine
 from glitchygames.scenes import Scene
 from glitchygames.sprites.animated import AnimatedSprite
@@ -53,8 +54,7 @@ class AnimationGame(Scene):
         self._load_animated_sprite()
 
         # Clear the screen with background
-        assert self.screen is not None
-        self.all_sprites.clear(self.screen, self.background)
+        self.all_sprites.clear(required(self.screen, what='the scene screen'), self.background)
 
     @override
     def update(self: Self) -> None:
@@ -107,9 +107,8 @@ class AnimationGame(Scene):
             raise
         self.animated_sprite.play()
         # Center on screen dynamically
-        assert self.animated_sprite.rect is not None
-        assert self.screen is not None
-        self.animated_sprite.rect.center = self.screen.get_rect().center
+        screen = required(self.screen, what='the scene screen')
+        self.animated_sprite.rect.center = screen.get_rect().center
         self.log.info(
             'Loaded: %s (%s frames)',
             self.animated_sprite.name,

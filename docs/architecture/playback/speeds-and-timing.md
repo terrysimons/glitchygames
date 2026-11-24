@@ -29,7 +29,8 @@ Sleep
 Spin
 :   It spins the rest.
 
-Then `_finish_frame` takes one `perf_counter()` reading, which ends this frame and starts the next.
+Then `_finish_frame` takes one reading of the raw counter (`clock.raw_counter_seconds()`), which
+ends this frame and starts the next.
 
 ```mermaid
 gantt

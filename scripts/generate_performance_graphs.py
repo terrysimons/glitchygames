@@ -45,6 +45,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict
 
+from glitchygames.checks import required
 from glitchygames.recording_metrics import (
     MILLISECONDS_PER_SECOND,
     fps_from_seconds,
@@ -270,8 +271,8 @@ def latest_table(*, series_list: Sequence[PerformanceSeries]) -> list[str]:
     ]
     for series in series_list:
         row = series.rows[-1]
-        summary = row.summary
-        assert summary is not None, 'performance_series keeps only summarised rows'
+        # performance_series keeps only summarised rows
+        summary = required(row.summary, what="the series' latest summary")
         commit = short_commit(run=row.run) or ''
         if row.measured_uncommitted_changes:
             commit = f'{commit} (uncommitted changes)'
