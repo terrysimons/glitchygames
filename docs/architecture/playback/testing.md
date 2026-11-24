@@ -273,9 +273,10 @@ holding back code pull requests (the owner, 2026-11-20).
 - The tests that read Markdown are `noxfile.MARKDOWN_TEST_FILES`, which
   `tests/test_ci_config.py` holds to exactly the test files that name a Markdown file in their
   code (a string ending `.md`, or a `*.md` pattern; docstrings and comments don't count), less
-  `noxfile.MARKDOWN_REPORT_WRITING_TEST_FILES`: the files whose only Markdown is a report they
-  write themselves (the channel-fade audio test, the logging-cost benchmark), each with its
-  reason. They read none of the repository's Markdown, so a docs-only change doesn't run them
+  `noxfile.MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES`: the files that name a Markdown file but read
+  none of the repository's (a report they write themselves, such as the channel-fade audio test's
+  and the logging-cost benchmark's, or a path quoted in a reason), each with its reason. A
+  docs-only change doesn't run them
   (#295's `markdown-checks` job ran the audio test and lost it to the disk audio driver). An
   exception that no longer names a Markdown file fails as stale. A test that reads Markdown
   another way isn't detected: add it to the list by hand.

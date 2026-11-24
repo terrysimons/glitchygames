@@ -4092,35 +4092,35 @@ def _test_files_naming_markdown() -> list[str]:
 
 
 def test_the_markdown_test_list_is_every_test_file_that_reads_markdown():
-    """noxfile.MARKDOWN_TEST_FILES: the test files that name a Markdown file, less report writers.
+    """noxfile.MARKDOWN_TEST_FILES: the test files that name a Markdown file, less unread names.
 
     The owner, 2026-11-20: docs-only pull requests still run the tests that read Markdown, from
     an explicit list kept honest. A test reading Markdown some other way (a folder listed with
     no ``.md`` in its code) is not detected: name it here by hand if one appears. A test that
-    only writes a Markdown report of its own (noxfile.MARKDOWN_REPORT_WRITING_TEST_FILES) reads
-    none of the repository's, so a docs-only change does not run it (the owner, 2026-11-24:
-    #295's markdown-checks job ran the channel-fade audio test, job 5335).
+    names a Markdown file but reads none of the repository's (a report it writes, a path quoted
+    in a reason: noxfile.MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES) is not run by a docs-only change
+    (the owner, 2026-11-24: #295's markdown-checks job ran the channel-fade audio test, job 5335).
     """
     import noxfile
 
     readers = [
         path
         for path in _test_files_naming_markdown()
-        if path not in noxfile.MARKDOWN_REPORT_WRITING_TEST_FILES
+        if path not in noxfile.MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES
     ]
 
     assert readers, 'no test file names a Markdown file: the detection is stale'
     assert list(noxfile.MARKDOWN_TEST_FILES) == readers
 
 
-def test_each_markdown_report_writer_still_names_one_and_says_why_it_is_left_out():
+def test_each_unread_markdown_name_is_still_there_and_says_why_it_is_left_out():
     """Each exception names a Markdown file (else it is stale), gives its reason, and isn't run."""
     import noxfile
 
     naming = _test_files_naming_markdown()
 
-    assert noxfile.MARKDOWN_REPORT_WRITING_TEST_FILES, 'no exception left: remove the mechanism'
-    for path, reason in noxfile.MARKDOWN_REPORT_WRITING_TEST_FILES.items():
+    assert noxfile.MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES, 'no exception left: remove the mechanism'
+    for path, reason in noxfile.MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES.items():
         assert path in naming, f'{path} no longer names a Markdown file: remove its exception'
         assert reason.strip(), f'{path} is left out with no reason'
         assert path not in noxfile.MARKDOWN_TEST_FILES
