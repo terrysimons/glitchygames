@@ -94,12 +94,13 @@ the row below that covers it and why.
 | C19 | `_INTERNAL_POSTS` (`InternalEventPosts`) | `src/glitchygames/recording.py:414` | code-posted events awaiting their pump, their owners, live-game and input posts | 2, done (7eb16f94, a62f2570) |
 | C20 | `<GameClass>.options` (found by sub-plan 2's review) | `src/glitchygames/engine/game_engine.py:1129` (`initialize_arguments` set the game's options on its scene class) | the run's options, on a class every context shares | 2, done (0d98b33f): removed; each engine keeps its own and the scene gets them at construction |
 
-Beside C16, `tests/test_process_state_guard.py` lists Bitmappy's two other pieces of process
+Beside C16, `tests/test_process_state_guard.py` listed Bitmappy's two other pieces of process
 state under it: its onion-skinning manager (`onion_skinning_manager`,
 `src/apps/bitmappy/src/bitmappy/onion_skinning.py`) and its AI training state
-(`ai_training_state`, `src/apps/bitmappy/src/bitmappy/constants.py`). Neither has an owning plan
-yet (`plans/future-work.md`, Engine context); each needs one before a Bitmappy runs in more than
-one engine context.
+(`ai_training_state`, `src/apps/bitmappy/src/bitmappy/constants.py`). Since 2026-11-21
+(`fix/bitmappy-context-slots`) the manager is a slot (`bitmappy.onion_skinning.manager`) and the
+training state is S21 (shared, read-only package data), so neither stands in the way of a
+Bitmappy in more than one engine context; C16 still does.
 
 C19 moves into the context in sub-plan 2 with the other engine state; where a context's posts
 go (today `pygame.event.post` into SDL's one queue, item S5) is sub-plan 6's. The 15 lines of
@@ -131,6 +132,7 @@ tests of moved state (Decisions, 1).
 | S18 | `_NAMED_CUSTOM_EVENT_TYPES` | `src/glitchygames/events/base.py:151` | pygame's custom event types by name | stays shared: pygame allocates them once per process, and each name is registered once, at its module's import | none |
 | S19 | Bitmappy's MasterHUB `_REGISTRY` | `src/apps/bitmappy/src/bitmappy/masterhub.py:28` | the MasterHUB installer the browser page registers | stays shared: the player's, as S9 and S10 are | none |
 | S20 | `_warned_hertz_values` | `src/glitchygames/audio/pitch.py:79` | the out-of-range frequencies already warned about (each warned once) | **open: not yet per context**: a second context never warns about a value the first did | none yet |
+| S21 | Bitmappy's AI training library `_INSTALLED` | `src/apps/bitmappy/src/bitmappy/training_library.py` | the training examples built from the packaged sprite files (was `constants.ai_training_state`) | stays shared, read-only package data: frozen (`TrainingLibrary`), installed once by `load_ai_training_data()`; a later load is ignored (2026-11-21, `fix/bitmappy-context-slots`) | none |
 
 ### Read-only (17)
 

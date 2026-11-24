@@ -755,7 +755,7 @@ BITMAPPY_STATE = (
 # Every piece of process state the scan finds, by allowlist key (the engine's files keyed from
 # src/glitchygames/, a member's from the repository), each with its audit row and why it may be
 # shared; the audit is plans/2026-10-25-engine-context.md. Rows R16, R17, S18, S19 and S20 are
-# new (Task 13), added to the audit by Task 16
+# new (Task 13), added to the audit by Task 16; S21 by fix/bitmappy-context-slots
 PROCESS_STATE: dict[str, dict[str, str]] = {
     'ai_introspection.py': {
         'SCALAR_CONVERSIONS': (
@@ -1099,7 +1099,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
         ),
         '_AI_REQUEST_COUNTER': "S15: Bitmappy's AI request ids, unique across the process.",
     },
-    'src/apps/bitmappy/src/bitmappy/constants.py': {'ai_training_state': BITMAPPY_STATE},
     'src/apps/bitmappy/src/bitmappy/controllers/manager.py': {
         'MultiControllerManager._instance': BITMAPPY_STATE,
     },
@@ -1109,7 +1108,12 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
             'as S9 and S10 are).'
         ),
     },
-    'src/apps/bitmappy/src/bitmappy/onion_skinning.py': {'onion_skinning_manager': BITMAPPY_STATE},
+    'src/apps/bitmappy/src/bitmappy/training_library.py': {
+        '_INSTALLED': (
+            "S21: Bitmappy's AI training library, shared, read-only package data: built from the "
+            'sprite files the package ships, frozen, installed once (a later load is ignored).'
+        ),
+    },
     'src/apps/bitmappy/src/bitmappy/pixel_sprite.py': {
         'BitmapPixelSprite.PIXEL_CACHE': "R10: Bitmappy's pixel surfaces by colour and size.",
     },

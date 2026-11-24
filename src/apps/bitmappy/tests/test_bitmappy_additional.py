@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import cast
 
 import pytest
+from src.apps.bitmappy.tests.training_library_support import use_training_library
 
 from bitmappy.ai_worker import (
     _create_ai_retry_decorator,
@@ -1512,13 +1513,7 @@ class TestSelectRelevantTrainingExamples:
 
     def test_empty_training_data(self, mocker):
         """Test with empty training data."""
-        mocker.patch('bitmappy.ai_worker.ai_training_state', {'data': []})
-        result = select_relevant_training_examples('test sprite')
-        assert result == []
-
-    def test_non_list_training_data(self, mocker):
-        """Test with non-list training data."""
-        mocker.patch('bitmappy.ai_worker.ai_training_state', {'data': 'not_a_list'})
+        use_training_library(mocker, examples=[])
         result = select_relevant_training_examples('test sprite')
         assert result == []
 
@@ -1527,7 +1522,7 @@ class TestSelectRelevantTrainingExamples:
         examples = [
             {'name': 'hero', 'sprite_type': 'static', 'has_alpha': False},
         ]
-        mocker.patch('bitmappy.ai_worker.ai_training_state', {'data': examples})
+        use_training_library(mocker, examples=examples)
         result = select_relevant_training_examples('test', max_examples=10)
         assert result == examples
 
@@ -1538,7 +1533,7 @@ class TestSelectRelevantTrainingExamples:
             {'name': 'animated walk', 'sprite_type': 'animated', 'has_alpha': False},
             {'name': 'another', 'sprite_type': 'static', 'has_alpha': False},
         ]
-        mocker.patch('bitmappy.ai_worker.ai_training_state', {'data': examples})
+        use_training_library(mocker, examples=examples)
         result = select_relevant_training_examples('animated walk cycle', max_examples=2)
         assert len(result) == 2
         # The animated walk example should be ranked first

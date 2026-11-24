@@ -237,50 +237,116 @@ class TestDecorationFailuresAreLogged:
         assert 'Font rendering failed' in caplog.text
 
 
-class TestOnionSkinningIndicator:
-    """An onion-skinned frame's thumbnail gets a yellow dot in its top-right corner.
+ONION_INDICATOR_SIZE = 12
+ONION_INDICATOR_MARGIN = 2
 
-    Each test gives the renderer its own manager: the module's shared one keeps whatever frame
-    an earlier test turned on, so before these tests only the test order decided whether CI
-    drew the dot, and its coverage missed it (#263).
+
+def render_idle_thumbnail(film_strip: FilmStripWidget, *, frame_index: int) -> pygame.Surface:
+    """Render one 'idle' frame's film strip thumbnail.
+
+    Returns:
+        The thumbnail surface.
+
+    """
+    animated_sprite = film_strip.animated_sprite
+    assert animated_sprite is not None
+    frame = animated_sprite.animations['idle'][frame_index]
+    return film_strip.renderer.render_frame_thumbnail(
+        frame, frame_index=frame_index, animation_name='idle'
+    )
+
+
+def changed_pixels(*, before: pygame.Surface, after: pygame.Surface) -> set[tuple[int, int]]:
+    """Return the positions whose color differs between two same-sized surfaces.
+
+    Returns:
+        The differing (x, y) positions.
+
+    """
+    return {
+        (x, y)
+        for x in range(before.get_width())
+        for y in range(before.get_height())
+        if before.get_at((x, y)) != after.get_at((x, y))
+    }
+
+
+class TestOnionSkinningIndicator:
+    """A thumbnail shows the onion skinning indicator exactly when its frame is onion-skinned.
+
+    Each test starts from the shared manager's startup state (the conftest's autouse
+    ``fresh_onion_skinning_manager``), so the indicator is drawn here on purpose, not because an
+    earlier test left a frame switched on
+    (bugs/2026-11-20-onion-skin-indicator-covered-only-by-leaked-state.md).
     """
 
-    @staticmethod
-    def own_manager(mocker, *, onion_skinned: bool) -> onion_skinning.OnionSkinningManager:
-        """Give the renderer a manager of its own, with 'idle' frame 0 on or off.
+    def test_a_switched_on_frame_shows_yellow_in_its_top_right_corner(
+        self, film_strip_with_two_frames
+    ):
+        """Only the 12x12 square 2 pixels in from the top-right corner changes, toward yellow."""
+        film_strip = film_strip_with_two_frames
+        plain = render_idle_thumbnail(film_strip, frame_index=0)
+        onion_skinning.get_onion_skinning_manager().toggle_frame_onion_skinning('idle', 0)
 
-        Returns:
-            The manager.
+        marked = render_idle_thumbnail(film_strip, frame_index=0)
 
-        """
-        manager = onion_skinning.OnionSkinningManager()
-        if onion_skinned:
-            manager.toggle_frame_onion_skinning('idle', 0)
-        mocker.patch.object(onion_skinning, 'get_onion_skinning_manager', return_value=manager)
-        return manager
+        left = film_strip.frame_width - ONION_INDICATOR_SIZE - ONION_INDICATOR_MARGIN
+        square = {
+            (x, y)
+            for x in range(left, left + ONION_INDICATOR_SIZE)
+            for y in range(ONION_INDICATOR_MARGIN, ONION_INDICATOR_MARGIN + ONION_INDICATOR_SIZE)
+        }
+        assert changed_pixels(before=plain, after=marked) == square
+        for position in square:
+            before, after = plain.get_at(position), marked.get_at(position)
+            # Yellow over anything: red and green never fall, blue never rises, green rises
+            assert after.r >= before.r
+            assert after.g > before.g
+            assert after.b <= before.b
 
-    def test_an_onion_skinned_frame_gets_the_dot(self, film_strip_with_two_frames, mocker):
-        self.own_manager(mocker, onion_skinned=True)
-        width = film_strip_with_two_frames.frame_width
+    def test_a_frame_left_off_shows_no_indicator(self, film_strip_with_two_frames):
+        """Switching frame 0 on leaves frame 1's thumbnail exactly as it was."""
+        film_strip = film_strip_with_two_frames
+        plain = render_idle_thumbnail(film_strip, frame_index=1)
+        onion_skinning.get_onion_skinning_manager().toggle_frame_onion_skinning('idle', 0)
+
+        assert not changed_pixels(
+            before=plain, after=render_idle_thumbnail(film_strip, frame_index=1)
+        )
+
+    def test_global_onion_skinning_off_hides_a_switched_on_frames_indicator(
+        self, film_strip_with_two_frames
+    ):
+        """With global onion skinning off, a switched-on frame draws as if it were off."""
+        film_strip = film_strip_with_two_frames
+        plain = render_idle_thumbnail(film_strip, frame_index=0)
+        manager = onion_skinning.get_onion_skinning_manager()
+        manager.toggle_frame_onion_skinning('idle', 0)
+        manager.toggle_global_onion_skinning()
+
+        assert not changed_pixels(
+            before=plain, after=render_idle_thumbnail(film_strip, frame_index=0)
+        )
+
+    def test_the_indicator_is_a_yellow_dot_in_the_top_right_corner(
+        self, film_strip_with_two_frames
+    ):
+        """On a clear surface the dot's center is pure yellow, and the far corner stays clear."""
+        film_strip = film_strip_with_two_frames
+        onion_skinning.get_onion_skinning_manager().toggle_frame_onion_skinning('idle', 0)
+        width = film_strip.frame_width
         surface = pygame.Surface((width, width), pygame.SRCALPHA)
 
-        film_strip_with_two_frames.renderer._draw_onion_skinning_indicator(surface, 'idle', 0)
+        film_strip.renderer._draw_onion_skinning_indicator(surface, 'idle', 0)
 
-        # The dot's center: 12 pixels across, 2 from the right and top edges
-        red, green, blue, alpha = surface.get_at((width - 2 - 6, 2 + 6))
+        half = ONION_INDICATOR_SIZE // 2
+        red, green, blue, alpha = surface.get_at((
+            width - ONION_INDICATOR_MARGIN - half,
+            ONION_INDICATOR_MARGIN + half,
+        ))
         assert (red, green, blue) == (255, 255, 0)
         assert alpha > 0
         assert surface.get_at((0, width - 1)).a == 0
-
-    def test_a_frame_without_onion_skinning_gets_no_dot(self, film_strip_with_two_frames, mocker):
-        self.own_manager(mocker, onion_skinned=False)
-        width = film_strip_with_two_frames.frame_width
-        surface = pygame.Surface((width, width), pygame.SRCALPHA)
-        pixels_before = surface_pixels(surface)
-
-        film_strip_with_two_frames.renderer._draw_onion_skinning_indicator(surface, 'idle', 0)
-
-        assert surface_pixels(surface) == pixels_before
 
 
 class TestCounterFont:
