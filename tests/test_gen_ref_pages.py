@@ -6,10 +6,12 @@ import contextlib
 import importlib
 import io
 import runpy
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import mkdocs_gen_files
+import pytest
 from scripts import gen_ref_pages
 from scripts.gen_ref_pages import member_reference_pages, reference_page_path
 from scripts.workspace_packages import workspace_members
@@ -121,3 +123,18 @@ def test_importing_the_script_writes_nothing(mocker):
     importlib.reload(gen_ref_pages)
 
     open_page.assert_not_called()
+
+
+def test_a_workspace_packages_file_that_is_not_a_python_module_is_refused_by_name(
+    tmp_path, monkeypatch
+):
+    """A workspace_packages path Python can't load raises ImportError naming it, even under -O."""
+    not_a_module = tmp_path / 'workspace_packages.txt'
+    not_a_module.write_text('not code', encoding='utf-8')
+    monkeypatch.setattr(gen_ref_pages, 'WORKSPACE_PACKAGES_PATH', not_a_module)
+    monkeypatch.delitem(sys.modules, gen_ref_pages.WORKSPACE_PACKAGES_MODULE_NAME, raising=False)
+
+    with pytest.raises(ImportError) as raised:
+        gen_ref_pages.load_workspace_packages()
+
+    assert str(raised.value) == f'{not_a_module} is not a loadable Python module'
