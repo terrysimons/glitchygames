@@ -4239,7 +4239,7 @@ flowchart TB
 <tr>
 <td><code>MIDIIN</code>, <code>MIDIOUT</code></td>
 <td><code>process_midi_event()</code></td>
-<td>none: passed to <code>SceneManager.handle_event()</code>, which ignores them (see <a href="#midievents-mideventstubs">MidiEvents</a>)</td>
+<td><code>MidiEventManager</code></td>
 </tr>
 <tr>
 <td><code>APP_*</code></td>
@@ -6118,13 +6118,15 @@ which hands them to the active scene's handlers below (<code>Scene</code>'s log 
 </span></code></pre></div>
 </details>
 <h3 id="midievents-midieventstubs">MidiEvents → MidiEventStubs<a class="headerlink" href="#midievents-midieventstubs" title="Permanent link">#</a></h3>
-<div class="admonition warning">
-<p class="admonition-title"><abbr title="Musical Instrument Digital Interface">MIDI</abbr> events never reach these handlers today</p>
-<p><code>GameEngine.process_midi_event</code> passes <code>MIDIIN</code> and <code>MIDIOUT</code> to <code>SceneManager.handle_event()</code>
-and reports them handled. That method acts only on <code>QUIT</code>, and the engine's
-<code>MidiEventManager</code> is never called, so a scene's <code>on_midi_in_event</code> and <code>on_midi_out_event</code>
-do not run (<code>src/glitchygames/engine/game_engine.py</code>).</p>
-</div>
+<p><code>GameEngine.process_midi_event</code> hands <code>MIDIIN</code> to <code>midi_manager.on_midi_in_event</code> and <code>MIDIOUT</code>
+to <code>on_midi_out_event</code>. The engine builds that <code>MidiEventManager</code> with the scene manager as its
+game, so its proxy forwards each event to the scene manager, which passes any <code>on_*_event</code> call
+to the active scene. <code>Scene</code> has the stubs, so a scene without its own handler gets
+<code>unhandled_event</code>, which raises under <code>--no-unhandled-events</code>
+(bugs/2026-11-22-midi-events-skip-the-midi-manager.md: before #300 both types went to
+<code>SceneManager.handle_event()</code>, which ignores them). Nothing in the repository posts <abbr title="Musical Instrument Digital Interface">MIDI</abbr> events
+yet. The <code>vice_id</code> field below is pygame's own spelling: <code>pygame.midi.midis2events</code> builds the
+events with <code>vice_id=device_id</code>.</p>
 <details class="note">
 <summary>Its 2 handlers: each diagram, then the handler's signature</summary>
 <pre class="mermaid"><code>flowchart LR
@@ -6686,7 +6688,7 @@ the type and returns whether it handled it.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 23:08:06 UTC">November 24, 2026</span>
   </span>
 
     
