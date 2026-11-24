@@ -129,7 +129,7 @@ CHILD_TIMEOUT_SECONDS = 120.0
 # Every frame time of a recording the watched replays present: exactly one paced frame, so the
 # frames presented never depend on the recording machine's timing. Up to 1x the viewer presents
 # a late frame and the short one catching up after it each in its own tick
-# (glitchygames/replay/viewer.py, rule 2), but a genuine stall (frames owed beyond a tick) still
+# (glitchygames/replay/pacer.py, rule 2), but a genuine stall (frames owed beyond a tick) still
 # runs as one burst presenting only its last frame
 STEADY_FRAME_SECONDS = 1 / float(STAND_IN_GAME_TARGET_FPS)
 # The FPS-event interval of every recording whose frame times are steadied: an hour, so the
