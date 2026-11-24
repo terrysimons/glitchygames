@@ -66,9 +66,9 @@ class TestCreateClipboard:
     def test_with_pyperclip_it_is_the_desktop_clipboard(self):
         assert isinstance(create_clipboard(), PyperclipClipboard)
 
-    def test_without_pyperclip_it_is_the_process_clipboard(self, mocker, caplog):
+    def test_without_pyperclip_it_is_the_process_clipboard(self, monkeypatch, caplog):
         # A None entry makes the import fail, as where pyperclip is not installed
-        mocker.patch.dict(sys.modules, {'pyperclip': None})
+        monkeypatch.setitem(sys.modules, 'pyperclip', None)
 
         with caplog.at_level('INFO', logger='game.clipboard'):
             clipboard = create_clipboard()
@@ -87,8 +87,8 @@ class TestSystemClipboard:
 
         assert system_clipboard() is clipboard
 
-    def test_without_one_installed_it_chooses_once(self, mocker):
-        mocker.patch.dict(sys.modules, {'pyperclip': None})
+    def test_without_one_installed_it_chooses_once(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, 'pyperclip', None)
         install_clipboard(clipboard=None)
 
         chosen = system_clipboard()

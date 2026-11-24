@@ -709,6 +709,26 @@ def reset_engine_bookkeeping():
 
 
 @pytest.fixture
+def clean_modules_on_teardown():
+    """Remove from sys.modules only the entries added during the test; never clears the whole dict.
+
+    A replacement for ``mocker.patch.dict(sys.modules)`` (whole-snapshot pattern) that avoids the
+    ``sys.modules.clear()`` call in patch.dict teardown. That clear races with any thread
+    currently importing a module for the first time, causing ``KeyError`` in importlib
+    (bugs/2026-11-20-httpcore2-import-keyerror-on-windows.md).
+
+    Yields:
+        None
+
+    """
+    before = frozenset(sys.modules)
+    yield
+    for name in list(sys.modules):
+        if name not in before:
+            del sys.modules[name]
+
+
+@pytest.fixture
 def mock_game_args(mocker):
     """Create mock command line arguments for testing.
 

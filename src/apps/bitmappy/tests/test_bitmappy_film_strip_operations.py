@@ -905,14 +905,13 @@ class TestReinitializeMultiControllerSystem:
         assert selection.is_active()
 
     @pytest.mark.parametrize('has_film_strips', [True, False])
-    def test_outside_pytest_logs_state(self, mocker, handler, editor, caplog, has_film_strips):
+    def test_outside_pytest_logs_state(self, monkeypatch, handler, editor, caplog, has_film_strips):
         """Outside pytest the current selections and film strips are logged first."""
         add_selection(editor=editor, controller_id=0, animation='walk')
         if not has_film_strips:
             editor.film_strips = {}
         caplog.set_level(logging.DEBUG, logger=HANDLER_LOGGER_NAME)
-        mocker.patch.dict(sys.modules)
-        del sys.modules['pytest']
+        monkeypatch.delitem(sys.modules, 'pytest')
 
         handler.film_strip.reinitialize_multi_controller_system()
 
@@ -920,11 +919,10 @@ class TestReinitializeMultiControllerSystem:
         assert f'Current film_strips: {expected_strips}' in caplog.text
         assert 'Current controller_selections: [0]' in caplog.text
 
-    def test_outside_pytest_logs_recreated_scene(self, mocker, handler, editor, caplog):
+    def test_outside_pytest_logs_recreated_scene(self, monkeypatch, handler, editor, caplog):
         """Outside pytest an empty selection map is logged as a recreated scene."""
         caplog.set_level(logging.DEBUG, logger=HANDLER_LOGGER_NAME)
-        mocker.patch.dict(sys.modules)
-        del sys.modules['pytest']
+        monkeypatch.delitem(sys.modules, 'pytest')
 
         handler.film_strip.reinitialize_multi_controller_system()
 

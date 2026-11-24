@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import sys
 import types
 from typing import TYPE_CHECKING
 
@@ -20,8 +21,6 @@ from tests.harness import PROJECT_ROOT
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from pytest_mock import MockerFixture
 
 BROWSER_STORAGE_PATH = PROJECT_ROOT / 'browser' / 'browser_storage.py'
 # Event-loop turns a test may take to settle; past it the test fails loudly instead of hanging
@@ -59,7 +58,7 @@ class StandInFileSystem:
         asyncio.get_running_loop().call_soon(callback, self._jsnull)
 
 
-def load_browser_storage(*, mocker: MockerFixture) -> tuple[types.ModuleType, StandInFileSystem]:
+def load_browser_storage(*, monkeypatch) -> tuple[types.ModuleType, StandInFileSystem]:
     """Load browser/browser_storage.py with Pyodide's modules stood in for.
 
     Returns:
@@ -76,15 +75,10 @@ def load_browser_storage(*, mocker: MockerFixture) -> tuple[types.ModuleType, St
     pyodide.ffi = pyodide_ffi
     pyodide_js = types.ModuleType('pyodide_js')
     pyodide_js.FS = file_system
-    mocker.patch.dict(
-        'sys.modules',
-        {
-            'js': types.ModuleType('js'),
-            'pyodide': pyodide,
-            'pyodide.ffi': pyodide_ffi,
-            'pyodide_js': pyodide_js,
-        },
-    )
+    monkeypatch.setitem(sys.modules, 'js', types.ModuleType('js'))
+    monkeypatch.setitem(sys.modules, 'pyodide', pyodide)
+    monkeypatch.setitem(sys.modules, 'pyodide.ffi', pyodide_ffi)
+    monkeypatch.setitem(sys.modules, 'pyodide_js', pyodide_js)
     specification = importlib.util.spec_from_file_location('browser_storage', BROWSER_STORAGE_PATH)
     assert specification is not None
     assert specification.loader is not None
@@ -123,9 +117,9 @@ async def settle(*, storage: types.ModuleType, file_system: StandInFileSystem) -
     raise AssertionError(message)
 
 
-def test_a_burst_of_requests_in_one_turn_is_one_write_back(mocker: MockerFixture) -> None:
+def test_a_burst_of_requests_in_one_turn_is_one_write_back(monkeypatch) -> None:
     """A scene's setup writing ten sounds at once asks ten times and flushes once."""
-    storage, file_system = load_browser_storage(mocker=mocker)
+    storage, file_system = load_browser_storage(monkeypatch=monkeypatch)
 
     async def burst() -> None:
         for _ in range(10):
@@ -138,14 +132,14 @@ def test_a_burst_of_requests_in_one_turn_is_one_write_back(mocker: MockerFixture
 
 
 def test_requests_while_a_flush_runs_get_one_more_pass_and_never_overlap(
-    mocker: MockerFixture,
+    monkeypatch,
 ) -> None:
     """Sounds written while a write-back runs are written by one more pass after it.
 
     Writes spread over several event-loop turns once started one write-back per turn, eight in
     flight at once in Chromium ("8 FS.syncfs operations in flight at once").
     """
-    storage, file_system = load_browser_storage(mocker=mocker)
+    storage, file_system = load_browser_storage(monkeypatch=monkeypatch)
 
     async def spread_out() -> None:
         storage.flush_soon()
@@ -163,9 +157,9 @@ def test_requests_while_a_flush_runs_get_one_more_pass_and_never_overlap(
     assert file_system.write_backs == 2
 
 
-def test_after_everything_settles_a_new_request_flushes_again(mocker: MockerFixture) -> None:
+def test_after_everything_settles_a_new_request_flushes_again(monkeypatch) -> None:
     """Nothing is left marked as running or owed: the next burst is written too."""
-    storage, file_system = load_browser_storage(mocker=mocker)
+    storage, file_system = load_browser_storage(monkeypatch=monkeypatch)
 
     async def two_bursts() -> None:
         storage.flush_soon()

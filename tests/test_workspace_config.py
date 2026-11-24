@@ -349,12 +349,12 @@ WHITE = (255, 255, 255)
 HOME_PAGE_EXAMPLE_FRAMES = 10
 
 
-def home_page_example_scene(*, directory: Path, mocker) -> type[Any]:
+def home_page_example_scene(*, directory: Path, monkeypatch) -> type[Any]:
     """Import the home page's example from a file, as a reader would save it; its scene class.
 
     Args:
         directory: Where to write the example (``tmp_path``).
-        mocker: Registers the module in ``sys.modules`` for this test only.
+        monkeypatch: Registers the module in ``sys.modules`` for this test only.
 
     Returns:
         The example's ``BitrotAdventures`` scene class.
@@ -368,7 +368,7 @@ def home_page_example_scene(*, directory: Path, mocker) -> type[Any]:
     assert specification is not None
     assert specification.loader is not None
     module = importlib.util.module_from_spec(specification)
-    mocker.patch.dict(sys.modules, {'bitrot_adventures': module})
+    monkeypatch.setitem(sys.modules, 'bitrot_adventures', module)
     specification.loader.exec_module(module)
     return module.BitrotAdventures
 
@@ -389,12 +389,12 @@ def run_home_page_example_frames(*, manager: Any, count: int) -> None:
 
 
 @pytest.mark.draws_frames
-def test_the_home_page_example_draws_a_pixel_the_arrow_keys_move(tmp_path, mocker):
+def test_the_home_page_example_draws_a_pixel_the_arrow_keys_move(tmp_path, monkeypatch, mocker):
     """docs/index.md says its example draws a pixel and moves it with key events: it does.
 
     The example runs headless through the engine's frame loop, as saved from the page.
     """
-    scene_class = home_page_example_scene(directory=tmp_path, mocker=mocker)
+    scene_class = home_page_example_scene(directory=tmp_path, monkeypatch=monkeypatch)
 
     with golden_game(scene_class=scene_class, random_seed=1) as manager:
         run_home_page_example_frames(manager=manager, count=1)

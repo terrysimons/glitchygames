@@ -3135,12 +3135,12 @@ class TestGameEngineTimerBackendError:
 class TestGameEnginePerformanceImportError:
     """Test performance module ImportError path (lines 784-785)."""
 
-    def test_shutdown_performance_import_error(self, mocker):
+    def test_shutdown_performance_import_error(self, monkeypatch, mocker):
         """Test _shutdown handles ImportError for performance module (lines 784-785)."""
         engine = _make_engine(mocker)
 
         # Mock the performance import to fail
-        mocker.patch.dict('sys.modules', {'glitchygames.performance': None})
+        monkeypatch.setitem(sys.modules, 'glitchygames.performance', None)
 
         try:
             # _shutdown goes on past the ImportError: it still quits pygame, for real

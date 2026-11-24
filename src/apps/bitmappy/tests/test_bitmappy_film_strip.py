@@ -1,6 +1,7 @@
 """Tests for film strip tool functionality, coverage, and edge cases."""
 
 import math
+import sys
 from types import SimpleNamespace
 from typing import cast
 
@@ -3132,7 +3133,7 @@ class TestFilmStripToggleOnionSkinning:
         if hasattr(widget, '_toggle_onion_skinning'):
             widget._toggle_onion_skinning('idle', 0)
 
-    def test_toggle_onion_skinning_with_parent_and_canvas(self, mocker):
+    def test_toggle_onion_skinning_with_parent_and_canvas(self, monkeypatch, mocker):
         """Test _toggle_onion_skinning with parent scene and canvas triggers force_redraw."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         widget.parent_scene = mocker.Mock()
@@ -3143,26 +3144,20 @@ class TestFilmStripToggleOnionSkinning:
         mock_manager.toggle_frame_onion_skinning.return_value = True
         mock_onion_module = mocker.MagicMock()
         mock_onion_module.get_onion_skinning_manager.return_value = mock_manager
-        mocker.patch.dict(
-            'sys.modules',
-            {'bitmappy.onion_skinning': mock_onion_module},
-        )
+        monkeypatch.setitem(sys.modules, 'bitmappy.onion_skinning', mock_onion_module)
 
         widget._toggle_onion_skinning('idle', 0)
         assert widget.force_redraw is True
         widget.parent_scene.canvas.force_redraw.assert_called_once()
 
-    def test_toggle_onion_skinning_exception_handled(self, mocker):
+    def test_toggle_onion_skinning_exception_handled(self, monkeypatch, mocker):
         """Test _toggle_onion_skinning handles exceptions gracefully (line 1624-1625)."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
         # Mock the onion_skinning module's get function to raise an exception
         # The import happens inside the method, so we need to mock at the module level
         mock_onion_module = mocker.MagicMock()
         mock_onion_module.get_onion_skinning_manager.side_effect = RuntimeError('test error')
-        mocker.patch.dict(
-            'sys.modules',
-            {'bitmappy.onion_skinning': mock_onion_module},
-        )
+        monkeypatch.setitem(sys.modules, 'bitmappy.onion_skinning', mock_onion_module)
         # Should not raise - exception is caught and logged
         widget._toggle_onion_skinning('idle', 0)
 
@@ -3913,7 +3908,7 @@ class TestFilmStripHandleKeyboardEnterKey:
 class TestFilmStripGetControllerSelectionColor:
     """Test _get_controller_selection_color (lines 1425-1436)."""
 
-    def test_returns_controller_color_for_matching_selection(self, mocker):
+    def test_returns_controller_color_for_matching_selection(self, monkeypatch, mocker):
         """Test returns controller color when a controller has the frame selected."""
         widget = FilmStripWidget(WIDGET_X, WIDGET_Y, WIDGET_WIDTH, WIDGET_HEIGHT)
 
@@ -3934,10 +3929,7 @@ class TestFilmStripGetControllerSelectionColor:
         # Mock the module that gets imported locally inside the method
         mock_multi_ctrl_module = mocker.MagicMock()
         mock_multi_ctrl_module.MultiControllerManager.get_instance.return_value = mock_manager
-        mocker.patch.dict(
-            'sys.modules',
-            {'bitmappy.controllers.manager': mock_multi_ctrl_module},
-        )
+        monkeypatch.setitem(sys.modules, 'bitmappy.controllers.manager', mock_multi_ctrl_module)
 
         result = widget._get_controller_selection_color('idle', 0)
         assert result == (255, 0, 0)

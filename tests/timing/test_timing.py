@@ -450,11 +450,11 @@ class TestFastTimerSleepUntilNext:
 class TestPygameTimerExtended:
     """Tests for PygameTimer that require pygame mocking."""
 
-    def test_pygame_timer_start_frame_zero_fps(self, mocker):
+    def test_pygame_timer_start_frame_zero_fps(self, monkeypatch, mocker):
         """Test PygameTimer.start_frame returns 0 when target_fps is 0."""
         # Mock pygame import inside PygameTimer.__init__
         mock_pygame = mocker.MagicMock()
-        mocker.patch.dict('sys.modules', {'pygame': mock_pygame})
+        monkeypatch.setitem(sys.modules, 'pygame', mock_pygame)
 
         from glitchygames.timing import PygameTimer
 
@@ -462,10 +462,10 @@ class TestPygameTimerExtended:
         period = timer.start_frame(0)
         assert period == 0
 
-    def test_pygame_timer_start_frame_60_fps(self, mocker):
+    def test_pygame_timer_start_frame_60_fps(self, monkeypatch, mocker):
         """Test PygameTimer.start_frame returns correct period for 60 FPS."""
         mock_pygame = mocker.MagicMock()
-        mocker.patch.dict('sys.modules', {'pygame': mock_pygame})
+        monkeypatch.setitem(sys.modules, 'pygame', mock_pygame)
 
         from glitchygames.timing import PygameTimer
 
@@ -473,12 +473,12 @@ class TestPygameTimerExtended:
         period = timer.start_frame(TARGET_FPS_60)
         assert period == EXPECTED_PERIOD_60
 
-    def test_pygame_timer_compute_deadline_no_previous(self, mocker):
+    def test_pygame_timer_compute_deadline_no_previous(self, monkeypatch, mocker):
         """Test PygameTimer.compute_deadline with prev_deadline_ns=None."""
         mock_pygame = mocker.MagicMock()
         mock_ticks_value = 1000
         mock_pygame.time.get_ticks.return_value = mock_ticks_value
-        mocker.patch.dict('sys.modules', {'pygame': mock_pygame})
+        monkeypatch.setitem(sys.modules, 'pygame', mock_pygame)
 
         from glitchygames.timing import PygameTimer
 
@@ -488,12 +488,12 @@ class TestPygameTimerExtended:
         expected_now_ns = mock_ticks_value * ONE_MS_IN_NS
         assert deadline == expected_now_ns + period_ns
 
-    def test_pygame_timer_compute_deadline_with_previous(self, mocker):
+    def test_pygame_timer_compute_deadline_with_previous(self, monkeypatch, mocker):
         """Test PygameTimer.compute_deadline with a previous deadline."""
         mock_pygame = mocker.MagicMock()
         # The clock reads 500 ms, the previous deadline: on time, so no re-anchoring.
         mock_pygame.time.get_ticks.return_value = 500
-        mocker.patch.dict('sys.modules', {'pygame': mock_pygame})
+        monkeypatch.setitem(sys.modules, 'pygame', mock_pygame)
 
         from glitchygames.timing import PygameTimer
 
@@ -503,12 +503,12 @@ class TestPygameTimerExtended:
         deadline = timer.compute_deadline(prev_deadline, period_ns)
         assert deadline == prev_deadline + period_ns
 
-    def test_pygame_timer_sleep_until_next(self, mocker):
+    def test_pygame_timer_sleep_until_next(self, monkeypatch, mocker):
         """Test PygameTimer.sleep_until_next calls pygame.time.delay."""
         mock_pygame = mocker.MagicMock()
         # First call for remaining_ns calculation, second call for return value
         mock_pygame.time.get_ticks.side_effect = [1000, 1017]
-        mocker.patch.dict('sys.modules', {'pygame': mock_pygame})
+        monkeypatch.setitem(sys.modules, 'pygame', mock_pygame)
 
         from glitchygames.timing import PygameTimer
 
@@ -537,10 +537,10 @@ class TestCreateTimerExtended:
         assert isinstance(timer, FastTimer)
         assert timer.sleep_granularity_ns == 2_000_000
 
-    def test_create_timer_pygame(self, mocker):
+    def test_create_timer_pygame(self, monkeypatch, mocker):
         """Test create_timer with 'pygame' type returns PygameTimer."""
         mock_pygame = mocker.MagicMock()
-        mocker.patch.dict('sys.modules', {'pygame': mock_pygame})
+        monkeypatch.setitem(sys.modules, 'pygame', mock_pygame)
 
         from glitchygames.timing import PygameTimer
 

@@ -429,7 +429,7 @@ def check_the_recording_replays_to_its_end(*, game: StandInGame, recording: Path
 
 
 @pytest.fixture
-def color_game(tmp_path, monkeypatch, mocker, recorded_old) -> ColorGame:
+def color_game(tmp_path, monkeypatch, mocker, recorded_old, clean_modules_on_teardown) -> ColorGame:
     """Install the color game for this test and its children, with its own copy of OLD.
 
     Returns:
@@ -439,7 +439,6 @@ def color_game(tmp_path, monkeypatch, mocker, recorded_old) -> ColorGame:
     game = install_color_game(install_directory=tmp_path / 'site-packages')
     use_stand_in_game(install_directory=game.install_directory, monkeypatch=monkeypatch)
     # Imported here for the watched replays; gone from sys.modules after the test
-    mocker.patch.dict(sys.modules)
     module = importlib.import_module(PACKAGE)
     old = copy_recording(recording=recorded_old, path=tmp_path / 'old.jsonl.gz')
     return ColorGame(
@@ -514,7 +513,7 @@ def test_watched_recordings_have_steady_frame_times(color_game, tmp_path):
 
 @pytest.mark.draws_frames
 def test_a_steadied_recording_replays_however_slow_the_machine_recording_it(
-    tmp_path, monkeypatch, mocker
+    tmp_path, monkeypatch, mocker, clean_modules_on_teardown
 ):
     """OLD's arguments, recorded on a machine managing 5 frames a second, steady and replay.
 
@@ -532,7 +531,6 @@ def test_a_steadied_recording_replays_however_slow_the_machine_recording_it(
     )
     write_steady_frame_times(recording=recording)
     use_stand_in_game(install_directory=game.install_directory, monkeypatch=monkeypatch)
-    mocker.patch.dict(sys.modules)
     module = importlib.import_module(PACKAGE)
 
     replay = replay_through_engine(

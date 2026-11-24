@@ -1047,10 +1047,9 @@ def test_an_unknown_setting_stops_the_build(mocker, setting):
         mkdocs_hooks.complexity_graphs_wanted()
 
 
-def test_the_mkdocs_hook_loads_the_graph_script_once(mocker):
+def test_the_mkdocs_hook_loads_the_graph_script_once(monkeypatch, clean_modules_on_teardown):
     """The script is loaded from its file the first time and reused after (as mkdocs reloads)."""
-    mocker.patch.dict(sys.modules)
-    sys.modules.pop(mkdocs_hooks.GRAPH_SCRIPT_MODULE_NAME, None)
+    monkeypatch.delitem(sys.modules, mkdocs_hooks.GRAPH_SCRIPT_MODULE_NAME, raising=False)
 
     first = mkdocs_hooks.load_graph_script()
     second = mkdocs_hooks.load_graph_script()
@@ -1083,9 +1082,10 @@ def module_with_a_filled_cache(*, name: str) -> tuple[types.ModuleType, weakref.
     return module, weakref.ref(argument)
 
 
-def test_the_mkdocs_hook_frees_the_documentation_caches_after_a_build(mocker, tmp_path):
+def test_the_mkdocs_hook_frees_the_documentation_caches_after_a_build(
+    mocker, tmp_path, clean_modules_on_teardown
+):
     """After a build, griffe's and mkdocstrings' module caches are emptied, freeing their keys."""
-    mocker.patch.dict(sys.modules)
     # No browser games built: the hook copies none. The hook also checks the built explorer
     # pages, so the site is one holding them, never the checkout's (a fresh CI checkout has none)
     mocker.patch.object(mkdocs_hooks, 'BROWSER_GAMES_DIRECTORY', tmp_path / 'no games')
@@ -1100,9 +1100,10 @@ def test_the_mkdocs_hook_frees_the_documentation_caches_after_a_build(mocker, tm
     assert key() is None
 
 
-def test_the_mkdocs_hook_leaves_other_modules_caches_alone(mocker, tmp_path):
+def test_the_mkdocs_hook_leaves_other_modules_caches_alone(
+    mocker, tmp_path, clean_modules_on_teardown
+):
     """Only griffe's and mkdocstrings' caches are emptied."""
-    mocker.patch.dict(sys.modules)
     # No browser games built: the hook copies none. The hook also checks the built explorer
     # pages, so the site is one holding them, never the checkout's (a fresh CI checkout has none)
     mocker.patch.object(mkdocs_hooks, 'BROWSER_GAMES_DIRECTORY', tmp_path / 'no games')

@@ -1,5 +1,7 @@
 """Tests for voice backends registry module."""
 
+import sys
+
 from glitchygames.events.voice_backends import get_microphone_backend
 from glitchygames.events.voice_backends.registry import (
     _probe_backend,
@@ -16,27 +18,24 @@ _REGISTRY = 'glitchygames.events.voice_backends.registry'
 class TestTryImportMiniaudio:
     """Test _try_import_miniaudio function."""
 
-    def test_returns_class_when_available(self, mocker):
+    def test_returns_class_when_available(self, monkeypatch, mocker):
         """The MiniaudioMicrophone class is returned when its module imports."""
         mock_class = mocker.Mock()
         mock_module = mocker.MagicMock()
         mock_module.MiniaudioMicrophone = mock_class
 
-        mocker.patch.dict('sys.modules', {'glitchygames.events.voice_miniaudio': mock_module})
+        monkeypatch.setitem(sys.modules, 'glitchygames.events.voice_miniaudio', mock_module)
 
         assert _try_import_miniaudio() is mock_class
 
-    def test_returns_none_when_import_fails(self, mocker):
+    def test_returns_none_when_import_fails(self, monkeypatch, mocker):
         """Test that None is returned when MiniaudioMicrophone cannot be imported."""
         mocker.patch(
             f'{_REGISTRY}._try_import_miniaudio',
             wraps=_try_import_miniaudio,
         )
         # Force the import to fail by removing the module
-        mocker.patch.dict(
-            'sys.modules',
-            {'glitchygames.events.voice_miniaudio': None},
-        )
+        monkeypatch.setitem(sys.modules, 'glitchygames.events.voice_miniaudio', None)
 
         # Call directly since the import will raise ImportError
         result = _try_import_miniaudio()
@@ -48,25 +47,22 @@ class TestTryImportMiniaudio:
 class TestTryImportPortaudio:
     """Test _try_import_portaudio function."""
 
-    def test_returns_class_when_available(self, mocker):
+    def test_returns_class_when_available(self, monkeypatch, mocker):
         """The PortAudioMicrophone class is returned when its module imports."""
         mock_class = mocker.Mock()
         mock_module = mocker.MagicMock()
         mock_module.PortAudioMicrophone = mock_class
 
-        mocker.patch.dict(
-            'sys.modules', {'glitchygames.events.voice_backends.voice_portaudio': mock_module}
+        monkeypatch.setitem(
+            sys.modules, 'glitchygames.events.voice_backends.voice_portaudio', mock_module
         )
 
         assert _try_import_portaudio() is mock_class
 
-    def test_returns_none_when_import_fails(self, mocker):
+    def test_returns_none_when_import_fails(self, monkeypatch):
         """Test that None is returned when PortAudioMicrophone cannot be imported."""
         # Force the import to fail
-        mocker.patch.dict(
-            'sys.modules',
-            {'glitchygames.events.voice_backends.voice_portaudio': None},
-        )
+        monkeypatch.setitem(sys.modules, 'glitchygames.events.voice_backends.voice_portaudio', None)
 
         result = _try_import_portaudio()
 

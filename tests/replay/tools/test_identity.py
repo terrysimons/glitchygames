@@ -129,11 +129,11 @@ def test_a_package_two_console_scripts_start_names_no_console_script(tmp_path, m
     assert identity.package_directory == tmp_path / game.package
 
 
-def test_a_game_run_as_a_script_lives_in_the_scripts_directory(tmp_path, mocker):
+def test_a_game_run_as_a_script_lives_in_the_scripts_directory(tmp_path, monkeypatch):
     """``python mygame.py``: its module is ``__main__``, found by the script's file."""
     script_module = types.ModuleType('__main__')
     script_module.__file__ = str(tmp_path / 'mygame.py')
-    mocker.patch.dict(sys.modules, {'__main__': script_module})
+    monkeypatch.setitem(sys.modules, '__main__', script_module)
 
     identity = game_identity(game=scene_class_in(module='__main__'))
 
@@ -143,10 +143,10 @@ def test_a_game_run_as_a_script_lives_in_the_scripts_directory(tmp_path, mocker)
     assert identity.distribution is None
 
 
-def test_a_game_whose_module_cannot_be_found_has_no_directory(mocker):
+def test_a_game_whose_module_cannot_be_found_has_no_directory(monkeypatch):
     """A module that is neither importable nor loaded with a file (a class made at a prompt)."""
     fileless = types.ModuleType('made_at_a_prompt')
-    mocker.patch.dict(sys.modules, {'made_at_a_prompt': fileless})
+    monkeypatch.setitem(sys.modules, 'made_at_a_prompt', fileless)
 
     identity = game_identity(game=scene_class_in(module='made_at_a_prompt'))
     nowhere = game_identity(game=scene_class_in(module='not_anywhere_at_all'))
