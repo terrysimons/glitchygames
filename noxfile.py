@@ -915,10 +915,9 @@ def test(session: nox.Session) -> None:
 
 # The test files that read Markdown (each names a Markdown file in its code), which a docs-only
 # pull request still runs (nox -s test-markdown, CircleCI's markdown-checks job: the owner,
-# 2026-11-20). tests/test_ci_config.py holds the list to exactly the test files that name one
+# 2026-11-20). tests/test_ci_config.py holds the list to exactly the test files that name one,
+# less MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES
 MARKDOWN_TEST_FILES = (
-    'tests/audio/test_channel_fades.py',
-    'tests/benchmarks/test_logging_cost.py',
     'tests/replay/tools/test_performance_pages.py',
     'tests/test_ansible_ai_service.py',
     'tests/test_ci_change_scope.py',
@@ -935,6 +934,18 @@ MARKDOWN_TEST_FILES = (
     'tests/test_suite_collection.py',
     'tests/test_workspace_config.py',
 )
+# The test files that name a Markdown file but read none of the repository's (a report they write
+# themselves, a path quoted in a reason), each with why: a docs-only change does not run them (the
+# owner, 2026-11-24: #295's markdown-checks job, 5335, ran the channel-fade audio test and lost it
+# to the disk audio driver)
+MARKDOWN_NAMED_BUT_NOT_READ_TEST_FILES = {
+    'tests/audio/test_channel_fades.py': (
+        'writes channel-fade-<case>.md, its trial report; records real audio, no Markdown read'
+    ),
+    'tests/benchmarks/test_logging_cost.py': (
+        'writes test-results/logging-cost.md, its results table; a benchmark, no Markdown read'
+    ),
+}
 
 
 @nox.session(python=list(TEST_PYTHONS[-1:]), reuse_venv=False, name='test-markdown', default=False)
