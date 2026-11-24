@@ -13,7 +13,7 @@ import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import pytest
 import yaml
@@ -23,6 +23,9 @@ from scripts.workspace_packages import workspace_members
 from glitchygames.process import OutputCapture, run_command
 from tests.ansible_inventory import raspberry_pi_hosts
 from tests.ledger_repositories import environment_without_git_variables, git
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # The pipeline's configuration: the workflows, continued from the setup configuration, which only
@@ -35,6 +38,8 @@ WINDOWS_EXECUTOR_MARKER = 'name: win/default'
 # A job that runs a test session runs one of these commands
 TEST_SESSION_COMMANDS = ('      - nox-test:\n', '      - nox-test-windows:\n')
 LOCK_PATH = PROJECT_ROOT / 'uv.lock'
+# The highest TCP port; bind() refuses anything above it
+HIGHEST_PORT = 65535
 
 
 def pipeline_parameter_default(*, name: str) -> str:
@@ -361,6 +366,33 @@ def test_the_linux_ci_session_installs_what_the_linux_job_installs():
     assert re.findall(r'uv tool install "?ansible', noxfile_source) == []
 
 
+def test_the_linux_ci_checkout_copies_with_cp_not_tar():
+    """The container's checkout copy uses cp: GNU tar cannot stat the mount under amd64 emulation.
+
+    Docker Desktop's amd64 emulation on Apple silicon refused tar's stat of every file in a
+    subdirectory of the mounted checkout ("Function not implemented"), so the session copied 28
+    of 9,793 files and stopped (2026-11-23); cp copies them all.
+    """
+    import noxfile
+
+    script = noxfile._linux_ci_script(
+        python_versions=['3.15.2'],
+        uv_version='0.13.9',
+        nox_version='2026.7.11',
+        apt_packages=['fontconfig'],
+        checkout=noxfile._HostCheckout(
+            common_directory=Path('/repository/.git'),
+            head='0' * 40,
+            branch='main',
+            origin_url=None,
+            files=b'README.md\x00src/glitchygames/world.py\x00',
+        ),
+    )
+
+    assert 'cp --parents --no-dereference' in script
+    assert 'tar -C /source' not in script
+
+
 class RecordingSession:
     """Stands in for a nox session: records every command, runs nothing."""
 
@@ -378,6 +410,8 @@ class RecordingSession:
         self.commands: list[tuple[str, ...]] = []
         # Each command's environment overrides (``env=``), by command
         self.environments: dict[tuple[str, ...], object] = {}
+        # Each command's options (``success_codes=``, ``silent=``, ...), by command
+        self.options: dict[tuple[str, ...], dict[str, object]] = {}
         # What the session logged (``session.log``), in order
         self.logs: list[str] = []
         self.virtualenv = type('Virtualenv', (), {'location': '.nox/docs-deploy'})()
@@ -395,6 +429,7 @@ class RecordingSession:
         """
         self.commands.append(command)
         self.environments[command] = options.get('env')
+        self.options[command] = options
         return self.outputs.get(command[0]) if options.get('silent') else None
 
     def error(self, message: str) -> NoReturn:
@@ -691,20 +726,36 @@ def expected_holder(*, listing: str, command: str) -> str:
     ],
     ids=['named-by-its-command-line', 'named-by-lsof', 'unnamed'],
 )
-def test_docs_serve_refuses_a_taken_address_before_building(listing, command):
+@pytest.mark.parametrize('held', ['port-the-os-hands-out', 'highest-port'])
+def test_docs_serve_refuses_a_taken_address_before_building(listing, command, held, mocker):
     """A taken address stops the session at once, naming who holds it and a free one.
 
     mkdocs binds its address only after the whole build (about five minutes), so it failed late
     (2026-11-13: ports 8000-8002 all held by Python servers). ``lsof`` finds the listener and
     ``ps`` its command line (``lsof``'s short name was ``python3.14`` for all three); without
     ``lsof``, or when it finds none, the message names only the address.
+
+    The highest port, 65535, is pinned rather than left to the OS, which hands it out about once
+    in 16,000 binds: the suggestion search probed 65536 and crashed (2026-11-22, seed 872572785;
+    bugs/2026-11-22-free-port-search-leaves-the-port-range.md).
     """
     import noxfile
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        listener.bind(('127.0.0.1', 0))
-        listener.listen()
-        port = listener.getsockname()[1]
+        if held == 'highest-port':
+            port = HIGHEST_PORT
+            really_in_use = noxfile._address_in_use
+            mocker.patch.object(
+                noxfile,
+                '_address_in_use',
+                side_effect=lambda *, host, port: (
+                    port == HIGHEST_PORT or really_in_use(host=host, port=port)
+                ),
+            )
+        else:
+            listener.bind(('127.0.0.1', 0))
+            listener.listen()
+            port = listener.getsockname()[1]
         session = RecordingSession(
             posargs=['--dev-addr', f'127.0.0.1:{port}'],
             outputs={'lsof': listing, 'ps': f'{command}\n'},
@@ -716,7 +767,9 @@ def test_docs_serve_refuses_a_taken_address_before_building(listing, command):
     message = str(refusal.value)
     holder = expected_holder(listing=listing, command=command)
     assert message.startswith(f'127.0.0.1:{port} is in use{holder}: ')
-    assert re.search(r'nox -s docs-serve -- --dev-addr 127\.0\.0\.1:\d+$', message)
+    suggestion = re.search(r'nox -s docs-serve -- --dev-addr 127\.0\.0\.1:(\d+)$', message)
+    assert suggestion is not None
+    assert 1 <= int(suggestion.group(1)) <= HIGHEST_PORT
     assert not any('mkdocs' in command for command in session.commands)
 
 
@@ -729,11 +782,103 @@ def test_docs_serve_suggests_an_address_that_is_free():
         listener.listen()
         port = listener.getsockname()[1]
 
-        suggested = noxfile._free_port_after(host='127.0.0.1', port=port)
+        suggested = noxfile._free_port_near(host='127.0.0.1', port=port)
 
+        assert suggested is not None
         assert suggested > port
         assert not noxfile._address_in_use(host='127.0.0.1', port=suggested)
         assert noxfile._address_in_use(host='127.0.0.1', port=port)
+
+
+def test_docs_serve_suggests_a_port_below_the_highest_when_it_is_taken():
+    """With 65535 held, the suggestion is a free port below it, not 65536 (which crashed).
+
+    No listener is needed on 65535: the search starts past it, and probing 65536 raised
+    ``OverflowError`` before any bind.
+    """
+    import noxfile
+
+    suggested = noxfile._free_port_near(host='127.0.0.1', port=HIGHEST_PORT)
+
+    assert suggested is not None
+    assert 1 <= suggested < HIGHEST_PORT
+    assert not noxfile._address_in_use(host='127.0.0.1', port=suggested)
+
+
+@pytest.mark.parametrize('port', [1, 1024, 65515, HIGHEST_PORT])
+@pytest.mark.parametrize('others_taken', [False, True], ids=['others-free', 'all-taken'])
+def test_docs_serve_searches_only_ports_from_1_to_65535(port, others_taken, mocker):
+    """Every port probed, and every port suggested, is 1-65535; none free suggests none.
+
+    The invariant for the whole search, at the ports where it meets either end of the range
+    (65515 is the last one whose 20 ports above it all exist). ``bind()`` refuses a port outside
+    0-65535 with ``OverflowError``, and port 0 means "any port", so neither may be probed.
+    """
+    import noxfile
+
+    probed: list[int] = []
+    held_port = port
+
+    def address_in_use(*, host: str, port: int) -> bool:
+        del host
+        probed.append(port)
+        return others_taken or port == held_port
+
+    mocker.patch.object(noxfile, '_address_in_use', side_effect=address_in_use)
+
+    suggested = noxfile._free_port_near(host='127.0.0.1', port=port)
+
+    assert probed
+    assert all(1 <= probe <= HIGHEST_PORT for probe in probed)
+    assert port not in probed
+    if others_taken:
+        assert suggested is None
+    else:
+        assert suggested is not None
+        assert 1 <= suggested <= HIGHEST_PORT
+        assert suggested != port
+
+
+def test_docs_serve_names_no_port_when_none_nearby_is_free(mocker):
+    """With every nearby port taken, the refusal says so and names no address to use.
+
+    The old fallback named the port 21 past the taken one, unchecked, which past 65514 is not a
+    port at all.
+    """
+    import noxfile
+
+    mocker.patch.object(noxfile, '_address_in_use', return_value=True)
+    mocker.patch.object(noxfile, '_listening_process', return_value=None)
+    session = RecordingSession(posargs=['--dev-addr', f'127.0.0.1:{HIGHEST_PORT}'])
+
+    with pytest.raises(RuntimeError) as refusal:
+        noxfile.docs_serve(session)
+
+    message = str(refusal.value)
+    assert message.startswith(f'127.0.0.1:{HIGHEST_PORT} is in use: ')
+    assert '--dev-addr' not in message
+    assert 'no free port within 20 of 65535' in message
+    assert not any('mkdocs' in command for command in session.commands)
+
+
+@pytest.mark.parametrize('port_text', ['0', '65536', '70000', 'http'])
+def test_docs_serve_refuses_an_address_whose_port_is_not_1_to_65535(port_text):
+    """A ``--dev-addr`` port outside 1-65535 is refused by name, before any probe or build.
+
+    Probing 65536 or more raised ``OverflowError``; 0 probed "any port", found it free, and went
+    on to the five-minute build.
+    """
+    import noxfile
+
+    session = RecordingSession(posargs=['--dev-addr', f'127.0.0.1:{port_text}'])
+
+    with pytest.raises(RuntimeError) as refusal:
+        noxfile.docs_serve(session)
+
+    assert str(refusal.value) == (
+        f'--dev-addr 127.0.0.1:{port_text}: the port must be a number from 1 to 65535'
+    )
+    assert session.commands == []
 
 
 def circleci_workflow_job(*, name: str) -> str:
@@ -1592,6 +1737,24 @@ def test_every_linux_job_installs_the_linux_jobs_system_packages():
         assert 'apt-get install' not in job, name
 
 
+def test_the_windows_job_runs_a_test_worker_on_every_cpu():
+    """Windows medium (4 CPUs, 16 GB) runs 4 xdist workers, not CI's half-the-CPUs default.
+
+    The owner, 2026-11-23: noxfile.py's half-CPU rule in CI (#71, "to avoid resource
+    exhaustion", from when the count was the host's CPUs) gave each Windows machine 2 workers.
+    The job asks for 4 itself, leaving the rule as it is for every other job; a commit of its
+    own, so it can be dropped alone if 4 workers prove flaky.
+    """
+    job = circleci_job_definition(name='test-python-3-15-windows')
+
+    assert '      name: win/default\n      size: medium\n' in job
+    assert '      PYTEST_WORKERS: "4"\n' in job
+
+
+# Each split test job's machines (parallelism): Linux 6 (the owner, 2026-11-23), Windows 3
+MACHINES_PER_TEST_JOB = {'linux': 6, 'windows': 3}
+
+
 @pytest.mark.parametrize(
     ('platform_marker', 'platform', 'save_command', 'combine_job'),
     [
@@ -1608,12 +1771,13 @@ def test_every_linux_job_installs_the_linux_jobs_system_packages():
 def test_every_linux_and_windows_test_job_is_split_and_its_coverage_combined(
     platform_marker, platform, save_command, combine_job
 ):
-    """Each runs on three machines, saves each's coverage, and one combine job applies the rule.
+    """Each runs on its machines, saves each's coverage, and one combine job applies the rule.
 
     The owner, 2026-11-18 (one Python ran past the one-hour limit on Linux, jobs 3705, 3707):
     "yes" to two machines a job, and "Do it for windows too"; 2026-11-20: "split Linux, Windows
-    by 3 instead of 2". tests/circleci_test_split.py picks each machine's share; the combine job
-    holds the shares together to 100%.
+    by 3 instead of 2"; 2026-11-23: Linux on 6 (Docker costs the same per CPU, so about the same
+    credits). tests/circleci_test_split.py picks each machine's share; the combine job holds the
+    shares together to 100%.
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     workflow = configuration[configuration.index('\nworkflows:\n') :]
@@ -1625,7 +1789,7 @@ def test_every_linux_and_windows_test_job_is_split_and_its_coverage_combined(
         session = re.search(r'session: (?P<session>test-[0-9.]+)\n', job)
         assert session is not None, name
         share = f'{platform}-{session["session"]}'
-        assert '    parallelism: 3\n' in job, name
+        assert f'    parallelism: {MACHINES_PER_TEST_JOB[platform]}\n' in job, name
         assert '      GLITCHYGAMES_TEST_SPLIT: "circleci"\n' in job, name
         assert f'      - {save_command}:\n          share: {share}\n' in job, name
         # Saved after the tests ran, so the data is the run's
@@ -2056,6 +2220,105 @@ def test_an_unknown_suite_order_stops_the_run():
             noxfile.choose_suite_order(environment={SUITE_ORDER_VARIABLE: value})
 
 
+# The marker of a test that times real work against a tolerance (tests/harness.py registers it)
+WALL_CLOCK_MARKER = 'wall_clock'
+
+
+def option_value(command: Sequence[str], option: str) -> str:
+    """Return the value after the last ``option`` in a command (pytest's last one wins).
+
+    Returns:
+        The value.
+
+    """
+    index = len(command) - 1 - list(reversed(command)).index(option)
+    return command[index + 1]
+
+
+@pytest.mark.parametrize('split', [False, True], ids=['one machine', 'a split machine'])
+def test_the_test_session_runs_the_wall_clock_tests_alone_after_the_rest(monkeypatch, split):
+    """Two pytest runs: every other test in parallel, then the wall_clock tests serially.
+
+    #287's Windows job (5141) ran 4 workers on 4 CPUs, and a timer accuracy test lost its
+    deadline to the other workers (19 ms against a 3 ms bound). The owner, 2026-11-23: keep the
+    workers, and time real work alone. The second run appends to the first's coverage, so the
+    100% rule (off on a split machine) is applied to both; it writes its own JUnit report, and a
+    machine whose share holds no wall_clock test (pytest's exit 5) passes.
+    """
+    import noxfile
+
+    installed = '.nox/test-3-15/lib/python3.15/site-packages/glitchygames'
+    monkeypatch.setenv('PYTEST_WORKERS', '4')
+    if split:
+        monkeypatch.setenv('GLITCHYGAMES_TEST_SPLIT', 'circleci')
+    else:
+        monkeypatch.delenv('GLITCHYGAMES_TEST_SPLIT', raising=False)
+    session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
+    noxfile.test(session)
+    parallel, serial = [command for command in session.commands if command[0] == 'pytest']
+
+    assert option_value(parallel, '-m') == f'not {WALL_CLOCK_MARKER}'
+    assert option_value(parallel, '-n') == '4'
+    assert '--cov-fail-under=0' in parallel
+    assert option_value(serial, '-m') == WALL_CLOCK_MARKER
+    assert option_value(serial, '-n') == '0'
+    assert '--cov-append' in serial
+    assert '--junitxml=test-results/junit-wall-clock.xml' in serial
+    assert ('--cov-fail-under=0' in serial) == split
+    assert session.options[serial]['success_codes'] == [0, 5]
+    # Only the files that hold wall_clock tests are collected by the serial run, none by the other
+    assert serial[-len(noxfile.WALL_CLOCK_TEST_FILES) :] == noxfile.WALL_CLOCK_TEST_FILES
+    assert not [argument for argument in parallel if argument.endswith('.py')]
+    # Both runs take the same order and log level
+    for argument in ('--log-cli-level=WARNING',):
+        assert (argument in parallel) == (argument in serial)
+
+
+def test_the_shuffled_pre_push_run_times_the_wall_clock_tests_alone_too():
+    """test-random (the pre-push hook) splits the same way: every core, then one process."""
+    import noxfile
+
+    session = RecordingSession(posargs=['12345'])
+    noxfile.test_random(session)
+    parallel, serial = session.commands
+
+    assert option_value(parallel, '-m') == f'not {WALL_CLOCK_MARKER}'
+    assert option_value(parallel, '-n') == 'auto'
+    assert option_value(serial, '-m') == WALL_CLOCK_MARKER
+    assert option_value(serial, '-n') == '0'
+    assert '--randomly-seed=12345' in serial
+    assert serial[-len(noxfile.WALL_CLOCK_TEST_FILES) :] == noxfile.WALL_CLOCK_TEST_FILES
+    assert not [argument for argument in parallel if argument.endswith('.py')]
+    assert session.options[serial]['success_codes'] == [0, 5]
+
+
+def test_the_wall_clock_file_list_is_every_test_file_that_uses_the_marker():
+    """noxfile.WALL_CLOCK_TEST_FILES is exactly the test files that use the wall_clock marker.
+
+    The serial run collects only these files, so a test marked in a file missing from the list
+    would silently never run, in either run. A marker applied some way the text does not show
+    (a conftest adding it to items) is not detected: name it here by hand if one appears.
+    """
+    import noxfile
+
+    marker_use = re.compile(rf'pytest\.mark\.{WALL_CLOCK_MARKER}\b')
+    test_files = sorted(
+        path.relative_to(PROJECT_ROOT).as_posix()
+        for path in [
+            *(PROJECT_ROOT / 'tests').rglob('test_*.py'),
+            *(PROJECT_ROOT / 'src').glob('*/*/tests/**/test_*.py'),
+        ]
+    )
+    users = [
+        path
+        for path in test_files
+        if marker_use.search((PROJECT_ROOT / path).read_text(encoding='utf-8'))
+    ]
+
+    assert users, 'no test file uses the wall_clock marker: the detection is stale'
+    assert list(noxfile.WALL_CLOCK_TEST_FILES) == users
+
+
 def test_the_test_session_prints_its_order_and_passes_it_to_pytest(monkeypatch):
     """The order is logged before pytest runs, shuffled or fixed, and a shuffle reaches pytest."""
     import noxfile
@@ -2064,18 +2327,23 @@ def test_the_test_session_prints_its_order_and_passes_it_to_pytest(monkeypatch):
     monkeypatch.setenv(SUITE_ORDER_VARIABLE, '4242')
     session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
     noxfile.test(session)
-    (pytest_run,) = [command for command in session.commands if command[0] == 'pytest']
+    # Both runs (the parallel one and the wall_clock tests' serial one) take the order
+    pytest_runs = [command for command in session.commands if command[0] == 'pytest']
 
-    assert '--randomly-seed=4242' in pytest_run
-    assert pytest_run[pytest_run.index('randomly') - 1] == '-p'
+    assert len(pytest_runs) == 2
+    for pytest_run in pytest_runs:
+        assert '--randomly-seed=4242' in pytest_run
+        assert pytest_run[pytest_run.index('randomly') - 1] == '-p'
     assert [log for log in session.logs if 'Test order: shuffled, seed 4242' in log]
 
     monkeypatch.delenv(SUITE_ORDER_VARIABLE)
     session = RecordingSession(posargs=[], outputs={'python': f'{installed}\n'})
     noxfile.test(session)
-    (pytest_run,) = [command for command in session.commands if command[0] == 'pytest']
+    pytest_runs = [command for command in session.commands if command[0] == 'pytest']
 
-    assert not [argument for argument in pytest_run if 'randomly' in argument]
+    assert len(pytest_runs) == 2
+    for pytest_run in pytest_runs:
+        assert not [argument for argument in pytest_run if 'randomly' in argument]
     assert [log for log in session.logs if log.startswith('Test order: fixed')]
 
 
@@ -2242,7 +2510,8 @@ def test_the_shuffled_run_tests_only_the_development_python():
 
     python_at = len(SHUFFLED_RUN_ENVIRONMENT)
     pythons = [command[python_at] for command in session.commands]
-    assert pythons == ['3.15']
+    # The parallel run and the wall_clock tests' serial run, both on 3.15
+    assert pythons == ['3.15', '3.15']
     assert noxfile.TEST_PYTHONS[-1] == noxfile.SHUFFLED_RUN_PYTHON
     assert '--randomly-seed=12345' in session.commands[0]
 
@@ -2419,7 +2688,31 @@ def test_the_pre_push_hooks_run_the_shuffled_suite():
     """Every push shuffles the suite once (the hook, not CI: CI keeps the files' order)."""
     hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
 
-    assert 'entry: uv run --extra dev nox -s test-random' in hooks
+    assert 'entry: uv run --all-extras --all-groups --all-packages nox -s test-random' in hooks
+
+
+def test_every_hook_installs_every_extra_group_and_package():
+    """Whichever hook runs first in a new worktree fills its .venv with all uv.lock pins.
+
+    basedpyright reads the repository's .venv whatever environment nox gives it, so a .venv
+    with only the dev extra failed static-analysis on mkdocs and cookiecutter imports
+    (bugs/2026-11-14-pre-push-fails-in-worktree-synced-with-dev-extra-only.md).
+    """
+    configuration = yaml.safe_load(
+        (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
+    )
+    entries = {
+        hook['id']: shlex.split(hook['entry'])
+        for repository in configuration['repos']
+        for hook in repository['hooks']
+    }
+    uv_runs = {name: words for name, words in entries.items() if words[:2] == ['uv', 'run']}
+    every = {'--all-extras', '--all-groups', '--all-packages'}
+
+    assert uv_runs
+    missing = {name: every - set(words) for name, words in uv_runs.items()}
+    assert {name: flags for name, flags in missing.items() if flags} == {}
+    assert [name for name, words in uv_runs.items() if '--extra' in words] == []
 
 
 @pytest.mark.parametrize(
@@ -2511,7 +2804,8 @@ def test_the_pre_push_comparison_runs_on_every_core():
     hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
 
     assert (
-        'entry: uv run --extra dev nox -s compare-drivers -- --drivers native '
+        'entry: uv run --all-extras --all-groups --all-packages nox -s compare-drivers -- '
+        '--drivers native '
         '--fail-on-difference --workers auto --skip-when-frames-cannot-change'
     ) in hooks
 
@@ -2691,8 +2985,8 @@ def test_the_pre_push_hooks_compare_the_native_driver_with_dummy():
     hooks = (PROJECT_ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
 
     assert (
-        'entry: uv run --extra dev nox -s compare-drivers -- --drivers native --fail-on-difference'
-        in hooks
+        'entry: uv run --all-extras --all-groups --all-packages nox -s compare-drivers -- '
+        '--drivers native --fail-on-difference' in hooks
     )
 
 
@@ -2926,21 +3220,28 @@ def test_taplo_leaves_the_worktrees_nested_in_this_checkout_alone():
     assert '.claude/**' in configuration['exclude']
 
 
+# Every Linux job's memory guard limit, in MiB (tests/memory_guard.py; the owner, 2026-11-23)
+LINUX_MEMORY_LIMIT_MB = 1500
+
+
 def test_the_linux_and_raspberry_pi_jobs_set_the_memory_limit():
-    """The Linux job (2 GB, serial) stops a run past 1400 MiB, naming the test (memory_guard.py).
+    """The Linux job (2 GB, serial) stops a run past 1500 MiB, naming the test (memory_guard.py).
 
     So does the Raspberry Pi's (real hardware, 3.7 GB with its desktop): one limit for every
-    Linux job (the owner, 2026-11-19). The macOS and Windows jobs have the memory, and the
-    plugin needs Linux's ``/proc/self/statm`` anyway. The Linux job's resource class and worker
-    count stay as they were.
+    Linux job (the owner, 2026-11-19). 1500 from 2026-11-23 (the owner): with every machine
+    collecting the whole suite (#286), the Linux machines peaked at 1335, 1226 and 1240 MiB
+    (job 5115), too near 1400 for a slab that swings about 120 MiB a run. The macOS and Windows
+    jobs have the memory, and the plugin needs Linux's ``/proc/self/statm`` anyway. The Linux
+    job's resource class and worker count stay as they were.
     """
     linux_jobs = jobs_that_run_tests(platform_marker=LINUX_IMAGE_MARKER)
 
     # Every test job on the Linux image, so a new one can't miss them
     assert set(linux_jobs) == {'test-python-3-15-linux'}
-    assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"\n' in raspberry_pi_job()
+    limit = f'      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "{LINUX_MEMORY_LIMIT_MB}"\n'
+    assert limit in raspberry_pi_job()
     for name, job in linux_jobs.items():
-        assert '      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"\n' in job, name
+        assert limit in job, name
         assert '    resource_class: small\n' in job, name
         assert '      PYTEST_WORKERS: "0"\n' in job, name
 
@@ -3026,7 +3327,7 @@ def test_the_linux_ci_session_runs_the_linux_job_with_its_memory(tmp_path, monke
     }
     assert {
         'PYTEST_WORKERS=0',
-        'GLITCHYGAMES_TEST_RSS_LIMIT_MB=1400',
+        f'GLITCHYGAMES_TEST_RSS_LIMIT_MB={LINUX_MEMORY_LIMIT_MB}',
         'CI=true',
         'CIRCLECI=true',
     } <= environment
@@ -3409,23 +3710,44 @@ def circleci_job_definition(*, name: str) -> str:
     return match['body']
 
 
+# The website's AWS infrastructure tests' job (nox -s infra-test: the CDK stacks, the publisher,
+# the deploy settings and the CloudFront redirect function, none reaching AWS). Was test-infra,
+# which read as the project's test infrastructure (the owner, 2026-11-23)
+WEBSITE_INFRASTRUCTURE_JOB = 'test-website-aws-infrastructure'
+
+
+def test_no_ci_file_names_the_job_by_its_old_name():
+    """The rename is whole: a requires or workflow entry left on test-infra would never run."""
+    leftovers = [
+        f'{path.relative_to(PROJECT_ROOT)}:{number}'
+        for path in sorted((PROJECT_ROOT / '.circleci').rglob('*'))
+        if path.is_file()
+        for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), start=1)
+        if re.search(r'(?<![\w-])test-infra(?![\w-])', line)
+    ]
+
+    assert leftovers == []
+    assert WEBSITE_INFRASTRUCTURE_JOB in circleci_job_texts()
+
+
 def test_the_infra_tests_run_on_every_branch():
     """The website's CDK app and publisher are tested on every branch, like the engine.
 
-    The workflow lists the job bare (``- test-infra``, no requires or filters).
+    The workflow lists the job bare (``- test-website-aws-infrastructure``, no requires or filters).
     """
     configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
     workflow = configuration[configuration.index('\nworkflows:') :]
 
-    assert re.search(r'^      - test-infra\n', workflow, flags=re.MULTILINE)
-    assert 'nox -s infra-test' in circleci_job_definition(name='test-infra')
+    assert re.search(rf'^      - {WEBSITE_INFRASTRUCTURE_JOB}\n', workflow, flags=re.MULTILINE)
+    assert 'nox -s infra-test' in circleci_job_definition(name=WEBSITE_INFRASTRUCTURE_JOB)
 
 
 def test_the_infra_sessions_node_tests_name_their_files_never_a_folder():
     """``nox -s infra-test`` hands ``node --test`` files or globs that match every test file.
 
     Node 26 searches a folder named after ``--test``, but Node 24 (CircleCI's ``-node`` image)
-    loads it as one module and fails with "Cannot find module" (every ``test-infra`` run from
+    loads it as one module and fails with "Cannot find module" (every
+    ``test-website-aws-infrastructure`` run from
     2026-10-28 to 2026-11-20 failed so, while local runs on Node 26 passed). A glob works on
     Node 22, 24 and 26.
     """
@@ -3452,15 +3774,18 @@ def test_the_infra_sessions_node_tests_name_their_files_never_a_folder():
 
 
 def test_the_site_deploys_from_main_once_the_infra_tests_pass():
-    """play.glitchy.games is published from main only, once test-infra passes, beside the docs.
+    """play.glitchy.games publishes from main alone, once its infrastructure tests pass.
+
+    It publishes beside the docs, not after them.
 
     The owner, 2026-11-20: "essentially would like docs and site publish to happen in parallel"
     (it was "after docs publish", 2026-10-28). The site publishes ``src/website``, not the docs'
-    output, so it needs nothing from deploy-docs; test-infra still tests the code that publishes.
+    output, so it needs nothing from deploy-docs; test-website-aws-infrastructure still tests the
+    code that publishes.
     """
     entry = circleci_workflow_job(name='deploy-site')
 
-    assert 'requires:\n            - test-infra\n          filters:' in entry
+    assert f'requires:\n            - {WEBSITE_INFRASTRUCTURE_JOB}\n          filters:' in entry
     assert 'branches:\n              only: main\n' in entry
     assert SITE_DEPLOY_LOCK in entry
     assert 'nox -s site-publish' in circleci_job_definition(name='deploy-site')
@@ -3808,7 +4133,8 @@ def test_the_docs_deploy_shares_the_on_main_check():
 def test_the_site_deploy_publishes_mains_latest_commit():
     """The deploy moves to main's tip before publishing, so an older pipeline cannot win.
 
-    With its own lock and only test-infra to wait for (the owner, 2026-11-20), a site deploy
+    With its own lock and only test-website-aws-infrastructure to wait for (the owner,
+    2026-11-20), a site deploy
     from an older pipeline could otherwise finish after a newer one and put the older site back.
     """
     definition = circleci_job_definition(name='deploy-site')

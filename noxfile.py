@@ -170,7 +170,11 @@ def _lint_code(session: nox.Session) -> None:
 
 
 def _lint_docs(session: nox.Session) -> None:
-    """Lint documentation with mkdocs strict build."""
+    """Lint documentation with mkdocs strict build.
+
+    A local build: the complexity graphs are not generated (a placeholder stands in for them;
+    only ``docs-deploy`` measures the history, scripts/mkdocs_hooks.py).
+    """
     session.run('mkdocs', 'build', '--strict', '--config-file', _DOCS_CONFIGURATION)
 
 
@@ -425,8 +429,9 @@ def docs_deploy(session: nox.Session) -> None:
     ``nox -s replay-metrics``'s measurement (``--skip-dirty``: nothing is measured on a checkout
     with uncommitted changes). ``mkdocs gh-deploy`` then builds the site (its hook,
     scripts/mkdocs_hooks.py, first generates the complexity graphs from HEAD's whole git history
-    when they were made from another commit: about a minute, and the performance graphs from the
-    published run ledger plus the pending rows, which it publishes with the site), commits it to
+    when they were made from another commit: several minutes, and only a deploy does it; every
+    other docs build writes a placeholder; and the performance graphs from the published run
+    ledger plus the pending rows, which it publishes with the site), commits it to
     gh-pages and pushes it. Only after that succeeded are the now-published pending rows
     removed (``glitchygames clear-published``), and only when the pending ledger holds rows: a
     deploy without any (CircleCI's) skips it, and so the editable install it would build first.
@@ -489,8 +494,12 @@ def docs_deploy(session: nox.Session) -> None:
 
 # mkdocs serve's address when no --dev-addr is given (zensical.yml sets no dev_addr)
 _DOCS_SERVE_DEFAULT_ADDRESS = ('127.0.0.1', 8000)
-# How far past a taken port docs-serve looks for a free one to suggest
+# How far above, then below, a taken port docs-serve looks for a free one to suggest
 _DOCS_SERVE_PORTS_TO_TRY = 20
+# The TCP ports an address may name: bind() refuses one above 65535 (OverflowError), and 0
+# means "any port"
+_LOWEST_PORT = 1
+_HIGHEST_PORT = 65535
 
 
 def _docs_serve_address(*, arguments: list[str]) -> tuple[str, int]:
@@ -502,6 +511,9 @@ def _docs_serve_address(*, arguments: list[str]) -> tuple[str, int]:
     Returns:
         The host and port.
 
+    Raises:
+        ValueError: The port is not a number from 1 to 65535, naming the address as given.
+
     """
     address = None
     for index, argument in enumerate(arguments):
@@ -512,6 +524,12 @@ def _docs_serve_address(*, arguments: list[str]) -> tuple[str, int]:
     if address is None:
         return _DOCS_SERVE_DEFAULT_ADDRESS
     host, _, port = address.rpartition(':')
+    if not (port.isascii() and port.isdigit() and _LOWEST_PORT <= int(port) <= _HIGHEST_PORT):
+        message = (
+            f'--dev-addr {address}: the port must be a number from {_LOWEST_PORT} to '
+            f'{_HIGHEST_PORT}'
+        )
+        raise ValueError(message)
     return host, int(port)
 
 
@@ -535,17 +553,24 @@ def _address_in_use(*, host: str, port: int) -> bool:
     return False
 
 
-def _free_port_after(*, host: str, port: int) -> int:
-    """Return the first port after ``port`` that nothing holds on ``host``.
+def _free_port_near(*, host: str, port: int) -> int | None:
+    """Return a port near ``port`` that nothing holds on ``host``, within 1-65535.
+
+    Looks at the ``_DOCS_SERVE_PORTS_TO_TRY`` ports above ``port``, nearest first, then at as
+    many below it, so a taken 65535 still gets a suggestion. Never probes outside 1-65535:
+    probing 65536 raised ``OverflowError``
+    (bugs/2026-11-22-free-port-search-leaves-the-port-range.md).
 
     Returns:
-        The port; past ``_DOCS_SERVE_PORTS_TO_TRY`` taken ones, the one after them, unchecked.
+        The port, or None when every port looked at is taken.
 
     """
-    for candidate in range(port + 1, port + 1 + _DOCS_SERVE_PORTS_TO_TRY):
+    above = range(port + 1, min(port + _DOCS_SERVE_PORTS_TO_TRY, _HIGHEST_PORT) + 1)
+    below = range(port - 1, max(port - _DOCS_SERVE_PORTS_TO_TRY, _LOWEST_PORT) - 1, -1)
+    for candidate in (*above, *below):
         if not _address_in_use(host=host, port=candidate):
             return candidate
-    return port + 1 + _DOCS_SERVE_PORTS_TO_TRY
+    return None
 
 
 def _listening_process(session: nox.Session, *, port: int) -> str | None:
@@ -594,29 +619,41 @@ def _listening_process(session: nox.Session, *, port: int) -> str | None:
 
 @nox.session(venv_backend='none', name='docs-serve', default=False)
 def docs_serve(session: nox.Session) -> None:
-    """Serve the docs locally, built as docs-deploy builds them (graphs included, strict).
+    """Serve the docs locally, built strictly as docs-deploy builds them, but for the graphs.
 
-    ``mkdocs serve --strict`` builds the site (its hook generates the complexity graphs when they
-    were made from another commit; each reload with the same HEAD skips that) and serves it at
+    ``mkdocs serve --strict`` builds the site and serves it at
     http://127.0.0.1:8000/glitchygames/, rebuilding as files change, until Ctrl-C. Nothing is
-    pushed. Arguments after ``--`` go to ``mkdocs serve``.
+    pushed. Arguments after ``--`` go to ``mkdocs serve``. The complexity page shows a
+    placeholder: only a deploy generates the complexity graphs (scripts/mkdocs_hooks.py), unless
+    they were generated from HEAD already (``nox -s code-complexity -- --graphs``) or
+    ``GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1`` is set, which generates them first (minutes).
 
     Each run builds in a fresh environment of its own (``uv run --isolated``: the locked
     versions, the built packages as ``_install_from_lockfile`` installs them, removed when the
     run ends; about 15 seconds). A session venv is recreated by every run before its code runs,
     so a second run deleted the first's packages mid-build (2026-11-13); now two runs on two
     addresses both work. A taken address is refused before the build, naming its holder where
-    ``lsof`` can and a free address: mkdocs binds only after the whole build, about five minutes.
+    ``lsof`` can and a free address near it (or that none within 20 ports is): mkdocs binds only
+    after the whole build, about five minutes. So is a port outside 1-65535.
 
     Usage:
         nox -s docs-serve                               # Serve at http://127.0.0.1:8000/
         nox -s docs-serve -- --dev-addr 127.0.0.1:8001  # Another address
+        GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1 nox -s docs-serve  # With the complexity graphs
     """
-    host, port = _docs_serve_address(arguments=session.posargs)
+    try:
+        host, port = _docs_serve_address(arguments=session.posargs)
+    except ValueError as refusal:
+        session.error(str(refusal))
     if _address_in_use(host=host, port=port):
         holder = _listening_process(session, port=port)
         held_by = f' (by {holder})' if holder is not None else ''
-        free_port = _free_port_after(host=host, port=port)
+        free_port = _free_port_near(host=host, port=port)
+        if free_port is None:
+            session.error(
+                f'{host}:{port} is in use{held_by}: stop it, or serve on another address '
+                f'(no free port within {_DOCS_SERVE_PORTS_TO_TRY} of {port})'
+            )
         session.error(
             f'{host}:{port} is in use{held_by}: stop it, or serve on another address: '
             f'nox -s docs-serve -- --dev-addr {host}:{free_port}'
@@ -788,8 +825,9 @@ def test(session: nox.Session) -> None:
     # frames); a driver the caller set is passed on and runs alone.
 
     # PYTEST_WORKERS, when set, is the xdist worker count as given (0: run serially in this
-    # process, no worker; CircleCI's Linux job sets it). Otherwise, in CI, use half the CPUs the
-    # job may use, to avoid resource exhaustion, or run serially with too few for two workers.
+    # process, no worker; CircleCI's Linux job sets 0, its Windows job 4, one a CPU). Otherwise,
+    # in CI, use half the CPUs the job may use, to avoid resource exhaustion, or run serially
+    # with too few for two workers.
     # Locally, -n auto (from pyproject.toml addopts) uses all cores.
     args: list[str] = []
     requested_workers = os.environ.get('PYTEST_WORKERS')
@@ -828,10 +866,27 @@ def test(session: nox.Session) -> None:
     args.extend(suite_order_pytest_arguments(order=order))
 
     # Run tests with coverage: pytest-cov (pyproject.toml addopts) prints the terminal report
-    # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion.
+    # and writes htmlcov/. JUnit XML output is stored for CI test result ingestion. Two runs:
+    # every test but the wall_clock ones on the workers chosen above, then those alone, in this
+    # process (WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS), collecting only the files that hold them
+    # (WALL_CLOCK_TEST_FILES), adding to the first run's coverage, so the 100% rule is applied
+    # once, to both
+    failed = False
     try:
-        session.run('pytest', *args)
+        session.run('pytest', *args, *WALL_CLOCK_EXCLUDED_PYTEST_ARGUMENTS)
     except CommandFailed:
+        failed = True
+    try:
+        session.run(
+            'pytest',
+            *args,
+            *WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS,
+            *WALL_CLOCK_TEST_FILES,
+            success_codes=NO_TESTS_IS_SUCCESS,
+        )
+    except CommandFailed:
+        failed = True
+    if failed:
         session.error(f'The tests failed. {description}')
 
 
@@ -870,6 +925,37 @@ def test_markdown(session: nox.Session) -> None:
     _install_from_lockfile(session)
     _stamp_installed_engine(session)
     session.run('pytest', *MARKDOWN_TEST_FILES, '--no-cov', '--dummy-only')
+
+
+# The tests that time real work against a tolerance (tests/harness.py's wall_clock marker) run
+# alone, in one process, after the rest: under CPU contention they measure the machine, not the
+# code. #287's Windows job (5141) ran 4 workers on 4 CPUs, and a timer accuracy test trailed the
+# OS sleep by 19 ms against its 3 ms bound (the owner, 2026-11-23: keep the workers, run these
+# alone). The first run leaves them out and its coverage rule off; the second appends to its
+# coverage data, applies the rule to both (a split machine's share keeps it off), and writes its
+# own JUnit report. A split machine dealt none of them collects nothing: pytest's exit 5 passes.
+# The second run is given only the files that hold them (WALL_CLOCK_TEST_FILES), not the whole
+# suite to collect and then deselect (31-48 s a CI machine, nearly all collection).
+# tests/test_ci_config.py holds the list to exactly the files that use the marker. A split
+# machine's share is unchanged: the splitter (tests/circleci_test_split.py) runs after the
+# marker's deselection, so it is dealt the same wall_clock tests whatever files were collected
+WALL_CLOCK_MARKER = 'wall_clock'
+WALL_CLOCK_TEST_FILES = (
+    'tests/animation/test_animation_hardware.py',
+    'tests/animation/test_animation_visual.py',
+    'tests/timing/test_fast_timer_os.py',
+)
+WALL_CLOCK_EXCLUDED_PYTEST_ARGUMENTS = ('-m', f'not {WALL_CLOCK_MARKER}', '--cov-fail-under=0')
+WALL_CLOCK_SERIAL_PYTEST_ARGUMENTS = (
+    '-n',
+    '0',
+    '-m',
+    WALL_CLOCK_MARKER,
+    '--cov-append',
+    '--junitxml=test-results/junit-wall-clock.xml',
+)
+# pytest's exit statuses OK and NO_TESTS_COLLECTED (pytest.ExitCode; nox runs without pytest)
+NO_TESTS_IS_SUCCESS = [0, 5]
 
 
 # A machine's share of a split CI job (tests/circleci_test_split.py): its coverage rule off, its
@@ -1142,21 +1228,47 @@ def test_random(session: nox.Session) -> None:
     else:
         seed = secrets.randbelow(RANDOM_ORDER_SEED_LIMIT)
     environment = (*SHUFFLED_RUN_ENVIRONMENT, SHUFFLED_RUN_PYTHON)
+    shuffled = (
+        *environment,
+        'pytest',
+        *RANDOM_ORDER_PYTEST_ARGUMENTS,
+        f'--randomly-seed={seed}',
+        '--no-cov',
+        '--log-cli-level=WARNING',
+    )
+    dummy_drivers = {'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'}
+    # As the test session: every test but the wall_clock ones on every core, then those alone,
+    # in one process, collecting only the files that hold them (WALL_CLOCK_TEST_FILES)
+    failed = False
     try:
         session.run(
-            *environment,
-            'pytest',
-            *RANDOM_ORDER_PYTEST_ARGUMENTS,
-            f'--randomly-seed={seed}',
+            *shuffled,
             '-n',
             'auto',
-            '--no-cov',
-            '--log-cli-level=WARNING',
+            '-m',
+            f'not {WALL_CLOCK_MARKER}',
             f'--junitxml=test-results/junit-random-{SHUFFLED_RUN_PYTHON}.xml',
-            env={'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy'},
+            env=dummy_drivers,
             external=True,
         )
     except CommandFailed:
+        failed = True
+    try:
+        session.run(
+            *shuffled,
+            '-n',
+            '0',
+            '-m',
+            WALL_CLOCK_MARKER,
+            f'--junitxml=test-results/junit-random-{SHUFFLED_RUN_PYTHON}-wall-clock.xml',
+            *WALL_CLOCK_TEST_FILES,
+            env=dummy_drivers,
+            external=True,
+            success_codes=NO_TESTS_IS_SUCCESS,
+        )
+    except CommandFailed:
+        failed = True
+    if failed:
         replay = shlex.join([
             *environment,
             'pytest',
@@ -1710,9 +1822,15 @@ def _linux_ci_script(
         f'sudo chown "$(id -u):$(id -g)" {_LINUX_CI_UV_CACHE}',
         # The checkout step: what git would commit, never ignored files (the host's caches,
         # Hypothesis's database, __pycache__) nor a submodule's contents, which CircleCI's
-        # checkout leaves empty. A copy: the session writes its outputs and a build stamp
+        # checkout leaves empty. A copy: the session writes its outputs and a build stamp. cp, not
+        # tar: under Docker Desktop's amd64 emulation on Apple silicon, GNU tar 1.35 could not
+        # stat any file in a subdirectory of the mounted checkout ("Cannot stat: Function not
+        # implemented", 9,765 of 9,793 files, 2026-11-23), while cp copies them all
         f'mkdir -p {project}',
-        f'tar -C /source --null -T {_LINUX_CI_FILE_LIST} -cf - | tar -C {project} -xf -',
+        (
+            f'cd /source && xargs -0 -a {_LINUX_CI_FILE_LIST} '
+            f'cp --parents --no-dereference --preserve=mode,timestamps -t {project}'
+        ),
         # A .git cloned from the repository's own git directory (mounted read-only at its own
         # path: a worktree's .git names it), which another user owns: a safe directory
         "git config --global --add safe.directory '*'",
@@ -2261,13 +2379,16 @@ _NATIVE_CONFIGURATION_NAMES = ('cocoa', 'windows', 'wayland', 'x11')
 # Native runs only, never CI or a plain pytest: on 2026-11-20 a hung
 # pygame.mixer.init (SDL's audio thread crashed and pygame-ce's parachute handler spun on it,
 # #252) held the native run until it was killed by hand. A crash now fails at once; this limit
-# still catches a hang that is not a crash. The slowest healthy test
-# takes about 30 s, so 120 s is four times that. The thread method ends the worker process (xdist
-# reports the crash and replaces the worker) where the signal method would not interrupt a call
-# stuck inside a C library. Caveat: `os._exit` runs no fixture teardown, so a hung test's
-# children (in sessions of their own) may outlive the worker (not tested; the bug record
+# still catches a hang that is not a crash. It is longer than any test's own wait on a child
+# (300 s at most; tests/test_per_test_limit.py checks it), so under load a test's own timeout,
+# which stops and reaps its child, fires first: at 120 s, at a load average of 176, the limit
+# ended a test waiting on its Mr. Muncher replay (bugs/2026-11-20-process-stop-tests-failed-
+# under-load.md). The thread method ends the worker process (xdist reports the crash and
+# replaces the worker) where the signal method would not interrupt a call stuck inside a C
+# library. `os._exit` runs no fixture teardown, so tests/per_test_limit.py kills and reaps the
+# test's children first (it left them running: reproduced 2026-11-22; the bug record
 # bugs/2026-11-20-native-run-burned-two-hours-on-a-broken-coreaudio.md)
-_NATIVE_RUN_TIMEOUT_SECONDS = 120
+_NATIVE_RUN_TIMEOUT_SECONDS = 360
 # Ten seconds before that, faulthandler (pytest's faulthandler_timeout) writes every thread's
 # stack to the worker's real stderr. pytest-timeout's own stack dump goes through the terminal
 # writer, which an xdist worker does not forward (measured: nothing is shown), so without this
@@ -2536,8 +2657,9 @@ def compare_drivers(session: nox.Session) -> None:
     the pre-push hook's); scripts/driver_frame_matrix.py compares every pair. With
     `--skip-when-frames-cannot-change` (the pre-push hook's) a push changing only paths that cannot
     change a frame (`_path_cannot_change_frames`) is not compared. The
-    differing tests are re-run on every configuration saving PNGs of their differing frames,
-    and each differing pair gets a difference image (differing pixels magenta) under
+    differing tests are re-run on every configuration saving PNGs of the frames around their
+    first difference (each re-run stops once it has saved them, unless they reach the test's
+    final frame), and each differing pair gets a difference image (differing pixels magenta) under
     test-results/driver-comparison/nox/differences/<first>-vs-<second>/. The report,
     test-results/driver-comparison/nox/matrix.md, has each run's time, a summary per pair, the
     patterns of agreement and a table per test (first differing frame, differing pixels,
@@ -3101,8 +3223,8 @@ def code_complexity(session: nox.Session) -> None:
     Tools: complexity_report.py (wily: the working tree's changes against HEAD, the history measured
     in a temporary worktree so the working tree is never checked out over), and
     generate_complexity_graphs.py (the docs' complexity explorer data, generated in a temporary
-    worktree from the whole history into docs/quality/graphs/, which git ignores; every mkdocs
-    build does too)
+    worktree from the whole history into docs/quality/graphs/, which git ignores; a deploy's
+    docs build does too, and a later local docs build of the same HEAD shows them)
 
     Usage:
         nox -s code-complexity              # The working tree's changes against HEAD

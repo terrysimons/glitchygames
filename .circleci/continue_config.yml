@@ -283,9 +283,10 @@ commands:
     steps:
       - run:
           name: "Lint (ruff, the strict docs build, YAML, TOML, deps, dead code)"
-          # The strict docs build can go quiet for minutes while scripts/mkdocs_hooks.py makes
-          # the graphs (it logs each stage's start and end now): job 5089 (#261) was killed at
-          # the default 10 minutes once #285 moved the docs build to Linux
+          # The strict docs build went quiet for minutes while scripts/mkdocs_hooks.py made the
+          # complexity graphs: job 5089 (#261) was killed at the default 10 minutes once #285
+          # moved the docs build to Linux. Only a deploy generates them now (a placeholder here),
+          # and the hook logs each stage's start and end; the longer timeout stays as a margin
           no_output_timeout: 30m
           command: |
             export PATH="$HOME/.local/bin:$PATH"
@@ -610,8 +611,8 @@ jobs:
       - nox-timer-report
       # 3.15, every session (noxfile.PINNED_PYTHONS; the owner, 2026-11-18: "Only 3.15 for macos
       # too", "Just change that job's name to test-python-3-15-macos"). Linux and Windows run it
-      # in jobs of their own (test-python-3-15-linux, -windows), split across three machines:
-      # the suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
+      # in jobs of their own (test-python-3-15-linux, -windows), split across six and three
+      # machines: the suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
       - nox-test:
           session: test-3.15
       - nox-performance-test
@@ -628,26 +629,34 @@ jobs:
     # small (1 vCPU, 2 GB): one process runs the machine's share of the suite. It grew past 2 GB
     # until the recording mocks in two timing and hardware tests were replaced (BUGS.md #85)
     resource_class: small
-    parallelism: 3
+    # Six machines (the owner, 2026-11-23; three from 2026-11-20). Docker is billed per CPU
+    # minute, so the tests cost about what three machines' did, but each machine also pays the
+    # same fixed setup before its first test (apt, hidapi's source build, uv and Python, the
+    # whole-suite collection), and six pay it twice as often: compare the job's machine-minutes
+    # with a three-machine run's, not only its wall time
+    parallelism: 6
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Run the tests serially, in pytest's own process (no xdist workers; noxfile.py)
       PYTEST_WORKERS: "0"
-      # Stop the run past 1400 MiB of the container's memory (its page cache left out), naming the
+      # Stop the run past 1500 MiB of the container's memory (its page cache left out), naming the
       # test (tests/memory_guard.py), before the 2 GB executor's kernel kills it with signal 9 and
-      # no test named (BUGS.md #235). The owner, 2026-11-19: tighten after #226, to 1500, then
-      # 1400 once the memory follow-ups landed (#230: each machine collects only its share, the
-      # free heap is trimmed and the catalog's builds emptied after each test). With them the
-      # job peaked at 1105 and 1139 MiB (job 3948; 302 and 288 MiB of it reclaimable kernel slab,
-      # which the reading still counts: memory_guard.py), against 1328 and 1283 on main (job
-      # 3945); the slab alone swings about 120 MiB from run to run. Was 1750 (2026-11-17), 1600
-      # before that (2026-10-28)
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"
-      # Three machines, each running its share of the suite, as CircleCI's splitter assigns them
-      # by past timings (tests/circleci_test_split.py): one ran past CircleCI's one-hour job limit
-      # (jobs 3705, 3707; the owner, 2026-11-18: two; 2026-11-20: three). The coverage rule is
-      # applied to the shares combined, by coverage-combine-<os> after this job
+      # no test named (BUGS.md #235). The owner, 2026-11-23: back to 1500, as every machine now
+      # collects the whole suite (#286, about 180 MiB more each): the three machines peaked at
+      # 1335, 1226 and 1240 MiB (job 5115), too near 1400 for a slab that swings about 120 MiB a
+      # run. The owner, 2026-11-19: tightened after #226, to 1500, then 1400 once the memory
+      # follow-ups landed (#230: each machine collected only its share, the free heap is trimmed
+      # and the catalog's builds emptied after each test). With them the job peaked at 1105 and
+      # 1139 MiB (job 3948; 302 and 288 MiB of it reclaimable kernel slab, which the reading still
+      # counts: memory_guard.py), against 1328 and 1283 on main (job 3945). Was 1750
+      # (2026-11-17), 1600 before that (2026-10-28)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1500"
+      # Each machine runs its share of the suite: the heavy replays dealt out, the rest as
+      # CircleCI's splitter assigns them by past timings (tests/circleci_test_split.py). One
+      # machine ran past CircleCI's one-hour job limit (jobs 3705, 3707; the owner, 2026-11-18:
+      # two; 2026-11-20: three; 2026-11-23: six). The coverage rule is applied to the shares
+      # combined, by coverage-combine-<os> after this job
       GLITCHYGAMES_TEST_SPLIT: "circleci"
       # Each machine rolls the suite's order, fixed or shuffled, and a shuffle's seed, from the
       # workflow's workspace, job and machine, so a rerun repeats its first run's roll
@@ -678,6 +687,11 @@ jobs:
 
     environment:
       DISABLE_MKDOCS_2_WARNING: "true"
+      # A test worker on each of the medium executor's 4 CPUs (16 GB): the test session's CI
+      # default is half the CPUs (noxfile.py, #71: "to avoid resource exhaustion", from when the
+      # count was the host's), 2 here. The owner, 2026-11-23; twice the parallel load on each
+      # machine, so drop this alone if the Windows tests grow flaky under it
+      PYTEST_WORKERS: "4"
       GLITCHYGAMES_TEST_SPLIT: "circleci"
       # Each machine rolls the suite's order, fixed or shuffled, and a shuffle's seed, from the
       # workflow's workspace, job and machine, so a rerun repeats its first run's roll
@@ -717,7 +731,13 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
 
     steps:
-      - checkout
+      # A full clone, not CircleCI's default blobless one: the docs build reads past commits
+      # (the performance graphs' landed rows), and in a blobless clone git fetches each missing
+      # file from GitHub one at a time (job 5174 timed out). The code-tree walk itself no longer
+      # reads file contents (glitchygames/code_tree.py); this keeps the rest of the docs build
+      # from paying for any other history read
+      - checkout:
+          method: full
 
       # hidapi's source build (no Linux wheel for 3.15): every session here installs every extra
       - install-linux-system-dependencies
@@ -807,10 +827,10 @@ jobs:
       DISABLE_MKDOCS_2_WARNING: "true"
       # Serially, as on Linux: parallel workers could reach the swap file on the SD card
       PYTEST_WORKERS: "0"
-      # As on Linux: stop past 1400 MiB, naming the test (tests/memory_guard.py), not a kernel
+      # As on Linux: stop past 1500 MiB, naming the test (tests/memory_guard.py), not a kernel
       # kill with no test named. The owner, 2026-11-04: limits stay on the real hardware; and
-      # 2026-11-19: one limit for all Linux systems, including the Pi job, 1400 for the Pi too
-      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1400"
+      # 2026-11-19: one limit for all Linux systems, including the Pi job (1500 from 2026-11-23)
+      GLITCHYGAMES_TEST_RSS_LIMIT_MB: "1500"
       # As on the other test jobs: roll the suite's order (noxfile.choose_suite_order)
       GLITCHYGAMES_TEST_ORDER: "roll"
 
@@ -958,8 +978,6 @@ jobs:
             - third_party/pygame-ce/dist-pyodide
       - save-uv-cache-posix
 
-  # Tests the website's CDK app, publisher and CloudFront Function (infra/; nox -s infra-test).
-  # The -node image: the CDK's Python library runs on Node, and the function's tests use node
   # A docs-only change's checks, in place of the test jobs and checks-linux (test-scope markdown):
   # the strict docs build (checks-linux runs it inside nox -s lint, and a docs-only pipeline leaves
   # checks-linux out) and the tests
@@ -998,7 +1016,11 @@ jobs:
           when: always
       - save-uv-cache-posix
 
-  test-infra:
+  # Tests the website's AWS infrastructure (infra/; nox -s infra-test): the CDK app's stacks,
+  # the publisher, the deploy settings and the CloudFront redirect function, none reaching AWS.
+  # Renamed from a name that read as the project's test infrastructure (the owner, 2026-11-23).
+  # The -node image: the CDK's Python library runs on Node, and the function's tests use node
+  test-website-aws-infrastructure:
     docker:
       - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>-node
     resource_class: small
@@ -1034,9 +1056,9 @@ jobs:
     steps:
       - checkout
       # Publish what main is now, not only the commit this deploy was started for: with its own
-      # lock and only test-infra to wait for, an older pipeline's deploy could otherwise finish
-      # after a newer one and put the older site back (nox -s site-publish also refuses a
-      # checkout off main)
+      # lock and only test-website-aws-infrastructure to wait for, an older pipeline's deploy
+      # could otherwise finish after a newer one and put the older site back (nox -s
+      # site-publish also refuses a checkout off main)
       - run:
           name: "Move to main's latest commit"
           command: |
@@ -1121,7 +1143,7 @@ workflows:
           # race gh-pages (a deploy that waited finds main published and stops); the site's
           # deploy holds another, so the two run side by side
           serial-group: << pipeline.project.slug >>/deploy-docs
-      - test-infra
+      - test-website-aws-infrastructure
       # After a merge to main, once the infra tests pass, beside the docs deploy (the owner,
       # 2026-11-20: "essentially would like docs and site publish to happen in parallel"; it
       # waited for the docs from 2026-10-28). It publishes src/website, nothing the docs build
@@ -1130,7 +1152,7 @@ workflows:
       # skips running it elsewhere
       - deploy-site:
           requires:
-            - test-infra
+            - test-website-aws-infrastructure
           filters:
             branches:
               only: main

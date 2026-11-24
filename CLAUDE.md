@@ -36,7 +36,7 @@ Everything runs on Python 3.15: the tests (`noxfile.TEST_PYTHONS`), every other 
 it stays only the oldest the code must parse and type-check as (`requires-python`, ruff's
 `target-version`, the type checkers' python version), because the browser builds' Pyodide 314 runs
 it: nothing tests on 3.14, so keep to what 3.14 has. Move those to 3.15 when a Pyodide on 3.15
-ships. Each Linux and Windows job is split across three machines (`parallelism: 3`), as the
+ships. The Linux job is split across six machines and Windows across three (`parallelism`), as the
 suite alone ran past CircleCI's one-hour job limit on Linux. A split job's machines each run a
 share (`GLITCHYGAMES_TEST_SPLIT`, `tests/circleci_test_split.py`), and a `coverage-combine-*` job
 holds their coverage, combined, to 100%. Machines roll test order; Markdown-only PRs skip tests.
@@ -306,7 +306,7 @@ Space and quit with Esc, so a game's own pause must not be on Esc (Mr. Muncher's
   in a test (hardware, network, third-party tools, the clock, injected failures) with targeted
   `mocker` calls. Assert on pixels, not draw calls, without assuming the display's pixel format.
 - Wall-clock timings never belong in the normal suite; measure time in benchmarks
-  (`pytest --benchmark-only`).
+  (`pytest --benchmark-only`). A test that must is marked `wall_clock` (runs alone, serially).
 - Tests import the installed packages and never edit `sys.path` (`uv sync` installs them
   editable; `nox -s test` installs a non-editable copy, so it tests what a wheel would ship). Member tests live in
   `src/<layer>/<member>/tests/`, are named `test_<distribution with - as _>*.py`, and import
@@ -323,9 +323,9 @@ Space and quit with Esc, so a game's own pause must not be on Esc (Mr. Muncher's
   Docs: docs/quality/driver_comparison.md.
 - A test that leaves a process running fails (`tests/child_process_guard.py`, the harness's
   autouse `no_child_process_left_running`, BUGS.md #275). Stop a child you start with its whole
-  group (`process.stop_command`), and a child pytest run with
-  `stop_command(first_signal=signal.SIGINT)`, as Ctrl-C does, so each test's cleanup runs
-  (SIGTERM kills a worker with no cleanup). `uv run python -m
+  group (`process.stop_command`, never a hand-written `os.killpg`: macOS can miss a process forked
+  during it), and a child pytest run with `stop_command(first_signal=signal.SIGINT)`, as Ctrl-C
+  does, so each test's cleanup runs (SIGTERM kills a worker with no cleanup). `uv run python -m
   scripts.reproduce_orphaned_test_processes MODE WHEN` reproduces the stops.
 - The display rule (`tests/display_canvas.py`): each test starts on the canvas pattern, and a test
   whose last frame is entirely black fails as a rendering bug (opt-out

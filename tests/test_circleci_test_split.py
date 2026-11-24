@@ -234,7 +234,7 @@ def test_two_tests_with_one_name_stop_the_run():
         )
 
 
-@pytest.mark.parametrize('total', [1, 2, 3, 4])
+@pytest.mark.parametrize('total', [1, 2, 3, 4, 5, 6])
 def test_every_collected_test_runs_on_exactly_one_machine(total):
     """The invariant: the machines' shares, heavy and timed, together hold every test once.
 
@@ -258,7 +258,10 @@ def test_every_collected_test_runs_on_exactly_one_machine(total):
     assert sorted(node_id for share in shares for node_id in share) == sorted(node_ids)
 
 
-@pytest.mark.parametrize(('heavy_count', 'total'), [(42, 3), (43, 3), (44, 3), (2, 3), (7, 2)])
+@pytest.mark.parametrize(
+    ('heavy_count', 'total'),
+    [(42, 3), (43, 3), (44, 3), (2, 3), (7, 2), (214, 6), (38, 6), (5, 6)],
+)
 def test_the_machines_heavy_test_counts_differ_by_at_most_one(heavy_count, total):
     """Dealt round-robin in a stable order: no machine gets the heavy tests together."""
     heavy = [f'tests/test_heavy.py::test_case[{number}]' for number in range(heavy_count)]

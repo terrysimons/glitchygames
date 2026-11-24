@@ -223,6 +223,101 @@ def test_every_test_in_the_suite_has_its_own_junit_name(tmp_path):
     assert repeated_junit_names(node_ids=node_ids) == []
 
 
+# The test files swept for tests that time real work (the owner, 2026-11-23: #287's Windows job
+# 5141 failed a timer accuracy test under 4 workers on 4 CPUs). A test there that reads the real
+# clock is marked wall_clock, so the test session runs it alone after the parallel run; or it is
+# below, with why it bounds no duration
+WALL_CLOCK_SWEPT_FILES = (
+    'tests/timing/test_fast_timer_os.py',
+    'tests/timing/test_timers.py',
+    'tests/test_clock.py',
+    'tests/animation/test_animation_hardware.py',
+    'tests/animation/test_animation_visual.py',
+    'src/apps/bitmappy/tests/test_bitmappy_multi_controller_performance.py',
+)
+# Calls that read the real clock, or sleep and measure it
+REAL_CLOCK_CALLS = frozenset({
+    'time.perf_counter',
+    'time.perf_counter_ns',
+    'time.monotonic',
+    'clock.measured_seconds',
+    '_paired_difference_upper_bound_ns',
+})
+# Tests in the swept files that read the real clock and bound no duration
+REAL_CLOCK_WITHOUT_A_BOUND = {
+    'test_last_operation_timestamp': 'checks a timestamp falls between two readings: order only',
+    'test_measured_seconds_reads_monotonic_time': "patches the clock module's time",
+}
+
+
+def _called_names(function: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """Return the dotted names a function calls (``time.perf_counter``, ``helper``).
+
+    Returns:
+        The names.
+
+    """
+    names: set[str] = set()
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Call):
+            continue
+        parts: list[str] = []
+        target = node.func
+        while isinstance(target, ast.Attribute):
+            parts.append(target.attr)
+            target = target.value
+        if isinstance(target, ast.Name):
+            parts.append(target.id)
+            names.add('.'.join(reversed(parts)))
+    return names
+
+
+def _marked(function: ast.FunctionDef | ast.AsyncFunctionDef, *, marker: str) -> bool:
+    """Return whether a function carries ``@pytest.mark.<marker>`` (called or bare).
+
+    Returns:
+        True when it does.
+
+    """
+    for decorator in function.decorator_list:
+        target = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if isinstance(target, ast.Attribute) and target.attr == marker:
+            return True
+    return False
+
+
+def test_every_test_that_times_real_work_runs_alone():
+    """In the swept files, a test reading the real clock is marked wall_clock, or listed.
+
+    Wall-clock timings fail under CPU contention (CLAUDE.md: they don't belong in the normal
+    suite); marked, the test session runs them in one process after the parallel run.
+    """
+    unmarked = []
+    marked = []
+    for relative in WALL_CLOCK_SWEPT_FILES:
+        module = ast.parse((PROJECT_ROOT / relative).read_text(encoding='utf-8'))
+        for node in ast.walk(module):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not node.name.startswith('test_'):
+                continue
+            if _marked(node, marker='wall_clock'):
+                marked.append(node.name)
+            elif _called_names(node) & REAL_CLOCK_CALLS and (
+                node.name not in REAL_CLOCK_WITHOUT_A_BOUND
+            ):
+                unmarked.append(f'{relative}::{node.name}')
+
+    assert unmarked == []
+    assert sorted(marked) == [
+        'test_animation_rendering_performance',
+        'test_fast_timer_basic_sleep_accuracy',
+        'test_fast_timer_spin_tighten_accuracy',
+        'test_fast_timer_windows_1ms_option_tighter',
+        'test_hardware_rendering_performance',
+    ]
+
+
 def test_every_test_file_matches_python_files():
     """Every file that defines tests (tests/ and every member's) has a name pytest collects."""
     python_files_patterns = _python_files_patterns()
@@ -440,8 +535,8 @@ def test_a_test_still_running_after_ten_minutes_prints_where_every_thread_waits(
     (bugs/2026-11-20-a-crash-on-the-audio-thread-hung-the-process.md).
 
     This reads what the project declares, not the running session's value: compare-drivers'
-    native runs override it on purpose (`-o faulthandler_timeout=110` with pytest-timeout's
-    120 s limit, noxfile.py's _NATIVE_RUN_TIMEOUT_ARGUMENTS, tested in
+    native runs override it on purpose (`-o faulthandler_timeout=350` with pytest-timeout's
+    360 s limit, noxfile.py's _NATIVE_RUN_TIMEOUT_ARGUMENTS, tested in
     tests/test_driver_frame_matrix.py), and the declared ten minutes holds everywhere else.
     """
     assert float(PYTEST_SETTINGS['faulthandler_timeout']) == 600
@@ -1369,6 +1464,7 @@ SCRIPT_TEST_FILES: dict[str, tuple[str, ...]] = {
         'scripts/record_scripted_session.py',
     ),
     'tests/test_replay_schedule.py': ('scripts/replay_schedule.py',),
+    'tests/test_reproduce_killpg_fork_race.py': ('scripts/reproduce_killpg_fork_race.py',),
     'tests/test_reproduce_orphaned_test_processes.py': (
         'scripts/reproduce_orphaned_test_processes.py',
     ),

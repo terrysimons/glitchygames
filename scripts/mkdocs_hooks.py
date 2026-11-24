@@ -1,12 +1,18 @@
-"""mkdocs hooks (zensical.yml ``hooks``): generate the graphs first, free the API caches after.
+"""mkdocs hooks (zensical.yml ``hooks``): make the graphs first, free the API caches after.
 
 Every ``mkdocs build``, ``mkdocs serve`` and ``mkdocs gh-deploy`` (so ``nox -s docs-deploy``,
 ``docs-serve`` and ``lint-docs`` too) runs ``on_pre_build`` first, which:
 
-1. generates docs/quality/graphs/ with scripts/generate_complexity_graphs.py when they are
-   missing or were made from another commit (``generate_if_stale``: about a minute; a rebuild
-   with the same HEAD, such as each ``mkdocs serve`` reload, costs only a ``git rev-parse``). A
-   failed generation stops the build with the failed tool's output;
+1. fills docs/quality/graphs/ with scripts/generate_complexity_graphs.py. Only a deploy
+   (``mkdocs gh-deploy``, so ``nox -s docs-deploy`` and CircleCI's deploy-docs after a merge to
+   main) generates the complexity graphs, when they are missing or were made from another commit
+   (``generate_if_stale``: wily over HEAD's whole history, about 490 s on CircleCI). Every other
+   build (``mkdocs build`` and ``serve``: ``nox -s lint``'s strict build, ``lint-docs``,
+   ``docs-serve``) keeps graphs generated from HEAD and otherwise writes a labelled placeholder
+   (``write_placeholder_unless_current``: a snippet and explorer data saying nothing was
+   measured, in well under a second), unless ``GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1``
+   (``complexity_graphs_wanted``; the owner, 2026-11-23). A failed generation stops the build
+   with the failed tool's output;
 2. generates docs/quality/metrics/ with scripts/generate_performance_graphs.py, which calls the
    engine's ``performance-pages`` tool (glitchygames/replay/tools/performance_pages.py) and adds
    our page's snippet: the run ledger (our row files and the ledger published on gh-pages,
@@ -75,6 +81,11 @@ PERFORMANCE_SCRIPT_PATH = SCRIPTS_DIRECTORY / 'generate_performance_graphs.py'
 PERFORMANCE_SCRIPT_MODULE_NAME = 'generate_performance_graphs'
 # The mkdocs commands whose site stays on this machine (gh-deploy publishes it)
 LOCAL_BUILD_COMMANDS = frozenset({'build', 'serve'})
+# A local build generates the complexity graphs too when this is COMPLEXITY_GRAPHS_ON (a deploy
+# always does; complexity_graphs_wanted): GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS=1 uv run mkdocs ...
+COMPLEXITY_GRAPHS_VARIABLE = 'GLITCHYGAMES_DOCS_COMPLEXITY_GRAPHS'
+COMPLEXITY_GRAPHS_ON = '1'
+COMPLEXITY_GRAPHS_SETTINGS = frozenset({'', '0', COMPLEXITY_GRAPHS_ON})
 # The browser games' site (python -m scripts.build_browser_bundle all) and where the docs serve it
 BROWSER_GAMES_DIRECTORY = SCRIPTS_DIRECTORY.parent / 'build' / 'browser' / 'site'
 PLAY_DIRECTORY_NAME = 'play'
@@ -232,25 +243,90 @@ def on_startup(*, command: Literal['build', 'gh-deploy', 'serve'], dirty: bool) 
     BUILD_STATE.command = command
 
 
-def on_pre_build(config: MkDocsConfig) -> None:
-    """Generate the complexity graphs unless current, then the performance graphs.
+def publishing() -> bool:
+    """Return whether this mkdocs invocation publishes the site.
 
-    mkdocs runs this before a build.
+    ``gh-deploy`` does; ``build`` and ``serve`` (``LOCAL_BUILD_COMMANDS``) do not, and neither
+    does a build whose command is unknown (no startup event: mkdocs before 1.4, or a hook called
+    directly).
+
+    Returns:
+        True only when ``on_startup`` saw a command other than a local build's.
+
+    """
+    return BUILD_STATE.command not in {*LOCAL_BUILD_COMMANDS, None}
+
+
+def complexity_graphs_wanted() -> bool:
+    """Return whether this build generates the complexity graphs (the owner, 2026-11-23).
+
+    A publishing build (``publishing``: ``mkdocs gh-deploy``, so ``nox -s docs-deploy``)
+    generates them. A local one (``mkdocs build``, ``serve``: ``nox -s lint``, ``lint-docs``,
+    ``docs-serve``) does not, as measuring the whole history took about 490 s of the strict
+    docs build's 830 on CircleCI, unless ``COMPLEXITY_GRAPHS_VARIABLE`` is ``1``.
+
+    Returns:
+        True to generate them, False to write the placeholder.
+
+    Raises:
+        PluginError: ``COMPLEXITY_GRAPHS_VARIABLE`` holds a value other than unset, empty,
+            ``0`` or ``1``.
+
+    """
+    setting = os.environ.get(COMPLEXITY_GRAPHS_VARIABLE, '')
+    if setting not in COMPLEXITY_GRAPHS_SETTINGS:
+        message = (
+            f'{COMPLEXITY_GRAPHS_VARIABLE}={setting!r}: use 1 to generate the complexity '
+            'graphs on any build, or 0 (or leave it unset) to generate them only on deploy'
+        )
+        raise PluginError(message)
+    return publishing() or setting == COMPLEXITY_GRAPHS_ON
+
+
+def make_complexity_graphs(*, graph_script: ModuleType) -> None:
+    """Generate the complexity graphs when this build wants them, else keep or write a placeholder.
+
+    Args:
+        graph_script: The complexity graph script (``load_graph_script``).
+
+    """
+    if complexity_graphs_wanted():
+        graph_script.generate_if_stale(
+            project_root=graph_script.PROJECT_ROOT, graphs_directory=graph_script.GRAPHS_DIR
+        )
+    elif graph_script.write_placeholder_unless_current(
+        project_root=graph_script.PROJECT_ROOT, graphs_directory=graph_script.GRAPHS_DIR
+    ):
+        LOG.info(
+            'Complexity graphs: a placeholder (only a deploy generates them; '
+            '%s=1 generates them here)',
+            COMPLEXITY_GRAPHS_VARIABLE,
+        )
+    else:
+        LOG.info('Complexity graphs: kept, generated from this commit')
+
+
+def on_pre_build(config: MkDocsConfig) -> None:
+    """Generate the complexity graphs (or their placeholder), then the performance graphs.
+
+    mkdocs runs this before a build. A build that wants the graphs (``complexity_graphs_wanted``)
+    generates them unless current (``generate_if_stale``); any other keeps graphs generated from
+    HEAD and otherwise writes the placeholder (``write_placeholder_unless_current``), whose page
+    still holds the explorer, so ``missing_explorer_files`` checks it as it checks a deploy's.
 
     Args:
         config: The mkdocs configuration (unused: the graphs' places are fixed by the scripts).
 
     Raises:
-        PluginError: The complexity generation failed (git, radon or wily); the build stops.
+        PluginError: The complexity generation failed (git, radon or wily), or
+            ``COMPLEXITY_GRAPHS_VARIABLE`` is not a known setting; the build stops.
 
     """
     del config
     graph_script = load_graph_script()
     with logged_stage('Complexity graphs'):
         try:
-            graph_script.generate_if_stale(
-                project_root=graph_script.PROJECT_ROOT, graphs_directory=graph_script.GRAPHS_DIR
-            )
+            make_complexity_graphs(graph_script=graph_script)
         except graph_script.ComplexityGraphError as error:
             message = f'Could not generate the complexity graphs: {error}'
             raise PluginError(message) from error
@@ -461,15 +537,15 @@ def on_post_build(config: MkDocsConfig) -> None:
 
     """
     site_directory = Path(config.site_dir)
-    publishing = BUILD_STATE.command not in {*LOCAL_BUILD_COMMANDS, None}
-    if publishing:
+    publishing_site = publishing()
+    if publishing_site:
         with logged_stage('Browser games build'):
             build_browser_games()
     copy_browser_games(
         games_directory=BROWSER_GAMES_DIRECTORY,
         site_directory=site_directory,
         head_commit=repository_head_commit(),
-        publishing=publishing,
+        publishing=publishing_site,
     )
     for cache in documentation_caches():
         cache.cache_clear()

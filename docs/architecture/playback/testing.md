@@ -159,7 +159,7 @@ test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
 `tests/test_memory_guard.py`).
 
 - It is on only when `GLITCHYGAMES_TEST_RSS_LIMIT_MB` is set; CircleCI's Linux and Raspberry Pi
-  jobs set 1400.
+  jobs set 1500 (1400 from 2026-11-19 until every machine collected the whole suite, #286).
 - A background thread samples memory every `SAMPLE_INTERVAL_SECONDS`, and each test's start and
   end are checked too.
 - It reads the container's memory (cgroup v2) where there is one, else this process's resident
@@ -170,8 +170,9 @@ test, instead of the kernel killing the job silently (`tests/memory_guard.py`;
 ## A CI job split across machines
 
 **Intent:** one CircleCI job ran past CircleCI's one-hour job limit running the whole suite on
-one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs on three
-(`parallelism: 3`; two until 2026-11-20), each running a share (`tests/circleci_test_split.py`;
+one machine (Linux, jobs 3705 and 3707), so the Linux test job runs on six machines and the
+Windows one on three (`parallelism`; two until 2026-11-20, Linux three until 2026-11-23), each
+running a share (`tests/circleci_test_split.py`;
 `tests/test_circleci_test_split.py`).
 
 - It is on only when `GLITCHYGAMES_TEST_SPLIT` is `circleci`; the split jobs set it, and any
@@ -194,6 +195,24 @@ one machine (Linux, jobs 3705 and 3707), so each Linux and Windows test job runs
 - No share reaches the 100% coverage rule alone, so the test session turns it off for a share;
   each machine keeps its `.coverage` in `coverage-data/<job>/`, and a `coverage-combine-*` job
   combines them on the job's Python and applies the rule (`nox -s coverage-combine-3.15`).
+
+## Tests that time real work
+
+**Intent:** a test that times real work against a tolerance measures the machine, not the code,
+when other tests share its CPUs. #287's Windows job (5141) ran four workers on four CPUs, and a
+timer accuracy test trailed the OS sleep by 19 ms against its 3 ms bound; the owner, 2026-11-23,
+kept the workers and set these tests apart.
+
+- Such a test carries `@pytest.mark.wall_clock(reason=...)` (registered in `tests/harness.py`).
+  `tests/test_suite_collection.py` holds the swept files to it: a test there that reads the real
+  clock is marked, or listed with why it bounds no duration.
+- `nox -s test` runs the suite twice: every other test on its workers (`-m "not wall_clock"`,
+  coverage rule off), then the marked tests alone, in one process (`-n 0 -m wall_clock`), given only the files that
+  hold them (`noxfile.WALL_CLOCK_TEST_FILES`, held to the files using the marker by
+  `tests/test_ci_config.py`) so the suite is not collected twice, appending to the first run's coverage, so the 100% rule is applied to both, and writing
+  `test-results/junit-wall-clock.xml`. On a split CI machine each run is split on its own, and a
+  machine dealt no marked test collects nothing (exit 5, which passes). `nox -s test-random`,
+  the pre-push hook, splits its shuffled run the same way.
 
 ## The suite's order in CI
 
