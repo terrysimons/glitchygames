@@ -24,11 +24,9 @@ from nox.command import CommandFailed
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Mapping, Sequence
 
-# uv installs itself to ~/.local/bin by default; CI prepends that to PATH explicitly, but a
-# direct `nox` invocation may not have it. Add it when uv lives there but isn't reachable yet.
-_local_bin = str(Path.home() / '.local' / 'bin')
-if _local_bin not in os.environ.get('PATH', '').split(os.pathsep):
-    os.environ['PATH'] = _local_bin + os.pathsep + os.environ.get('PATH', '')
+# Importing this file changes nothing in the process (tests import it:
+# test_importing_the_noxfile_leaves_the_environment_alone). Each session sets the environment of
+# the commands it runs; CircleCI puts uv on PATH itself.
 
 # Use uv as the venv backend so nox sessions get their own isolated venvs
 # managed by uv, without touching the project's .venv.
