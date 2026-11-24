@@ -50,6 +50,9 @@ def load_workspace_packages() -> ModuleType:
     Returns:
         The module.
 
+    Raises:
+        ImportError: The file can't be loaded as a Python module.
+
     """
     loaded = sys.modules.get(WORKSPACE_PACKAGES_MODULE_NAME)
     if loaded is not None:
@@ -57,8 +60,9 @@ def load_workspace_packages() -> ModuleType:
     specification = importlib.util.spec_from_file_location(
         WORKSPACE_PACKAGES_MODULE_NAME, WORKSPACE_PACKAGES_PATH
     )
-    assert specification is not None, f'{WORKSPACE_PACKAGES_PATH} is not a Python module'
-    assert specification.loader is not None, f'{WORKSPACE_PACKAGES_PATH} has no loader'
+    if specification is None or specification.loader is None:
+        message = f'{WORKSPACE_PACKAGES_PATH} is not a loadable Python module'
+        raise ImportError(message)
     module = importlib.util.module_from_spec(specification)
     sys.modules[WORKSPACE_PACKAGES_MODULE_NAME] = module
     specification.loader.exec_module(module)

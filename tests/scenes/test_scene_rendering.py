@@ -18,6 +18,7 @@ import pytest
 from glitchygames.backgrounds import BackgroundPattern, background_pattern_surface
 from glitchygames.opacity import OPAQUE, has_per_pixel_alpha
 from glitchygames.scenes import Scene, SceneManager
+from glitchygames.testing.full_repaint import differing_area
 
 SCREEN_SIZE = (800, 600)
 BACKGROUND = (10, 20, 30)
@@ -294,9 +295,11 @@ class TestSceneRendering:
         assert sprite.dirty == 0
 
         self.scene_manager.switch_to_scene(scene)
+        assert scene.dirty == 1
         scene.update()
 
-        assert scene.dirty == 1
+        # The update spends the scene's redraw request on its sprites
+        assert not scene.dirty
         assert sprite.dirty == 1
         scene.render(display)
         assert _count_rgb(display, SPRITE_COLOR) == 4 * 4
@@ -515,3 +518,113 @@ class TestSceneBackgroundOpacity:
         if has_per_pixel_alpha(surface=display):
             assert display.get_at((105, 105)).a == OPAQUE
             assert display.get_at((0, 0)).a == OPAQUE
+
+
+class TestTheFirstPresentAfterASwitch:
+    """A switch repaints the whole surface, so its first present sends the whole surface.
+
+    ``_redraw_scene_background`` blits the new scene's background over the whole screen
+    surface; a dirty-rect present of only the sprites would leave the window showing the old
+    scene everywhere else (bugs/2026-11-21-a-resumed-scene-presents-only-its-dirty-rects.md:
+    hidden by every SCALED window, which presents the whole surface, but not by the present
+    path itself). A shadow window applies only what each present sends.
+    """
+
+    def setup_method(self):
+        """Start from a fresh scene manager."""
+        SceneManager._reset()
+        self.scene_manager = SceneManager()
+
+    def teardown_method(self):
+        """Leave no scene manager behind."""
+        SceneManager._reset()
+
+    @pytest.mark.draws_frames
+    def test_the_first_present_after_a_switch_sends_the_whole_surface(self, display, mocker):
+        shadow_window = display.copy()
+
+        def update(rectangles=None):
+            if rectangles is None:
+                shadow_window.blit(display, (0, 0))
+                return
+            for rectangle in rectangles:
+                shadow_window.blit(display, rectangle, rectangle)
+
+        mocker.patch.object(pygame.display, 'update', update)
+        mocker.patch.object(
+            pygame.display, 'flip', side_effect=lambda: shadow_window.blit(display, (0, 0))
+        )
+        first_scene = _scene_with_background(BACKGROUND)
+        self.scene_manager.switch_to_scene(first_scene)
+        first_scene.update()
+        first_scene.render(display)
+        self.scene_manager._show_frame(full_update=False)
+        second_scene = _scene_with_background(OTHER_BACKGROUND)
+        second_scene.all_sprites.add(_solid_sprite(color=SPRITE_COLOR, rect=(10, 10, 4, 4)))
+        # The first scene drew its own first frame: the second's sprites are its only dirt
+        second_scene.render(display)
+
+        self.scene_manager.switch_to_scene(second_scene)
+        second_scene.update()
+        second_scene.render(display)
+        self.scene_manager._show_frame(full_update=False)
+
+        assert differing_area(drawn=shadow_window, repainted=display) is None
+
+
+class TestASceneRedrawsEverythingOnce:
+    """A scene marks every sprite dirty for one frame after it becomes active, then stops.
+
+    ``Scene.dirty`` asks for that one full redraw (set when the scene is made and by
+    ``SceneManager._force_scene_redraw``). Nothing cleared it, so every scene marked every sprite
+    dirty on every frame and redrew everything (Mr. Muncher's 255 sprites a frame, all of them),
+    hiding any sprite that changed without being marked.
+    """
+
+    def setup_method(self):
+        """Start from a fresh scene manager."""
+        SceneManager._reset()
+
+    def teardown_method(self):
+        """Leave no scene manager behind."""
+        SceneManager._reset()
+
+    def test_the_scenes_redraw_request_is_spent_by_one_update(self):
+        scene = _scene_with_background(BACKGROUND)
+        sprite = _solid_sprite(color=SPRITE_COLOR, rect=(0, 0, 4, 4))
+        scene.all_sprites.add(sprite)
+        sprite.dirty = 0
+
+        scene.update()
+
+        assert sprite.dirty == 1
+        assert not scene.dirty
+
+    @pytest.mark.draws_frames
+    def test_an_unchanged_sprite_is_not_marked_again_on_the_next_frame(self, display):
+        scene = _scene_with_background(BACKGROUND)
+        sprite = _solid_sprite(color=SPRITE_COLOR, rect=(0, 0, 4, 4))
+        scene.all_sprites.add(sprite)
+        scene.update()
+        scene.render(display)
+        scene.render(display)
+
+        scene.update()
+
+        assert sprite.dirty == 0
+
+    @pytest.mark.draws_frames
+    def test_a_forced_redraw_marks_every_sprite_once_more(self, display):
+        scene_manager = SceneManager()
+        scene = _scene_with_background(BACKGROUND)
+        sprite = _solid_sprite(color=SPRITE_COLOR, rect=(0, 0, 4, 4))
+        scene.all_sprites.add(sprite)
+        scene_manager.switch_to_scene(scene)
+        scene.update()
+        scene.render(display)
+        scene.render(display)
+
+        scene_manager._force_scene_redraw()
+        scene.update()
+
+        assert sprite.dirty == 1

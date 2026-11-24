@@ -34,10 +34,17 @@ let's do the malloc_trim for the tests"). So on glibc the heap is also trimmed a
 test, after any collection (``malloc_trimmer``, run by ``AfterTestMemoryRelease``); macOS's
 and Windows' allocators return freed memory on their own, and they have no such call.
 
-``tests/harness.py``'s ``pytest_runtest_protocol`` wrapper calls ``release_test_instance``, then
-``AfterTestMemoryRelease.after_test``, once per test: by then pytest has dropped the test's
-fixture values, so its scene is garbage. Never ``gc.freeze()`` here: Hypothesis warns about a
-``register_random`` object frozen out of view.
+pytest keeps each test's parameters for the whole run too (``Function.callspec``). An exception
+instance given as a parameter (``@pytest.mark.parametrize('failure', [OSError('disk full')])``)
+that the test raises, as a mock's ``side_effect`` does, keeps its traceback: the test's frames,
+so its mocks and whatever else they held, to the end of the run (2026-11-23: every such test's
+``MagicMock``, 153 ``MagicProxy`` objects each, in the 3,213 counted over the Linux job's serial
+run). ``release_raised_parameters`` cuts each one's traceback and chain once the test is done.
+
+``tests/harness.py``'s ``pytest_runtest_protocol`` wrapper calls ``release_test_instance`` and
+``release_raised_parameters``, then ``AfterTestMemoryRelease.after_test``, once per test: by
+then pytest has dropped the test's fixture values, so its scene is garbage. Never
+``gc.freeze()`` here: Hypothesis warns about a ``register_random`` object frozen out of view.
 """
 
 from __future__ import annotations
@@ -243,6 +250,27 @@ def release_test_instance(*, item: pytest.Item) -> None:
     if instance is None or isinstance(instance, unittest.TestCase):
         return
     vars(instance).clear()
+
+
+def release_raised_parameters(*, item: pytest.Item) -> None:
+    """Cut the traceback and chain of each exception a finished test was given as a parameter.
+
+    Raised, a parameter's exception holds the test's frames through its traceback, and pytest
+    keeps the parameter for the rest of the run. Call it once the test's reports are made: what
+    they show of the traceback is already formatted.
+
+    Args:
+        item: The finished test.
+
+    """
+    callspec = getattr(item, 'callspec', None)
+    if callspec is None:
+        return
+    for value in callspec.params.values():
+        if isinstance(value, BaseException):
+            value.__traceback__ = None
+            value.__context__ = None
+            value.__cause__ = None
 
 
 def process_peak_memory_collector() -> PeakMemoryCollector | None:

@@ -15,8 +15,10 @@ if TYPE_CHECKING:
 
 import pygame
 
+from glitchygames.checks import required
 from glitchygames.engine import GameEngine
 from glitchygames.pixels import rgb_565_triplet_generator, rgb_triplet_generator
+from glitchygames.render_target import display_surface
 from glitchygames.scenes import Scene
 from glitchygames.sprites import SPRITE_GLYPHS, Sprite
 
@@ -238,9 +240,7 @@ class GameScene(Scene):
 
         """
         super().__init__()
-        screen = pygame.display.get_surface()
-        assert screen is not None
-        self.screen: pygame.Surface = screen
+        self.screen: pygame.Surface = required(display_surface(), what='the display surface')
         self.screen_width: int = self.screen.get_width()
         self.screen_height: int = self.screen.get_height()
         self.filename: str = filename

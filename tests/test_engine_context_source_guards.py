@@ -12,13 +12,15 @@ tests/test_engine_context.py (Part 3, Stage D, Task D9 fix round 1), which tests
 from __future__ import annotations
 
 import ast
+import functools
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pytest
 from scripts.workspace_packages import workspace_members
 
 from glitchygames.engine_context import declared_context_slots
 from tests.ast_scanning import PROJECT_ROOT, qualified_name
+from tests.child_scans import scan_in_child
 from tests.engine_source import ENGINE_DIRECTORY
 from tests.test_engine_context import (
     ENGINE_SLOT_PREFIX,
@@ -37,7 +39,6 @@ from tests.workspace_sources import scanned_source_files, write_project_with_mem
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
 # The dict a member's tests name their slots' isolation checks in (CLAUDE.md, Engine Context)
 MEMBER_ISOLATION_CHECKS_NAME = 'MEMBER_ISOLATION_CHECKS'
@@ -65,29 +66,19 @@ class Holder:
 """
 
 
-@pytest.fixture(autouse=True, scope='module')
-def parsed_files_freed_after_this_file() -> Iterator[None]:
-    """Let go of every file ``scanned_file`` parsed when this file's tests are done.
-
-    The syntax trees are about 100 MiB: kept for the rest of a serial run, they pushed CircleCI's
-    2 GB Linux job past its memory limit (2026-11-17). tests/test_read_only_views.py has the twin.
-    """
-    yield
-    scanned_file.cache_clear()
-
-
-def engine_module_views() -> frozenset[str]:
+def engine_module_views() -> list[str]:
     """Return every module view the engine declares, as ``'<module>.<name>'``.
 
     A module view is a name its module marks in ``READ_ONLY_MODULE_VIEWS`` (the rule of
     tests/test_read_only_views.py's ``declared_views``); a module ``__getattr__`` without the
-    mark (a lazy import) declares none.
+    mark (a lazy import) declares none. It parses every engine file: run it in a child process
+    (tests/child_scans.py).
 
     Returns:
-        The qualified names.
+        The qualified names, sorted.
 
     """
-    return frozenset(
+    return sorted(
         f'{scanned.module_name}.{name}'
         for source_path in engine_source_files()
         for scanned in [scanned_file(source_path)]
@@ -159,21 +150,42 @@ def import_time_module_view_reads(*, source_path: Path, module_views: frozenset[
     return [f'{line}: {read}' for line, read in sorted(reads)]
 
 
-def test_no_module_reads_a_context_as_it_is_imported():
-    """Rule 2, over the engine and every workspace member: no context read, no module view."""
-    module_views = engine_module_views()
-    offenders = {
+def import_time_reads_found(
+    *, project_root: str, module_views: list[str] | None = None
+) -> dict[str, list[str]]:
+    """Return each scanned file's context and module-view reads run as it is imported (rule 2).
+
+    A scan run in a child process (tests/child_scans.py), so its syntax trees never pin this
+    process's memory: it takes and returns JSON.
+
+    Args:
+        project_root: The workspace whose engine and members are scanned.
+        module_views: The module views, as ``'<module>.<name>'``; None for the engine's
+            (``engine_module_views``).
+
+    Returns:
+        The allowlist key -> its reads, for each file with any.
+
+    """
+    views = frozenset(engine_module_views() if module_views is None else module_views)
+    return {
         allowlist_key: reads
-        for allowlist_key, path in scanned_source_files(project_root=PROJECT_ROOT)
+        for allowlist_key, path in scanned_source_files(project_root=Path(project_root))
         if (
             reads := [
                 *import_time_context_reads(source_path=path),
-                *import_time_module_view_reads(source_path=path, module_views=module_views),
+                *import_time_module_view_reads(source_path=path, module_views=views),
             ]
         )
     }
 
-    assert offenders == {}
+
+def test_no_module_reads_a_context_as_it_is_imported():
+    """Rule 2, over the engine and every workspace member: no context read, no module view."""
+    assert (
+        scan_in_child(scan=import_time_reads_found, arguments={'project_root': str(PROJECT_ROOT)})
+        == {}
+    )
 
 
 def test_the_import_time_scan_finds_module_view_reads(tmp_path):
@@ -181,9 +193,9 @@ def test_the_import_time_scan_finds_module_view_reads(tmp_path):
     planted_path = tmp_path / 'planted.py'
     planted_path.write_text(PLANTED_IMPORT_TIME_VIEW_READS, encoding='utf-8')
 
-    assert import_time_module_view_reads(
-        source_path=planted_path, module_views=engine_module_views()
-    ) == [
+    module_views = frozenset(scan_in_child(scan=engine_module_views))
+
+    assert import_time_module_view_reads(source_path=planted_path, module_views=module_views) == [
         '4: glitchygames.performance.performance_manager',
         '6: glitchygames.performance.performance_manager',
         '7: glitchygames.performance.performance_manager',
@@ -217,19 +229,44 @@ def declared_slot_names_in_source(*, source_path: Path) -> list[str]:
     return names
 
 
+def engine_slot_names_declared(*, project_root: str) -> list[str]:
+    """Return the name of every slot a workspace's engine declares.
+
+    A scan run in a child process (tests/child_scans.py), so its syntax trees never pin this
+    process's memory: it takes and returns JSON. The members' slots are checked against their own
+    tests instead (``member_slots_without_matching_checks``), as the engine's ``ISOLATION_CHECKS``
+    may not import a member.
+
+    Args:
+        project_root: The workspace.
+
+    Returns:
+        The names, sorted, each once.
+
+    """
+    engine_directory = Path(project_root) / ENGINE_DIRECTORY
+    return sorted({
+        name
+        for path in sorted(engine_directory.rglob('*.py'))
+        for name in declared_slot_names_in_source(source_path=path)
+    })
+
+
+@functools.cache
 def engine_slot_names() -> set[str]:
     """Return the name of every slot the engine declares.
+
+    Scanned once, in a child process; only the names are kept.
 
     Returns:
         The names.
 
     """
-    engine_directory = PROJECT_ROOT / ENGINE_DIRECTORY
-    return {
-        name
-        for path in sorted(engine_directory.rglob('*.py'))
-        for name in declared_slot_names_in_source(source_path=path)
-    }
+    return set(
+        scan_in_child(
+            scan=engine_slot_names_declared, arguments={'project_root': str(PROJECT_ROOT)}
+        )
+    )
 
 
 def member_isolation_check_names(*, tests_directory: Path) -> set[str]:
@@ -266,21 +303,22 @@ def member_isolation_check_names(*, tests_directory: Path) -> set[str]:
     return names
 
 
-def member_slots_without_matching_checks(*, project_root: Path) -> list[str]:
+def member_slots_without_matching_checks(*, project_root: str) -> list[str]:
     """Return each member slot without an isolation check in its tests, and each orphan check.
 
     A member's slots are checked in the member's own tests (``MEMBER_ISOLATION_CHECKS``), since the
-    engine's ``ISOLATION_CHECKS`` may not import a member.
+    engine's ``ISOLATION_CHECKS`` may not import a member. Run in a child process by the guard
+    (tests/child_scans.py), as the engine's scan is: it takes and returns JSON.
 
     Args:
-        project_root: The repository.
+        project_root: The workspace.
 
     Returns:
         One line per mismatch, empty when every member slot has exactly its check.
 
     """
     findings: list[str] = []
-    for member in workspace_members(project_root=project_root):
+    for member in workspace_members(project_root=Path(project_root)):
         slots = {
             name
             for package_directory in member.package_directories
@@ -306,7 +344,13 @@ def test_every_engine_slot_has_an_isolation_check():
 
 def test_every_member_slot_has_an_isolation_check_in_its_own_tests():
     """Each member's slots and its ``MEMBER_ISOLATION_CHECKS`` name the same slots."""
-    assert member_slots_without_matching_checks(project_root=PROJECT_ROOT) == []
+    assert (
+        scan_in_child(
+            scan=member_slots_without_matching_checks,
+            arguments={'project_root': str(PROJECT_ROOT)},
+        )
+        == []
+    )
 
 
 def test_the_member_slot_scan_reads_bitmappy():
@@ -337,7 +381,7 @@ def test_a_member_slot_without_a_check_and_a_check_without_a_slot_are_both_found
         "MEMBER_ISOLATION_CHECKS = {'space_game.orphan': None}\n", encoding='utf-8'
     )
 
-    assert member_slots_without_matching_checks(project_root=tmp_path) == [
+    assert member_slots_without_matching_checks(project_root=str(tmp_path)) == [
         "space-game: slot 'space_game.planted' has no isolation check",
         "space-game: isolation check 'space_game.orphan' names no slot",
     ]
@@ -350,3 +394,53 @@ def test_the_slot_scan_agrees_with_the_slots_declared_at_run_time():
     }
 
     assert declared_engine_slot_names == engine_slot_names()
+
+
+# A member module reading a context and a module view as it is imported (lines 3 and 4), and
+# declaring one slot, which has no isolation check
+PLANTED_MEMBER_READS = """\
+from glitchygames.engine_context import ContextSlot, current_context
+from glitchygames import performance
+CONTEXT = current_context()
+MANAGER = performance.performance_manager
+PLANTED_SLOT = ContextSlot(name='space_game.planted', default=None)
+"""
+
+# An engine module declaring one slot (the planted project's engine package is otherwise empty)
+PLANTED_ENGINE_SLOT = """\
+from glitchygames.engine_context import ContextSlot
+PLANTED_SLOT = ContextSlot(name='glitchygames.planted', default=None)
+"""
+
+
+def test_the_scans_find_the_same_reads_and_slots_in_a_child_process(tmp_path):
+    """No finding is lost in the child: each guard's scan answers there what it answers here."""
+    member_key = write_project_with_member_module(
+        project_root=tmp_path, source=PLANTED_MEMBER_READS
+    )
+    (tmp_path / ENGINE_DIRECTORY / 'planted_slot.py').write_text(
+        PLANTED_ENGINE_SLOT, encoding='utf-8'
+    )
+    reads_arguments = {
+        'project_root': str(tmp_path),
+        'module_views': ['glitchygames.performance.performance_manager'],
+    }
+    slots_arguments = {'project_root': str(tmp_path)}
+
+    in_this_process = (
+        import_time_reads_found(**reads_arguments),
+        engine_slot_names_declared(**slots_arguments),
+        member_slots_without_matching_checks(**slots_arguments),
+    )
+    in_a_child = (
+        scan_in_child(scan=import_time_reads_found, arguments=reads_arguments),
+        scan_in_child(scan=engine_slot_names_declared, arguments=slots_arguments),
+        scan_in_child(scan=member_slots_without_matching_checks, arguments=slots_arguments),
+    )
+
+    assert in_a_child == in_this_process
+    assert in_this_process == (
+        {member_key: ['3: current_context', '4: glitchygames.performance.performance_manager']},
+        ['glitchygames.planted'],
+        ["space-game: slot 'space_game.planted' has no isolation check"],
+    )

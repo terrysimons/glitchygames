@@ -45,31 +45,40 @@ scratch context for building a file's waves (`src/glitchygames/audio/assets.py`)
 7. `current_engine()` (`glitchygames.engine`) is the engine made last in the current context,
    until it shuts down; with none running it raises `NoRunningEngineError`.
 
+!!! warning "Read a slot when you need it, never at import"
+    A module-level, class-body or default-argument read of `current_context().value(slot=...)`
+    runs once, in the default context, so every other context would share that one value. The
+    scan in `tests/test_engine_context.py` finds only literal reads: a module-level call of a
+    helper that reads a slot, or a reader under another name, passes it unseen (BUGS.md #228
+    item 1).
+
 ## What belongs to a context today
 
-| Slot (its `ContextSlot` name) | Module | Public functions |
-|---|---|---|
-| `'glitchygames.pixel_snap.default_mode'` | `src/glitchygames/pixel_snap.py` | `set_active_default_snap_mode`, `active_default_snap_mode`, `resolve_snap_mode` |
-| `'glitchygames.backgrounds.default_pattern'` | `src/glitchygames/backgrounds.py` | `set_active_default_background_pattern`, `active_default_background_pattern`, `paint_default_background` |
-| `'glitchygames.input.state.current_input'` | `src/glitchygames/input/state.py` | `current_input`, `set_current_input`, `reset_current_input` |
-| `'glitchygames.randomness.streams'` | `src/glitchygames/randomness.py` | `engine_random`, `random_stream`, `numpy_stream`, `reset_streams`, `seed_engine_random`, `engine_random_seed`, `capture_stream_states`, `restore_stream_states` |
-| `'glitchygames.game_frames.clock'` | `src/glitchygames/game_frames.py` | `game_frame_clock`, `restart_game_frame_clock` |
-| `'glitchygames.sources.registry'` | `src/glitchygames/sources.py` | `active_sources`, `install_sources`, `reset_sources`, `push_scoped_sources`, `pop_scoped_sources`, `has_scoped_sources`, `redeliver_events`, `pending_redelivered_events`, `take_redelivered_events`, `discard_scope_posts`, `without_discarded_scope_posts`, `mark_frames_started`, `advance_frame_clock`, `set_frame_clock_seconds`, `frame_clock_seconds`, `observe_save_store_openings`, `stop_observing_save_store_openings`, `notify_save_store_opened`, `observe_device_answers`, `stop_observing_device_answers`, `notify_device_answer` |
-| `'glitchygames.scenes.scene.scene_managers'` | `src/glitchygames/scenes/scene.py` | `SceneManager()`, `SceneManager._reset()` |
-| `'glitchygames.audio.waves.registry'` | `src/glitchygames/audio/waves.py` | `current_wave_registry` (the named waves a sound file or `Wave` registers; `AudioEngine.waves`) |
-| `'glitchygames.audio.engine.audio_engine'` | `src/glitchygames/audio/engine.py` | `SceneManager.audio`, `existing_audio_engine`, `install_audio_engine`, `discard_audio_engine` |
-| `'glitchygames.engine.game_engine.current_engine'` | `src/glitchygames/engine/game_engine.py` | `current_engine()` (the engine made last in the context; the `GameEngine` views read it) |
-| `'glitchygames.recording.internal_posts'` | `src/glitchygames/recording.py` | `post_event`, `post_input_event`, `start_tracking_internal_posts`, `stop_tracking_internal_posts`, `reset_internal_post_tracking`, `forget_pending_posts`, `pending_internal_posts`, `live_game_posts`, `pending_code_post_count` |
-| `'glitchygames.performance.adaptive_clamping.managers'` | `src/glitchygames/performance/adaptive_clamping.py` | `AdaptiveClamping()` (the context's performance manager: its FPS statistics and shutdown report) |
-| `'glitchygames.events.base.shared_instances'` | `src/glitchygames/events/base.py` | `ResourceManager()` subclasses (the shared event managers and the `FontManager`: one per class per engine context), `ResourceManager.release_shared_instances`, `release_shared_instance` |
-| `'glitchygames.fonts.font_manager.options'` | `src/glitchygames/fonts/font_manager.py` | `FontManager.OPTIONS` (a view of it), `FontManager.set_font_system`, `get_font_system` |
-| `'glitchygames.sprites.bitmappy_sprite.singletons'` | `src/glitchygames/sprites/bitmappy_sprite.py` | `Singleton()`, `SingletonBitmappySprite()`, `FocusableSingletonBitmappySprite()` (one per class per engine context) |
-| `'glitchygames.events.base.unhandled_event_types'` | `src/glitchygames/events/base.py` | `unhandled_event` (the event types already logged under `--debug-events`) |
-| `'glitchygames.sprites.sprite.counters'` | `src/glitchygames/sprites/sprite.py` | `sprite_counters()` (the sprite creation counters and breakpoints the teardown report logs), `Sprite.break_when` |
-| `'glitchygames.render_target.target'` | `src/glitchygames/render_target.py` | `set_render_target`, `render_target`, `is_inner_context`, `display_surface`, `request_hosted_start`, `hosted_start_requested`, `note_started_engine`, `take_started_engine` (the context's render target and its hosted start) |
-| `'glitchygames.recording.private_event_queue'` | `src/glitchygames/recording.py` | `private_event_queue` (an inner context's own event queue: its posts go there and its replay doors drain it, never SDL's) |
-| `'glitchygames.audio.route.audio_route'` | `src/glitchygames/audio/route.py` | `is_audible`, `set_audible` (whether the context's sound is heard: the default context audible, a new inner game silent; `InnerGame.audible`, `InnerGame.set_audible`) |
-| `'glitchygames.audio.voices.inner_channels'` | `src/glitchygames/audio/voices.py` | `inner_context_partition`, `take_heard_set`, `give_back_heard_set`, `heard_set_start`, `release_inner_context_channels`, `plain_plays_followed`, `plain_play_channel_indices`, `stop_plain_plays_and_mute_the_live_pool`, `current_inner_context_channel_indices` (an inner context's channels: its partition, live pool, heard set while heard, and the plain plays it started while heard) |
+???+ note "The twenty-one slots, with their public functions"
+
+    | Slot (its `ContextSlot` name) | Module | Public functions |
+    |---|---|---|
+    | `'glitchygames.pixel_snap.default_mode'` | `src/glitchygames/pixel_snap.py` | `set_active_default_snap_mode`, `active_default_snap_mode`, `resolve_snap_mode` |
+    | `'glitchygames.backgrounds.default_pattern'` | `src/glitchygames/backgrounds.py` | `set_active_default_background_pattern`, `active_default_background_pattern`, `paint_default_background` |
+    | `'glitchygames.input.state.current_input'` | `src/glitchygames/input/state.py` | `current_input`, `set_current_input`, `reset_current_input` |
+    | `'glitchygames.randomness.streams'` | `src/glitchygames/randomness.py` | `engine_random`, `random_stream`, `numpy_stream`, `reset_streams`, `seed_engine_random`, `engine_random_seed`, `capture_stream_states`, `restore_stream_states` |
+    | `'glitchygames.game_frames.clock'` | `src/glitchygames/game_frames.py` | `game_frame_clock`, `restart_game_frame_clock` |
+    | `'glitchygames.sources.registry'` | `src/glitchygames/sources.py` | `active_sources`, `install_sources`, `reset_sources`, `push_scoped_sources`, `pop_scoped_sources`, `has_scoped_sources`, `redeliver_events`, `pending_redelivered_events`, `take_redelivered_events`, `discard_scope_posts`, `without_discarded_scope_posts`, `mark_frames_started`, `advance_frame_clock`, `set_frame_clock_seconds`, `frame_clock_seconds`, `observe_save_store_openings`, `stop_observing_save_store_openings`, `notify_save_store_opened`, `observe_device_answers`, `stop_observing_device_answers`, `notify_device_answer` |
+    | `'glitchygames.scenes.scene.scene_managers'` | `src/glitchygames/scenes/scene.py` | `SceneManager()`, `SceneManager._reset()` |
+    | `'glitchygames.audio.waves.registry'` | `src/glitchygames/audio/waves.py` | `current_wave_registry` (the named waves a sound file or `Wave` registers; `AudioEngine.waves`) |
+    | `'glitchygames.audio.engine.audio_engine'` | `src/glitchygames/audio/engine.py` | `SceneManager.audio`, `existing_audio_engine`, `install_audio_engine`, `discard_audio_engine` |
+    | `'glitchygames.engine.game_engine.current_engine'` | `src/glitchygames/engine/game_engine.py` | `current_engine()` (the engine made last in the context; the `GameEngine` views read it) |
+    | `'glitchygames.recording.internal_posts'` | `src/glitchygames/recording.py` | `post_event`, `post_input_event`, `start_tracking_internal_posts`, `stop_tracking_internal_posts`, `reset_internal_post_tracking`, `forget_pending_posts`, `pending_internal_posts`, `live_game_posts`, `pending_code_post_count` |
+    | `'glitchygames.performance.adaptive_clamping.managers'` | `src/glitchygames/performance/adaptive_clamping.py` | `AdaptiveClamping()` (the context's performance manager: its FPS statistics and shutdown report) |
+    | `'glitchygames.events.base.shared_instances'` | `src/glitchygames/events/base.py` | `ResourceManager()` subclasses (the shared event managers and the `FontManager`: one per class per engine context), `ResourceManager.release_shared_instances`, `release_shared_instance` |
+    | `'glitchygames.fonts.font_manager.options'` | `src/glitchygames/fonts/font_manager.py` | `FontManager.OPTIONS` (a view of it), `FontManager.set_font_system`, `get_font_system` |
+    | `'glitchygames.sprites.bitmappy_sprite.singletons'` | `src/glitchygames/sprites/bitmappy_sprite.py` | `Singleton()`, `SingletonBitmappySprite()`, `FocusableSingletonBitmappySprite()` (one per class per engine context) |
+    | `'glitchygames.events.base.unhandled_event_types'` | `src/glitchygames/events/base.py` | `unhandled_event` (the event types already logged under `--debug-events`) |
+    | `'glitchygames.sprites.sprite.counters'` | `src/glitchygames/sprites/sprite.py` | `sprite_counters()` (the sprite creation counters and breakpoints the teardown report logs), `Sprite.break_when` |
+    | `'glitchygames.render_target.target'` | `src/glitchygames/render_target.py` | `set_render_target`, `render_target`, `is_inner_context`, `display_surface`, `request_hosted_start`, `hosted_start_requested`, `note_started_engine`, `take_started_engine` (the context's render target and its hosted start) |
+    | `'glitchygames.recording.private_event_queue'` | `src/glitchygames/recording.py` | `private_event_queue` (an inner context's own event queue: its posts go there and its replay doors drain it, never SDL's) |
+    | `'glitchygames.audio.route.audio_route'` | `src/glitchygames/audio/route.py` | `is_audible`, `set_audible` (whether the context's sound is heard: the default context audible, a new inner game silent; `InnerGame.audible`, `InnerGame.set_audible`) |
+    | `'glitchygames.audio.voices.inner_channels'` | `src/glitchygames/audio/voices.py` | `inner_context_partition`, `take_heard_set`, `give_back_heard_set`, `heard_set_start`, `release_inner_context_channels`, `plain_plays_followed`, `plain_play_channel_indices`, `stop_plain_plays_and_mute_the_live_pool`, `current_inner_context_channel_indices` (an inner context's channels: its partition, live pool, heard set while heard, and the plain plays it started while heard) |
 
 `tests/test_engine_context.py` proves, for every slot, that two contexts in one process never
 see each other's values; a slot added without such a check fails the suite.
@@ -135,6 +144,24 @@ the contract; `plans/2026-11-12-arcade-3-inner-game.md`):
    channel (its plain plays find every channel reserved, its voice table makes no mixer call,
    its live chunks play at volume 0 on its own pool); switching a heard tile silent fades its
    voices, stops its plain plays and mutes its live chunks, never another context's sound.
+10. **A tile's demo is a `DemoPlayer`** (Arcade sub-plan 5,
+    `plans/2026-11-20-arcade-5-playback-core.md`; `src/glitchygames/demo_player.py`, whose
+    docstring is the contract): an engine module that holds one `InnerGame` replaying a recording
+    and needs no game or Arcade. `tick(elapsed_seconds=..., budget=..., most_frames=None)` pays a
+    `RecordedFramePacer` the host's frame time and runs the frames it owes within a
+    `TickBudget` (`src/glitchygames/replay/pacer.py`, the watched replay's pacing, shared), which
+    a host hands to its players in turn; frames are never skipped (a player that cannot keep up
+    plays in slow motion, `is_behind`, `effective_speed`). At its end the demo loops: the game is
+    finished (giving its channels back) and a new one built from frame 0 in a new context,
+    `on_new_game` running before its first frame, the build charged to the budget. A divergence
+    restarts it once, then freezes it on the diverged frame (`DemoOutcome`, `DemoState`).
+    `fast_forward(to_frame=..., budget=...)` runs silent, sliced and resumable toward a poster
+    frame (`poster_frame`, drawn from the host's named stream), building a waiting loop or
+    restart itself, so it gets there or the player freezes (`is_frozen`). The budget is real time
+    (`clock.measured_seconds`), so how far a tile gets in a host frame depends on the machine: a
+    recorded Arcade session replays its inputs exactly, but not its tiles' progress frame for
+    frame (tiles may be a frame or two apart, as a watched replay's viewer already is), and
+    nothing compares an Arcade session's tile pixels frame for frame.
 
 An inner game never changes SDL's blocked event types: every engine call that blocks or allows
 goes through `events.set_event_types_allowed`, which changes nothing in an inner context (its
@@ -149,10 +176,16 @@ can't undo it, so only the host's own engine does.) The proof is
 replayed as an inner game beside another, unevenly interleaved, inside an outer window of
 another size, matches its solo headless replay's digests frame for frame and draws the pixels it
 draws alone, with every tile silent and with the first switched heard for the middle third of
-its recording and back (Bitmappy's demo is a strict xfail: it measures the outer window,
-`plans/future-work.md`). Ten stand-in inner games stepped once per outer frame cost about 0.29 ms
-on the machine it was measured on (`test_ten_inner_games_per_outer_frame`, an Apple M4 Max,
-2026-11-12).
+its recording and back (Bitmappy's demo, which measured the outer window, reads its own screen
+since 2026-11-20: `bugs/2026-11-20-bitmappy-tile-read-the-hosts-window.md`). The same file
+proves it through `DemoPlayer`: each pair as two players ticked with uneven time and budgets,
+the first fast-forwarded to a seeded poster frame, looped, and heard for the middle third of its
+second run, and again in slow motion with one frame each of a shared budget a tick; every game
+they build ends with its solo replay's digests and every tick draws the recording's pixels alone
+at its frame (the budgets run on a fake clock there, so the runs are the same on every machine).
+Ten stand-in inner games stepped once per outer frame cost about 0.29 ms on the machine it was
+measured on (`test_ten_inner_games_per_outer_frame`, an Apple M4 Max, 2026-11-12); what demo
+players of the real bundled demos cost is under Performance.
 
 ## Read-only views
 
@@ -215,7 +248,8 @@ outer game that steps others (the Arcade's wrapper) reports the aggregate of eve
 
 ## Performance
 
-What each kind of read costs (Apple M4 Max, Python 3.14):
+What each kind of read costs (Apple M4 Max; measured on Python 3.14, before the tests moved to 3.15,
+except the `ten demo players` row, measured on Python 3.15):
 
 | Read | Cost per read | Measured |
 |---|---|---|
@@ -225,6 +259,7 @@ What each kind of read costs (Apple M4 Max, Python 3.14):
 | `read-only view` | 210 ns | `GameEngine.OPTIONS` with an engine running; Task 17, 2026-11-10, median (2.32 slot reads) |
 | `current_engine()` | 113 ns | Task 17, 2026-11-10, median (1.25 slot reads) |
 | `context switch` | 430 ns | `with context.active():` entered and left; `timeit`; the owner, 2026-10-28 |
+| `ten demo players` | 6.9 ms | one Arcade frame of ten `DemoPlayer`s of the real bundled demos sharing an 11 ms budget; Arcade sub-plan 5's Task 6, 2026-11-20, Apple M4 Max, Python 3.15, median (Demo players, below) |
 
 The four Task 17 rows are the medians of gate (c)'s per-read benchmarks
 (`tests/benchmarks/test_engine_context_benchmarks.py`, `-k reading`, pytest-benchmark, one run on
@@ -266,3 +301,36 @@ The rules that follow:
   (`READ_RATIO_LIMITS` in `tests/benchmarks/test_engine_context_benchmarks.py`: a view at most 4
   slot reads, `current_engine()` at most 2; `tests/test_read_only_views.py` checks this table
   against them).
+
+### Demo players
+
+Measured by `tests/benchmarks/test_demo_player_benchmarks.py` (pytest-benchmark under
+`--benchmark-only`, dummy drivers, one run on 2026-11-20 on an Apple M4 Max with Python 3.15, the
+machine's one-minute load 3.2 to 3.7): ten `DemoPlayer`s of the real bundled demos (all but the text-input demo), each paid one
+60 Hz Arcade frame a round and sharing one `INNER_FRAME_BUDGET_SECONDS` (11 ms) budget:
+
+- **Per Arcade frame:** median 6.9 ms (minimum 3.2 ms, mean 7.1 ms) for about ten frames a round
+  (mean 9.97, at most 17 after a hitch); every player kept speed 1.00 over 1,200 rounds (Mr.
+  Muncher 1.02). The budget was spent in 19 of the 1,200 rounds, and the players looped twelve
+  times in all over the 1,200. The worst round, 376 ms, matches a Bitmappy build (below; Bitmappy looped once),
+  not traced round by round: one build held the Arcade for about 22 frames.
+- **A restart's build** (`InnerGame.replay`, the call decision 7 charges to the budget), five
+  per demo, the first with the harness's emptied sound and sprite caches: dt, joystick and
+  text-input demos 5 to 10 ms; PaddleSlap 7 to 11 ms; Clockwork Keep 7 ms (26 ms cold); Drawing
+  Fire 13 to 19 ms; Mr. Muncher 24 ms (207 ms cold); Brave Adventurer 33 to 71 ms; Zombies Ain't
+  My Neighbors 100 to 176 ms (860 ms cold), of which about 160 ms is reading and decoding its
+  1,538-frame recording again (a profile of one warm build); Bitmappy 355 to 450 ms. A profile
+  of one Bitmappy build splits it into about 275 ms waiting for the AI worker process it has just
+  started to exit (its `main()` shuts its workers down in a `finally` after `engine.start()`,
+  which in an inner game returns as soon as the game is built, so each build starts a worker
+  and joins it) and about 147 ms in `load_ai_training_data` (it renders 71 sprite files as text
+  for a log line even at `--log-level error`). That join waits up to
+  `AI_WORKER_JOIN_TIMEOUT_SECONDS` (2 s) and then 1 s more after terminating, so a slow worker
+  start costs about 3 s: the likely reading of the 3.1 s build the plan's first measurement saw
+  (neither that 3.1 s nor its 73 to 180 ms readings is reproduced here).
+- **The ten posters' fast-forward** (seed 5, the 11 ms budget shared each Arcade frame): about
+  2.6 s in total (three rounds, 2.60 to 2.68 s), 180 Arcade frames (3 s at 60 Hz) before every
+  tile stands at its poster.
+
+Not measured: a Raspberry Pi (the budget will bind there, which is what slow motion is for), and
+a build in the browser (Pyodide).

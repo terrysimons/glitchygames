@@ -37,12 +37,13 @@ from pathlib import Path
 from typing import Any, cast
 
 import httpx2
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames import clock
 from glitchygames.ai.local_service import pieces_of_stream_line
 from glitchygames.ai_console import REASONING_EFFORT, SYSTEM_PROMPT
 from glitchygames.ai_link import ServiceLocations, service_locations
+from glitchygames.checks import required
 from glitchygames.exit_codes import ExitCode
 from glitchygames.process import OutputCapture, run_command, start_command, stop_command
 
@@ -97,8 +98,8 @@ class Question(BaseModel):
     name: str
     state: str
     kind: str
-    # All but the last are asked first, so the last is a follow-up
-    turns: tuple[str, ...]
+    # All but the last are asked first, so the last is a follow-up; at least one
+    turns: tuple[str, ...] = Field(min_length=1)
     required: tuple[str, ...] = ()
     forbidden: tuple[str, ...] = ()
     does_not_know: bool = False
@@ -355,8 +356,8 @@ def ask_question(*, target: AskedOf, question: Question, state: str) -> Answer:
         messages.append({'role': 'user', 'content': turn})
         answer = ask(target=target, messages=messages)
         messages.append({'role': 'assistant', 'content': answer.text})
-    assert answer is not None  # Every question has a turn: the tests hold the file to it
-    return answer
+    # Question.turns holds at least one turn, so the loop asked
+    return required(answer, what="the answer to the question's last turn")
 
 
 def agent_label(*, size: str) -> str:

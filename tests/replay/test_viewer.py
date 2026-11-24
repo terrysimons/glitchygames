@@ -838,7 +838,7 @@ def write_fast_recording(*, recording: FastRecording, path: Path) -> Path:
 def inner_frame_seconds_of(*, recorded: RecordedFrames) -> list[float]:
     """Return each frame's duration as a watched replay gives it to the viewer.
 
-    The rule of ``ReplaySources._inner_frame_seconds`` (glitchygames/replay/driver.py, rule 4):
+    The rule of ``RecordedFrames.next_frame_seconds`` (glitchygames/replay/driver.py, rule 4):
     a frame lasts its next frame's dt, the last frame its own.
 
     Returns:
