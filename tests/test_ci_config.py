@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import os
 import re
 import shlex
 import shutil
@@ -345,6 +346,44 @@ def test_circleci_installs_uv_at_its_pinned_version():
         'https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.sh',
         'https://astral.sh/uv/<< pipeline.parameters.UV_VERSION >>/install.ps1',
     }
+
+
+# A fresh interpreter's report of what importing noxfile changed in its own environment
+NOXFILE_IMPORT_PROBE = (
+    'import json, os\n'
+    'before = dict(os.environ)\n'
+    'import noxfile\n'
+    'after = dict(os.environ)\n'
+    'print(json.dumps(sorted(key for key in before.keys() | after.keys()'
+    ' if before.get(key) != after.get(key))))\n'
+)
+
+
+def test_importing_the_noxfile_leaves_the_environment_alone():
+    """Importing noxfile changes no environment variable of the importing process.
+
+    Tests import noxfile (this file does), so a change made at import time leaks into every later
+    test of that process, at a moment that depends on the test order: #288 (CircleCI's automated
+    fixer) added ~/.local/bin to PATH there, which could change which uv, git or python a later
+    test runs. A fresh interpreter imports it with ~/.local/bin left out of PATH, where that
+    change would happen.
+    """
+    local_bin = str(Path.home() / '.local' / 'bin')
+    environment = dict(os.environ)
+    environment['PATH'] = os.pathsep.join(
+        entry for entry in environment.get('PATH', '').split(os.pathsep) if entry != local_bin
+    )
+
+    completed = run_command(
+        command=[sys.executable, '-c', NOXFILE_IMPORT_PROBE],
+        environment=environment,
+        timeout_seconds=60.0,
+        capture_output=OutputCapture.APART,
+        working_directory=PROJECT_ROOT,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout.strip().splitlines()[-1]) == []
 
 
 def test_the_linux_ci_session_installs_what_the_linux_job_installs():
