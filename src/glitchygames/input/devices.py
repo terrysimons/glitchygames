@@ -1154,11 +1154,16 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
             The module and the port's descriptor.
 
         Raises:
-            pygame.error: If PortMidi is missing, or the port is gone or goes the wrong way
-                (remembered).
+            pygame.error: If PortMidi is missing or cannot start, or the port is gone or goes the
+                wrong way (remembered).
 
         """
-        midi_module = self._started_midi_module()
+        try:
+            midi_module = self._started_midi_module()
+        except pygame.error as error:
+            # PortMidi could not start (the same remembered failure as an enumeration's)
+            self._remember_failure(call=call, device_index=port_id, error=error)
+            raise
         if midi_module is None:
             unavailable = pygame.error(MIDI_UNAVAILABLE_MESSAGE)
             self._remember_failure(call=call, device_index=port_id, error=unavailable)

@@ -1275,3 +1275,31 @@ def test_without_portmidi_the_unavailable_message_is_logged_once_per_registry(mo
             registry.default_midi_input_id()
 
     assert caplog.text.count('pygame.midi is unavailable') == 1
+
+
+def test_a_portmidi_start_failure_during_an_open_is_recorded_once_and_fails_the_same_in_replay(
+    mocker,
+):
+    """PortMidi cannot start: the open raises, one failure is recorded, the replay raises it too."""
+    midi_module = _patch_portmidi_ports(mocker)
+    midi_module.init.side_effect = pygame.error('PortMidi cannot start')
+    live = LiveDeviceRegistry()
+
+    with pytest.raises(pygame.error, match='PortMidi cannot start'):
+        live.open_midi_input(port_id=0)
+
+    answers = live.take_enumeration_answers()
+    assert answers == [
+        EnumerationAnswer(
+            call='open_midi_input', device_index=0, value=None, error='PortMidi cannot start'
+        )
+    ]
+    assert live.take_opened_midi_ports() == []
+    midi_module.Input.assert_not_called()
+
+    replay = ReplayDeviceRegistry(
+        descriptors=[],
+        enumeration_answers=[EnumerationAnswer.from_json(answer.to_json()) for answer in answers],
+    )
+    with pytest.raises(pygame.error, match='PortMidi cannot start'):
+        replay.open_midi_input(port_id=0)
