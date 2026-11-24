@@ -1499,6 +1499,9 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/benchmarks/test_logging_cost.py': (
         "measures what logging costs our members' goldens and bundled demos"
     ),
+    'tests/benchmarks/test_demo_player_benchmarks.py': (
+        "measures what demo players of our members' bundled demos cost an Arcade"
+    ),
     'tests/audio/test_audio_engine_goldens.py': (
         "replays our member PaddleSlap's golden under each sound cache mode"
     ),
