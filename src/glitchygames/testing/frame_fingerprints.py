@@ -12,8 +12,8 @@ glitchygames/testing/frame_comparison.py (and its command line, scripts/compare_
 compares the recordings of two or more runs, and
 ``nox -s compare-drivers`` runs the whole comparison.
 
-It records only when asked (otherwise it registers the ``frames_vary`` marker and does
-nothing)::
+It records only when asked (otherwise it registers its markers and runs only the draws_frames
+check, below)::
 
     pytest -p glitchygames.testing.frame_fingerprints --frame-fingerprints DIRECTORY
 
@@ -38,7 +38,12 @@ recorded.
 A frame's position is its index in ``RecordedFrames.frames``: the presents, then the final
 frame. ``--frame-images-request FILE`` (a ``FrameImageRequest``, written by
 glitchygames/testing/frame_comparison.py) also saves the named positions of the named tests as PNG
-files, at ``frame_image_path(directory=DIRECTORY, nodeid=..., position=...)``.
+files, at ``frame_image_path(directory=DIRECTORY, nodeid=..., position=...)``. When it names where
+a test may stop (``stop_after_by_test``, a present), the recorder ends that test right after that
+present with ``pytest.skip``: its frames are saved, and the rest of the test would only cost time
+(a 900-frame test differing at present 20 re-ran in 2.5 s instead of 9.2 s, 2026-11-23). An
+outcome exception passes the engine's ``except Exception``, and a skip fails no run; the record
+has ``stopped_after`` set and no final frame (its body did not finish).
 
 ``--frame-fingerprints-seed SEED`` makes the master seed an engine draws when it is given no
 ``--random-seed`` depend on SEED and the test's node id alone (``SeededDraws``), so tests that
@@ -47,6 +52,38 @@ are nondeterministic by design.
 
 The fingerprint costs about 0.75 ms per present at 800x600 (0.3 ms for the RGB bytes, 0.4 ms for
 the hash), plus about 0.3 ms on a display with per-pixel alpha.
+
+The draws_frames marker
+-----------------------
+
+A test draws when, from the start of its setup to the end of its body, it presents a frame, or
+it leaves the display showing a picture other than the blank screen at the display's size (the
+two things a comparison compares; plans/2026-11-22-compare-drivers-only-drawing-tests.md). A
+test that draws carries ``@pytest.mark.draws_frames``; a parametrized case marks itself with
+``pytest.param(..., marks=pytest.mark.draws_frames)``. ``--draws-frames-only`` runs only the
+marked tests (the others are deselected, after any ``-m``): the driver comparison's runs
+(``nox -s compare-drivers``, tests/driver_comparison.py's native run) pass it. A run left with
+none is pytest's "no tests ran", which a targeted local run may well be; compare-drivers refuses a
+run that recorded no test where it compares. ``--frame-fingerprints-drawing-only`` (or
+GLITCHYGAMES_FRAME_FINGERPRINTS_DRAWING_ONLY=1, for the run OWNER names) runs every test but
+records only the marked ones: a local comparison's dummy side, so both sides hold the same tests.
+
+The marker cannot go stale: in every run, recording or not, the plugin's check
+(``DrawsFramesCheck``) counts each test's presents and compares the display its body left with
+the blank screen, then fails a test whose call passed when the marker disagrees: drawing without
+it, or marked and drawing nothing. The failure says which, and what to add or remove. A
+``frames_vary`` test that draws carries both markers. The blank screen comes from the project's
+``pytest_frame_fingerprints_blank_screen(size)`` hook (this suite's: tests/harness.py, the
+canvas); without one, only presents count. Each judged run lists its disagreements, one
+``<node id><TAB><reason>`` line each, in ``test-results/frame-markers.txt`` (its controller
+empties it first); ``--frame-markers-report-only`` lists them without failing any test, and
+``uv run python -m scripts.mark_drawing_tests`` places the markers the list asks for.
+
+A run is judged unless a test started it: a pytest that configures while PYTEST_CURRENT_TEST is
+set (pytester, in process or as a child process; a tool's run) judges nothing. The run's xdist
+workers and tests/driver_comparison.py's native run start outside any test, so they are judged.
+The check costs about 0.4 ms per test that presents nothing (one read of the display at
+800x600 and a compare), about 13 s of CPU over the whole suite.
 """
 
 from __future__ import annotations
@@ -61,9 +98,9 @@ from typing import TYPE_CHECKING
 
 import pygame
 import pytest
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from glitchygames import randomness
+from glitchygames import clock, randomness
 from glitchygames.opacity import shown_rgb_bytes
 
 if TYPE_CHECKING:
@@ -73,16 +110,35 @@ if TYPE_CHECKING:
 FINGERPRINTS_OPTION = '--frame-fingerprints'
 IMAGES_REQUEST_OPTION = '--frame-images-request'
 SEED_OPTION = '--frame-fingerprints-seed'
+# Records only the tests marked draws_frames: the others are not fingerprinted or written (a
+# local comparison's dummy side, whose native side runs only those tests)
+DRAWING_ONLY_OPTION = '--frame-fingerprints-drawing-only'
 # The options' environment variables: a run started with them set (each xdist worker inherits
 # its controller's environment) records as if given the options; an option given wins
 FINGERPRINTS_VARIABLE = 'GLITCHYGAMES_FRAME_FINGERPRINTS'
 SEED_VARIABLE = 'GLITCHYGAMES_FRAME_FINGERPRINTS_SEED'
+DRAWING_ONLY_VARIABLE = 'GLITCHYGAMES_FRAME_FINGERPRINTS_DRAWING_ONLY'
 # The process id of the pytest run the variables are for: they apply in that process and its
 # xdist workers (its direct children), never in a pytest a test starts (pytester, replays)
 OWNER_VARIABLE = 'GLITCHYGAMES_FRAME_FINGERPRINTS_OWNER'
 SDL_VIDEO_DRIVER_VARIABLE = 'SDL_VIDEODRIVER'
 # Marks a test whose frames are not expected to match between runs or drivers
 FRAMES_VARY_MARKER = 'frames_vary'
+# Marks a test that draws: it presents a frame, or leaves a picture other than the blank screen
+# (the draws_frames check enforces it both ways; the driver comparison runs only these tests)
+DRAWS_FRAMES_MARKER = 'draws_frames'
+REPORT_ONLY_OPTION = '--frame-markers-report-only'
+# Runs only the tests marked draws_frames (the driver comparison's runs): the others are
+# deselected, after any -m selection, so a user's own -m still narrows the run
+DRAWS_FRAMES_ONLY_OPTION = '--draws-frames-only'
+# Where each judged run writes the tests whose draws_frames marker disagrees with what they did
+# (from the run's root directory; the run's controller empties it at the start)
+MARKERS_REPORT_PATH = Path('test-results') / 'frame-markers.txt'
+# pytest sets this while a test runs: a pytest that configures with it set was started by a
+# test (pytester, a replay tool's run), and its tests are not judged
+CURRENT_TEST_VARIABLE = 'PYTEST_CURRENT_TEST'
+# The draws_frames check's plugin object's name in pytest's plugin manager
+CHECK_PLUGIN_NAME = 'draws-frames-check'
 RECORDS_SUFFIX = '.jsonl'
 IMAGES_DIRECTORY_NAME = 'images'
 # The plugin object's name in pytest's plugin manager
@@ -135,6 +191,18 @@ class RecordedFrames(BaseModel):
     # The test's frames_vary marker reason: its frames are not expected to match between runs
     # or drivers, so a comparison lists it instead of comparing it
     frames_vary_reason: str | None = None
+    # The present a re-run stopped the test after (FrameImageRequest.stop_after_by_test): its
+    # body did not finish, so it has no final frame and its outcome is 'skipped'
+    stopped_after: int | None = None
+    # Noted at each present an image request names (a re-run's), for the window's animation:
+    # the frame clock there (the served game time, clock.frame_clock_seconds), the display's
+    # refresh rate as pygame reported it (0 on the dummy driver: none), the running engine's
+    # configured FPS (its resolved target, 0 uncapped; None without an engine), and the
+    # run's shuffle seed (None in a run in file order)
+    frame_clock_at: dict[int, float] = Field(default_factory=dict)
+    refresh_rate_hz: int | None = None
+    configured_fps: float | None = None
+    test_order_seed: int | None = None
 
     @property
     def final_on_run_driver(self) -> bool:
@@ -161,11 +229,17 @@ class RecordedFrames(BaseModel):
 
 
 class FrameImageRequest(BaseModel):
-    """The frames to save as PNG files: positions (in ``RecordedFrames.frames``) by node id."""
+    """The frames to save as PNG files: positions (in ``RecordedFrames.frames``) by node id.
+
+    ``stop_after_by_test`` names, for some tests, the present after which the re-run may end
+    the test (as a skip): every frame it saves is a present at or before that one, so the rest
+    of the test would only cost time.
+    """
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
     positions_by_test: dict[str, tuple[int, ...]]
+    stop_after_by_test: dict[str, int] = Field(default_factory=dict)
 
 
 def frame_position_name(*, position: int, frame_count: int) -> str:
@@ -263,6 +337,40 @@ def fingerprint_display() -> tuple[FrameFingerprint, bytes] | None:
     return FrameFingerprint(width=width, height=height, digest=digest), rgb_bytes
 
 
+def configured_fps() -> float | None:
+    """Return the running engine's configured FPS: its resolved target (0 uncapped).
+
+    Returns:
+        ``options['target_fps']`` of the engine running in this context (``--target-fps``, else
+        its scene's ``TARGET_FPS``, else the default), or None when none is running.
+
+    """
+    # Imported here: the plugin loads before any test, and the engine imports a great deal
+    from glitchygames.engine import game_engine
+
+    try:
+        engine = game_engine.current_engine()
+    except game_engine.NoRunningEngineError:
+        return None
+    return float(engine.options['target_fps'])
+
+
+def display_refresh_rate() -> int | None:
+    """Return the refresh rate of the display the window is on, as pygame reports it.
+
+    Returns:
+        ``pygame.display.get_current_refresh_rate()``; None when the display is not running, or
+        on the dummy driver, whose 60 Hz is SDL's stand-in for a display that does not exist.
+
+    """
+    try:
+        if pygame.display.get_driver() == 'dummy':
+            return None
+        return pygame.display.get_current_refresh_rate()
+    except pygame.error:
+        return None
+
+
 def display_driver() -> str | None:
     """Return the video driver of the running display, if any.
 
@@ -340,6 +448,8 @@ class FrameFingerprintRecorder:
         directory: Path,
         image_request: FrameImageRequest | None,
         seed: int | None = None,
+        test_order_seed: int | None = None,
+        drawing_only: bool = False,
     ) -> None:
         """Prepare to record into a directory.
 
@@ -348,10 +458,14 @@ class FrameFingerprintRecorder:
             image_request: The frames to save as PNG files, or None for none.
             seed: Seeds each test's unseeded engine runs (``seeded_master_seed_draws``), or
                 None to leave them drawing from ``secrets``.
+            test_order_seed: The run's shuffle seed (pytest-randomly's), or None.
+            drawing_only: Record only the tests marked draws_frames.
 
         """
         self.directory = directory
         self.seed = seed
+        self.test_order_seed = test_order_seed
+        self.drawing_only = drawing_only
         self.run_driver = os.environ.get(SDL_VIDEO_DRIVER_VARIABLE)
         # The driver of the display the current test's body left (None without a display)
         self.final_driver: str | None = None
@@ -365,6 +479,13 @@ class FrameFingerprintRecorder:
         self.presented: list[FrameFingerprint | None] = []
         # The display as the current test's body left it (fingerprint and RGB bytes)
         self.final: tuple[FrameFingerprint, bytes] | None = None
+        # The present the current test was stopped after (the request's stop), or None
+        self.stopped_after: int | None = None
+        # The run facts noted at the current test's requested presents
+        self.frame_clock_at: dict[int, float] = {}
+        self.refresh_rate_hz: int | None = None
+        self.configured_fps: float | None = None
+        self.run_facts_noted = False
         # Replaces the display's present functions, and puts them back (pytest's own patcher)
         self.display_patches = pytest.MonkeyPatch()
         directory.mkdir(parents=True, exist_ok=True)
@@ -425,15 +546,37 @@ class FrameFingerprintRecorder:
             *args: PresentParameters.args, **kwargs: PresentParameters.kwargs
         ) -> None:
             nodeid = self.current_nodeid
-            if nodeid is None:
+            if nodeid is None or self.stopped_after is not None:
                 present(*args, **kwargs)
                 return
             shown = fingerprint_display()
             present(*args, **kwargs)
-            self.record_frame(nodeid=nodeid, shown=shown, position=len(self.presented))
+            position = len(self.presented)
+            if position in self.image_request.positions_by_test.get(nodeid, ()):
+                self.note_run_facts(position=position)
+            self.record_frame(nodeid=nodeid, shown=shown, position=position)
             self.presented.append(None if shown is None else shown[0])
+            if self.image_request.stop_after_by_test.get(nodeid) == position:
+                self.stopped_after = position
+                # A skip, not an error: pytest's outcome exceptions are BaseExceptions, so the
+                # engine's (and a test's) except Exception lets it through, and a skipped test
+                # fails no run
+                pytest.skip(f'its requested frames were saved by present {position}')
 
         return present_and_record
+
+    def note_run_facts(self, *, position: int) -> None:
+        """Note the frame clock at a requested present, and the run's display and FPS once.
+
+        Args:
+            position: The present's position in the test's frames.
+
+        """
+        self.frame_clock_at[position] = clock.frame_clock_seconds()
+        if not self.run_facts_noted:
+            self.run_facts_noted = True
+            self.refresh_rate_hz = display_refresh_rate()
+            self.configured_fps = configured_fps()
 
     def record_frame(
         self, *, nodeid: str, shown: tuple[FrameFingerprint, bytes] | None, position: int
@@ -473,10 +616,18 @@ class FrameFingerprintRecorder:
             To the setup.
 
         """
-        self.current_nodeid = item.nodeid
+        # A test left unrecorded (drawing only, unmarked) keeps no node id: its presents pass
+        # through unfingerprinted and it writes no record
+        records_it = not self.drawing_only or item.get_closest_marker(DRAWS_FRAMES_MARKER)
+        self.current_nodeid = item.nodeid if records_it else None
         self.presented = []
         self.final = None
         self.final_driver = None
+        self.stopped_after = None
+        self.frame_clock_at = {}
+        self.refresh_rate_hz = None
+        self.configured_fps = None
+        self.run_facts_noted = False
         self.seed_master_seed_draws(nodeid=item.nodeid)
         return (yield)
 
@@ -497,9 +648,14 @@ class FrameFingerprintRecorder:
         try:
             return (yield)
         finally:
-            self.final = fingerprint_display()
-            self.final_driver = display_driver()
-            self.record_frame(nodeid=item.nodeid, shown=self.final, position=len(self.presented))
+            # A stopped test's body did not finish: what it shows is not its final frame;
+            # a test this run does not record (drawing_only) keeps no frame
+            if self.current_nodeid == item.nodeid and self.stopped_after is None:
+                self.final = fingerprint_display()
+                self.final_driver = display_driver()
+                self.record_frame(
+                    nodeid=item.nodeid, shown=self.final, position=len(self.presented)
+                )
 
     @pytest.hookimpl(wrapper=True)
     def pytest_runtest_makereport(
@@ -519,7 +675,7 @@ class FrameFingerprintRecorder:
 
         """
         report = yield
-        if call.when == 'call':
+        if call.when == 'call' and self.current_nodeid == item.nodeid:
             frames_vary = item.get_closest_marker(FRAMES_VARY_MARKER)
             record = RecordedFrames(
                 nodeid=item.nodeid,
@@ -531,12 +687,262 @@ class FrameFingerprintRecorder:
                 frames_vary_reason=(
                     None if frames_vary is None else str(frames_vary.kwargs.get('reason', ''))
                 ),
+                stopped_after=self.stopped_after,
+                frame_clock_at=self.frame_clock_at,
+                refresh_rate_hz=self.refresh_rate_hz,
+                configured_fps=self.configured_fps,
+                test_order_seed=self.test_order_seed,
             )
             with self.records_path.open('a', encoding='utf-8') as records_file:
                 records_file.write(record.model_dump_json() + '\n')
             self.current_nodeid = None
             self.presented = []
         return report
+
+
+class FrameFingerprintsHookSpecifications:
+    """The hook the plugin asks the project's conftest for: its blank screen."""
+
+    @pytest.hookspec(firstresult=True)
+    def pytest_frame_fingerprints_blank_screen(self, size: tuple[int, int]) -> bytes | None:
+        """Return the shown RGB bytes a test leaves on a display of this size when it draws nothing.
+
+        A project whose tests start on a known picture (this suite's canvas,
+        tests/display_canvas.py) implements it in its root conftest; without an implementation
+        only presents count as drawing.
+
+        Args:
+            size: The display's width and height.
+
+        Returns:
+            The bytes (as ``opacity.shown_rgb_bytes`` reads them), or None when unknown.
+
+        """
+
+
+class DrawsFramesCheck:
+    """The plugin object that keeps the ``draws_frames`` marker true: see the module docstring.
+
+    It counts each test's presents from the start of its setup to the end of its body (through
+    wrappers on ``pygame.display.flip`` and ``update``), compares the display the body left with
+    the blank screen at its size, and, for a test whose call passed, fails it (or, report-only,
+    lists it) when the marker disagrees with what it did.
+    """
+
+    def __init__(self, *, config: pytest.Config, report_only: bool) -> None:
+        """Prepare to judge a run's tests.
+
+        Args:
+            config: pytest's configuration (for the blank-screen hook and the root directory).
+            report_only: List disagreements in the report without failing the tests.
+
+        """
+        self.config = config
+        self.report_only = report_only
+        self.report_path = config.rootpath / MARKERS_REPORT_PATH
+        # The blank screen's bytes by display size, asked of the hook once per size
+        self.blank_screens: dict[tuple[int, int], bytes | None] = {}
+        # The test being judged and its presents so far; None between tests
+        self.current_nodeid: str | None = None
+        self.present_count = 0
+        # Whether the display the current test's body left differs from the blank screen
+        self.final_differs = False
+        self.display_patches = pytest.MonkeyPatch()
+
+    def install(self) -> None:
+        """Replace ``pygame.display.flip`` and ``update`` with counting wrappers."""
+        self.display_patches.setattr(
+            pygame.display, 'flip', self.counting_present(present=pygame.display.flip)
+        )
+        self.display_patches.setattr(
+            pygame.display, 'update', self.counting_present(present=pygame.display.update)
+        )
+
+    def uninstall(self) -> None:
+        """Put back the present functions the check found."""
+        self.display_patches.undo()
+
+    def counting_present[**PresentParameters](
+        self, *, present: Callable[PresentParameters, None]
+    ) -> Callable[PresentParameters, None]:
+        """Wrap a present function so each present during a test is counted.
+
+        Args:
+            present: ``pygame.display.flip`` or ``pygame.display.update``.
+
+        Returns:
+            The wrapper.
+
+        """
+
+        @functools.wraps(present)
+        def present_and_count(
+            *args: PresentParameters.args, **kwargs: PresentParameters.kwargs
+        ) -> None:
+            present(*args, **kwargs)
+            if self.current_nodeid is not None:
+                self.present_count += 1
+
+        return present_and_count
+
+    def blank_screen(self, *, size: tuple[int, int]) -> bytes | None:
+        """Return the blank screen at a size, from the project's hook (asked once per size).
+
+        Args:
+            size: The display's width and height.
+
+        Returns:
+            The blank screen's shown RGB bytes, or None when the project does not say.
+
+        """
+        if size not in self.blank_screens:
+            self.blank_screens[size] = self.config.hook.pytest_frame_fingerprints_blank_screen(
+                size=size
+            )
+        return self.blank_screens[size]
+
+    def display_differs_from_the_blank_screen(self) -> bool:
+        """Tell whether the display shows a picture other than the blank screen at its size.
+
+        Returns:
+            False without a readable display (pygame stopped, no display mode set, an OpenGL
+            display) or a known blank screen at its size.
+
+        """
+        try:
+            display_surface = _REAL_DISPLAY_GET_SURFACE()
+            if not isinstance(display_surface, pygame.Surface):
+                return False
+            blank = self.blank_screen(size=display_surface.get_size())
+            if blank is None:
+                return False
+            return shown_rgb_bytes(surface=display_surface) != blank
+        except pygame.error:
+            return False
+
+    def disagreement(self, *, item: pytest.Item) -> str | None:
+        """Say how the test's draws_frames marker disagrees with what it did, if it does.
+
+        Args:
+            item: The test, its call just finished.
+
+        Returns:
+            The reason, or None when the marker is right.
+
+        """
+        marked = item.get_closest_marker(DRAWS_FRAMES_MARKER) is not None
+        if self.present_count:
+            drew = f'presented {self.present_count} frame(s)'
+        elif self.final_differs:
+            drew = 'left a picture other than the blank screen'
+        else:
+            drew = None
+        if drew is not None and not marked:
+            return (
+                f'draws without the {DRAWS_FRAMES_MARKER} marker ({drew}): add '
+                f'@pytest.mark.{DRAWS_FRAMES_MARKER} (a parametrized case: '
+                f'pytest.param(..., marks=pytest.mark.{DRAWS_FRAMES_MARKER}))'
+            )
+        if drew is None and marked:
+            return (
+                f'is marked {DRAWS_FRAMES_MARKER} but draws nothing (no present, and it leaves '
+                f'the blank screen): remove the marker'
+            )
+        return None
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_sessionstart(self) -> None:
+        """Empty the report at the start of the run (its controller's; workers append).
+
+        An xdist worker is told by its configuration (``workerinput``), not by the
+        environment: a pytest a worker's test runs in process inherits the worker's variables.
+        """
+        if hasattr(self.config, 'workerinput'):
+            return
+        self.report_path.parent.mkdir(parents=True, exist_ok=True)
+        self.report_path.write_text('', encoding='utf-8')
+
+    @pytest.hookimpl(wrapper=True, tryfirst=True)
+    def pytest_runtest_setup(self, item: pytest.Item) -> Generator[None]:
+        """Start counting a test's presents: its setup's count as its own.
+
+        Args:
+            item: The test.
+
+        Returns:
+            The setup's result.
+
+        Yields:
+            To the setup.
+
+        """
+        self.current_nodeid = item.nodeid
+        self.present_count = 0
+        self.final_differs = False
+        return (yield)
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_runtest_call(self) -> Generator[None]:
+        """Run the test body, then compare the display it left with the blank screen.
+
+        Only a test that presented nothing needs the comparison: a present already draws.
+
+        Returns:
+            The body's result.
+
+        Yields:
+            To the body.
+
+        """
+        try:
+            return (yield)
+        finally:
+            if not self.present_count:
+                self.final_differs = self.display_differs_from_the_blank_screen()
+
+    @pytest.hookimpl(wrapper=True)
+    def pytest_runtest_makereport(
+        self, item: pytest.Item, call: pytest.CallInfo[None]
+    ) -> Generator[None, pytest.TestReport, pytest.TestReport]:
+        """Judge a test whose call passed, and stop counting it.
+
+        Args:
+            item: The test.
+            call: The phase being reported.
+
+        Returns:
+            The report: failed, with the reason, when the marker disagrees (unless report-only).
+
+        Yields:
+            To the report's making.
+
+        """
+        report = yield
+        if call.when != 'call':
+            return report
+        self.current_nodeid = None
+        if not report.passed:
+            return report
+        reason = self.disagreement(item=item)
+        if reason is None:
+            return report
+        self.report_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.report_path.open('a', encoding='utf-8') as report_file:
+            report_file.write(f'{item.nodeid}\t{reason}\n')
+        if not self.report_only:
+            report.outcome = 'failed'
+            report.longrepr = f'{item.nodeid} {reason}'
+        return report
+
+
+def pytest_addhooks(pluginmanager: pytest.PytestPluginManager) -> None:
+    """Add the blank-screen hook a project's conftest may implement.
+
+    Args:
+        pluginmanager: pytest's plugin manager.
+
+    """
+    pluginmanager.add_hookspecs(FrameFingerprintsHookSpecifications)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -571,6 +977,30 @@ def pytest_addoption(parser: pytest.Parser) -> None:
             'they are the same in every run'
         ),
     )
+    group.addoption(
+        DRAWING_ONLY_OPTION,
+        action='store_true',
+        default=False,
+        help=f'record only the tests marked {DRAWS_FRAMES_MARKER} (every test still runs)',
+    )
+    group.addoption(
+        DRAWS_FRAMES_ONLY_OPTION,
+        action='store_true',
+        default=False,
+        help=(
+            f'run only the tests marked {DRAWS_FRAMES_MARKER} (deselect the rest): the tests '
+            'whose frames a driver comparison compares'
+        ),
+    )
+    group.addoption(
+        REPORT_ONLY_OPTION,
+        action='store_true',
+        default=False,
+        help=(
+            f'list the tests whose {DRAWS_FRAMES_MARKER} marker disagrees with what they did in '
+            f'{MARKERS_REPORT_PATH} without failing them (for marking tests in bulk)'
+        ),
+    )
 
 
 def environment_applies() -> bool:
@@ -585,10 +1015,27 @@ def environment_applies() -> bool:
     return owner in {str(os.getpid()), str(os.getppid())}
 
 
-def pytest_configure(config: pytest.Config) -> None:
-    """Register the frames_vary marker; install the recorder when asked to record.
+def judges_this_run(*, config: pytest.Config) -> bool:
+    """Tell whether this pytest's tests are judged by the draws_frames check.
 
-    Recording is asked for by ``--frame-fingerprints`` (or GLITCHYGAMES_FRAME_FINGERPRINTS);
+    Args:
+        config: pytest's configuration.
+
+    Returns:
+        True unless a test started this pytest (it configures while a test runs: pytester, a
+        tool's run), or it only collects (``--collect-only`` runs no test, and must not empty
+        the report a tool may be reading). The run's xdist workers start before any test, so
+        they are judged.
+
+    """
+    return not os.environ.get(CURRENT_TEST_VARIABLE) and not config.option.collectonly
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Register the markers; install the draws_frames check, and the recorder when asked.
+
+    The check is installed in every run a test did not start (``judges_this_run``). Recording
+    is asked for by ``--frame-fingerprints`` (or GLITCHYGAMES_FRAME_FINGERPRINTS);
     the seed by ``--frame-fingerprints-seed`` (or GLITCHYGAMES_FRAME_FINGERPRINTS_SEED).
 
     Args:
@@ -605,13 +1052,27 @@ def pytest_configure(config: pytest.Config) -> None:
         'or SDL drivers (nondeterministic, or driver-dependent by design), so the driver '
         'comparison lists it instead of comparing it',
     )
+    config.addinivalue_line(
+        'markers',
+        f'{DRAWS_FRAMES_MARKER}: the test draws (presents a frame, or leaves a picture other than '
+        'the blank screen); the driver comparison runs only these tests, and the plugin fails a '
+        'test whose marker disagrees with what it did',
+    )
+    if judges_this_run(config=config):
+        check = DrawsFramesCheck(
+            config=config, report_only=bool(config.getoption(REPORT_ONLY_OPTION))
+        )
+        check.install()
+        config.pluginmanager.register(check, name=CHECK_PLUGIN_NAME)
     directory: Path | None = config.getoption(FINGERPRINTS_OPTION)
     seed: int | None = config.getoption(SEED_OPTION)
+    drawing_only = bool(config.getoption(DRAWING_ONLY_OPTION))
     if environment_applies():
         if directory is None and os.environ.get(FINGERPRINTS_VARIABLE):
             directory = Path(os.environ[FINGERPRINTS_VARIABLE])
         if seed is None and os.environ.get(SEED_VARIABLE):
             seed = int(os.environ[SEED_VARIABLE])
+        drawing_only = drawing_only or os.environ.get(DRAWING_ONLY_VARIABLE) == '1'
     request_path: Path | None = config.getoption(IMAGES_REQUEST_OPTION)
     if directory is None:
         if request_path is not None:
@@ -632,13 +1093,43 @@ def pytest_configure(config: pytest.Config) -> None:
         directory=config.invocation_params.dir / directory,
         image_request=image_request,
         seed=seed,
+        # pytest-randomly's seed, when it shuffles this run (its option is missing when the
+        # plugin is blocked, as the project's addopts do)
+        test_order_seed=config.getoption('randomly_seed', default=None),
+        drawing_only=drawing_only,
     )
     recorder.install()
     config.pluginmanager.register(recorder, name=RECORDER_PLUGIN_NAME)
 
 
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Deselect every test not marked draws_frames, given ``--draws-frames-only``.
+
+    It runs last, after the caller's ``-m`` and ``-k`` have selected. A run left with none is
+    pytest's "no tests ran" (a targeted run may draw nothing); a driver comparison that ran none
+    is refused where it compares (a run that recorded no test: scripts/driver_frame_matrix.py,
+    BUGS.md #192), so a lost marker cannot make it agree silently.
+
+    Args:
+        config: pytest's configuration.
+        items: The collected tests (kept in place: the drawing ones).
+
+    """
+    if not config.getoption(DRAWS_FRAMES_ONLY_OPTION):
+        return
+    drawing = [item for item in items if item.get_closest_marker(DRAWS_FRAMES_MARKER)]
+    others = [item for item in items if not item.get_closest_marker(DRAWS_FRAMES_MARKER)]
+    if others:
+        config.hook.pytest_deselected(items=others)
+    items[:] = drawing
+
+
 def pytest_unconfigure(config: pytest.Config) -> None:
-    """Put back the display's present functions.
+    """Put back the display's present functions, last wrapper first.
+
+    The recorder wraps the check's wrappers (it is installed after them), so it is undone
+    first: each then puts back exactly what it found.
 
     Args:
         config: pytest's configuration.
@@ -648,3 +1139,7 @@ def pytest_unconfigure(config: pytest.Config) -> None:
     if isinstance(recorder, FrameFingerprintRecorder):
         recorder.uninstall()
         config.pluginmanager.unregister(recorder)
+    check = config.pluginmanager.get_plugin(CHECK_PLUGIN_NAME)
+    if isinstance(check, DrawsFramesCheck):
+        check.uninstall()
+        config.pluginmanager.unregister(check)

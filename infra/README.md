@@ -110,16 +110,16 @@ settings.
 8. **Budget email.** Confirm the subscription email AWS Budgets sends.
 9. **CircleCI.** Project Settings → Environment Variables: `SITE_DEPLOY_ROLE_ARN` = the deploy
    role stack's `DeployRoleArn` output. It names the AWS account, so it never goes in
-   `.circleci/config.yml`.
+   `.circleci/`'s configuration.
 10. **Check it from outside** (below).
 
 ## Publishing
 
 A merge to `main` publishes: CircleCI's `deploy-site` job runs `nox -s site-publish` once
-`test-infra` passes, at the same time as the docs deploy (`deploy-docs`, which waits for no job).
-The job first moves to main's latest commit, so an older pipeline's deploy can't put an older
-site back. `test-infra` runs `nox -s infra-test` on every branch. To publish by hand, run
-`site-publish` with your profile (above). It refuses unless HEAD is on `origin/main` and the
+`test-website-aws-infrastructure` passes, at the same time as the docs deploy (`deploy-docs`,
+which waits for no job). The job first moves to main's latest commit, so an older pipeline's
+deploy can't put an older site back. `test-website-aws-infrastructure` runs `nox -s infra-test`
+on every branch. To publish by hand, run `site-publish` with your profile (above). It refuses unless HEAD is on `origin/main` and the
 source has no uncommitted changes; `-- --allow-unmerged` publishes a branch's preview on
 purpose, and `-- --dry-run` changes nothing.
 

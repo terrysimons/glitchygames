@@ -465,6 +465,7 @@ def test_no_link_never_pins(pinning):
     pinning.assert_not_called()
 
 
+@pytest.mark.draws_frames
 @pytest.mark.usefixtures('installed_with_placement')
 def test_a_replay_never_pins(pinning, tmp_path):
     """A replay has no link: watching one leaves the process where it was."""
