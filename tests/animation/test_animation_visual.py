@@ -175,6 +175,7 @@ class TestAnimationVisual:
                 pygame.surfarray.array3d(frame.image),
             ), f'Frame {frame_index} should be shown unchanged'
 
+    @pytest.mark.wall_clock(reason='captures frames against RENDERING_PERF_LIMIT')
     @pytest.mark.draws_frames
     def test_animation_rendering_performance(self):
         """Test that animation rendering performs within acceptable limits."""

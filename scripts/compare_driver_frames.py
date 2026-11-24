@@ -18,10 +18,12 @@ Two commands:
             frame sequence differs (first differing frame, both frame counts, both outcomes),
             and the tests recorded in one of the two runs only. ``--image-request FILE`` writes
             the frames to save as PNG files in a re-run of the differing tests (a
-            ``FrameImageRequest``: each test's first differing frame and both final frames).
+            ``FrameImageRequest``: a window of frames around each test's first difference,
+            and where its re-run may stop; see ``frame_comparison.image_request_for``).
   images    Reads a re-run of those tests on two drivers (made with ``--frame-images-request``)
             and, for each requested test whose frames still differ, puts both drivers' PNG files
-            of each differing frame and a difference image (the baseline frame dimmed to grey,
+            of its first differing frame and the frames around it, and a difference image of each
+            (the baseline frame dimmed to grey,
             differing pixels magenta) in ``--output``, with the count of differing pixels.
 
 Both print a plain-text report and exit ``ExitCode.SUCCESS``: they report, they do not judge.
