@@ -53,9 +53,10 @@ The game sets no `TARGET_FPS` and no `MAX_FRAME_SECONDS`, so it runs at the engi
 
 The paddle and pause keys are bound by **scancode** (a physical key position, the same place on
 every layout: AZERTY players press `Z`/`S`). The quit keys and the pause and game-over screens'
-`Space` and `Esc` are the engine's built-in scenes' **key codes**. Gamepads only move paddles: the
-pause and game-over screens answer the keyboard only (a button press on the game-over screen just
-restarts its idle wait).
+`Space` and `Esc` are the engine's built-in scenes' **key codes**. During play a gamepad only
+moves a paddle: it has no pause button. On the pause and game-over screens a gamepad's Start or A
+and B or Back do what `Space` and `Esc` do (`gamepad_choice.py` in the built-in scenes), and on the
+game-over screen any button press also restarts the idle wait.
 
 ## Scenes
 
@@ -96,16 +97,15 @@ stateDiagram-v2
     GameOver --> [*] : Q, Esc, B or Back
 ```
 
-Pause and game over switch at the end of the frame
-:   Both set `next_scene` instead of
-    switching at once, so the scene manager switches after the frame renders. Pausing during event
-    processing would otherwise freeze the previous frame's picture (the comment on `Scene.pause()`).
-    `PauseScene` shows `previous_scene.screenshot`; `resume()` switches back to the same `Game`
-    object, so the rally goes on where it was.
+!!! note "Pause and game over switch at the end of the frame"
+    Both set `next_scene` instead of switching at once, so the scene manager switches after the
+    frame renders. Pausing during event processing would otherwise freeze the previous frame's
+    picture (the comment on `Scene.pause()`). `PauseScene` shows `previous_scene.screenshot`;
+    `resume()` switches back to the same `Game` object, so the rally goes on where it was.
 
-A new game is always a `Game`
-:   `GameOverScene.resume()` restarts the type of the scene
-    manager's `previous_scene`, which a playback scope can change (BUGS.md #81), so
+!!! note "A new game is always a `Game`"
+    `GameOverScene.resume()` restarts the type of the scene manager's `previous_scene`, which a
+    playback scope could change (BUGS.md #81, resolved: the scope now restores it), so
     `PaddleSlapGameOverScene.resume()` names `Game` explicitly.
 
 Rebuilding the game-over screen
@@ -230,7 +230,7 @@ classDiagram
 `Game` never names `PauseScene`: its pause action calls `Scene.pause()`, which it inherits, and
 that requests the engine's `PauseScene` for the end of the frame. PaddleSlap's game-over screen
 extends the engine's, adding the attract-mode demo after an idle wait and always restarting a new
-`Game` (the engine's `resume()` restarts whatever scene came before, BUGS.md #81).
+`Game` (the engine's `resume()` restarts whatever scene came before, which depends on how the screen was reached: BUGS.md #81).
 
 ### Sprites
 
@@ -293,9 +293,12 @@ The camera never moves
 :   `Game` sets no follow target and no `camera_target()`, so the
     camera stays at the origin: world and screen coordinates are the same and the balls are drawn
     exactly where their logic left them (`TestWorldBallsInTheFrame` in
-    `tests/world/test_frame_integration.py`). The balls are world sprites anyway, so the engine is
-    the only writer of their `rect`: game logic reads `world_x`/`world_y`, `drawn_center()` or the
-    collision rect, never `rect` (which holds where the ball was last drawn).
+    `tests/world/test_frame_integration.py`).
+
+!!! warning "Game logic never reads a ball's `rect`"
+    The balls are world sprites, so the engine is the only writer of their `rect`: game logic
+    reads `world_x`/`world_y`, `drawn_center()` or the collision rect, never `rect` (which holds
+    where the ball was last drawn).
 
 Pixel snapping
 :   The ball's own `pixel_snap_mode` (default `NEAREST_HALF_UP`, the scene's
@@ -306,8 +309,9 @@ Background
     the engine's test pattern.
 
 Dirty rendering
-:   All sprites live in one `pygame.sprite.LayeredDirty` (`all_sprites`). The
-    ball sets `dirty = 2` (always redrawn); paddles set `dirty = 1` every tick.
+:   All sprites live in one `pygame.sprite.LayeredDirty` (`all_sprites`). The ball and the
+    paddles set `dirty = 1` in every `dt_tick`, so they are redrawn every frame (the ball's
+    constructor also sets `dirty = 2`, which its first tick replaces).
 
 Pose
 :   Neither sprite changes its image with its state (a ball's image changes only when its
@@ -326,7 +330,7 @@ draws them). Hitboxes are the default visible-pixel trim (`src/glitchygames/coll
 
 ## One frame
 
-The engine's frame order is in the [Bitmappy page](../architecture/bitmappy.md#bootstrap-main-loop)
+The engine's frame order is in [How a frame runs](../architecture/playback/how-a-frame-runs.md)
 and `CLAUDE.md`. What PaddleSlap does inside it (the PaddleSlap box is the game's one scene class;
 the Engine box is the engine's scene manager, game objects and collision manager):
 
@@ -349,6 +353,7 @@ sequenceDiagram
     G->>B: dt_tick(dt)
     B->>B: move, wall bounce, kill() past an edge
     G->>G: _resolve_collisions()
+    G->>G: swept pass: pairs that met within the frame
     G->>CM: check_overlap('balls', 'paddles')
     CM->>G: _on_ball_paddle_collision(ball, paddle)
     G->>B: handle_paddle_collision(paddle)
@@ -408,8 +413,18 @@ The collision manager pairs overlapping collision rects (an AABB broad phase), a
 
 ### Ball versus ball
 
-`_handle_ball_collisions` ticks the per-pair cooldowns, then asks the collision manager for
-overlapping `balls`/`balls` pairs. `_on_ball_ball_collision` handles each pair:
+`_handle_ball_collisions` ticks the per-pair cooldowns, then runs a swept pass, then asks the
+collision manager for overlapping `balls`/`balls` pairs. `_on_ball_ball_collision` handles each
+pair:
+
+!!! note "Fast balls cannot pass through each other (BUGS.md #174, fixed)"
+    The end-of-frame check alone samples the balls where the frame left them, so a closing pair
+    could go from apart to crossed unseen. `_collide_balls_that_met_within_the_frame` first follows
+    each pair's path from `frame_start_world_position` (recorded by `BallSprite.dt_tick`) to its
+    end position with `first_contact_fraction`. A pair that first touched within the frame and
+    ended apart, on the same centre or crossed is put back where it touched and collided there
+    (steps 4 to 7); every other pair is left to the end-of-frame check, so play in which no pair
+    crosses is unchanged.
 
 | Step | Method | What it does |
 | --- | --- | --- |
@@ -558,10 +573,10 @@ Input mode
     `--axis-deadzone` (`ActionMap.from_engine_options`). PaddleSlap handles both families, so a pad
     works in every mode.
 
-Instance ids, not player slots
-:   SDL numbers devices in the order they appear, so the first
-    pad connected drives the left paddle; a pad that is unplugged and plugged back in gets a new
-    instance id and no longer matches its binding.
+!!! warning "Instance ids, not player slots"
+    SDL numbers devices in the order they appear, so the first pad connected drives the left
+    paddle; a pad that is unplugged and plugged back in gets a new instance id and no longer
+    matches its binding.
 
 Key repeat
 :   PaddleSlap leaves SDL's key repeat off: movement reads held state and pause
@@ -590,9 +605,12 @@ caches it.
 
 - `rally_count` counts paddle hits by any ball; it is the game's only score, shared by both
   players. `_spawn_new_ball_with_speed_check` counts the hit whatever the spawn mode.
-- At game over, `_save_high_score` loads the `high_scores` slot of the `paddleslap` save store
-  (`open_saves(app_name='paddleslap')`), appends the rally, keeps the ten best (best first) and
-  saves it. Live, that is `high_scores.json` in the platform's save directory
+- At game over, `_save_high_score` records the rally in a `HighScoreTable`
+  (`glitchygames.state.high_scores`) over the `paddleslap` save store
+  (`open_saves(app_name='paddleslap')`): it loads the `high_scores` slot, adds the rally, keeps the
+  ten best (best first) and saves it. A saved table the game cannot read is left as it is under
+  `--invalid-high-scores refuse` (the default): the error is logged and the game-over screen shows
+  this rally as a table of one. Live, that is `high_scores.json` in the platform's save directory
   (`~/Library/Application Support/paddleslap/` on macOS, `~/.local/share/paddleslap/` on Linux,
   `%APPDATA%\paddleslap\` on Windows). The game-over screen shows the final score and the top
   five.
@@ -628,8 +646,11 @@ The golden replay then adds the controls tail (`paddleslap_controls`): `Q` and `
 released, so the recording ends on the game's own `QUIT` and a replay in which either key no longer
 quits diverges.
 
-Re-record only deliberately, after finding out why a replay diverged (the commands are in the
-docstring of `scripts/record_scripted_session.py`). Replay performance for both recordings is in
+!!! warning "Re-record only deliberately"
+    Find out why a replay diverged first (the commands are in the docstring of
+    `scripts/record_scripted_session.py`).
+
+Replay performance for both recordings is in
 [Replay Performance](../quality/performance.md).
 
 ## Tests
