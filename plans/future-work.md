@@ -187,6 +187,7 @@ local branches are deleted. The decisions made on the way, for the record:
 | A tile changes the outer game's key repeat (and other window and process settings): the text-input demo's tile leaves SDL's key repeat at `(200, 200)` where the outer game had `(0, 0)` (`pygame.key.get_repeat()`, one per process). The demo's `setup()` calls `pygame.key.set_repeat(350)` and the engine's `InputBox.on_key_up_event` calls `pygame.key.set_repeat(200)` on every key release while the box is active; the outer game (the Arcade) would then get repeated KEYDOWNs for its own held keys. A replay is unaffected (it serves recorded events). The same holds, unmeasured, for SDL's other one-per-process settings an inner game can still reach (found by the branch's final review, 2026-11-12): text input start and stop (the engine's text widgets, `src/glitchygames/ui/text_widgets.py:1218, 1260, 1274, 1328, 1503, 1509`: a tile's active text box would turn the outer game's IME text input on or off), the mouse cursor's visibility (Bitmappy's canvas, `src/apps/bitmappy/src/bitmappy/animated_canvas.py:1153, 1175`), pygame's default font resolution (`pygame.freetype.set_default_resolution` in `FontManager.__init__`, `src/glitchygames/fonts/font_manager.py:307`, from the inner game's `--font-dpi`: the last `FontManager` made wins) and `os.environ.setdefault('SDL_MOUSE_FOCUS_CLICKTHROUGH', '1')` (`src/glitchygames/engine/game_engine.py:1571`, harmless once the outer engine set it) | `src/glitchygames/ui/inputs.py:195` (the engine's), `src/demos/text-input-demo/src/text_input_demo/__init__.py:69` (the demo's; no game changes), also `src/glitchygames/ui/text_widgets.py` (1220, 1262, 1275, 1329, 1504, 1511) | Found 2026-11-12 by Arcade sub-plan 3's Task 4 (the plan's Review Focus 4): `test_a_tile_leaves_the_outer_key_repeat_as_it_was[text-input-demo/typing.jsonl.gz]`, a strict xfail naming this entry; every other recording leaves it. The repeat belongs to the context that owns the window: an inner context should keep its own (a slot) and never call SDL's, the way it keeps no caption and never changes SDL's blocked event types (`events.set_event_types_allowed`); the same for text input, the cursor's visibility (a Bitmappy call: the engine would need a door for it, since no game file changes) and the font resolution. The engine's own widgets setting the repeat on every key release is worth a look on its own. |
 | The pending replay ledger is rewritten in place, its only copy of unpublished rows, so a crash or a full disk mid-write loses them | `src/glitchygames/replay/tools/measure.py` (`pending_path.write_text`) | Found 2026-11-17 sweeping for siblings of bugs/2026-11-17-ai-console-history-seen-part-written.md. Write it aside then into place (`output_files.write_aside_then_replace`). |
 | Zombies' neighborhood golden does not follow its planned route exactly: the route planner plans open-loop at exactly 1/60 s with no input lag, while the recorder keeps real frame times and input reaches the kids a frame after it is posted | `scripts/plan_neighborhood_route.py`, `src/games/zombies-aint-my-neighbors/tests/test_zombies_aint_my_neighbors_golden_route.py` (`test_the_committed_route_is_still_the_plan`) | Found 2026-11-19 by feature 13's Task 3 (plans/2026-11-19-zombies-aint-my-neighbors-13-attract-demo.md), where the same flaw made the demo's first recording rescue one neighbor and never clear (the demo now steers live). The golden still reaches stage 2 (tested), but the route test checks only the plan, not the recording. Steer it live as the demo does, or model the lag and frame times, then re-record (a reviewed step). |
+| `test_the_trimmer_hands_freed_heap_back_to_the_system` released too little heap twice on CircleCI's Linux machine 1, fixed order: 13.8 MB and 11.7 MB against the 32 MB it requires, at an RSS of about 470-480 MB (jobs 4720 and 4726, #269 and #270, 2026-11-22). It passed in the 37 Linux runs before it and on #269 once main was merged in (1386fcb2) | `tests/test_garbage_collection.py` | Not reproduced. Machine 1's whole file sequence (with the extra `tests/sprites/test_compiled_sprites.py`) replayed serially in a fresh `cimg/python:3.15.2` container (arm64, 2 GB, coverage on), with the test instrumented to record RSS, `mallinfo2`, the brk and the 16k blocks' addresses at four steps (start, allocated, freed, trimmed): 16302 of 16384 blocks sat back to back and the trim released 64.4 MB, so heap holes left by earlier tests did not scatter them (the fragmentation hypothesis). Not measured: CI's amd64 heap layout, its host's transparent huge pages and its kernel. If it fails again: replay under amd64 emulation, or print the same four-step record from CI's machine itself. |
 
 ## Engine roadmap (already in `plans/engine-audit.md`)
 
@@ -689,6 +690,14 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
     Content-Security-Policy possible.
   - To brainstorm: build from source or vendor release files; where the build runs (CircleCI
     beside the pygame-ce WebAssembly wheel); version pinning; the bundle size it adds to the site.
+- **Ideas from pygodide** (the owner, 2026-11-22; PyPI 0.1.0, github.com/Elan456/pygodide; we
+  don't need the tool itself: it is build tooling over Pyodide, which we already run on through
+  PyScript, and its 2.5x frame-rate claim is against pygbag's runtime, not Pyodide's).
+  - A headless-browser check that every browser build loads and reaches its first frame. Ours
+    has the pieces but not the check: `scripts/measure_browser_frames.py` builds one game, loads
+    it in headless Chrome, waits for the game to say it is ready and collects frames, run by
+    hand per game; no CI job or test runs every build through it.
+  - itch.io packaging (a zip of the bundle), if wanted.
 - **Website follow-ups from the build's final review** (2026-10-28; minors, deferred):
   - Missing files answer with S3's 403 XML: add a CloudFront error response (403 → a 404 page).
   - `glitchy_site.publish`: upload non-HTML files before HTML (a page could land before its
@@ -1090,6 +1099,26 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   drawn. Pairs well with converting it to sprites (above), but neither waits on the other.
 
 ## Performance and pacing
+
+- **Sprites that still redraw every frame** (2026-11-21, after `fix/static-sprites-full-screen-update`
+  stopped every scene marking every sprite dirty each frame; the rule is in
+  docs/architecture/playback/how-a-frame-runs.md, "What is drawn again"). Dirty sprites at draw,
+  per frame, before and after, from every golden and demo: Bitmappy 35 to 14, Clockwork Keep 19 to
+  7, the joystick demo 42 to 26, Zombies' neighborhood 59 to 42 (all from the engine fix). What is
+  left is each game's own marks:
+  - Mr. Muncher: 255 of 255 (its sprockets, pictures and side panels; dev session 53's stacked
+    `perf/mr-muncher-dirty-sprites`).
+  - Brave Adventurer: 92 to 91 (classic) and 83 (papyrus): its own sprites are `dirty = 2` or
+    re-marked every frame, the same shape as Mr. Muncher's. Not triaged.
+  - Zombies Ain't My Neighbors' title: its five `TextPicture`s are `dirty = 2` (about 66,600
+    pixels alpha-blended a frame, 0.35-0.4 ms in Chrome); `dirty = 1` with a mark in
+    `show_image`, after the font helpers move into the engine
+    (plans/2026-11-20-game-code-into-the-engine.md, sub-plan 1).
+  - The wall-clock win was not measured: the load average was about 70 on 2026-11-21 and draw
+    times swung by 30%. Measure on a quiet machine or from the replay ledger.
+  - The full-repaint sweep excludes Brave Adventurer's and Clockwork Keep's HUD strip (score text
+    blitted straight onto the screen, moved into sprites by the game-code plan) and all of Drawing
+    Fire (its conversion to sprites, in this file); drop each exclusion when its work lands.
 
 - **Give the replay-ledger rows a home outside git** (the owner, 2026-11-22: "We're pushing too
   many large-ish files up, and I really don't want to use lfs - we'll push them to s3 or
@@ -1634,12 +1663,20 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
     past B101's filter. No list of files still to do is kept in the code (a saved ratchet guard
     is in the gitignored `build/assert-sweep-final-step/` of the
     `glitchygames-assert-replacement-engine` worktree; keep it when that worktree is removed).
-  - Progress (2026-11-20): `InnerGame`'s three (#246) and 78 in 27 engine
-    files (`fix/assert-replacement-engine`) are done; one, in `audio/assets.py`'s pitch check,
-    could fire in normal use (a `Note` or `Midi` pitch in a Python-built table) and is now a
-    `ValueError`. Left (counted by `ast`, 2026-11-20): `scenes/` 25 (its `_run_scene_frame`
-    assert fires when a scene ends before `run_frame`), Bitmappy 35, games and demos 14,
-    `scripts/` 43.
+  - Progress (2026-11-21): done are `InnerGame`'s three (#246), 78 in 27 engine files (#259;
+    one, in `audio/assets.py`'s pitch check, could fire in normal use, a `Note` or `Midi` pitch
+    in a Python-built table, and is now a `ValueError`), Bitmappy's (#258) and `scripts/` 43 in
+    17 files (`fix/assert-replacement-scripts`; `ai_query_inspector.py`'s button labels had
+    never shown: each was centred on the button's screen position, then drawn on the button's
+    own small image, so it fell outside it). Left (counted on main, 2026-11-21): `scenes/` 25
+    (its `_run_scene_frame` assert fires when a scene ends before `run_frame`), games and
+    demos 14 (Drawing Fire 4, Brave Adventurer 4, Paddle Slap 2, Clockwork Keep 2, Mr. Muncher
+    1, the text-input demo 1).
+  - To do, found in the `scripts/` sweep: `scripts/gen_ref_pages.py`'s
+    `load_workspace_packages` and `scripts/mkdocs_hooks.py`'s `load_script` are two copies of
+    one "load a sibling script as a module, once" function (each now raises `ImportError` for a
+    file that isn't a module). Make it one shared function; both run inside a docs build, so
+    the shared home must be importable there.
 - **Stereo synthesis** (the owner, 2026-11-15: "couldn't we make them stereo since we own the
   sound waves?"; its own branch, after the sound migration). The renderer makes mono samples
   and every sound, live and baked, pans by the constant-power law (`voices.constant_power_gains`,
@@ -1724,6 +1761,33 @@ drafted issue text. Not posted yet:
   module docstrings; promoting the cheap checks to tests; the closing build and suite), after the
   Material formatting below. The plan's "Status and handoff (2026-11-09)" has the next step,
   the claims left to clear and the working notes.
+- **Root files: consider retiring or folding each into `docs/`** (step 3's reading, 2026-11-22).
+  The owner's decision: retire nothing yet, because some of these files are the only
+  architecture record of features and tools still to be ported. What the reading found, for
+  when that is reconsidered:
+  - `BITMAPPY_ARCHITECTURE.md`: a seven-line pointer to `docs/architecture/bitmappy.md`, which
+    holds every diagram; nothing outside `plans/` cites it. Candidate to retire.
+  - `CONTROLLER_CONTROLS_README.md`: `docs/multi_controller_system.md` has the colors,
+    architecture and usage and sends readers here for the bindings (its line 37); only the
+    per-mode buttons, trigger threshold and debounce and keyboard shortcuts are unique.
+    Candidate to fold into a Controls section there. Stale: its line 87 says no button toggles
+    the fill direction, but a left-stick click does (`bitmappy/controllers/strategies.py`
+    `_handle_left_stick_click`, `ControllerSelection.toggle_fill_direction`). Its "Advanced
+    Features" and "Future Improvements" sections describe nothing the code does. Cited by
+    `CLAUDE.md` (the Bitmappy section).
+  - `ANIMATION_README.md` and `LOADER_README.md`: the only prose spec of the sprite TOML format
+    (keys, color modes, timing, troubleshooting) and the only guide to adding a format.
+    Candidates to fold together into one "Sprite files" page under `docs/architecture/`, with
+    the API listings left to the mkdocstrings page. Stale or missing: the `[sprite]` keys omit
+    `profile` and `color_space` (`sprites/sprite_toml.py` `SPRITE_KEYS`; the color-profiles
+    plan part 2 already plans that update), and the add-a-format steps omit the load-time
+    schema every format must pass (`sprites/sprite_file_schema.py`), `sprite_toml.py`,
+    `sprite_text.py` and `SpriteFactory.load_sprite_from_text`. Cited by `CLAUDE.md` (the
+    sprites section) and by eight docstrings ("See LOADER_README.md": `sprites/animated.py`,
+    `factory.py`, `bitmappy_sprite.py`).
+  - `API_README.md`: current (every route, variable, limit and client flag checked) and the
+    only full reference for the AI sprite API; `README.md` keeps a summary. Candidate to fold
+    into a `docs/architecture/` page, or keep at the root.
 - **Format the docs site in Material** (the owner, 2026-11-09: goes first, page by page, ahead of
   the scrub's reading pass). The pages stay markdown, written with Material's markdown
   conventions (admonitions, content tabs, titled and annotated code blocks, collapsible

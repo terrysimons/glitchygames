@@ -241,7 +241,9 @@ A recording is a gzip JSON Lines trace (format version 3; versions 2 and 3 can b
 header line, then exactly one line per main-loop frame. Each frame holds its `dt`, every event
 batch the engine read from SDL's queue (each event tagged `external` or `internal`) and the
 sprites. Format 3 adds per-frame `input_changes`, `control_events`, `devices_opened`,
-`saves_opened`, `device_enumeration` and `scene_start` (each written only when not empty). The
+`saves_opened` and `device_enumeration`; later recordings add `scene_start` and
+`redelivered_events`, which needed no format version (readers pass fields they do not use
+through). Each is written only when not empty. The
 header holds the game, scene and versions, every option, the start time, the random seed, and the
 saves and devices the run took in before recording started. The full format is described in the
 `src/glitchygames/recording.py` module docstring.
@@ -350,6 +352,10 @@ report gives it, then `then the run ended with ...` (see
 [exit codes](#exit-codes)). The game's own successful exit (`sys.exit(0)`) before the replay
 reached its result exits `REPLAY_DIVERGED` (1), never `SUCCESS`, which would say it matched
 (a rebaseline takes it as the game ending early instead: below).
+A replay under another seed (`--random-seed N`, not the recording's) is the exception: it plays
+the recording's inputs out under that seed, never stops at a difference, writes nothing and exits
+`SUCCESS` whatever it found, its report the summary of what differed (rule 19 of
+`src/glitchygames/replay/driver.py`); a `--rebaseline` under that seed writes NEW under it.
 A recording whose header or first frame cannot be decoded (a malformed device, saves or input
 field) is refused as unusable (`UNUSABLE_INPUT`, 65), like an unreadable file.
 
@@ -403,7 +409,7 @@ about eight, 1/4x one every fourth tick. Which frames run when never changes wha
 watched replay is exactly as exact as a headless one.
 
 It first runs frame 0, then holds on a start screen: that frame dimmed, "Press Spacebar to Start
-Game Replay" centred, and a smaller line naming the debug overlay's keys (`F3: debug overlay
+Game Replay" centered, and a smaller line naming the debug overlay's keys (`F3: debug overlay
 F4: next panel`). Frame 0's sounds play before Space, and a one-frame recording reaches its end
 at the start screen. The screen is drawn by the pause screen's `MessageScreen`
 (`src/glitchygames/ui/message_screen.py`) with its own message and look, as an overlay on the
@@ -419,14 +425,14 @@ then after 300 ms ten times a second:
 | `.` | While paused, run one frame |
 | `,` | While paused, step back one frame (held: one more frame back per repeat, restarting once on release) |
 | Home | Restart at the beginning, paused after frame 0 |
-| D | Restart just before the divergence, once the replay has found one |
+| D | Restart just before the divergence, once the replay has found one (not in a replay under another seed, whose differences are no divergence) |
 | `]` / `[` | Double or halve the playback speed (0.25 to 8) |
 | B | Bookmark the frame shown in the status bar |
 | S | Save a copy of the recording with the bookmarks as breakpoints |
 | Esc | Quit the replay |
 | F3 / F4 | Toggle the debug overlay / show its next panel |
 
-A status bar at the bottom centre shows `frame 6120 / 9800 · 1:42.0 · ×1 · paused · diverged at
+A status bar at the bottom center shows `frame 6120 / 9800 · 1:42.0 · ×1 · paused · diverged at
 6120` (the parts that apply), drawn on the presented frame after the debug overlay, so it is never
 in a screenshot or a trace. At a divergence or the end of the recording the replay pauses with
 the debug overlay on and a banner above the status bar (`Diverged at frame 6120: ...` or `End of
@@ -528,10 +534,10 @@ both runs together, and only one OLD frame is held in memory. Stepping back (or 
 restarts the child at the same frame as the restarted replay; the child rebuilds alongside the
 replay's own rebuild.
 
-- **OLD shorter than NEW:** OLD's last frame stays, labelled `OLD ended at frame N`. OLD that
+- **OLD shorter than NEW:** OLD's last frame stays, labeled `OLD ended at frame N`. OLD that
   diverges on the current code stops at its divergence, so it ends there (the log says why).
 - **NEW shorter than OLD:** the replay ends as usual, and the child is stopped.
-- **OLD stalls** (its child sends nothing for a minute): OLD ends there, labelled and logged as
+- **OLD stalls** (its child sends nothing for a minute): OLD ends there, labeled and logged as
   above, the child is stopped, and NEW's replay goes on.
 - **The same recording under another seed** shows what the seed changes:
   `--replay-trace OLD --random-seed 7 --compare-trace OLD` draws OLD's own run over its run under
@@ -564,7 +570,7 @@ The seed
     unless `--random-seed N` is given. The log names the seed either way.
 
 OLD shorter than your play
-:   OLD's last frame stays, labelled `OLD ended at frame N`, and
+:   OLD's last frame stays, labeled `OLD ended at frame N`, and
     play goes on. The child is stopped when the game quits, fails or is interrupted.
 
 Refused before anything runs
@@ -614,8 +620,9 @@ Fresh processes and different hash seeds make set and dict ordering bugs show up
 The audit compares only what the replay samples: the scene class and each sprite's `rect`,
 `visible` and draw order. Pixels, audio and game state that never moves, hides or reorders a
 sprite are not compared. It is refused (`OPTIONS_REFUSED`, 64) with `--replay-fps real`, under
-`python -E` or `-I` (which would keep `PYTHONHASHSEED` from reaching the children) and without
-`--replay-trace`. A truncated recording is refused before the children start
+`python -E` or `-I` (which would keep `PYTHONHASHSEED` from reaching the children), under
+another seed than the recording's (`--random-seed N`: nothing is compared, so there is nothing to
+audit) and without `--replay-trace`. A truncated recording is refused before the children start
 (`UNUSABLE_INPUT`, 65): an audit needs the whole recording.
 
 ## Exit codes
@@ -754,14 +761,15 @@ own hash, for any run, is derived from its frames' hashes:
 `recording_content_hash(frames=..., run_index=i)`; it is not stored.
 
 Neither history is compared by a replay or served to the game. They are the record the
-baselines in the repository keep: behaviour (hashes) and speed (processing times) over time.
+baselines in the repository keep: behavior (hashes) and speed (processing times) over time.
 
 ## Golden replays
 
 Each game's workspace member holds a recorded session of it in
 `<member>/tests/fixtures/replays/golden.jsonl.gz` (PaddleSlap, Clockwork Keep, Mr. Muncher and
 Drawing Fire; both Brave Adventurer editions as `golden-classic.jsonl.gz` and
-`golden-papyrus.jsonl.gz`).
+`golden-papyrus.jsonl.gz`; Zombies Ain't My Neighbors as `golden.jsonl.gz` and
+`golden-neighborhood.jsonl.gz`).
 `scripts/record_scripted_session.py` recorded them through the real engine loop (on the
 engine's scripted-session recorder, the `record-session` tool below, with our games' input
 scripts and controls tails from `scripts/golden_inputs.py`), with a
@@ -774,7 +782,9 @@ replay, or be listed in `UNEXERCISED_CONTROLS` with the reason (gamepad controls
 session has a gamepad). Each recording is a test item of its own:
 the pytest plugin `src/glitchygames/testing/replays.py` (registered by the engine's `pytest11`
 entry point, `glitchygames.testing.replays`, in every pytest run with glitchygames installed) collects
-every `.../fixtures/replays/<console-script>/<name>.jsonl.gz` as `<console-script>/<name>`,
+each recording as `<console-script>/<name>` from either of two layouts: a workspace member's
+`<member>/tests/fixtures/replays/<name>.jsonl.gz` (ours: the member's console script replays it),
+or another project's `.../fixtures/replays/<console-script>/<name>.jsonl.gz`. It
 replays it headless in a child process through the console script's entry point
 (`--replay-trace PATH --headless`) and fails, with the exit code and the child's output (the
 divergence report), unless it exits `ExitCode.SUCCESS`. A directory that is not a console script
@@ -801,7 +811,8 @@ writes what that code did to NEW: the same inputs and a new picture. The contrac
   (code-posted events stay `internal`, so replaying NEW delivers nothing twice), `dt`,
   `input_changes`, re-applied control events, and each frame's `saves_opened`,
   `devices_opened` and `device_enumeration` copied from OLD. Its sprites and markers are the
-  current code's. Its header is OLD's (seed, start time, options, saves, devices) with
+  current code's. Its header is OLD's (seed, start time, options, saves, devices), except the
+  game's names (`game_class`, `game_module`, `game`), which are this run's, with
   `rebaselined_from` naming OLD and this run's engine, pygame and Python versions.
 - A cut-off (truncated) OLD gives NEW `source_truncated`: NEW ends as truncated too, so its
   replay exits `UNUSABLE_INPUT` (65) at the cut-off, `--audit` refuses it, and it cannot be a
@@ -847,6 +858,43 @@ truncated OLD gives a truncated NEW, whose replay matches up to its cut-off and 
 `UNUSABLE_INPUT` (65) like any truncated recording. Replacing a golden fixture with it stays a
 deliberate, reviewed step: read the summary, check the change is the intended one, then move
 NEW over the fixture yourself.
+
+### A reviewed re-record (`scripts/check_rebaselined_recordings.py`)
+
+When a change is meant to alter recordings (new sprites in a scene's group, say), the
+recordings are re-recorded by rebaseline, never by a fresh session: a fresh recording's `dt`
+comes from real time, so it never matches the one it replaces, while a rebaseline replays OLD's
+inputs and `dt`, so every difference between OLD and NEW is the code's. Before NEW replaces
+OLD, the check proves that the change altered only what it was meant to:
+
+1. Rebaseline each recording into a scratch folder, keeping OLD where it is.
+2. Write a plan (TOML) naming each pair and what may differ: new sprite ids, new internal
+   event types, named header or frame fields with a reason each, and the tests the change adds,
+   renames or removes, which run in only one of the two suites in step 3 (the script's
+   docstring has the format). Write Windows paths in single quotes or with forward slashes: in
+   double quotes TOML reads their backslashes as escapes.
+3. Record the suite's frames under the frame fingerprints plugin on the commit before the
+   change and on the change (`pytest -p glitchygames.testing.frame_fingerprints
+   --frame-fingerprints DIR`).
+4. Run the check:
+
+```bash
+uv run python -m scripts.check_rebaselined_recordings --plan PLAN.toml \
+    --fingerprints-before BEFORE --fingerprints-after AFTER
+```
+
+The pixel step is required: an allowed sprite's records are not compared, so a new sprite one
+pixel off would pass the recordings' part, and the frames are what show where it is drawn. It
+fails (exit 1) on any difference the plan does not name, on an allowance that matched nothing,
+on any test whose frames differ between the two runs, and on a test in one run only that
+the plan does not name; its report counts every allowed difference per recording and the
+frames it compared, which goes in the PR. The
+comparison is `src/glitchygames/replay/recording_differences.py`, whose docstring says what it
+compares and what it leaves out (the measurement histories, the header fields a rebaseline
+rewrites; custom events compare by name, as a rebaseline renumbers them). Prove the check can
+fail on the change before citing its pass: plant a defect in a copy of NEW (a sprite moved a
+pixel, a dropped internal event) and watch it go red. Only then move each NEW over its OLD, in
+a commit of its own.
 
 ## Tools for any game
 
@@ -897,7 +945,7 @@ own git repository.
 | `clear-published` | no | `--clear-published [--pending PATH]` | `glitchygames clear-published [--pending PATH]` |
 | `report` | no | `--report PATH [--threshold PERCENT] [--minimum-ms MS] [--spans N]` | `glitchygames report PATH` with the same options |
 | `performance-pages` | no | `--performance-pages DIRECTORY [--published]` | `glitchygames performance-pages DIRECTORY [--published]` |
-| `sound-render` | no | `--sound-render SOURCE --sound-output PATH [--sample-format int16\|float32]` (SOURCE: `sounds/pickups.toml#coin` or a WAV file; offline, no audio device) | `glitchygames sound-render SOURCE` with the same options |
+| `sound-render` | no | `--sound-render SOURCE --sound-output PATH [--sample-format int16\|float32]` (SOURCE: `sounds/pickups.toml#coin` or a WAV file; offline, no audio device; `int16` by default; prints `wrote PATH: N frames at R Hz, peak P, C samples clipped`; exit 66 for a missing source, 65 for one that cannot be compiled, 73 when the output cannot be written) | `glitchygames sound-render SOURCE` with the same options |
 | `sound-migrate` | no | `--sound-migrate FILE [--migrated-output PATH]` (a version 0 recipe file to version 1, default `<stem>.v1.toml` beside it, never over FILE) | `glitchygames sound-migrate FILE [--migrated-output PATH]` |
 | `sound-cache-list` | no | `--sound-cache-list` (the game's own sound cache folders) | `glitchygames sound-cache-list [--game GAME ...]` (default: the whole cache root) |
 | `sound-cache-size` | no | `--sound-cache-size` | `glitchygames sound-cache-size [--game GAME ...]` (default: the whole cache root) |
@@ -1014,14 +1062,14 @@ by the tool that writes it, or reported; it is never a traceback.
 
 | Key | Default | Ours (the root `pyproject.toml`) |
 |---|---|---|
-| `games` | the project's `[project.scripts]` | the ten members' console scripts |
+| `games` | the project's `[project.scripts]` | the eleven members' console scripts |
 | `golden-globs` | `["tests/fixtures/replays/**/*.jsonl.gz"]` | `["src/*/*/tests/fixtures/replays/golden*.jsonl.gz"]` |
 | `ledger-directory` | `"replay-ledger"` | `"quality/replay-ledger"` |
 | `pending-ledger` | `".glitchygames/pending-ledger.jsonl"` | `"test-results/replay-metrics/pending.jsonl"` |
 | `published-ledger` | none (nothing published) | `"origin/gh-pages:quality/metrics/replay-ledger.jsonl"` (`REF:PATH`) |
 | `landed-ref` | `"origin/main"` | `"origin/main"` |
 | `measured-paths` | `["src", "tests/fixtures/replays", "pyproject.toml"]` | the same, and `uv.lock` |
-| `unmeasured-paths` | `[]` | the members' `tests/`, but for their `tests/fixtures/replays/` |
+| `unmeasured-paths` | `[]` | the members' `tests/`, but for their `tests/fixtures/replays/`, and the website (`src/website/`: it runs no game) |
 | `recording-renames` | `{}` | each moved recording, old path to new (one hop: refused if a new path is itself an old one; each new path must exist, `tests/test_our_stored_paths.py`) |
 | `game-timeout-seconds` | `3600` (an hour) | the default |
 
@@ -1115,9 +1163,10 @@ demo (`scripts/record_scripted_session.py --script-only --output PATH` records o
 game's golden script).
 
 Bundled demos are recordings shipped in a game's package as package data,
-`<package>/demos/<name>.jsonl.gz`. Every Arcade tile has one, ten in all: PaddleSlap's
+`<package>/demos/<name>.jsonl.gz`; the Arcade plays one on a tile and loops it. Every member but
+the Sound Board demo has one, eleven in all: PaddleSlap's
 `paddleslap/demos/rally.jsonl.gz`, which its game-over screen plays after 10 seconds without a
-press; Clockwork Keep's `climb`; Brave Adventurer's `classic` and `papyrus` (both in its
+press; Clockwork Keep's `climb`; Zombies Ain't My Neighbors' `neighborhood_four_kids`; Brave Adventurer's `classic` and `papyrus` (both in its
 launcher's package, `brave_adventurer_modes/demos/`, whose console script replays the edition
 each header names); Mr. Muncher's `chase`; Drawing Fire's `battle`; Bitmappy's `drawing` (a
 smiley drawn on the canvas); the dt demo's `timing`, the text-input demo's `typing` and the
@@ -1133,7 +1182,7 @@ Every recipe records without a controls tail, under the goldens' seed, at 800x48
 service reachable and no real pad (the session's AI install root is an empty directory and SDL's
 joystick drivers are off). The games reuse their golden scripts' frames up to the controls tail;
 the demos and Bitmappy have their own scripts in `scripts/demo_inputs.py`. A demo must end with
-nothing held (no key, mouse or pad button down, every pad axis at rest and every hat centred),
+nothing held (no key, mouse or pad button down, every pad axis at rest and every hat centered),
 since the Arcade loops it, and stay at most 256 KB; `tests/replay/test_bundled_demos.py` checks
 both on the committed files. Re-record a demo only deliberately, as a golden. The engine finds them, for any tool or
 installed game, with `glitchygames.bundled_demos.bundled_demos()`: each `BundledDemo` (a frozen
@@ -1169,7 +1218,7 @@ which `instant_replay()` returns `False`; longer scenes would need state snapsho
 `INSTANT_REPLAY_SECONDS` of frame time unseen, unpaced and silent, shows the rest at the game's
 pace with their sounds, then the live scene goes on exactly where it was. The player's presses
 do not end it. To let the player skip it, read the player's input in a supervisor and end the
-playback there (`end_playback()` is honoured only from a supervisor or between frames):
+playback there (`end_playback()` is honored only from a supervisor or between frames):
 
 ```python
 class SkipReplayOnPress:

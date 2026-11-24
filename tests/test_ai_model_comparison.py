@@ -8,6 +8,7 @@ from threading import Thread
 from typing import Any, ClassVar
 
 import pytest
+from pydantic import ValidationError
 from scripts.ai_model_comparison import (
     FACT_KINDS,
     STRUCTURED_KIND,
@@ -93,6 +94,12 @@ def test_every_question_is_well_formed(question):
     assert question.kind in {*FACT_KINDS, STRUCTURED_KIND}
     assert question.turns
     assert question.required or question.does_not_know or question.expected_json
+
+
+def test_a_question_needs_at_least_one_turn():
+    """With no turn there is nothing to ask, so loading the question refuses it."""
+    with pytest.raises(ValidationError, match='turns'):
+        question_with(turns=())
 
 
 def test_saying_it_does_not_know_fails_a_question_with_an_answer():

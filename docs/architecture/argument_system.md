@@ -25,11 +25,11 @@ sequenceDiagram
 
     INIT->>PARSER: ArgumentParser("Bitmappy version 1.0")
     INIT->>ENGINE: GameEngine.args(parser)
-    Note over ENGINE: Layer 1<br/>Graphics Options (15)<br/>Diagnostics Options (15, 2 hidden)
+    Note over ENGINE: Layer 1<br/>Graphics Options (20)<br/>Diagnostics Options (62, 3 hidden)
     loop for each of the 12
         ENGINE->>MANAGERS: manager.args(parser)
     end
-    Note over MANAGERS: Layer 2, in this order<br/>App, Audio, Controller (1), Drop,<br/>Font (7), Game (4), Joystick, Keyboard,<br/>Midi, Mouse, Touch, Window<br/>(the 9 without a count add empty groups)
+    Note over MANAGERS: Layer 2, in this order<br/>App, Audio, Controller (2), Drop,<br/>Font (7), Game (4), Joystick, Keyboard,<br/>Midi, Mouse, Touch, Window<br/>(the 9 without a count add empty groups)
     INIT->>PARSER: add_argument_group("Bitmappy v1.0 Options")
     INIT->>GAME: BitmapEditorScene.args(group)
     Note over GAME: Layer 3<br/>-v, -s
@@ -58,9 +58,10 @@ flowchart TB
     L1 --> L2 --> L3
 ```
 
-In `--help` (Bitmappy's or Paddle Slap's) the groups hold 15 Graphics, 15 Diagnostics (2 more
-hidden), 1 Controller, 7 Font and 3 Game options, then the game's own; the nine empty groups
-are left out. The [Complete Flag Reference](#complete-flag-reference) lists them all.
+In `--help` (Bitmappy's or Paddle Slap's) the groups hold 20 Graphics, 59 Diagnostics (3 more
+hidden), 2 Controller, 7 Font and 4 Game options, then the game's own; the nine empty groups
+are left out. Most of the Diagnostics options are the recording, replay and measurement tools'
+([Tool flags](#tool-flags)). The [Complete Flag Reference](#complete-flag-reference) lists them all.
 
 ## How Games Add Arguments
 
@@ -97,7 +98,8 @@ class MyGame(Scene):
     def args(cls, parser):
         parser.add_argument(
             '-v', '--version',
-            action='store_true',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
             help='print the game version and exit',
         )
 ```
@@ -117,13 +119,26 @@ class TimedDemo(Scene):
         )
         parser.add_argument(
             '-v', '--version',
-            action='store_true',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
             help='print the game version and exit',
         )
 ```
 
 Note that the game receives an **argument group**, not the root parser. This means
 game arguments appear under their own heading in `--help` output.
+
+!!! warning "Use `action='version'` for `-v`, not `store_true`"
+    argparse's `version` action prints the version and exits while parsing, before the game
+    builds anything. A `store_true` flag only sets an option nothing reads, so `-v` would do
+    nothing (BUGS.md #178 items 25 and 31 fixed the demos that did this).
+
+!!! warning "A game's flag may not clash with an engine flag"
+    Every game inherits the engine's flags, including every tool's flag and option
+    (`--force`, `--only`, `--resolution`, ...). A game argument that reuses one is refused before
+    anything runs: the process exits `ExitCode.OPTIONS_REFUSED` with a message naming the flag
+    (`reserved_flag_refusal`), not argparse's traceback. It fails every run of that game, not
+    only the tool's.
 
 ## OPTIONS Dictionary Flow
 
@@ -200,13 +215,13 @@ Added by `GameEngine.args()` in `src/glitchygames/engine/game_engine.py`.
 - `-f, --target-fps TARGET_FPS` (`float`): cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
 - `--fps-log-interval-ms FPS_LOG_INTERVAL_MS` (`float`): how often to log the FPS counter in ms (default: 1000)
 - `-w, --windowed, --no-windowed` (`bool`): run in a window; --no-windowed runs fullscreen (default: windowed)
+- `--ai, --no-ai` (`bool`): connect to the local AI service if it is installed, starting its models as the game loads; --no-ai never touches it (default: on, but never with --headless or in a replay)
 - `-r, --resolution RESOLUTION` (`str`): the resolution to use (default: 800x480)
 - `--use-gfxdraw` (`store_true`, default `False`): not used yet: stored, but nothing draws with pygame.gfxdraw because of it
 - `--update-type {update,flip}` (`choice`): update or flip (default: update)
 - `--timer-backend {auto,fast,pygame}` (`choice`): timer backend for draw loop pacing (default: auto, the fast backend with this machine's sleep delay measured, so each sleep wakes in time; fast assumes sleeps wake on time; pygame is the legacy backend)
 - `--sleep-granularity-ns SLEEP_GRANULARITY_NS` (`int`, default `1000000`): how long before each frame deadline the fast backend is to wake from its sleep and spin (ns); 0 spins only
 - `--windows-timer-1ms` (`store_true`, default `False`): on Windows, request 1ms system timer resolution
-- `--random-seed RANDOM_SEED` (`int`): master seed for every engine random stream (default: a random 64-bit seed, logged in recordings)
 - `--screen-shake-intensity SCREEN_SHAKE_INTENSITY` (`float`): screen shake strength from 0.0 (off) to 1.0 (default: 1.0)
 - `--rumble-intensity RUMBLE_INTENSITY` (`float`): controller rumble strength from 0.0 (off) to 1.0 (default: 1.0)
 - `--live-voice-pool LIVE_VOICE_POOL` (`int`): mixer channels reserved for real-time synth voices (default: 4)
@@ -214,7 +229,7 @@ Added by `GameEngine.args()` in `src/glitchygames/engine/game_engine.py`.
 - `--sound-cache {none,ram,disk}` (`choice`, default `disk`): how compiled sounds are kept: none (compiled again at every play), ram (in memory) or disk (in memory and in the game's own cache folder, `<root>/<game package>/sounds/<render version>/`, so a later launch compiles nothing; `GLITCHYGAMES_SOUND_CACHE_ROOT` names the root: unset is the platform's cache folder, empty is no disk layer, which runs as ram; in the browser the root is IndexedDB-backed, so sounds outlive the page). Replay-local: a recording replays under any mode
 - `--sound-cache-memory MB` (`int`, default `256`): megabytes the ram sound cache may hold before the least recently played idle sounds go
 - `--crt-power-on-sound {on,off}` (`choice`, default `on`): play the CRT power-on sequence with its sound
-- `--crt-power-on {auto,on,off}` (`choice`, default `auto`): show the game's canvas switching on like a CRT before the game starts: auto (default: when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off
+- `--crt-power-on {auto,on,off}` (`choice`): show the game's canvas switching on like a CRT before the game starts: auto (when someone can see it, so not on SDL's dummy driver or before a replay, audit, rebaseline or recording), on (always; refused with a replay or a recording) or off. Not given: the `GLITCHYGAMES_CRT_POWER_ON` environment variable (the test harness sets it to `off`, `tests/sdl_defaults.py`), else auto
 - `--default-background {test-pattern,channel-3}` (`choice`): the background of a scene that sets none: the TV test pattern or the channel 3 blue screen (default: test-pattern)
 - `--video-driver {cocoa,offscreen,dummy}` (`choice`, default `None`): SDL's video driver for the display (sets SDL_VIDEODRIVER for the run; default: SDL_VIDEODRIVER's own value, then Wayland on a Linux Wayland session, then SDL's choice; --headless overrides it)
 
@@ -232,9 +247,14 @@ Added by `GameEngine.args()` in `src/glitchygames/engine/game_engine.py`.
 
 Added by `GameEngine.args()` right after the Graphics Options: how any run is watched,
 recorded, replayed or diagnosed, whatever the game; they change no game settings. Recording and
-replay are described in [Gameplay Recording and Replay](gameplay_replay.md). Two more are hidden
-from `--help`: the watched replay's restart internals.
+replay are described in [Gameplay Recording and Replay](gameplay_replay.md). Three more are hidden
+from `--help`: `--replay-frame-stream` (`--compare-trace`'s child) and the watched replay's restart
+internals, `--replay-restart-handoff` and `--replay-viewer-state`.
 
+The list below is the engine's own options and the tools' most used; [Tool flags](#tool-flags)
+says where the rest come from.
+
+- `--random-seed RANDOM_SEED` (`int`): master seed for every engine random stream. Not given, a run or recording rolls a random 64-bit seed (logged in the recording) and a replay uses the recording's; given, a run or recording uses it, and a replay given another seed plays the recording's inputs out under it without comparing (`glitchygames --help` has the full rules)
 - `--log-timer-jitter` (`store_true`, default `False`): log frame pacing jitter statistics periodically
 - `--perf-trim-percent PERF_TRIM_PERCENT` (`float`, default `5.0`): percent of frames to trim from top and bottom in the game's global FPS report
 - `--fps-histogram {equal-range,target-relative}` (`choice`, default `equal-range`): FPS histogram buckets in the game's shutdown report: equal-range (10 equal buckets spanning the analyzed min to max, default) or target-relative (10% steps of the target FPS)
@@ -252,6 +272,33 @@ from `--help`: the watched replay's restart internals.
 - `--replay-digest PATH` (`PATH`, default `None`): with --replay-trace: write a SHA-256 of every replayed frame, then the divergence, to PATH as JSON lines (used by --audit)
 - `--list-input-devices` (`store_true`, default `False`): print every joystick and game controller the game would see (index, instance id, name, GUID, whether SDL maps it as a game controller, its axes, buttons, hats and balls; how many SDL counted before its queue was pumped and each device added or removed while listening, with when), then exit 0 without running the game. At a terminal, when none is found it asks you to plug one in and waits for it (Ctrl-C stops). Refused with --replay-trace or --record-trace
 - `--headless` (`store_true`, default `False`): run on SDL's dummy video and audio drivers: no window, no sound. With --replay-trace the replay also runs unpaced and prints its report to stdout (exit 0 when it matches, 1 when it diverges, 65 for a truncated recording)
+
+#### Tool flags
+
+Every recording, replay, measurement and sound-cache tool is described once, in `TOOLS` in
+`src/glitchygames/replay/tools/registry.py`, and `add_game_flags()` adds each tool's flag and its
+options to this Diagnostics group (which is why the group holds 59 options: `--verify`,
+`--measure`, `--report`, `--compare-trace`, `--sound-render`, `--input-script`, `--only`,
+`--force` and the rest). The same table builds the `glitchygames` subcommands, so a tool is the
+same command either way; the tool table, the options and the exit codes are in
+[Gameplay Recording and Replay](gameplay_replay.md), and the project settings the subcommands
+read are `[tool.glitchygames]` in `pyproject.toml` (its `games`, `golden-globs`,
+`ledger-directory` and `pending-ledger` keys).
+
+=== "On a game"
+
+    ```bash
+    uv run paddleslap --verify
+    ```
+
+=== "As a subcommand"
+
+    ```bash
+    uv run glitchygames verify --game paddleslap
+    ```
+
+`--ai` is the one engine flag not in the registry: two tool flags at once are refused, and `--ai`
+is on by default.
 
 ### Layer 2: event managers and fonts
 
@@ -323,11 +370,13 @@ The other games add their own options the same way:
 | Game | File | Arguments |
 |------|------|-----------|
 | Paddle Slap | `src/games/paddleslap/src/paddleslap/__init__.py` | `-v, --version`, `-b, --balls` (int, default 1), `--ball-spawn-mode` (choice, default `paddle_only`) |
-| DT Demo | `src/demos/dt-demo/src/dt_demo/__init__.py` | `-v, --version`, `-b, --balls` (int, default 1) |
-| Clockwork Keep | `src/games/clockwork-keep/src/clockwork_keep/game.py` | `--floor` (int, default 0) |
-| Brave Adventurer (both editions) | `src/games/brave-adventurer/src/brave_adventurer/game.py`, `src/games/brave-adventurer/src/brave_adventurer_papyrus/game.py` | `-v, --version` |
-| Brave Adventurer's launcher | `src/games/brave-adventurer/src/brave_adventurer_modes/launcher.py` (read before the engine's parser, which never sees it), `title.py` (`TitleScene.args()` lists it in `-h`) | `--game {classic,papyrus}`, `-v, --version` |
-| Joystick Demo | `src/demos/joystick-demo/src/joystick_demo/__init__.py` | none (the engine's `--input-mode` chooses what it shows) |
+| DT Demo | `src/demos/dt-demo/src/dt_demo/__init__.py` | `-v, --version` |
+| Sound Board Demo | `src/demos/sound-board-demo/src/sound_board_demo/__init__.py` | `-v, --version` |
+| Clockwork Keep | `src/games/clockwork-keep/src/clockwork_keep/game.py` | `--floor` (int, one of 0, 1, 2; default 0) |
+| Brave Adventurer (both editions) | `src/games/brave-adventurer/src/brave_adventurer_core/scene.py` | `-v, --version` |
+| Brave Adventurer's title screen | `src/games/brave-adventurer/src/brave_adventurer_modes/title.py` (`add_game_argument`; the launcher, `launcher.py`, reads `--game` before the engine's parser, which never sees it, and `TitleScene.args()` lists it in `-h`) | `--game {classic,papyrus}`, `-v, --version` |
+| Zombies Ain't My Neighbors | `src/games/zombies-aint-my-neighbors/src/zombies_aint_my_neighbors/title.py` | none yet |
+| Joystick Demo, Text Input Demo, Mr. Muncher, Drawing Fire | (no `args()`) | none (the engine's `--input-mode` chooses what the Joystick Demo shows) |
 | Bitrot Adventures | `scripts/bitrotadventures.py` | `-s, --some-game-specific-option` |
 | Animation Demo | `scripts/animation_scene_full_demo.py` | `-v, --version` |
 
@@ -384,7 +433,8 @@ class MyGame(Scene):
         """
         parser.add_argument(
             '-v', '--version',
-            action='store_true',
+            action='version',
+            version=f'{cls.NAME} {cls.VERSION}',
             help='print the game version and exit',
         )
         parser.add_argument(

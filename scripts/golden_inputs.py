@@ -96,10 +96,15 @@ def stand_on_first_elevator(scene: Scene) -> None:
     Args:
         scene: The active Clockwork Keep floor.
 
+    Raises:
+        TypeError: The scene isn't a Clockwork Keep floor.
+
     """
     from clockwork_keep.game import ClockworkKeepScene
 
-    assert isinstance(scene, ClockworkKeepScene)
+    if not isinstance(scene, ClockworkKeepScene):
+        message = f'stand_on_first_elevator needs a ClockworkKeepScene, not {type(scene).__name__}'
+        raise TypeError(message)
     elevator = scene.elevator_sprites[0]
     player = scene.player
     player.world_x = elevator.world_x + 5
@@ -149,11 +154,18 @@ def _place_before_screen_three(scene: Scene) -> None:
     Args:
         scene: The active Brave Adventurer scene.
 
+    Raises:
+        TypeError: The scene isn't a Brave Adventurer scene.
+
     """
     from brave_adventurer.game import BraveAdventurerScene
     from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
 
-    assert isinstance(scene, BraveAdventurerScene | PapyrusBraveAdventurerScene)
+    if not isinstance(scene, BraveAdventurerScene | PapyrusBraveAdventurerScene):
+        message = (
+            f'_place_before_screen_three needs a Brave Adventurer scene, not {type(scene).__name__}'
+        )
+        raise TypeError(message)
     scene.player.world_x = BRAVE_ADVENTURER_SKIP_TO_WORLD_X
 
 

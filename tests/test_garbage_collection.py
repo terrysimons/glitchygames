@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import gc
 import os
@@ -18,6 +19,7 @@ from tests.garbage_collection import (
     malloc_trimmer,
     process_memory_release,
     process_peak_memory_collector,
+    release_raised_parameters,
     release_test_instance,
 )
 
@@ -434,3 +436,58 @@ def test_an_item_that_is_not_a_test_function_is_left_alone(pytester):
     item = NotAFunction.from_parent(module, name='not_a_function')
 
     release_test_instance(item=item)
+
+
+RAISED_PARAMETER_TESTS = """
+import pytest
+
+
+@pytest.mark.parametrize('failure', [OSError('disk full'), 'not an exception'])
+def test_raises(failure):
+    pass
+
+
+def test_without_parameters():
+    pass
+"""
+
+
+def raise_and_catch(*, failure: BaseException, held: Held) -> None:
+    """Raise a parameter's exception, chained to one holding ``held``; catch it, as a test does."""
+    with contextlib.suppress(OSError):
+        raise failure from RuntimeError(held)
+
+
+def test_a_raised_exception_parameter_no_longer_holds_its_tests_frames(pytester):
+    """Its traceback and chain are cut: what the test's frames held is let go."""
+    item = next(
+        item for item in pytester.getitems(RAISED_PARAMETER_TESTS) if 'failure0' in item.name
+    )
+    failure = item.callspec.params['failure']
+    held = Held()
+    held_reference = weakref.ref(held)
+    raise_and_catch(failure=failure, held=held)
+    del held
+    gc.collect()
+    held_before_the_release = held_reference() is not None
+
+    release_raised_parameters(item=item)
+    gc.collect()
+
+    assert held_before_the_release
+    assert (failure.__traceback__, failure.__context__, failure.__cause__) == (None, None, None)
+    assert held_reference() is None
+
+
+def test_parameters_that_are_not_exceptions_and_tests_without_any_are_left_alone(pytester):
+    """Only an exception parameter is changed; a test without parameters has nothing to cut."""
+    items = pytester.getitems(RAISED_PARAMETER_TESTS)
+    other_parameter = next(
+        item for item in items if item.callspec.params.get('failure') == 'not an exception'
+    )
+    without_parameters = next(item for item in items if item.name == 'test_without_parameters')
+
+    release_raised_parameters(item=other_parameter)
+    release_raised_parameters(item=without_parameters)
+
+    assert other_parameter.callspec.params == {'failure': 'not an exception'}
