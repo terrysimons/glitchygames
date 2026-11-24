@@ -9,7 +9,8 @@ replaces OLD with NEW only once this check passes. It has two parts:
   Each pair is compared by glitchygames/replay/recording_differences.py, whose docstring says
   what is and is not compared; a pair fails on any other difference, and on an allowance that
   matched nothing. Paths are relative to the current directory (run it from the repository
-  root)::
+  root). Write a Windows path in single quotes (a TOML literal string) or with forward slashes:
+  in double quotes its backslashes are escapes, and ``C:\Users`` is refused as unusable::
 
       [[pair]]
       old = "build/re-record/old/golden-classic.jsonl.gz"
@@ -22,15 +23,22 @@ replaces OLD with NEW only once this check passes. It has two parts:
       where = ["frame", 291, "scene_start", "arguments", "run"]
       reason = "FeatureCardScene gained run (#215) after the recording was made"
 
+      [[pixels.only_after]]
+      nodeid = "src/games/clockwork-keep/tests/test_clockwork_keep.py::TestHud::test_..."
+      reason = "a new test of the HUD labels"
+
 - The pixels, always (``--fingerprints-before DIR`` and ``--fingerprints-after DIR`` are
   required): the records of an allowed sprite are not compared, so a new sprite one pixel off
   would pass the recordings' part; the pixels are what checks where it is drawn. Two runs of
   the suite under the frame fingerprints plugin (glitchygames/testing/frame_fingerprints.py),
   one on the commit before the change and one on the change. Every test both ran must present
   the same frames (glitchygames/testing/frame_comparison.py, the comparison
-  ``compare_driver_frames.py`` uses), no test may be in one run only, and the report counts the
-  frames compared, so a pass is known to have compared something. Tests marked ``frames_vary``
-  are not compared, and are counted.
+  ``compare_driver_frames.py`` uses), and the report counts the frames compared, so a pass is
+  known to have compared something. Tests marked ``frames_vary`` are not compared, and are
+  counted. No test may be in one run only unless the plan names it (``PixelAllowances``:
+  ``[[pixels.only_before]]`` for a test the change removes or renames, ``[[pixels.only_after]]``
+  for one it adds or renames, each with a reason); an allowance whose test is in both runs, or
+  in neither, fails, as an unused recording allowance does.
 
 It prints one report per pair, the pixel report, and a summary, and exits
 ``ExitCode.SUCCESS`` when everything passed, ``ExitCode.REPLAY_DIVERGED`` when anything differed,
@@ -77,12 +85,32 @@ class RecordingPair(pydantic.BaseModel):
     allowances: RecordingAllowances = RecordingAllowances()
 
 
+class AllowedTest(pydantic.BaseModel):
+    """A test the pixel step may find in one run only: one the change adds, renames or removes."""
+
+    model_config = pydantic.ConfigDict(frozen=True, extra='forbid')
+
+    nodeid: str
+    # Why it is in one run only (for the reviewer)
+    reason: str
+
+
+class PixelAllowances(pydantic.BaseModel):
+    """The tests the change adds, renames or removes, by the run they are in."""
+
+    model_config = pydantic.ConfigDict(frozen=True, extra='forbid')
+
+    only_before: tuple[AllowedTest, ...] = ()
+    only_after: tuple[AllowedTest, ...] = ()
+
+
 class CheckPlan(pydantic.BaseModel):
-    """Every pair a re-record replaces."""
+    """Every pair a re-record replaces, and the tests the change adds, renames or removes."""
 
     model_config = pydantic.ConfigDict(frozen=True, extra='forbid')
 
     pair: tuple[RecordingPair, ...] = pydantic.Field(min_length=1)
+    pixels: PixelAllowances = PixelAllowances()
 
 
 class PixelComparison(pydantic.BaseModel):
@@ -93,14 +121,24 @@ class PixelComparison(pydantic.BaseModel):
     tests_compared: int
     frames_compared: int
     differing_tests: tuple[str, ...]
+    # Tests in one run only that the plan does not allow
     only_before: tuple[str, ...]
     only_after: tuple[str, ...]
     not_compared: tuple[str, ...]
+    # Tests in one run only that the plan allows, and allowances that matched no such test
+    allowed: tuple[str, ...] = ()
+    unused_allowances: tuple[str, ...] = ()
 
     @property
     def passed(self) -> bool:
-        """Whether every test both runs recorded presented the same frames, and none is missing."""
-        return not (self.differing_tests or self.only_before or self.only_after)
+        """Whether every test both runs recorded presented the same frames, and none is missing.
+
+        A test in one run only passes when the plan allows it; an allowance that matched no such
+        test fails, as an unused recording allowance does.
+        """
+        return not (
+            self.differing_tests or self.only_before or self.only_after or self.unused_allowances
+        )
 
     def report(self) -> str:
         """Return the verdict and every test that differs or is in one run only.
@@ -118,6 +156,8 @@ class PixelComparison(pydantic.BaseModel):
         lines.extend(f'  differs: {nodeid}' for nodeid in self.differing_tests)
         lines.extend(f'  only before: {nodeid}' for nodeid in self.only_before)
         lines.extend(f'  only after: {nodeid}' for nodeid in self.only_after)
+        lines.extend(f'  allowed {line}' for line in self.allowed)
+        lines.extend(f'  allowance not met: {label}' for label in self.unused_allowances)
         return '\n'.join(lines)
 
 
@@ -139,12 +179,15 @@ def load_plan(*, path: Path) -> CheckPlan:
         return CheckPlan.model_validate(tomllib.load(plan_file))
 
 
-def compare_pixels(*, before: Path, after: Path) -> PixelComparison:
+def compare_pixels(
+    *, before: Path, after: Path, allowances: PixelAllowances | None = None
+) -> PixelComparison:
     """Compare two fingerprints runs of the suite, test by test.
 
     Args:
         before: The run on the commit before the change.
         after: The run on the change.
+        allowances: The tests the plan allows in one run only (None: none).
 
     Returns:
         The comparison.
@@ -165,6 +208,9 @@ def compare_pixels(*, before: Path, after: Path) -> PixelComparison:
     differences, only_before, only_after = compare_runs(
         baseline=before_records, candidate=after_records
     )
+    unallowed_before, unallowed_after, allowed, unused = _apply_allowances(
+        only_before=only_before, only_after=only_after, allowances=allowances or PixelAllowances()
+    )
     not_compared = frames_vary_tests(before_records, after_records)
     compared = sorted(before_records.keys() & after_records.keys() - not_compared.keys())
     frames_compared = sum(
@@ -175,10 +221,43 @@ def compare_pixels(*, before: Path, after: Path) -> PixelComparison:
         tests_compared=len(compared),
         frames_compared=frames_compared,
         differing_tests=tuple(difference.nodeid for difference in differences),
-        only_before=tuple(only_before),
-        only_after=tuple(only_after),
+        only_before=unallowed_before,
+        only_after=unallowed_after,
         not_compared=tuple(sorted(not_compared)),
+        allowed=allowed,
+        unused_allowances=unused,
     )
+
+
+def _apply_allowances(
+    *, only_before: Sequence[str], only_after: Sequence[str], allowances: PixelAllowances
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Split the tests in one run only by the plan's allowances, side by side.
+
+    Args:
+        only_before: The tests found in the before run only.
+        only_after: The tests found in the after run only.
+        allowances: The tests the plan allows in one run only.
+
+    Returns:
+        The tests not allowed before, and after; the allowed ones as report lines; and the
+        allowances that matched no test, as report labels.
+
+    """
+    unallowed: list[tuple[str, ...]] = []
+    allowed: list[str] = []
+    unused: list[str] = []
+    for side, found, allowed_tests in (
+        ('only before', only_before, allowances.only_before),
+        ('only after', only_after, allowances.only_after),
+    ):
+        reasons = {test.nodeid: test.reason for test in allowed_tests}
+        unallowed.append(tuple(nodeid for nodeid in found if nodeid not in reasons))
+        allowed.extend(
+            f'{side}: {nodeid} ({reasons[nodeid]})' for nodeid in found if nodeid in reasons
+        )
+        unused.extend(f'{side} {test.nodeid}' for test in allowed_tests if test.nodeid not in found)
+    return unallowed[0], unallowed[1], tuple(allowed), tuple(unused)
 
 
 def argument_parser() -> argparse.ArgumentParser:
@@ -233,7 +312,9 @@ def run(*, arguments: Sequence[str]) -> ExitCode:
             for pair in plan.pair
         ]
         pixels = compare_pixels(
-            before=options.fingerprints_before, after=options.fingerprints_after
+            before=options.fingerprints_before,
+            after=options.fingerprints_after,
+            allowances=plan.pixels,
         )
     except FileNotFoundError as error:
         sys.stderr.write(f'{error}\n')

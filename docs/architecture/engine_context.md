@@ -45,31 +45,40 @@ scratch context for building a file's waves (`src/glitchygames/audio/assets.py`)
 7. `current_engine()` (`glitchygames.engine`) is the engine made last in the current context,
    until it shuts down; with none running it raises `NoRunningEngineError`.
 
+!!! warning "Read a slot when you need it, never at import"
+    A module-level, class-body or default-argument read of `current_context().value(slot=...)`
+    runs once, in the default context, so every other context would share that one value. The
+    scan in `tests/test_engine_context.py` finds only literal reads: a module-level call of a
+    helper that reads a slot, or a reader under another name, passes it unseen (BUGS.md #228
+    item 1).
+
 ## What belongs to a context today
 
-| Slot (its `ContextSlot` name) | Module | Public functions |
-|---|---|---|
-| `'glitchygames.pixel_snap.default_mode'` | `src/glitchygames/pixel_snap.py` | `set_active_default_snap_mode`, `active_default_snap_mode`, `resolve_snap_mode` |
-| `'glitchygames.backgrounds.default_pattern'` | `src/glitchygames/backgrounds.py` | `set_active_default_background_pattern`, `active_default_background_pattern`, `paint_default_background` |
-| `'glitchygames.input.state.current_input'` | `src/glitchygames/input/state.py` | `current_input`, `set_current_input`, `reset_current_input` |
-| `'glitchygames.randomness.streams'` | `src/glitchygames/randomness.py` | `engine_random`, `random_stream`, `numpy_stream`, `reset_streams`, `seed_engine_random`, `engine_random_seed`, `capture_stream_states`, `restore_stream_states` |
-| `'glitchygames.game_frames.clock'` | `src/glitchygames/game_frames.py` | `game_frame_clock`, `restart_game_frame_clock` |
-| `'glitchygames.sources.registry'` | `src/glitchygames/sources.py` | `active_sources`, `install_sources`, `reset_sources`, `push_scoped_sources`, `pop_scoped_sources`, `has_scoped_sources`, `redeliver_events`, `pending_redelivered_events`, `take_redelivered_events`, `discard_scope_posts`, `without_discarded_scope_posts`, `mark_frames_started`, `advance_frame_clock`, `set_frame_clock_seconds`, `frame_clock_seconds`, `observe_save_store_openings`, `stop_observing_save_store_openings`, `notify_save_store_opened`, `observe_device_answers`, `stop_observing_device_answers`, `notify_device_answer` |
-| `'glitchygames.scenes.scene.scene_managers'` | `src/glitchygames/scenes/scene.py` | `SceneManager()`, `SceneManager._reset()` |
-| `'glitchygames.audio.waves.registry'` | `src/glitchygames/audio/waves.py` | `current_wave_registry` (the named waves a sound file or `Wave` registers; `AudioEngine.waves`) |
-| `'glitchygames.audio.engine.audio_engine'` | `src/glitchygames/audio/engine.py` | `SceneManager.audio`, `existing_audio_engine`, `install_audio_engine`, `discard_audio_engine` |
-| `'glitchygames.engine.game_engine.current_engine'` | `src/glitchygames/engine/game_engine.py` | `current_engine()` (the engine made last in the context; the `GameEngine` views read it) |
-| `'glitchygames.recording.internal_posts'` | `src/glitchygames/recording.py` | `post_event`, `post_input_event`, `start_tracking_internal_posts`, `stop_tracking_internal_posts`, `reset_internal_post_tracking`, `forget_pending_posts`, `pending_internal_posts`, `live_game_posts`, `pending_code_post_count` |
-| `'glitchygames.performance.adaptive_clamping.managers'` | `src/glitchygames/performance/adaptive_clamping.py` | `AdaptiveClamping()` (the context's performance manager: its FPS statistics and shutdown report) |
-| `'glitchygames.events.base.shared_instances'` | `src/glitchygames/events/base.py` | `ResourceManager()` subclasses (the shared event managers and the `FontManager`: one per class per engine context), `ResourceManager.release_shared_instances`, `release_shared_instance` |
-| `'glitchygames.fonts.font_manager.options'` | `src/glitchygames/fonts/font_manager.py` | `FontManager.OPTIONS` (a view of it), `FontManager.set_font_system`, `get_font_system` |
-| `'glitchygames.sprites.bitmappy_sprite.singletons'` | `src/glitchygames/sprites/bitmappy_sprite.py` | `Singleton()`, `SingletonBitmappySprite()`, `FocusableSingletonBitmappySprite()` (one per class per engine context) |
-| `'glitchygames.events.base.unhandled_event_types'` | `src/glitchygames/events/base.py` | `unhandled_event` (the event types already logged under `--debug-events`) |
-| `'glitchygames.sprites.sprite.counters'` | `src/glitchygames/sprites/sprite.py` | `sprite_counters()` (the sprite creation counters and breakpoints the teardown report logs), `Sprite.break_when` |
-| `'glitchygames.render_target.target'` | `src/glitchygames/render_target.py` | `set_render_target`, `render_target`, `is_inner_context`, `display_surface`, `request_hosted_start`, `hosted_start_requested`, `note_started_engine`, `take_started_engine` (the context's render target and its hosted start) |
-| `'glitchygames.recording.private_event_queue'` | `src/glitchygames/recording.py` | `private_event_queue` (an inner context's own event queue: its posts go there and its replay doors drain it, never SDL's) |
-| `'glitchygames.audio.route.audio_route'` | `src/glitchygames/audio/route.py` | `is_audible`, `set_audible` (whether the context's sound is heard: the default context audible, a new inner game silent; `InnerGame.audible`, `InnerGame.set_audible`) |
-| `'glitchygames.audio.voices.inner_channels'` | `src/glitchygames/audio/voices.py` | `inner_context_partition`, `take_heard_set`, `give_back_heard_set`, `heard_set_start`, `release_inner_context_channels`, `plain_plays_followed`, `plain_play_channel_indices`, `stop_plain_plays_and_mute_the_live_pool`, `current_inner_context_channel_indices` (an inner context's channels: its partition, live pool, heard set while heard, and the plain plays it started while heard) |
+???+ note "The twenty-one slots, with their public functions"
+
+    | Slot (its `ContextSlot` name) | Module | Public functions |
+    |---|---|---|
+    | `'glitchygames.pixel_snap.default_mode'` | `src/glitchygames/pixel_snap.py` | `set_active_default_snap_mode`, `active_default_snap_mode`, `resolve_snap_mode` |
+    | `'glitchygames.backgrounds.default_pattern'` | `src/glitchygames/backgrounds.py` | `set_active_default_background_pattern`, `active_default_background_pattern`, `paint_default_background` |
+    | `'glitchygames.input.state.current_input'` | `src/glitchygames/input/state.py` | `current_input`, `set_current_input`, `reset_current_input` |
+    | `'glitchygames.randomness.streams'` | `src/glitchygames/randomness.py` | `engine_random`, `random_stream`, `numpy_stream`, `reset_streams`, `seed_engine_random`, `engine_random_seed`, `capture_stream_states`, `restore_stream_states` |
+    | `'glitchygames.game_frames.clock'` | `src/glitchygames/game_frames.py` | `game_frame_clock`, `restart_game_frame_clock` |
+    | `'glitchygames.sources.registry'` | `src/glitchygames/sources.py` | `active_sources`, `install_sources`, `reset_sources`, `push_scoped_sources`, `pop_scoped_sources`, `has_scoped_sources`, `redeliver_events`, `pending_redelivered_events`, `take_redelivered_events`, `discard_scope_posts`, `without_discarded_scope_posts`, `mark_frames_started`, `advance_frame_clock`, `set_frame_clock_seconds`, `frame_clock_seconds`, `observe_save_store_openings`, `stop_observing_save_store_openings`, `notify_save_store_opened`, `observe_device_answers`, `stop_observing_device_answers`, `notify_device_answer` |
+    | `'glitchygames.scenes.scene.scene_managers'` | `src/glitchygames/scenes/scene.py` | `SceneManager()`, `SceneManager._reset()` |
+    | `'glitchygames.audio.waves.registry'` | `src/glitchygames/audio/waves.py` | `current_wave_registry` (the named waves a sound file or `Wave` registers; `AudioEngine.waves`) |
+    | `'glitchygames.audio.engine.audio_engine'` | `src/glitchygames/audio/engine.py` | `SceneManager.audio`, `existing_audio_engine`, `install_audio_engine`, `discard_audio_engine` |
+    | `'glitchygames.engine.game_engine.current_engine'` | `src/glitchygames/engine/game_engine.py` | `current_engine()` (the engine made last in the context; the `GameEngine` views read it) |
+    | `'glitchygames.recording.internal_posts'` | `src/glitchygames/recording.py` | `post_event`, `post_input_event`, `start_tracking_internal_posts`, `stop_tracking_internal_posts`, `reset_internal_post_tracking`, `forget_pending_posts`, `pending_internal_posts`, `live_game_posts`, `pending_code_post_count` |
+    | `'glitchygames.performance.adaptive_clamping.managers'` | `src/glitchygames/performance/adaptive_clamping.py` | `AdaptiveClamping()` (the context's performance manager: its FPS statistics and shutdown report) |
+    | `'glitchygames.events.base.shared_instances'` | `src/glitchygames/events/base.py` | `ResourceManager()` subclasses (the shared event managers and the `FontManager`: one per class per engine context), `ResourceManager.release_shared_instances`, `release_shared_instance` |
+    | `'glitchygames.fonts.font_manager.options'` | `src/glitchygames/fonts/font_manager.py` | `FontManager.OPTIONS` (a view of it), `FontManager.set_font_system`, `get_font_system` |
+    | `'glitchygames.sprites.bitmappy_sprite.singletons'` | `src/glitchygames/sprites/bitmappy_sprite.py` | `Singleton()`, `SingletonBitmappySprite()`, `FocusableSingletonBitmappySprite()` (one per class per engine context) |
+    | `'glitchygames.events.base.unhandled_event_types'` | `src/glitchygames/events/base.py` | `unhandled_event` (the event types already logged under `--debug-events`) |
+    | `'glitchygames.sprites.sprite.counters'` | `src/glitchygames/sprites/sprite.py` | `sprite_counters()` (the sprite creation counters and breakpoints the teardown report logs), `Sprite.break_when` |
+    | `'glitchygames.render_target.target'` | `src/glitchygames/render_target.py` | `set_render_target`, `render_target`, `is_inner_context`, `display_surface`, `request_hosted_start`, `hosted_start_requested`, `note_started_engine`, `take_started_engine` (the context's render target and its hosted start) |
+    | `'glitchygames.recording.private_event_queue'` | `src/glitchygames/recording.py` | `private_event_queue` (an inner context's own event queue: its posts go there and its replay doors drain it, never SDL's) |
+    | `'glitchygames.audio.route.audio_route'` | `src/glitchygames/audio/route.py` | `is_audible`, `set_audible` (whether the context's sound is heard: the default context audible, a new inner game silent; `InnerGame.audible`, `InnerGame.set_audible`) |
+    | `'glitchygames.audio.voices.inner_channels'` | `src/glitchygames/audio/voices.py` | `inner_context_partition`, `take_heard_set`, `give_back_heard_set`, `heard_set_start`, `release_inner_context_channels`, `plain_plays_followed`, `plain_play_channel_indices`, `stop_plain_plays_and_mute_the_live_pool`, `current_inner_context_channel_indices` (an inner context's channels: its partition, live pool, heard set while heard, and the plain plays it started while heard) |
 
 `tests/test_engine_context.py` proves, for every slot, that two contexts in one process never
 see each other's values; a slot added without such a check fails the suite.
@@ -211,7 +220,7 @@ outer game that steps others (the Arcade's wrapper) reports the aggregate of eve
 
 ## Performance
 
-What each kind of read costs (Apple M4 Max, Python 3.14):
+What each kind of read costs (Apple M4 Max; measured on Python 3.14, before the tests moved to 3.15):
 
 | Read | Cost per read | Measured |
 |---|---|---|

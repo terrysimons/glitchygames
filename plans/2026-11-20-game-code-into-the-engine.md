@@ -339,14 +339,20 @@ decision; "re-record only deliberately, as a reviewed step").
   - the pixels are identical: the suite run under the frame fingerprints plugin
     (`glitchygames/testing/frame_fingerprints.py`) on the commit before the change and on the
     change commit, compared test by test as `compare_driver_frames.py` compares drivers: no
-    test's frame sequence may differ, no test may be in one run only, and the report counts the
-    frames compared.
+    test's frame sequence may differ, no test may be in one run only unless the plan names it
+    with a reason (the tests the change adds, renames or removes; an allowance that matched
+    nothing fails), and the report counts the frames compared. Found in the HUD branch's trial,
+    2026-11-22: with the six rebaselines in place every one of 3651 frames matched, yet the
+    check failed on the HUD branch's renamed and new tests alone; the coordinator ruled for
+    naming them in the plan, as the recording allowances are.
 
   Allowances, per pair and nothing else: Brave's four recordings, the `HudLabel` ids of the score
   and lives labels and their shadows; Clockwork's two, those plus the floor label and its
   shadow; `drawing` and `typing`, the window-owner plan's window-setting internal events (by
   custom event type name); Zombies' `golden`, the `run` argument
   of frame 291's `FeatureCardScene` start and `opening: false` of frame 311's `TitleScene` start.
+  The pixel step's allowances: the HUD branch's renamed and new tests (Brave's and Clockwork's
+  `TestHud`, the `..._through_scene_pause` renames if the before commit predates them).
 - **The check is proven able to fail** before it is trusted (the global rule): planted on a
   copy, each of these turns it red: a label one pixel off, a non-HUD sprite moved one pixel, an
   extra sprite of another class, one pixel changed outside the HUD, an internal event dropped, a

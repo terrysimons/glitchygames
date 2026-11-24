@@ -394,6 +394,8 @@ class MultiControllerLogger:
         """
         self.config = config
         self.logger = logging.getLogger('multi_controller')
+        # The handlers this logger added to the shared logger, removed and closed by close()
+        self.added_handlers: list[logging.Handler] = []
 
         # Setup logging
         if config.error_logging_enabled:
@@ -407,12 +409,25 @@ class MultiControllerLogger:
         # Create console handler
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
 
         # Create file handler
         file_handler = logging.FileHandler('multi_controller.log')
         file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
+
+        for handler in (console_handler, file_handler):
+            self.logger.addHandler(handler)
+            self.added_handlers.append(handler)
+
+    def close(self) -> None:
+        """Remove the handlers this logger added and close them (the log file among them).
+
+        The ``multi_controller`` logger is the process's: a handler left on it outlives this
+        object, and its log file stays open.
+        """
+        for handler in self.added_handlers:
+            self.logger.removeHandler(handler)
+            handler.close()
+        self.added_handlers.clear()
 
     def log_controller_event(self, controller_id: int, event: str, data: dict[str, Any]) -> None:
         """Log controller event.

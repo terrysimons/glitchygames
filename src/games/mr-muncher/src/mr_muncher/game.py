@@ -340,6 +340,8 @@ class MrMuncherScene(Scene):
         # Play state
         self.phase = Phase.READY
         self.phase_seconds = 0.0
+        # The background render last drew on: render repaints the whole screen when it changes
+        self._last_rendered_background: pygame.Surface | None = None
         self.counts_down = self.starting_progress.is_new_game
         self.ready_seconds = INTRO_READY_SECONDS if self.counts_down else READY_SECONDS
         # Each life on a reel is a take: the first is take 1
@@ -1225,24 +1227,46 @@ class MrMuncherScene(Scene):
 
     # --- Drawing ---
 
-    @override
-    def render(self: Self, screen: pygame.Surface) -> None:
-        """Draw the whole frame: the maze (flashing as a level ends), then every sprite.
+    def frame_background(self: Self) -> pygame.Surface:
+        """Return the maze this frame shows: the flashing one while a cleared level flashes.
 
-        Args:
-            screen: The display surface.
+        Returns:
+            The background surface.
 
         """
-        background = self.background
         if self.phase is Phase.LEVEL_CLEAR and self.phase_seconds >= LEVEL_CLEAR_PAUSE_SECONDS:
             flash_step = math.floor(
                 (self.phase_seconds - LEVEL_CLEAR_PAUSE_SECONDS) / LEVEL_CLEAR_FLASH_TOGGLE_SECONDS
             )
             if flash_step % 2 == 0:
-                background = self.flash_background
-        screen.blit(background, (0, 0))
+                return self.flash_background
+        return self.background
+
+    @override
+    def render(self: Self, screen: pygame.Surface) -> None:
+        """Draw the frame: only what changed since the last one.
+
+        The maze's sprockets, pictures and side panels are dirty only when shown, hidden or
+        swapped, and the actors every frame, so the group redraws just those areas (clearing
+        them from the background). The whole screen is repainted when the background changes:
+        the first frame, and the maze flashing as a level ends, which the engine cannot see.
+        After a pause, a transition or another scene, the engine has already blitted the whole
+        background and marked every sprite dirty (SceneManager._redraw_scene_background). A
+        SCREEN shake never reaches this surface: the engine shifts a copy of the frame for the
+        flip.
+
+        Args:
+            screen: The display surface.
+
+        """
+        background = self.frame_background()
+        background_changed = background is not self._last_rendered_background
+        self._last_rendered_background = background
         # The group clears with the background it was last given: give it this frame's
         self.all_sprites.clear(screen, background)
+        if background_changed:
+            screen.blit(background, (0, 0))
+            self.all_sprites.repaint_rect(screen.get_rect())
         self.all_sprites.draw(screen)
         self.rects = None  # The whole screen is presented
 
