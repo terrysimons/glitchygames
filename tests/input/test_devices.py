@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pygame
 import pygame._sdl2.controller
+import pygame.midi
 import pytest
 
 from glitchygames.input.devices import (
@@ -12,11 +13,14 @@ from glitchygames.input.devices import (
     DeviceDescriptor,
     EnumerationAnswer,
     LiveDeviceRegistry,
+    MidiPortDescriptor,
     MidiPortInfo,
     PolledDevices,
     ReplayController,
     ReplayDeviceRegistry,
     ReplayJoystick,
+    ReplayMidiInput,
+    ReplayMidiOutput,
     _import_sdl_controller_module,
     find_midi_port,
     sdl_controller_module,
@@ -974,3 +978,300 @@ def test_a_stand_in_registry_answers_midi_from_its_ports_and_tells_the_recorder(
 def test_a_stand_in_registry_has_no_midi_ports_by_default():
     """Without midi_ports a stand-in registry counts none and has no defaults."""
     assert _ask_midi(install_stand_in_devices(descriptors=[])) == (0, None, None, -1, -1)
+
+
+KEYS_DESCRIPTOR = MidiPortDescriptor(
+    kind=MIDI_INPUT_KIND, port_id=0, name='Keys', interface='CoreMIDI'
+)
+SYNTH_DESCRIPTOR = MidiPortDescriptor(
+    kind=MIDI_OUTPUT_KIND, port_id=1, name='Synth', interface='CoreMIDI'
+)
+
+
+def _patch_portmidi_ports(mocker):
+    """Stand in for PortMidi with a keyboard (port 0) and a synth (port 1); return the module.
+
+    Only the hardware is faked: the module's functions and the Input and Output constructors.
+    """
+    midi_module = mocker.Mock()
+    mocker.patch('glitchygames.input.devices.import_midi_module', return_value=midi_module)
+    midi_module.MidiException = pygame.midi.MidiException
+    ports = [(b'CoreMIDI', b'Keys', 1, 0, 0), (b'CoreMIDI', b'Synth', 0, 1, 0)]
+    midi_module.get_device_info.side_effect = lambda port_id: (
+        ports[port_id] if 0 <= port_id < len(ports) else None
+    )
+    return midi_module
+
+
+def test_a_midi_port_descriptor_round_trips_through_json():
+    """A descriptor survives to_json/from_json unchanged."""
+    assert MidiPortDescriptor.from_json(KEYS_DESCRIPTOR.to_json()) == KEYS_DESCRIPTOR
+    assert KEYS_DESCRIPTOR.to_json() == {
+        'kind': 'midi_input',
+        'port_id': 0,
+        'name': 'Keys',
+        'interface': 'CoreMIDI',
+    }
+
+
+def test_a_midi_port_descriptor_refuses_a_kind_that_is_not_midi():
+    """A descriptor of a joystick kind is a mistake the model catches."""
+    with pytest.raises(ValueError, match='joystick'):
+        MidiPortDescriptor(kind='joystick', port_id=0, name='Keys', interface='CoreMIDI')
+
+
+def test_opening_an_open_midi_port_hands_back_the_same_port(mocker):
+    """A port opens once per process: a second open returns the first, and nothing is recorded."""
+    midi_module = _patch_portmidi_ports(mocker)
+    registry = LiveDeviceRegistry()
+    assert registry.midi_input_for_port(port_id=0) is None
+    assert registry.midi_output_for_port(port_id=1) is None
+
+    first_input = registry.open_midi_input(port_id=0)
+    second_input = registry.open_midi_input(port_id=0)
+    first_output = registry.open_midi_output(port_id=1)
+    second_output = registry.open_midi_output(port_id=1)
+
+    assert first_input is second_input is midi_module.Input.return_value
+    assert first_output is second_output is midi_module.Output.return_value
+    midi_module.Input.assert_called_once_with(0)
+    midi_module.Output.assert_called_once_with(1)
+    midi_module.init.assert_called_once_with()
+    assert registry.midi_input_for_port(port_id=0) is first_input
+    assert registry.midi_output_for_port(port_id=1) is first_output
+    assert registry.take_enumeration_answers() == [
+        EnumerationAnswer(call='open_midi_input', device_index=0, value=0),
+        EnumerationAnswer(call='open_midi_output', device_index=1, value=1),
+    ]
+
+
+def test_opened_midi_ports_are_taken_once_by_the_recorder(mocker):
+    """The recorder gets each opened port's descriptor once; a frame nobody recorded drops them."""
+    _patch_portmidi_ports(mocker)
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+    registry.open_midi_output(port_id=1)
+
+    assert registry.take_opened_midi_ports() == [KEYS_DESCRIPTOR, SYNTH_DESCRIPTOR]
+    assert registry.take_opened_midi_ports() == []
+
+    registry.open_midi_input(port_id=0)  # already open: nothing new
+    assert registry.take_opened_midi_ports() == []
+
+    other = LiveDeviceRegistry()
+    other.open_midi_input(port_id=0)
+    other.discard_untaken()
+    assert other.take_opened_midi_ports() == []
+
+
+def test_replay_midi_output_drops_writes(mocker):
+    """A replayed output returns None for every write and calls no pygame.midi function."""
+    midi_calls = mocker.patch.multiple(
+        'pygame.midi', init=mocker.DEFAULT, Output=mocker.DEFAULT, Input=mocker.DEFAULT
+    )
+    output = ReplayMidiOutput(descriptor=SYNTH_DESCRIPTOR)
+
+    results = [
+        output.note_on(60, 100),
+        output.note_on(60, 100, 3),
+        output.note_off(60),
+        output.note_off(60, 64, 3),
+        output.write_short(0x90, 60, 100),
+        output.write([[[0x90, 60, 100], 0]]),
+        output.write_sys_ex(0, b'\xf0\xf7'),
+        output.set_instrument(5),
+        output.set_instrument(5, 2),
+        output.pitch_bend(100),
+        output.pitch_bend(100, 2),
+        output.close(),
+    ]
+
+    assert results == [None] * len(results)
+    assert output.descriptor == SYNTH_DESCRIPTOR
+    for midi_call in midi_calls.values():
+        midi_call.assert_not_called()
+
+
+def test_replay_midi_input_has_nothing_to_read():
+    """A replayed input never has anything waiting."""
+    midi_input = ReplayMidiInput(descriptor=KEYS_DESCRIPTOR)
+
+    assert midi_input.poll() is False
+    assert midi_input.read(10) == []
+    assert midi_input.close() is None
+    assert midi_input.descriptor == KEYS_DESCRIPTOR
+
+
+def test_a_replay_opens_the_recorded_ports_once_and_never_the_hardware(mocker):
+    """The replay hands out stand-ins for the recorded ports, one per port and direction."""
+    midi_module = _patch_portmidi_ports(mocker)
+    live = LiveDeviceRegistry()
+    live.open_midi_input(port_id=0)
+    live.open_midi_output(port_id=1)
+    recorded_ports = live.take_opened_midi_ports()
+    recorded_answers = [
+        EnumerationAnswer.from_json(answer.to_json()) for answer in live.take_enumeration_answers()
+    ]
+    midi_module.reset_mock()
+
+    replay = ReplayDeviceRegistry(
+        descriptors=[], enumeration_answers=recorded_answers, midi_ports=recorded_ports
+    )
+    assert replay.midi_input_for_port(port_id=0) is None
+    midi_input = replay.open_midi_input(port_id=0)
+    midi_output = replay.open_midi_output(port_id=1)
+
+    assert isinstance(midi_input, ReplayMidiInput)
+    assert isinstance(midi_output, ReplayMidiOutput)
+    assert (midi_input.descriptor, midi_output.descriptor) == (KEYS_DESCRIPTOR, SYNTH_DESCRIPTOR)
+    assert replay.open_midi_input(port_id=0) is midi_input
+    assert replay.open_midi_output(port_id=1) is midi_output
+    assert replay.midi_input_for_port(port_id=0) is midi_input
+    assert replay.midi_output_for_port(port_id=1) is midi_output
+    assert midi_module.mock_calls == []
+
+
+def test_a_replay_learns_ports_opened_in_frames_and_hands_them_to_a_recorder_once():
+    """Ports a frame opened open in the replay, and a recording made over it writes them once."""
+    replay = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+
+    replay.add_midi_ports(descriptors=[KEYS_DESCRIPTOR])
+
+    assert replay.open_midi_input(port_id=0).descriptor == KEYS_DESCRIPTOR
+    assert replay.take_opened_midi_ports() == [KEYS_DESCRIPTOR]
+    assert replay.take_opened_midi_ports() == []
+
+
+def test_a_replay_names_a_port_the_recording_never_opened(caplog):
+    """An open of an unrecorded port gets a named stand-in and one warning (the game diverged)."""
+    replay = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+
+    midi_output = replay.open_midi_output(port_id=3)
+
+    assert midi_output.descriptor.name == 'Unrecorded MIDI port 3'
+    assert midi_output.descriptor.kind == MIDI_OUTPUT_KIND
+    assert 'MIDI port 3 is not in the recording' in caplog.text
+
+
+def test_a_failed_midi_open_is_recorded_and_fails_the_same_in_replay(mocker):
+    """The port vanishes before the open: the failure is recorded and the replay fails the same."""
+    midi_module = _patch_portmidi_ports(mocker)
+    midi_module.Input.side_effect = pygame.midi.MidiException('Device id invalid')
+    midi_module.Output.side_effect = pygame.error('Output refused')
+    live = LiveDeviceRegistry()
+
+    with pytest.raises(pygame.error, match='Device id invalid'):
+        live.open_midi_input(port_id=0)
+    with pytest.raises(pygame.error, match='Output refused'):
+        live.open_midi_output(port_id=1)
+
+    answers = live.take_enumeration_answers()
+    assert answers == [
+        EnumerationAnswer(
+            call='open_midi_input', device_index=0, value=None, error='Device id invalid'
+        ),
+        EnumerationAnswer(
+            call='open_midi_output', device_index=1, value=None, error='Output refused'
+        ),
+    ]
+    assert live.take_opened_midi_ports() == []
+    assert live.midi_input_for_port(port_id=0) is None
+
+    replay = ReplayDeviceRegistry(
+        descriptors=[],
+        enumeration_answers=[EnumerationAnswer.from_json(answer.to_json()) for answer in answers],
+    )
+    with pytest.raises(pygame.error, match='Device id invalid'):
+        replay.open_midi_input(port_id=0)
+    with pytest.raises(pygame.error, match='Output refused'):
+        replay.open_midi_output(port_id=1)
+
+
+@pytest.mark.parametrize(
+    ('open_name', 'port_id', 'message'),
+    [
+        ('open_midi_input', 9, 'There is no MIDI port 9'),
+        ('open_midi_input', 1, r'MIDI port 1 \(Synth\) cannot be opened as a midi_input'),
+        ('open_midi_output', 0, r'MIDI port 0 \(Keys\) cannot be opened as a midi_output'),
+    ],
+)
+def test_a_midi_open_of_a_missing_or_wrong_way_port_fails_and_is_recorded(
+    mocker, open_name, port_id, message
+):
+    """A port that is not there, or goes the other way, fails before pygame is asked to open it."""
+    midi_module = _patch_portmidi_ports(mocker)
+    registry = LiveDeviceRegistry()
+
+    with pytest.raises(pygame.error, match=message):
+        getattr(registry, open_name)(port_id=port_id)
+
+    midi_module.Input.assert_not_called()
+    midi_module.Output.assert_not_called()
+    (answer,) = registry.take_enumeration_answers()
+    assert answer.call == open_name
+    assert answer.value is None
+    assert answer.error is not None
+    assert registry.take_opened_midi_ports() == []
+
+
+def test_a_midi_open_without_portmidi_fails_and_is_recorded(mocker):
+    """Without PortMidi an open fails as a pygame.error a replay raises again."""
+    mocker.patch('glitchygames.input.devices.import_midi_module', return_value=None)
+    registry = LiveDeviceRegistry()
+
+    with pytest.raises(pygame.error, match=r'pygame\.midi is unavailable'):
+        registry.open_midi_output(port_id=0)
+
+    (answer,) = registry.take_enumeration_answers()
+    assert answer.error == 'pygame.midi is unavailable in this pygame build'
+
+
+def test_a_stand_in_registry_opens_its_midi_ports_and_tells_the_recorder():
+    """Stand-in ports open as stand-ins, once, and a recorder takes the descriptors and answers."""
+    registry = stand_in_registry(descriptors=[], midi_ports=[KEYS_PORT, SYNTH_PORT])
+
+    midi_input = registry.open_midi_input(port_id=0)
+    midi_output = registry.open_midi_output(port_id=1)
+
+    assert registry.open_midi_input(port_id=0) is midi_input
+    assert midi_output.descriptor == SYNTH_DESCRIPTOR
+    assert registry.take_opened_midi_ports() == [KEYS_DESCRIPTOR, SYNTH_DESCRIPTOR]
+    assert registry.take_opened_midi_ports() == []
+    assert registry.take_enumeration_answers() == [
+        EnumerationAnswer(call='open_midi_input', device_index=0, value=0),
+        EnumerationAnswer(call='open_midi_output', device_index=1, value=1),
+    ]
+
+
+def test_stand_in_frames_without_a_recorder_keep_no_midi_ports():
+    """The stand-in doors discard untaken MIDI ports at the end of every frame."""
+    registry = install_stand_in_devices(descriptors=[], midi_ports=[KEYS_PORT])
+    registry.open_midi_input(port_id=0)
+
+    active_sources().end_frame(frame_number=0, dt=0.016, scene=None, control_events=[])
+
+    assert registry.take_opened_midi_ports() == []
+
+
+def test_find_midi_port_refuses_a_kind_that_is_not_midi():
+    """An unknown kind is a mistake, not a search for outputs."""
+    registry = stand_in_registry(descriptors=[], midi_ports=[KEYS_PORT, SYNTH_PORT])
+
+    with pytest.raises(ValueError, match=r"'joystick'"):
+        find_midi_port(devices=registry, name='Keys', kind='joystick')
+
+
+def test_without_portmidi_the_unavailable_message_is_logged_once_per_registry(mocker, caplog):
+    """A game asking about MIDI every frame does not log the missing module every frame."""
+    mocker.patch(
+        'glitchygames.input.devices.importlib.import_module',
+        side_effect=ModuleNotFoundError("No module named 'pygame.pypm'"),
+    )
+    registry = LiveDeviceRegistry()
+
+    with caplog.at_level('INFO', logger='game.input.devices'):
+        for _ in range(3):
+            registry.midi_port_count()
+            registry.default_midi_input_id()
+
+    assert caplog.text.count('pygame.midi is unavailable') == 1

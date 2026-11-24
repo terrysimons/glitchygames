@@ -21,7 +21,7 @@ flowchart TD
     key["Frame line: keyframe<br/>(frame 0, a new scene object, or forced)<br/>frame, scene, sprites (full list)"]
     delta["Frame line: delta<br/>changed / added / removed / order<br/>against the previous frame"]
     always["On every frame line:<br/>dt, event_batches,<br/>content_hash [history], processing_seconds [history]"]
-    sometimes["Only where not empty:<br/>input_changes, control_events, devices_opened,<br/>saves_opened, device_enumeration, scene_start,<br/>redelivered_events, audio_seconds, audio_work"]
+    sometimes["Only where not empty:<br/>input_changes, control_events, devices_opened,<br/>midi_ports_opened, saves_opened, device_enumeration, scene_start,<br/>redelivered_events, audio_seconds, audio_work"]
 
     file --> header
     file --> key
@@ -48,6 +48,7 @@ bool}` for every sprite in the scene's `all_sprites`, in draw order (`sample_sce
 | `custom_event_types` | every named custom event type the run allocated (the engine's FPSEVENT, GAMEEVENT and MENUEVENT, and any a game registered with `glitchygames.events.named_custom_event_type`): code that calls `pygame.event.custom_type()` first, or registers in another order, shifts the ids, so a replay moves the recorded event types to its own. Without it, a recording was made with pygame's first three custom ids. An id allocated straight from `pygame.event.custom_type()` has no name, so it is not moved | `decoded_replay_sources` (`custom_event_type_remap`) |
 | `saves`, `saves_opened` | save stores as they were first opened, so a replay never touches real saves (driver rule 7) | `MemorySaveManager` |
 | `devices`, `devices_opened`, `device_enumeration` | the pads the run saw, and every enumeration answer (driver rule 6) | `ReplayDeviceRegistry` |
+| `midi_ports` (header, only when a port opened before the first frame), `midi_ports_opened` | the MIDI ports the run opened (a recording without them loads unchanged) | `ReplayDeviceRegistry` |
 | `dt` | the frame time logic received; a replay serves it, so timers and physics replay exactly (driver rule 4) | `frame_seconds` door |
 | `event_batches` | every read of SDL's queue in the frame, empty ones too, in order, with each event's `origin` (driver rule 2) | `pump_events` door |
 | `input_changes` | the polled input (keys held, mouse, pads) as changes since the previous frame (driver rule 5) | `input_snapshot` door |

@@ -24,7 +24,9 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   ``LiveSources.first_open_save_snapshots``); ``devices``, the descriptors of devices opened
   so far (``kind``,
   ``device_index``, ``instance_id``, ``name``, ``guid`` and the axis, button, hat and ball
-  counts; glitchygames/input/devices.py); and ``device_enumeration``, the enumeration and
+  counts; glitchygames/input/devices.py); ``midi_ports`` (only when a MIDI port was opened),
+  the MIDI ports opened so far (``kind``, ``port_id``, ``name``, ``interface``); and
+  ``device_enumeration``, the enumeration and
   open answers given so far (``call``, ``device_index``, ``value``, ``error``), in order.
   And ``measurement_runs``: each run's provenance, newest first (``MeasurementRun``: machine,
   whether it paced its frames, versions, ``measured_at``, ``rebaselined_from``, the hash
@@ -54,7 +56,8 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   keymap); ``control_events``, the
   supervisor actions recorded in the frame, in order (``ControlEvent.to_json``:
   ``{"kind": ..., **data}``; glitchygames/supervision.py); ``devices_opened``, descriptors of
-  devices opened in the frame; ``saves_opened``, a snapshot of each save namespace first
+  devices opened in the frame; ``midi_ports_opened``, descriptors of MIDI ports opened in the
+  frame; ``saves_opened``, a snapshot of each save namespace first
   opened in the frame, taken before the game could write to it;
   ``device_enumeration``, the enumeration and open answers given in the frame (failures
   included, with their ``error``); and ``scene_start``, the start of the scene that began in
@@ -304,6 +307,9 @@ EVENT_BATCHES_FIELD = 'event_batches'
 INPUT_CHANGES_FIELD = 'input_changes'
 CONTROL_EVENTS_FIELD = 'control_events'
 DEVICES_OPENED_FIELD = 'devices_opened'
+# MIDI ports opened in the frame (MidiPortDescriptor.to_json; glitchygames/input/devices.py), a
+# field of their own so recordings made before MIDI ports existed load unchanged
+MIDI_PORTS_OPENED_FIELD = 'midi_ports_opened'
 SAVES_OPENED_FIELD = 'saves_opened'
 # A scene's start (glitchygames/scene_start.py), on its first logic frame
 SCENE_START_FIELD = 'scene_start'
@@ -324,6 +330,7 @@ RECORDING_FORMAT_THREE_FIELDS = (
     INPUT_CHANGES_FIELD,
     CONTROL_EVENTS_FIELD,
     DEVICES_OPENED_FIELD,
+    MIDI_PORTS_OPENED_FIELD,
     SAVES_OPENED_FIELD,
     DEVICE_ENUMERATION_FIELD,
     SCENE_START_FIELD,
@@ -338,6 +345,8 @@ SAVES_HEADER_FIELD = 'saves'
 # which scenes must not import (BUGS.md #224 item 16)
 GAME_HEADER_FIELD = 'game'
 DEVICES_HEADER_FIELD = 'devices'
+# The MIDI ports opened before the first frame (MidiPortDescriptor.to_json), absent when none were
+MIDI_PORTS_HEADER_FIELD = 'midi_ports'
 # An instant-replay journal's live devices as its scene started: {'input_mode': ..., 'devices':
 # [descriptor, ...]}, which its playback scope adopts (glitchygames/instant_replay.py, rule 10;
 # BUGS.md #184.3). A recording file has none: its scope opens the header's devices as the
@@ -1259,6 +1268,7 @@ class RecordedFrameFields(TypedDict, total=False):
         input_changes: The frame's polled-input changes (``snapshot_changes``).
         control_events: The frame's control events (``ControlEvent.to_json``), in order.
         devices_opened: Descriptors of devices opened in the frame (``to_json``).
+        midi_ports_opened: Descriptors of MIDI ports opened in the frame (``to_json``).
         saves_opened: Save namespaces first opened in the frame, each snapshotted.
         device_enumeration: Enumeration answers given in the frame (``to_json``).
         scene_start: The start of the scene that began in the frame (``SceneStart.to_json``).
@@ -1274,6 +1284,7 @@ class RecordedFrameFields(TypedDict, total=False):
     input_changes: dict[str, Any] | None
     control_events: list[dict[str, Any]] | None
     devices_opened: list[dict[str, Any]] | None
+    midi_ports_opened: list[dict[str, Any]] | None
     saves_opened: dict[str, Any] | None
     device_enumeration: list[dict[str, Any]] | None
     scene_start: dict[str, Any] | None
@@ -1771,6 +1782,9 @@ class RecordingSources:
                 devices_opened = [
                     descriptor.to_json() for descriptor in registry.take_opened_descriptors()
                 ]
+                midi_ports_opened = [
+                    descriptor.to_json() for descriptor in registry.take_opened_midi_ports()
+                ]
                 device_enumeration = [
                     answer.to_json() for answer in registry.take_enumeration_answers()
                 ]
@@ -1781,6 +1795,7 @@ class RecordingSources:
                     frame_index=self._recorder.frame_count
                 )
                 devices_opened = recorded_fields.get(DEVICES_OPENED_FIELD, [])
+                midi_ports_opened = recorded_fields.get(MIDI_PORTS_OPENED_FIELD, [])
                 device_enumeration = recorded_fields.get(DEVICE_ENUMERATION_FIELD, [])
                 saves_opened = recorded_fields.get(SAVES_OPENED_FIELD, {})
             scene_start = self._unrecorded_scene_start(scene=scene)
@@ -1796,6 +1811,7 @@ class RecordingSources:
                 input_changes=input_changes,
                 control_events=[control_event.to_json() for control_event in control_events],
                 devices_opened=devices_opened,
+                midi_ports_opened=midi_ports_opened,
                 saves_opened=saves_opened,
                 device_enumeration=device_enumeration,
                 scene_start=None if scene_start is None else scene_start.to_json(),

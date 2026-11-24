@@ -25,6 +25,15 @@ for the recorder and a replay answers from the recording, never from the MIDI ha
 ``pygame.midi`` is optional (``import_midi_module``): a pygame build without PortMidi (the
 WebAssembly builds) answers as zero ports, and those answers are remembered as usual. PortMidi is
 initialized lazily, on the first MIDI call, so a game that never asks never starts it.
+
+MIDI ports open here too (``open_midi_input``, ``open_midi_output``), once per process: a second
+open of the same port hands back the first one, and ``midi_input_for_port`` /
+``midi_output_for_port`` look an opened one up. An open is an answer (the port id, or the error),
+and the recorder takes the opened ports' descriptors (``take_opened_midi_ports``) into its own
+fields, ``midi_ports`` in the header and ``midi_ports_opened`` on a frame, so a recording made
+before MIDI existed loads unchanged. A replay hands out ``ReplayMidiInput`` / ``ReplayMidiOutput``:
+an input never has anything to read (the recorded MIDI events are served by the event door), an
+output drops what a game writes.
 """
 
 from __future__ import annotations
@@ -36,7 +45,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Protocol, Self
 
 import pygame
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from glitchygames.input.state import (
     ControllerAxes,
@@ -54,7 +63,8 @@ if TYPE_CHECKING:
 
     # Type only: the module is optional at runtime (sdl_controller_module). The lazily
     # evaluated `type OpenedController` alias below is what ruff counts as a runtime use
-    import pygame._sdl2.controller  # ruff: ignore[runtime-import-in-type-checking-block] - see above
+    import pygame._sdl2.controller
+    import pygame.midi  # ruff: ignore[runtime-import-in-type-checking-block] - see above
     from pygame.typing import ColorLike
 
 LOG = logging.getLogger('game.input.devices')
@@ -88,8 +98,12 @@ def sdl_controller_module() -> ModuleType | None:
     return _SDL_CONTROLLER_MODULE
 
 
-def import_midi_module() -> ModuleType | None:
+def import_midi_module(*, log_unavailable: bool = True) -> ModuleType | None:
     """Import pygame.midi, or return None where this pygame build has no PortMidi.
+
+    Args:
+        log_unavailable: Whether to log (at INFO) that the module is unavailable. A registry asks
+            for it once, so a game that asks about MIDI every frame does not log every frame.
 
     Returns:
         The module, or None.
@@ -98,7 +112,8 @@ def import_midi_module() -> ModuleType | None:
     try:
         return importlib.import_module('pygame.midi')
     except ImportError:
-        LOG.info('pygame.midi is unavailable in this pygame build: no MIDI devices')
+        if log_unavailable:
+            LOG.info('pygame.midi is unavailable in this pygame build: no MIDI devices')
         return None
 
 
@@ -120,6 +135,9 @@ MIDI_PORT_COUNT_CALL = 'midi_port_count'
 MIDI_PORT_INFO_CALL = 'midi_port_info'
 DEFAULT_MIDI_INPUT_CALL = 'default_midi_input_id'
 DEFAULT_MIDI_OUTPUT_CALL = 'default_midi_output_id'
+OPEN_MIDI_INPUT_CALL = 'open_midi_input'
+OPEN_MIDI_OUTPUT_CALL = 'open_midi_output'
+MIDI_UNAVAILABLE_MESSAGE = 'pygame.midi is unavailable in this pygame build'
 # What PortMidi answers for "no default port"
 NO_MIDI_PORT_ID = -1
 
@@ -129,6 +147,8 @@ type EnumerationValue = int | bool | str | list[str | int | bool] | None
 # methods share pygame's signatures, so callers use the methods both have)
 type OpenedJoystick = pygame.joystick.JoystickType | ReplayJoystick
 type OpenedController = pygame._sdl2.controller.Controller | ReplayController
+type OpenedMidiInput = pygame.midi.Input | ReplayMidiInput
+type OpenedMidiOutput = pygame.midi.Output | ReplayMidiOutput
 
 
 @dataclasses.dataclass(frozen=True)
@@ -228,6 +248,55 @@ class MidiPortInfo(BaseModel):
             is_input=bool(is_input),
             is_output=bool(is_output),
         )
+
+
+class MidiPortDescriptor(BaseModel):
+    """A MIDI port a game opened (recorded, so a replay opens a stand-in for the same port).
+
+    Attributes:
+        kind: ``MIDI_INPUT_KIND`` (a port the game reads) or ``MIDI_OUTPUT_KIND`` (one it writes).
+        port_id: The PortMidi port id it was opened by.
+        name: The port's name.
+        interface: The MIDI API the port belongs to (for example ``CoreMIDI``).
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    kind: str
+    port_id: int
+    name: str
+    interface: str
+
+    @field_validator('kind')
+    @classmethod
+    def _kind_is_a_midi_kind(cls, kind: str) -> str:
+        if kind not in {MIDI_INPUT_KIND, MIDI_OUTPUT_KIND}:
+            message = f'A MIDI port is {MIDI_INPUT_KIND!r} or {MIDI_OUTPUT_KIND!r}, not {kind!r}'
+            raise ValueError(message)
+        return kind
+
+    def to_json(self: Self) -> dict[str, Any]:
+        """Return the descriptor as a JSON-safe dict.
+
+        Returns:
+            The fields by name.
+
+        """
+        return self.model_dump()
+
+    @classmethod
+    def from_json(cls, record: dict[str, Any]) -> MidiPortDescriptor:
+        """Read a descriptor written by ``to_json``.
+
+        Args:
+            record: The dict ``to_json`` wrote.
+
+        Returns:
+            The descriptor.
+
+        """
+        return cls.model_validate(record)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -358,6 +427,42 @@ class DeviceRegistry(Protocol):
         """
         ...
 
+    def open_midi_input(self, *, port_id: int) -> OpenedMidiInput:
+        """Open the MIDI input port ``port_id`` (once per process: later opens return it).
+
+        Args:
+            port_id: The PortMidi port id.
+
+        """
+        ...
+
+    def open_midi_output(self, *, port_id: int) -> OpenedMidiOutput:
+        """Open the MIDI output port ``port_id`` (once per process: later opens return it).
+
+        Args:
+            port_id: The PortMidi port id.
+
+        """
+        ...
+
+    def midi_input_for_port(self, *, port_id: int) -> OpenedMidiInput | None:
+        """Return the opened MIDI input port ``port_id``, or None when it was never opened.
+
+        Args:
+            port_id: The PortMidi port id.
+
+        """
+        ...
+
+    def midi_output_for_port(self, *, port_id: int) -> OpenedMidiOutput | None:
+        """Return the opened MIDI output port ``port_id``, or None when it was never opened.
+
+        Args:
+            port_id: The PortMidi port id.
+
+        """
+        ...
+
     def joystick_for_instance(self, *, instance_id: int) -> OpenedJoystick | None:
         """Return an opened device's joystick view by instance id, or None.
 
@@ -389,6 +494,10 @@ class DeviceRegistry(Protocol):
 
     def take_opened_descriptors(self) -> list[DeviceDescriptor]:
         """Return the descriptors of devices opened since the last call (the recorder's)."""
+        ...
+
+    def take_opened_midi_ports(self) -> list[MidiPortDescriptor]:
+        """Return the descriptors of MIDI ports opened since the last call (the recorder's)."""
         ...
 
     def take_enumeration_answers(self) -> list[EnumerationAnswer]:
@@ -468,7 +577,52 @@ def _poll_controller_layer(
     return axes, buttons
 
 
-class LiveDeviceRegistry:
+def _read_midi_port_info(*, midi_module: ModuleType, port_id: int) -> MidiPortInfo | None:
+    """Ask PortMidi about one port, without remembering the answer.
+
+    PortMidi gives the interface and the name as bytes: they are decoded as UTF-8, with
+    undecodable bytes replaced.
+
+    Returns:
+        The port, or None when PortMidi has no such port.
+
+    """
+    info = midi_module.get_device_info(port_id)
+    if info is None:
+        return None
+    interface, name, is_input, is_output, _is_opened = info
+    return MidiPortInfo(
+        interface=bytes(interface).decode('utf-8', errors='replace'),
+        name=bytes(name).decode('utf-8', errors='replace'),
+        is_input=bool(is_input),
+        is_output=bool(is_output),
+    )
+
+
+def _midi_port_descriptor(
+    *, midi_module: ModuleType, kind: str, port_id: int
+) -> MidiPortDescriptor:
+    """Describe the port an open is about to open, refusing a port that cannot be opened so.
+
+    Returns:
+        The descriptor.
+
+    Raises:
+        pygame.error: If PortMidi has no such port, or it does not go the way ``kind`` says.
+
+    """
+    info = _read_midi_port_info(midi_module=midi_module, port_id=port_id)
+    if info is None:
+        message = f'There is no MIDI port {port_id}'
+        raise pygame.error(message)
+    goes_that_way = info.is_input if kind == MIDI_INPUT_KIND else info.is_output
+    if not goes_that_way:
+        message = f'MIDI port {port_id} ({info.name}) cannot be opened as a {kind}'
+        raise pygame.error(message)
+    return MidiPortDescriptor(kind=kind, port_id=port_id, name=info.name, interface=info.interface)
+
+
+class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every DeviceRegistry member
     """Enumerates and opens real devices, remembers them, and polls them for the snapshot."""
 
     def __init__(self: Self) -> None:
@@ -480,6 +634,11 @@ class LiveDeviceRegistry:
         self._new_descriptors: list[DeviceDescriptor] = []
         self._new_answers: list[EnumerationAnswer] = []
         self._midi_initialized = False
+        self._midi_unavailable_logged = False
+        # Opened MIDI ports: one per port id and direction, for the life of the registry
+        self._midi_inputs: dict[int, pygame.midi.Input] = {}
+        self._midi_outputs: dict[int, pygame.midi.Output] = {}
+        self._new_midi_ports: list[MidiPortDescriptor] = []
 
     def joystick_count(self: Self) -> int:
         """Return how many joysticks SDL reports (remembered for the recorder).
@@ -603,16 +762,8 @@ class LiveDeviceRegistry:
         """
 
         def ask(midi_module: ModuleType) -> EnumerationValue:
-            info = midi_module.get_device_info(port_id)
-            if info is None:
-                return None
-            interface, name, is_input, is_output, _is_opened = info
-            return MidiPortInfo(
-                interface=bytes(interface).decode('utf-8', errors='replace'),
-                name=bytes(name).decode('utf-8', errors='replace'),
-                is_input=bool(is_input),
-                is_output=bool(is_output),
-            ).to_answer_value()
+            info = _read_midi_port_info(midi_module=midi_module, port_id=port_id)
+            return None if info is None else info.to_answer_value()
 
         value = self._ask_midi(
             call=MIDI_PORT_INFO_CALL, device_index=port_id, ask=ask, without_portmidi=None
@@ -675,6 +826,88 @@ class LiveDeviceRegistry:
             call=OPEN_JOYSTICK_CALL, descriptor=descriptor, joystick_view=joystick, controller=None
         )
         return joystick
+
+    def open_midi_input(self: Self, *, port_id: int) -> pygame.midi.Input:
+        """Open the MIDI input port ``port_id``, once: a second open returns the first.
+
+        A port that is gone, is not an input or cannot be opened raises ``pygame.error``, and the
+        failure is remembered, so a replay fails the same way.
+
+        Args:
+            port_id: The PortMidi port id.
+
+        Returns:
+            The pygame MIDI input.
+
+        """
+        opened = self._midi_inputs.get(port_id)
+        if opened is not None:
+            return opened
+        midi_module, descriptor = self._prepare_midi_open(
+            call=OPEN_MIDI_INPUT_CALL, kind=MIDI_INPUT_KIND, port_id=port_id
+        )
+        midi_input = self._construct_midi_port(
+            call=OPEN_MIDI_INPUT_CALL,
+            port_id=port_id,
+            midi_module=midi_module,
+            construct=midi_module.Input,
+        )
+        self._midi_inputs[port_id] = midi_input
+        self._remember_opened_midi_port(call=OPEN_MIDI_INPUT_CALL, descriptor=descriptor)
+        return midi_input
+
+    def open_midi_output(self: Self, *, port_id: int) -> pygame.midi.Output:
+        """Open the MIDI output port ``port_id``, once: a second open returns the first.
+
+        A port that is gone, is not an output or cannot be opened raises ``pygame.error``, and the
+        failure is remembered, so a replay fails the same way.
+
+        Args:
+            port_id: The PortMidi port id.
+
+        Returns:
+            The pygame MIDI output.
+
+        """
+        opened = self._midi_outputs.get(port_id)
+        if opened is not None:
+            return opened
+        midi_module, descriptor = self._prepare_midi_open(
+            call=OPEN_MIDI_OUTPUT_CALL, kind=MIDI_OUTPUT_KIND, port_id=port_id
+        )
+        midi_output = self._construct_midi_port(
+            call=OPEN_MIDI_OUTPUT_CALL,
+            port_id=port_id,
+            midi_module=midi_module,
+            construct=midi_module.Output,
+        )
+        self._midi_outputs[port_id] = midi_output
+        self._remember_opened_midi_port(call=OPEN_MIDI_OUTPUT_CALL, descriptor=descriptor)
+        return midi_output
+
+    def midi_input_for_port(self: Self, *, port_id: int) -> pygame.midi.Input | None:
+        """Return the opened MIDI input port ``port_id``, or None when it was never opened.
+
+        Args:
+            port_id: The PortMidi port id.
+
+        Returns:
+            The input, or None.
+
+        """
+        return self._midi_inputs.get(port_id)
+
+    def midi_output_for_port(self: Self, *, port_id: int) -> pygame.midi.Output | None:
+        """Return the opened MIDI output port ``port_id``, or None when it was never opened.
+
+        Args:
+            port_id: The PortMidi port id.
+
+        Returns:
+            The output, or None.
+
+        """
+        return self._midi_outputs.get(port_id)
 
     def open_controller(self: Self, *, device_index: int) -> pygame._sdl2.controller.Controller:
         """Open the game controller at ``device_index`` and remember it.
@@ -776,6 +1009,7 @@ class LiveDeviceRegistry:
         """
         self._new_answers.clear()
         self._new_descriptors.clear()
+        self._new_midi_ports.clear()
 
     def take_opened_descriptors(self: Self) -> list[DeviceDescriptor]:
         """Return the descriptors of devices opened since the last call (the recorder's).
@@ -785,6 +1019,16 @@ class LiveDeviceRegistry:
 
         """
         descriptors, self._new_descriptors = self._new_descriptors, []
+        return descriptors
+
+    def take_opened_midi_ports(self: Self) -> list[MidiPortDescriptor]:
+        """Return the descriptors of MIDI ports opened since the last call (the recorder's).
+
+        Returns:
+            The descriptors, in opening order.
+
+        """
+        descriptors, self._new_midi_ports = self._new_midi_ports, []
         return descriptors
 
     def take_enumeration_answers(self: Self) -> list[EnumerationAnswer]:
@@ -879,13 +1123,86 @@ class LiveDeviceRegistry:
         ask: Callable[[ModuleType], EnumerationValue],
         without_portmidi: EnumerationValue,
     ) -> EnumerationValue:
-        midi_module = import_midi_module()
+        midi_module = self._started_midi_module()
         if midi_module is None:
             return without_portmidi
+        return ask(midi_module)
+
+    def _started_midi_module(self: Self) -> ModuleType | None:
+        """Return pygame.midi with PortMidi started (on the first call), None without PortMidi.
+
+        Returns:
+            The module, or None. Where it is missing, that is logged once per registry.
+
+        """
+        midi_module = import_midi_module(log_unavailable=not self._midi_unavailable_logged)
+        if midi_module is None:
+            self._midi_unavailable_logged = True
+            return None
         if not self._midi_initialized:
             midi_module.init()
             self._midi_initialized = True
-        return ask(midi_module)
+        return midi_module
+
+    def _prepare_midi_open(
+        self: Self, *, call: str, kind: str, port_id: int
+    ) -> tuple[ModuleType, MidiPortDescriptor]:
+        """Start PortMidi and describe the port an open is about to open.
+
+        Returns:
+            The module and the port's descriptor.
+
+        Raises:
+            pygame.error: If PortMidi is missing, or the port is gone or goes the wrong way
+                (remembered).
+
+        """
+        try:
+            midi_module = self._started_midi_module()
+            if midi_module is None:
+                raise pygame.error(MIDI_UNAVAILABLE_MESSAGE)  # ruff: ignore[raise-within-try] - remembered below
+            descriptor = _midi_port_descriptor(midi_module=midi_module, kind=kind, port_id=port_id)
+        except pygame.error as error:
+            self._remember_failure(call=call, device_index=port_id, error=error)
+            raise
+        return midi_module, descriptor
+
+    def _construct_midi_port[PortT](
+        self: Self,
+        *,
+        call: str,
+        port_id: int,
+        midi_module: ModuleType,
+        construct: Callable[[int], PortT],
+    ) -> PortT:
+        """Open the port with pygame's constructor; what PortMidi refuses is a pygame.error.
+
+        PortMidi's own ``MidiException`` is raised as ``pygame.error`` (and remembered under
+        ``call``), as every other door call fails, so a replay raises the same.
+
+        Args:
+            call: The open call to remember a failure under.
+            port_id: The PortMidi port id.
+            midi_module: pygame.midi (it names ``MidiException``).
+            construct: ``midi_module.Input`` or ``midi_module.Output``.
+
+        Returns:
+            The port.
+
+        """
+        try:
+            return construct(port_id)
+        except (pygame.error, midi_module.MidiException) as error:
+            # MidiException's str() is the repr of its message (its ``parameter``)
+            failure = pygame.error(str(getattr(error, 'parameter', error)))
+            self._remember_failure(call=call, device_index=port_id, error=failure)
+            raise failure from error
+
+    def _remember_opened_midi_port(
+        self: Self, *, call: str, descriptor: MidiPortDescriptor
+    ) -> None:
+        self._new_midi_ports.append(descriptor)
+        self._remember_answer(call=call, device_index=descriptor.port_id, value=descriptor.port_id)
 
     def _remember_answer(
         self: Self,
@@ -1264,7 +1581,141 @@ class ReplayController:
         return False
 
 
-class ReplayDeviceRegistry:
+class ReplayMidiInput:
+    """A recorded MIDI input port: never has anything to read.
+
+    A drop-in for ``pygame.midi.Input``. A replay serves the recorded MIDI events through the
+    event door, so a game polling its port finds nothing waiting, whatever is plugged in.
+    """
+
+    def __init__(self: Self, *, descriptor: MidiPortDescriptor) -> None:
+        """Remember the port this stands in for.
+
+        Args:
+            descriptor: The recorded port.
+
+        """
+        self.descriptor = descriptor
+
+    def poll(self: Self) -> bool:
+        """Say there is nothing to read.
+
+        Returns:
+            False.
+
+        """
+        return False
+
+    def read(self: Self, num_events: int) -> list[Any]:
+        """Return no events.
+
+        Args:
+            num_events: How many events the game would read (ignored).
+
+        Returns:
+            An empty list.
+
+        """
+        del num_events
+        return []
+
+    def close(self: Self) -> None:
+        """Close nothing."""
+
+
+class ReplayMidiOutput:
+    """A recorded MIDI output port: drops everything a game writes.
+
+    A drop-in for ``pygame.midi.Output`` (the signatures are pygame's): no MIDI reaches a device
+    in a replay.
+    """
+
+    def __init__(self: Self, *, descriptor: MidiPortDescriptor) -> None:
+        """Remember the port this stands in for.
+
+        Args:
+            descriptor: The recorded port.
+
+        """
+        self.descriptor = descriptor
+
+    def write_short(self: Self, status: int, data1: int = 0, data2: int = 0) -> None:
+        """Drop a three-byte message.
+
+        Args:
+            status: The status byte (ignored).
+            data1: The first data byte (ignored).
+            data2: The second data byte (ignored).
+
+        """
+        del status, data1, data2
+
+    def write(self: Self, data: list[Any]) -> None:
+        """Drop a list of timestamped messages.
+
+        Args:
+            data: The messages (ignored).
+
+        """
+        del data
+
+    def write_sys_ex(self: Self, when: int, msg: Any) -> None:  # ruff: ignore[any-type] - pygame: list or str
+        """Drop a system-exclusive message.
+
+        Args:
+            when: The timestamp (ignored).
+            msg: The message (ignored).
+
+        """
+        del when, msg
+
+    def note_on(self: Self, note: int, velocity: int, channel: int = 0) -> None:
+        """Drop a note-on.
+
+        Args:
+            note: The note (ignored).
+            velocity: The velocity (ignored).
+            channel: The channel (ignored).
+
+        """
+        del note, velocity, channel
+
+    def note_off(self: Self, note: int, velocity: int = 0, channel: int = 0) -> None:
+        """Drop a note-off.
+
+        Args:
+            note: The note (ignored).
+            velocity: The velocity (ignored).
+            channel: The channel (ignored).
+
+        """
+        del note, velocity, channel
+
+    def set_instrument(self: Self, instrument_id: int, channel: int = 0) -> None:
+        """Drop a program change.
+
+        Args:
+            instrument_id: The program (ignored).
+            channel: The channel (ignored).
+
+        """
+        del instrument_id, channel
+
+    def pitch_bend(self: Self, value: int = 0, channel: int = 0) -> None:
+        """Drop a pitch bend.
+
+        Args:
+            value: The bend (ignored).
+            channel: The channel (ignored).
+
+        """
+        del value, channel
+
+    def close(self: Self) -> None:
+        """Close nothing."""
+
+
+class ReplayDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every DeviceRegistry member
     """Stand-ins and recorded enumeration answers (glitchygames/replay/driver.py builds it)."""
 
     def __init__(
@@ -1272,12 +1723,15 @@ class ReplayDeviceRegistry:
         *,
         descriptors: list[DeviceDescriptor],
         enumeration_answers: list[EnumerationAnswer],
+        midi_ports: list[MidiPortDescriptor] | None = None,
     ) -> None:
         """Index the recorded descriptors and queue the recorded answers by call.
 
         Args:
             descriptors: Devices the recording opened before it started (header).
             enumeration_answers: Answers the recording gave before it started (header).
+            midi_ports: MIDI ports the recording opened before it started (header; a recording
+                made before MIDI had none).
 
         """
         # In recording order; a device index can recur (a device unplugged and another plugged
@@ -1294,6 +1748,13 @@ class ReplayDeviceRegistry:
         # The ports MIDI calls answer with when the recording has no answer (a subclass may
         # set some: the stand-in registry); a recording never has any without them
         self._midi_ports: tuple[MidiPortInfo, ...] = ()
+        # The recorded ports by kind and port id (a later recording of the same port wins), the
+        # stand-ins opened for them, and the ports learned from frames for a recorder to take
+        self._recorded_midi_ports: dict[tuple[str, int], MidiPortDescriptor] = {}
+        self._midi_inputs: dict[int, ReplayMidiInput] = {}
+        self._midi_outputs: dict[int, ReplayMidiOutput] = {}
+        self._learned_midi_ports: list[MidiPortDescriptor] = []
+        self.add_midi_ports(descriptors=midi_ports or [], learned=False)
         self._index_descriptors(descriptors=descriptors)
         self.add_enumeration_answers(answers=enumeration_answers)
 
@@ -1306,6 +1767,22 @@ class ReplayDeviceRegistry:
         """
         self._index_descriptors(descriptors=descriptors)
         self._learned_descriptors.extend(descriptors)
+
+    def add_midi_ports(
+        self: Self, *, descriptors: list[MidiPortDescriptor], learned: bool = True
+    ) -> None:
+        """Learn MIDI ports the recording opened (header or ``midi_ports_opened`` frame field).
+
+        Args:
+            descriptors: The opened ports, in order.
+            learned: True for a frame's ports, which a recording made over this replay writes in
+                the same frames (``take_opened_midi_ports``); False for the header's.
+
+        """
+        for descriptor in descriptors:
+            self._recorded_midi_ports[descriptor.kind, descriptor.port_id] = descriptor
+        if learned:
+            self._learned_midi_ports.extend(descriptors)
 
     def add_enumeration_answers(self: Self, *, answers: list[EnumerationAnswer]) -> None:
         """Queue answers the recording gave later (``device_enumeration`` frame fields).
@@ -1448,6 +1925,66 @@ class ReplayDeviceRegistry:
         )
         return joystick
 
+    def open_midi_input(self: Self, *, port_id: int) -> ReplayMidiInput:
+        """Return the stand-in for the recorded MIDI input port ``port_id`` (one per port).
+
+        Args:
+            port_id: The PortMidi port id.
+
+        Returns:
+            The stand-in.
+
+        """
+        stand_in = self._midi_inputs.get(port_id)
+        if stand_in is None:
+            descriptor = self._midi_port_to_open(
+                call=OPEN_MIDI_INPUT_CALL, kind=MIDI_INPUT_KIND, port_id=port_id
+            )
+            stand_in = self._midi_inputs[port_id] = ReplayMidiInput(descriptor=descriptor)
+        return stand_in
+
+    def open_midi_output(self: Self, *, port_id: int) -> ReplayMidiOutput:
+        """Return the stand-in for the recorded MIDI output port ``port_id`` (one per port).
+
+        Args:
+            port_id: The PortMidi port id.
+
+        Returns:
+            The stand-in.
+
+        """
+        stand_in = self._midi_outputs.get(port_id)
+        if stand_in is None:
+            descriptor = self._midi_port_to_open(
+                call=OPEN_MIDI_OUTPUT_CALL, kind=MIDI_OUTPUT_KIND, port_id=port_id
+            )
+            stand_in = self._midi_outputs[port_id] = ReplayMidiOutput(descriptor=descriptor)
+        return stand_in
+
+    def midi_input_for_port(self: Self, *, port_id: int) -> ReplayMidiInput | None:
+        """Return the opened MIDI input stand-in ``port_id``, or None when it was never opened.
+
+        Args:
+            port_id: The PortMidi port id.
+
+        Returns:
+            The stand-in, or None.
+
+        """
+        return self._midi_inputs.get(port_id)
+
+    def midi_output_for_port(self: Self, *, port_id: int) -> ReplayMidiOutput | None:
+        """Return the opened MIDI output stand-in ``port_id``, or None when it was never opened.
+
+        Args:
+            port_id: The PortMidi port id.
+
+        Returns:
+            The stand-in, or None.
+
+        """
+        return self._midi_outputs.get(port_id)
+
     def open_controller(self: Self, *, device_index: int) -> ReplayController:
         """Return a stand-in for the recorded controller at ``device_index``.
 
@@ -1544,6 +2081,16 @@ class ReplayDeviceRegistry:
 
         """
         descriptors, self._learned_descriptors = self._learned_descriptors, []
+        return descriptors
+
+    def take_opened_midi_ports(self: Self) -> list[MidiPortDescriptor]:
+        """Return the MIDI ports learned from the recording since the last call, once each.
+
+        Returns:
+            The descriptors, in the order learned.
+
+        """
+        descriptors, self._learned_midi_ports = self._learned_midi_ports, []
         return descriptors
 
     def take_enumeration_answers(self: Self) -> list[EnumerationAnswer]:
@@ -1653,6 +2200,42 @@ class ReplayDeviceRegistry:
             )
         return fallback
 
+    def _midi_port_to_open(self: Self, *, call: str, kind: str, port_id: int) -> MidiPortDescriptor:
+        """Return the recorded port an open of ``port_id`` gets, raising a recorded failure again.
+
+        The port is the recording's, else the one ``_midi_ports`` lists at that position (the
+        stand-in registry's), else a named stand-in with a warning.
+
+        Returns:
+            The descriptor.
+
+        Raises:
+            pygame.error: If the recorded open failed.
+
+        """
+        answer = self._next_answer(call=call, device_index=port_id)
+        if answer is not None and answer.error is not None:
+            notify_device_answer(answer=answer, opened=None)
+            raise pygame.error(answer.error)
+        descriptor = self._recorded_midi_ports.get((kind, port_id))
+        if descriptor is None and 0 <= port_id < len(self._midi_ports):
+            port = self._midi_ports[port_id]
+            descriptor = MidiPortDescriptor(
+                kind=kind, port_id=port_id, name=port.name, interface=port.interface
+            )
+        if descriptor is None:
+            LOG.warning('MIDI port %d is not in the recording; using a named stand-in', port_id)
+            descriptor = MidiPortDescriptor(
+                kind=kind,
+                port_id=port_id,
+                name=f'Unrecorded MIDI port {port_id}',
+                interface='Unrecorded',
+            )
+        notify_device_answer(
+            answer=EnumerationAnswer(call=call, device_index=port_id, value=port_id), opened=None
+        )
+        return descriptor
+
     def _descriptor_to_open(
         self: Self, *, call: str, device_index: int, kind: str
     ) -> DeviceDescriptor:
@@ -1709,7 +2292,13 @@ def find_midi_port(*, devices: DeviceRegistry, name: str, kind: str) -> int | No
     Returns:
         The port id, or None when no port matches.
 
+    Raises:
+        ValueError: If ``kind`` is neither ``MIDI_INPUT_KIND`` nor ``MIDI_OUTPUT_KIND``.
+
     """
+    if kind not in {MIDI_INPUT_KIND, MIDI_OUTPUT_KIND}:
+        message = f'kind must be {MIDI_INPUT_KIND!r} or {MIDI_OUTPUT_KIND!r}, not {kind!r}'
+        raise ValueError(message)
     for port_id in range(devices.midi_port_count()):
         info = devices.midi_port_info(port_id=port_id)
         if info is None or info.name != name:

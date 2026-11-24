@@ -42,6 +42,7 @@ from glitchygames.input.devices import (
     DeviceDescriptor,
     EnumerationAnswer,
     EnumerationValue,
+    MidiPortDescriptor,
     MidiPortInfo,
     ReplayDeviceRegistry,
 )
@@ -90,6 +91,7 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         self._midi_ports = tuple(midi_ports)
         self._given_answers: list[EnumerationAnswer] = []
         self._opened_descriptors: list[DeviceDescriptor] = []
+        self._opened_midi_ports: list[MidiPortDescriptor] = []
 
     @override
     def joystick_count(self: Self) -> int:
@@ -225,6 +227,39 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         return descriptor
 
     @override
+    def _midi_port_to_open(self: Self, *, call: str, kind: str, port_id: int) -> MidiPortDescriptor:
+        """Pick the stand-in port an open gets, as the replay registry does, and keep it.
+
+        Both opens (``open_midi_input``, ``open_midi_output``) learn their port here, so this is
+        the one place a stand-in port opened is kept for the recorder, with the open's answer
+        (its port id), as ``LiveDeviceRegistry`` keeps a real port it opened.
+
+        Args:
+            call: ``OPEN_MIDI_INPUT_CALL`` or ``OPEN_MIDI_OUTPUT_CALL``.
+            kind: ``MIDI_INPUT_KIND`` or ``MIDI_OUTPUT_KIND``.
+            port_id: The port's position in ``midi_ports``.
+
+        Returns:
+            The descriptor.
+
+        """
+        descriptor = super()._midi_port_to_open(call=call, kind=kind, port_id=port_id)
+        self._opened_midi_ports.append(descriptor)
+        self._keep_answer(call=call, device_index=port_id, value=port_id)
+        return descriptor
+
+    @override
+    def take_opened_midi_ports(self: Self) -> list[MidiPortDescriptor]:
+        """Return the stand-in MIDI ports opened since the last call (the recorder's).
+
+        Returns:
+            The descriptors, in opening order.
+
+        """
+        descriptors, self._opened_midi_ports = self._opened_midi_ports, []
+        return descriptors
+
+    @override
     def take_opened_descriptors(self: Self) -> list[DeviceDescriptor]:
         """Return the stand-ins opened since the last call (the recorder's).
 
@@ -254,6 +289,7 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         """
         self._given_answers.clear()
         self._opened_descriptors.clear()
+        self._opened_midi_ports.clear()
 
     def _keep_answer(
         self: Self, *, call: str, device_index: int | None, value: EnumerationValue

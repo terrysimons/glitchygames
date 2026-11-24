@@ -34,6 +34,8 @@ from glitchygames.events import (
 )
 from glitchygames.events import base as events_base
 from glitchygames.input import devices as devices_module
+from glitchygames.input.devices import MIDI_INPUT_KIND, MidiPortDescriptor, MidiPortInfo
+from glitchygames.input.stand_in_devices import StandInDeviceSources, stand_in_registry
 from glitchygames.input.state import IDLE_INPUT, held_key_codes
 from glitchygames.live_sources import LiveSources
 from glitchygames.recording import (
@@ -45,6 +47,7 @@ from glitchygames.recording import (
     EXTERNAL_ORIGIN,
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
+    MIDI_PORTS_OPENED_FIELD,
     RECORDING_SOURCE,
     REDELIVERED_EVENTS_FIELD,
     SAVES_HEADER_FIELD,
@@ -87,6 +90,7 @@ from glitchygames.recording_history import (
     PROCESSING_SECONDS_FIELD,
     frame_content_hash,
 )
+from glitchygames.replay.driver import ReplaySources
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES, EventTypeBlock
 from glitchygames.scenes import Scene
 from glitchygames.sources import frame_clock_seconds, set_frame_clock_seconds
@@ -1328,11 +1332,53 @@ class TestRecordingSources:
         for field in (
             INPUT_CHANGES_FIELD,
             DEVICES_OPENED_FIELD,
+            MIDI_PORTS_OPENED_FIELD,
             SAVES_OPENED_FIELD,
             DEVICE_ENUMERATION_FIELD,
         ):
             assert field not in first
             assert field not in second
+
+    def test_midi_ports_and_their_answers_survive_a_recording_file_round_trip(self, tmp_path):
+        """MIDI answers (a list-valued one too) and opened ports are written, read and replayed.
+
+        The frame has its own ``midi_ports_opened`` field, and the replay (read back from the
+        file) answers the port's info as recorded and opens a stand-in for the port.
+        """
+        keys = MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False)
+        registry = stand_in_registry(descriptors=[], midi_ports=[keys])
+        recorder = GameplayRecorder(
+            path=tmp_path / 'midi.jsonl.gz',
+            header={'game_class': 'Unit', 'random_seed': 1, 'recorded_at': '2026-11-24T12:00:00'},
+        )
+        sources = RecordingSources(
+            inner=StandInDeviceSources(registry=registry, random_seed=1), recorder=recorder
+        )
+
+        port_info = sources.devices().midi_port_info(port_id=0)
+        sources.devices().open_midi_input(port_id=0)
+        _end_frame(sources, frame_number=0)
+        _end_frame(sources, frame_number=1)
+        recorder.close()
+
+        assert port_info == keys
+        first, second = read_trace_result(path=recorder.path).trace['frames']
+        assert first[MIDI_PORTS_OPENED_FIELD] == [
+            {'kind': MIDI_INPUT_KIND, 'port_id': 0, 'name': 'Keys', 'interface': 'CoreMIDI'}
+        ]
+        assert {
+            'call': 'midi_port_info',
+            'device_index': 0,
+            'value': ['CoreMIDI', 'Keys', True, False],
+            'error': None,
+        } in first[DEVICE_ENUMERATION_FIELD]
+        assert MIDI_PORTS_OPENED_FIELD not in second
+        replay = ReplaySources.from_path(path=recorder.path)
+        replayed_devices = replay.devices()
+        assert replayed_devices.midi_port_info(port_id=0) == keys
+        assert replayed_devices.open_midi_input(port_id=0).descriptor == MidiPortDescriptor(
+            kind=MIDI_INPUT_KIND, port_id=0, name='Keys', interface='CoreMIDI'
+        )
 
     def test_input_changes_diff_against_the_previous_frame(self, tmp_path, mocker):
         """The first snapshot diffs against IDLE_INPUT; an unchanged frame records nothing."""

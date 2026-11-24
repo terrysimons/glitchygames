@@ -812,7 +812,7 @@ writes what that code did to NEW: the same inputs and a new picture. The contrac
 - NEW holds OLD's inputs as the replay served them: the event batches with their origins
   (code-posted events stay `internal`, so replaying NEW delivers nothing twice), `dt`,
   `input_changes`, re-applied control events, and each frame's `saves_opened`,
-  `devices_opened` and `device_enumeration` copied from OLD. Its sprites and markers are the
+  `devices_opened`, `midi_ports_opened` and `device_enumeration` copied from OLD. Its sprites and markers are the
   current code's. Its header is OLD's (seed, start time, options, saves, devices), except the
   game's names (`game_class`, `game_module`, `game`), which are this run's, with
   `rebaselined_from` naming OLD and this run's engine, pygame and Python versions.

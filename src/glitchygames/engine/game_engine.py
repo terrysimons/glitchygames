@@ -94,6 +94,7 @@ from glitchygames.recording import (
     CUSTOM_EVENT_TYPES_HEADER_FIELD,
     DEVICE_ENUMERATION_FIELD,
     DEVICES_HEADER_FIELD,
+    MIDI_PORTS_HEADER_FIELD,
     RECORDED_AT_HEADER_FIELD,
     SAVES_HEADER_FIELD,
     GameplayRecorder,
@@ -2562,6 +2563,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 answer.to_json() for answer in registry.take_enumeration_answers()
             ],
         }
+        # Only when a port was opened: a recording of a game with no MIDI has no such field
+        midi_ports = [descriptor.to_json() for descriptor in registry.take_opened_midi_ports()]
+        if midi_ports:
+            header[MIDI_PORTS_HEADER_FIELD] = midi_ports
         recorder = GameplayRecorder(path=path, header=header)
         install_sources(sources=RecordingSources(inner=inner, recorder=recorder))
         self.trace_recorder = recorder

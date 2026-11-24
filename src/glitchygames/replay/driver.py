@@ -261,6 +261,7 @@ from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import (
     DeviceDescriptor,
     EnumerationAnswer,
+    MidiPortDescriptor,
     ReplayDeviceRegistry,
     ReplayJoystick,
 )
@@ -283,6 +284,8 @@ from glitchygames.recording import (
     GAME_HEADER_FIELD,
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
+    MIDI_PORTS_HEADER_FIELD,
+    MIDI_PORTS_OPENED_FIELD,
     PLAYBACK_ANSWERS_FIELD,
     RECORDED_AT_HEADER_FIELD,
     REDELIVERED_EVENTS_FIELD,
@@ -472,7 +475,12 @@ END_OF_RECORDING_BANNER = 'End of recording'
 TRUNCATED_RECORDING_BANNER = 'End of recording (the file is truncated)'
 
 # The frame fields a recording made over a replay copies from it (recorded_frame_fields)
-REBASELINE_FRAME_FIELDS = (SAVES_OPENED_FIELD, DEVICES_OPENED_FIELD, DEVICE_ENUMERATION_FIELD)
+REBASELINE_FRAME_FIELDS = (
+    SAVES_OPENED_FIELD,
+    DEVICES_OPENED_FIELD,
+    MIDI_PORTS_OPENED_FIELD,
+    DEVICE_ENUMERATION_FIELD,
+)
 
 # Bookmarks (rule 16): the control event each bookmark adds to the saved copy, and the copy's name
 # (x.jsonl.gz -> x.bookmarked.jsonl.gz)
@@ -702,7 +710,8 @@ class RecordedFrames:
             frame_index: The recording's frame index.
 
         Returns:
-            Whichever of ``saves_opened``, ``devices_opened`` and ``device_enumeration`` the
+            Whichever of ``saves_opened``, ``devices_opened``, ``midi_ports_opened`` and
+            ``device_enumeration`` the
             frame has; none past the end of the recording (a frame the recording does not have
             took nothing in from it).
 
@@ -1510,6 +1519,10 @@ class ReplaySources:
             enumeration_answers=[
                 EnumerationAnswer.from_json(record)
                 for record in header.get(DEVICE_ENUMERATION_FIELD, [])
+            ],
+            midi_ports=[
+                MidiPortDescriptor.from_json(record)
+                for record in header.get(MIDI_PORTS_HEADER_FIELD, [])
             ],
         )
         # Namespace -> the recorded snapshot a store opened for it starts from
@@ -2459,6 +2472,12 @@ class ReplaySources:
         self._devices.add_descriptors(
             descriptors=[
                 DeviceDescriptor.from_json(record) for record in frame.get(DEVICES_OPENED_FIELD, [])
+            ]
+        )
+        self._devices.add_midi_ports(
+            descriptors=[
+                MidiPortDescriptor.from_json(record)
+                for record in frame.get(MIDI_PORTS_OPENED_FIELD, [])
             ]
         )
         for namespace, snapshot in frame.get(SAVES_OPENED_FIELD, {}).items():
