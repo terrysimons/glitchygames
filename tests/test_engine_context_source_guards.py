@@ -1,7 +1,9 @@
 """The engine context's rules over the engine's and every member's source.
 
 No module reads a context as it is imported (rule 2), and every slot the engine and the members
-declare has an isolation check (``ISOLATION_CHECKS`` in tests/test_engine_context.py). Both scan
+declare has an isolation check: the engine's in ``ISOLATION_CHECKS`` (tests/test_engine_context.py),
+each member's in a ``MEMBER_ISOLATION_CHECKS`` dict in its own tests, found by AST so the engine's
+tests never import a member. Both scan
 every workspace member's source (tests/workspace_sources.py reads the members from the
 workspace), so they are tests of this repository; moved here unchanged from
 tests/test_engine_context.py (Part 3, Stage D, Task D9 fix round 1), which tests the engine alone.
@@ -14,9 +16,12 @@ import functools
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from scripts.workspace_packages import workspace_members
+
 from glitchygames.engine_context import declared_context_slots
 from tests.ast_scanning import PROJECT_ROOT, qualified_name
 from tests.child_scans import scan_in_child
+from tests.engine_source import ENGINE_DIRECTORY
 from tests.test_engine_context import (
     ENGINE_SLOT_PREFIX,
     ISOLATION_CHECKS,
@@ -34,6 +39,9 @@ from tests.workspace_sources import scanned_source_files, write_project_with_mem
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+# The dict a member's tests name their slots' isolation checks in (CLAUDE.md, Engine Context)
+MEMBER_ISOLATION_CHECKS_NAME = 'MEMBER_ISOLATION_CHECKS'
 
 # A module that reads a module view as it is imported: a module-level import (line 4), module-level
 # attribute reads (lines 6 and 7) and a class-body read (line 14). The reads in a function body
@@ -221,11 +229,13 @@ def declared_slot_names_in_source(*, source_path: Path) -> list[str]:
     return names
 
 
-def slot_names_declared(*, project_root: str) -> list[str]:
-    """Return the name of every slot a workspace's engine and members declare.
+def engine_slot_names_declared(*, project_root: str) -> list[str]:
+    """Return the name of every slot a workspace's engine declares.
 
     A scan run in a child process (tests/child_scans.py), so its syntax trees never pin this
-    process's memory: it takes and returns JSON.
+    process's memory: it takes and returns JSON. The members' slots are checked against their own
+    tests instead (``member_slots_without_matching_checks``), as the engine's ``ISOLATION_CHECKS``
+    may not import a member.
 
     Args:
         project_root: The workspace.
@@ -234,16 +244,17 @@ def slot_names_declared(*, project_root: str) -> list[str]:
         The names, sorted, each once.
 
     """
+    engine_directory = Path(project_root) / ENGINE_DIRECTORY
     return sorted({
         name
-        for _allowlist_key, path in scanned_source_files(project_root=Path(project_root))
+        for path in sorted(engine_directory.rglob('*.py'))
         for name in declared_slot_names_in_source(source_path=path)
     })
 
 
 @functools.cache
 def engine_slot_names() -> set[str]:
-    """Return the name of every slot the engine and the workspace members declare.
+    """Return the name of every slot the engine declares.
 
     Scanned once, in a child process; only the names are kept.
 
@@ -252,13 +263,128 @@ def engine_slot_names() -> set[str]:
 
     """
     return set(
-        scan_in_child(scan=slot_names_declared, arguments={'project_root': str(PROJECT_ROOT)})
+        scan_in_child(
+            scan=engine_slot_names_declared, arguments={'project_root': str(PROJECT_ROOT)}
+        )
     )
+
+
+def member_isolation_check_names(*, tests_directory: Path) -> set[str]:
+    """Return the slot names a member's tests list in a ``MEMBER_ISOLATION_CHECKS`` dict literal.
+
+    Read by AST, so no member is imported (the engine's tests never import one).
+
+    Args:
+        tests_directory: The member's tests.
+
+    Returns:
+        The names.
+
+    """
+    names: set[str] = set()
+    for path in sorted(tests_directory.rglob('*.py')):
+        for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+            match node:
+                case (
+                    ast.Assign(targets=[ast.Name(id=target_name)], value=value)
+                    | ast.AnnAssign(target=ast.Name(id=target_name), value=value)
+                ) if target_name == MEMBER_ISOLATION_CHECKS_NAME:
+                    assert isinstance(value, ast.Dict), (
+                        f'{path}:{node.lineno}: {MEMBER_ISOLATION_CHECKS_NAME} must be a dict'
+                    )
+                    for key in value.keys:
+                        assert isinstance(key, ast.Constant) and isinstance(key.value, str), (
+                            f'{path}:{node.lineno}: {MEMBER_ISOLATION_CHECKS_NAME} keys must be '
+                            'strings'
+                        )
+                        names.add(key.value)
+                case _:
+                    pass
+    return names
+
+
+def member_slots_without_matching_checks(*, project_root: str) -> list[str]:
+    """Return each member slot without an isolation check in its tests, and each orphan check.
+
+    A member's slots are checked in the member's own tests (``MEMBER_ISOLATION_CHECKS``), since the
+    engine's ``ISOLATION_CHECKS`` may not import a member. Run in a child process by the guard
+    (tests/child_scans.py), as the engine's scan is: it takes and returns JSON.
+
+    Args:
+        project_root: The workspace.
+
+    Returns:
+        One line per mismatch, empty when every member slot has exactly its check.
+
+    """
+    findings: list[str] = []
+    for member in workspace_members(project_root=Path(project_root)):
+        slots = {
+            name
+            for package_directory in member.package_directories
+            for path in sorted(package_directory.rglob('*.py'))
+            for name in declared_slot_names_in_source(source_path=path)
+        }
+        checks = member_isolation_check_names(tests_directory=member.directory / 'tests')
+        findings.extend(
+            f'{member.distribution}: slot {name!r} has no isolation check'
+            for name in sorted(slots - checks)
+        )
+        findings.extend(
+            f'{member.distribution}: isolation check {name!r} names no slot'
+            for name in sorted(checks - slots)
+        )
+    return findings
 
 
 def test_every_engine_slot_has_an_isolation_check():
     """A slot added without a check here fails (every piece of state moved is proven)."""
     assert engine_slot_names() == set(ISOLATION_CHECKS)
+
+
+def test_every_member_slot_has_an_isolation_check_in_its_own_tests():
+    """Each member's slots and its ``MEMBER_ISOLATION_CHECKS`` name the same slots."""
+    assert (
+        scan_in_child(
+            scan=member_slots_without_matching_checks,
+            arguments={'project_root': str(PROJECT_ROOT)},
+        )
+        == []
+    )
+
+
+def test_the_member_slot_scan_reads_bitmappy():
+    """Not a vacuous pass: Bitmappy's onion skinning slot is found, with its check."""
+    bitmappy = next(
+        member
+        for member in workspace_members(project_root=PROJECT_ROOT)
+        if member.distribution == 'bitmappy'
+    )
+
+    assert 'bitmappy.onion_skinning.manager' in member_isolation_check_names(
+        tests_directory=bitmappy.directory / 'tests'
+    )
+
+
+def test_a_member_slot_without_a_check_and_a_check_without_a_slot_are_both_found(tmp_path):
+    """A planted member slot with no check, and a planted check naming no slot, are reported."""
+    write_project_with_member_module(
+        project_root=tmp_path,
+        source=(
+            'from glitchygames.engine_context import ContextSlot\n'
+            "PLANTED = ContextSlot(name='space_game.planted', factory=list)\n"
+        ),
+    )
+    tests_directory = tmp_path / 'src' / 'games' / 'space-game' / 'tests'
+    tests_directory.mkdir()
+    (tests_directory / 'test_space_game.py').write_text(
+        "MEMBER_ISOLATION_CHECKS = {'space_game.orphan': None}\n", encoding='utf-8'
+    )
+
+    assert member_slots_without_matching_checks(project_root=str(tmp_path)) == [
+        "space-game: slot 'space_game.planted' has no isolation check",
+        "space-game: isolation check 'space_game.orphan' names no slot",
+    ]
 
 
 def test_the_slot_scan_agrees_with_the_slots_declared_at_run_time():
@@ -271,7 +397,7 @@ def test_the_slot_scan_agrees_with_the_slots_declared_at_run_time():
 
 
 # A member module reading a context and a module view as it is imported (lines 3 and 4), and
-# declaring one slot
+# declaring one slot, which has no isolation check
 PLANTED_MEMBER_READS = """\
 from glitchygames.engine_context import ContextSlot, current_context
 from glitchygames import performance
@@ -280,11 +406,20 @@ MANAGER = performance.performance_manager
 PLANTED_SLOT = ContextSlot(name='space_game.planted', default=None)
 """
 
+# An engine module declaring one slot (the planted project's engine package is otherwise empty)
+PLANTED_ENGINE_SLOT = """\
+from glitchygames.engine_context import ContextSlot
+PLANTED_SLOT = ContextSlot(name='glitchygames.planted', default=None)
+"""
+
 
 def test_the_scans_find_the_same_reads_and_slots_in_a_child_process(tmp_path):
     """No finding is lost in the child: each guard's scan answers there what it answers here."""
     member_key = write_project_with_member_module(
         project_root=tmp_path, source=PLANTED_MEMBER_READS
+    )
+    (tmp_path / ENGINE_DIRECTORY / 'planted_slot.py').write_text(
+        PLANTED_ENGINE_SLOT, encoding='utf-8'
     )
     reads_arguments = {
         'project_root': str(tmp_path),
@@ -294,15 +429,18 @@ def test_the_scans_find_the_same_reads_and_slots_in_a_child_process(tmp_path):
 
     in_this_process = (
         import_time_reads_found(**reads_arguments),
-        slot_names_declared(**slots_arguments),
+        engine_slot_names_declared(**slots_arguments),
+        member_slots_without_matching_checks(**slots_arguments),
     )
     in_a_child = (
         scan_in_child(scan=import_time_reads_found, arguments=reads_arguments),
-        scan_in_child(scan=slot_names_declared, arguments=slots_arguments),
+        scan_in_child(scan=engine_slot_names_declared, arguments=slots_arguments),
+        scan_in_child(scan=member_slots_without_matching_checks, arguments=slots_arguments),
     )
 
     assert in_a_child == in_this_process
     assert in_this_process == (
         {member_key: ['3: current_context', '4: glitchygames.performance.performance_manager']},
-        ['space_game.planted'],
+        ['glitchygames.planted'],
+        ["space-game: slot 'space_game.planted' has no isolation check"],
     )

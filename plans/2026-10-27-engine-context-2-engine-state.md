@@ -107,8 +107,9 @@ plan's decisions 1-5), and the tasks implement them.
    per-context roster and deletes `MultiControllerManager`'s singleton. `plans/future-work.md`
    points C16 there. The process-state guard keeps listing it under C16 until that work lands.
    Bitmappy's two other pieces of process state the guard found, `onion_skinning_manager` and
-   `ai_training_state`, are not the roster's: they stay listed (under C16, Bitmappy's own), with
-   no owning plan yet, and the same `plans/future-work.md` entry names them.
+   `ai_training_state`, are not the roster's. They were listed under C16 (Bitmappy's own) until
+   `fix/bitmappy-context-slots` (2026-11-21): the manager is now a slot and the training state is
+   S21, shared read-only package data (`plans/2026-10-25-engine-context.md`).
 8. **The review's fixes (the owner, 2026-10-28: approved).** The adversarial review of this plan
    (`.superpowers/arcade-spike/sub-plan-2-adversarial-review.md` in the main checkout: I-1 to
    I-10, M-1 to M-12) is applied; each fix names its finding.
@@ -267,7 +268,7 @@ What the spike found that belongs to later sub-plans; nothing here touches it.
   `GameHost`/`TickPacer`).
 - **An inner game that raises; frames run outside their context**: sub-plan 3.
 - **C16**: the player-roster work (answer 7). Bitmappy's `onion_skinning_manager` and
-  `ai_training_state`: no owning plan yet (`plans/future-work.md`).
+  `ai_training_state`: resolved by `fix/bitmappy-context-slots` (a slot, and S21).
 - **The engine's threads** (voice recognition, controller audio) see the default context unless
   started with a copied one; this sub-plan adds slots they would then read wrongly (the shared
   managers, the font options, the performance manager, the current engine). Sub-plan 3 decides

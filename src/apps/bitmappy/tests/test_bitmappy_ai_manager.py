@@ -18,6 +18,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from src.apps.bitmappy.tests.training_library_support import use_training_library
 
 from bitmappy import ai_manager as ai_manager_module
 from bitmappy import constants as constants_module
@@ -31,7 +32,6 @@ from bitmappy.constants import (
     AI_VALIDATION_MAX_RETRIES,
     MAGENTA_TRANSPARENT,
     TRANSPARENT_GLYPH,
-    ai_training_state,
 )
 from bitmappy.models import AIRequest, AIRequestState, AIResponse
 from glitchygames.ai import build_refinement_messages, build_sprite_generation_messages
@@ -269,7 +269,7 @@ def temporary_files_in_tmp_path(mocker, tmp_path):
 @pytest.fixture(autouse=True)
 def toml_training_state(mocker):
     """Use the TOML training format with no training examples."""
-    mocker.patch.dict(ai_training_state, {'format': 'toml', 'data': []})
+    use_training_library(mocker, examples=[])
 
 
 @pytest.fixture
@@ -549,7 +549,7 @@ class TestOnTextSubmitEvent:
     def test_new_sprite_request_uses_the_generation_messages(self, mocker):
         """Without a sprite on the canvas, a generation request with the examples is sent."""
         training_examples = [{'name': 'ball', 'sprite_type': 'static'}]
-        mocker.patch.dict(ai_training_state, {'data': training_examples})
+        use_training_library(mocker, examples=training_examples)
         editor = _editor(canvas=FakeCanvas())
         manager = _manager_with_queues(editor)
         manager.ai_process = FakeProcess()  # type: ignore[assignment]
@@ -624,7 +624,7 @@ class TestGatherTrainingExamplesFromFrame:
     def test_empty_frame_uses_the_regular_examples(self, mocker):
         """An all-magenta frame falls back to the training examples."""
         training_examples = [{'name': 'tree'}]
-        mocker.patch.dict(ai_training_state, {'data': training_examples})
+        use_training_library(mocker, examples=training_examples)
         canvas = FakeCanvas(pixels=[MAGENTA_TRANSPARENT] * 4)
 
         examples = AIManager(_editor(canvas=canvas))._gather_training_examples_from_frame('tree')  # type: ignore[arg-type]
@@ -663,7 +663,7 @@ class TestGatherTrainingExamplesFromFrame:
     def test_unloadable_context_falls_back_to_regular_examples(self, mocker):
         """When neither the frame nor the strip can be saved, the training examples are used."""
         training_examples = [{'name': 'rock'}]
-        mocker.patch.dict(ai_training_state, {'data': training_examples})
+        use_training_library(mocker, examples=training_examples)
         canvas = FakeCanvas(pixels=[(0, 0, 0)] * 4)
         manager = AIManager(_editor(canvas=canvas))  # type: ignore[arg-type]
         mocker.patch.object(manager, '_save_current_frame_to_temp_toml', return_value=None)
@@ -673,7 +673,7 @@ class TestGatherTrainingExamplesFromFrame:
     def test_unreadable_frame_file_falls_back_to_regular_examples(self, mocker):
         """A saved frame that cannot be read back falls back to the training examples."""
         training_examples = [{'name': 'rock'}]
-        mocker.patch.dict(ai_training_state, {'data': training_examples})
+        use_training_library(mocker, examples=training_examples)
         manager = AIManager(_editor(canvas=FakeCanvas(pixels=[(0, 0, 0)] * 4)))  # type: ignore[arg-type]
         mocker.patch.object(
             manager,
@@ -1135,7 +1135,7 @@ class TestPrepareAiContent:
 
     def test_non_toml_training_format_adds_no_description(self, mocker):
         """The description is only added for the TOML format."""
-        mocker.patch.dict(ai_training_state, {'format': None})
+        use_training_library(mocker, examples=[], training_format=None)
         manager = AIManager(_editor())  # type: ignore[arg-type]
         manager.pending_ai_requests['id'] = AIRequestState(original_prompt='a red ball')
 
@@ -1287,7 +1287,7 @@ class TestTemporaryFilesAndStaticLoad:
 
     def test_temp_file_defaults_to_toml_without_a_format(self, mocker):
         """With no detected training format the extension is .toml."""
-        mocker.patch.dict(ai_training_state, {'format': None})
+        use_training_library(mocker, examples=[], training_format=None)
 
         temp_path = AIManager(_editor())._create_temp_file_from_content('abc')  # type: ignore[arg-type]
 
