@@ -24,6 +24,9 @@ from bitmappy import editor_setup as bitmappy_setup
 from bitmappy.ai_manager import AIManager
 from bitmappy.controllers.event_handler import ControllerEventHandler
 from bitmappy.editor import BitmapEditorScene
+from bitmappy.file_io import FileIOManager
+from bitmappy.film_strip_coordinator import FilmStripCoordinator
+from bitmappy.frame_operations import FrameOperationManager
 from bitmappy.models import AIRequestState, AIResponse
 from bitmappy.slider_manager import SliderManager
 from glitchygames.engine_context import EngineContext
@@ -3754,3 +3757,29 @@ class TestUndoHistoryStartsOverInTheRealEditor:
         assert _frame_pixel_data(real_editor) == new_canvas_pixels
         assert not real_editor.undo_redo_manager.frame_undo_stacks
         assert not real_editor.undo_redo_manager.can_undo()
+
+
+@pytest.mark.parametrize(
+    'delegate_class',
+    [
+        AIManager,
+        ControllerEventHandler,
+        FileIOManager,
+        FilmStripCoordinator,
+        FrameOperationManager,
+        SliderManager,
+    ],
+)
+def test_making_an_editor_delegate_adds_no_handler_to_its_shared_logger(delegate_class):
+    """Each editor makes its delegates anew: a handler added per delegate is never removed.
+
+    The logger is the process's, by name, so a handler added in ``__init__`` piled up: 3,545
+    NullHandlers over Bitmappy's tests (2026-11-23).
+    """
+    first = delegate_class(SimpleNamespace())
+    handlers_after_the_first = list(first.log.handlers)
+
+    for _ in range(3):
+        delegate_class(SimpleNamespace())
+
+    assert first.log.handlers == handlers_after_the_first

@@ -16,6 +16,7 @@ import re
 import sys
 import types
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pygame
@@ -44,11 +45,11 @@ from glitchygames.sprites import Sprite
 from glitchygames.sprites.sprite import sprite_counters
 from tests.ast_scanning import PROJECT_ROOT, qualified_name
 from tests.benchmarks.test_engine_context_benchmarks import READ_RATIO_LIMITS
+from tests.child_scans import scan_in_child
 from tests.engine_source import ENGINE_DIRECTORY
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
-    from pathlib import Path
 
     from pytest_mock import MockerFixture
 
@@ -403,8 +404,10 @@ def compared_names(*, function: ast.FunctionDef, argument: str) -> frozenset[str
 def parsed_files_freed_after_this_file() -> Iterator[None]:
     """Let go of every parsed file when this file's tests are done.
 
-    ``scanned_file`` keeps each engine file's syntax tree, about 100 MiB in all: kept for the rest
-    of a serial run, they pushed CircleCI's 2 GB Linux job past its memory limit (2026-11-17).
+    ``scanned_file`` keeps each file's syntax tree. The engine's (about 100 MiB in all, which kept
+    for the rest of a serial run pushed CircleCI's 2 GB Linux job past its memory limit on
+    2026-11-17) are parsed only in the child processes the guards' scans run in
+    (tests/child_scans.py); here the cache holds the planted files of this file's tests.
     """
     yield
     scanned_file.cache_clear()
@@ -414,8 +417,8 @@ def parsed_files_freed_after_this_file() -> Iterator[None]:
 def scanned_file(source_path: Path) -> ScannedFile:
     """Return what a file declares (each file is parsed once while its tests run).
 
-    The cache is emptied after each test file that fills it (``parsed_files_freed_after_this_file``
-    and its twin in tests/test_engine_context_source_guards.py).
+    The cache is emptied after this file's tests (``parsed_files_freed_after_this_file``); a
+    scan's child process (tests/child_scans.py) ends with its own.
 
     Args:
         source_path: A Python file.
@@ -683,13 +686,18 @@ def names_its_own_class(receiver: ast.expr) -> bool:
     )
 
 
-def engine_view_reads(*, source_path: Path, views: Mapping[str, frozenset[str]]) -> list[str]:
+def engine_view_reads(
+    *,
+    source_path: Path,
+    views: Mapping[str, frozenset[str]],
+    classes: Mapping[str, ScannedClass],
+) -> list[str]:
     """Return ``'<line>: <read>'`` for each read of a view in a file.
 
     A read is an attribute load ``<Name>.<view>`` of an owner class or a subclass (resolved by
-    name through the engine's classes and the file's); an attribute load ``.<view>`` through
-    ``cls``, ``type(self)`` or ``self.__class__`` inside an owner class or a subclass (a
-    ``ClassOnlyView`` included); an attribute load ``.<view>`` of a
+    name through ``classes``: the engine's, for the engine's own scan); an attribute load
+    ``.<view>`` through ``cls``, ``type(self)`` or ``self.__class__`` inside an owner class or a
+    subclass (a ``ClassOnlyView`` included); an attribute load ``.<view>`` of a
     ``ReadOnlyView``'s name on any other receiver (``self``, ``manager``, ``self.game``), except
     a bare capitalized name of a class that owns no view of that name; or an import or attribute
     load of a module view. The view definitions (read_only_views.py, the class-body
@@ -699,6 +707,10 @@ def engine_view_reads(*, source_path: Path, views: Mapping[str, frozenset[str]])
     Args:
         source_path: A Python file.
         views: Owner -> its view names (``declared_views``).
+        classes: The classes owners and subclasses are resolved through (``merged_classes`` of
+            every scanned file, the file's own among them). Passed in, not merged here, so a
+            planted file's test parses no engine file (each parse pins this process's memory:
+            tests/child_scans.py).
 
     Returns:
         The reads, by line.
@@ -707,7 +719,6 @@ def engine_view_reads(*, source_path: Path, views: Mapping[str, frozenset[str]])
     if source_path == READ_ONLY_VIEWS_SOURCE:
         return []
     scanned = scanned_file(source_path)
-    classes = merged_classes(source_paths=[*engine_source_files(), source_path])
     class_owners = {owner: names for owner, names in views.items() if owner in classes}
     read_only_view_names = {
         name
@@ -868,27 +879,69 @@ def test_an_abc_class_takes_the_abc_views_metaclass():
 # --- The guards ---
 
 
-def test_every_view_has_a_check():
-    """A view added without a check here fails (each view answers per context)."""
-    found = {
-        f'{owner}.{name}'
-        for owner, names in declared_views(source_paths=engine_source_files()).items()
-        for name in names
+def scanned_paths(*, source_paths: list[str] | None) -> list[Path]:
+    """Return the files a guard's scan reads: the ones named, or the engine's.
+
+    Args:
+        source_paths: The Python files, as strings (a scan's JSON argument); None for the engine's.
+
+    Returns:
+        The files.
+
+    """
+    if source_paths is None:
+        return engine_source_files()
+    return [Path(source_path) for source_path in source_paths]
+
+
+def view_names_declared(*, source_paths: list[str] | None = None) -> list[str]:
+    """Return ``'<owner>.<name>'`` for each view the files declare (``declared_views``).
+
+    A scan run in a child process (tests/child_scans.py), so its syntax trees never pin this
+    process's memory: it takes and returns JSON.
+
+    Args:
+        source_paths: The Python files, as strings; None for the engine's.
+
+    Returns:
+        The views, sorted.
+
+    """
+    declared = declared_views(source_paths=scanned_paths(source_paths=source_paths))
+    return sorted(f'{owner}.{name}' for owner, names in declared.items() for name in names)
+
+
+def view_reads_found(*, source_paths: list[str] | None = None) -> dict[str, list[str]]:
+    """Return each file's reads of the views the files declare (``engine_view_reads``).
+
+    A scan run in a child process (tests/child_scans.py), so its syntax trees never pin this
+    process's memory: it takes and returns JSON.
+
+    Args:
+        source_paths: The Python files, as strings; None for the engine's.
+
+    Returns:
+        The file (as a string) -> its reads, for each file with any.
+
+    """
+    paths = scanned_paths(source_paths=source_paths)
+    views = declared_views(source_paths=paths)
+    classes = merged_classes(source_paths=paths)
+    return {
+        str(path): found
+        for path in paths
+        if (found := engine_view_reads(source_path=path, views=views, classes=classes))
     }
 
-    assert found == set(VIEW_CHECKS)
+
+def test_every_view_has_a_check():
+    """A view added without a check here fails (each view answers per context)."""
+    assert scan_in_child(scan=view_names_declared) == sorted(VIEW_CHECKS)
 
 
 def test_the_engine_never_reads_a_view():
     """Engine code reads its own state (self.options, slots), never a view (the hot paths)."""
-    views = declared_views(source_paths=engine_source_files())
-    reads = {
-        str(path): found
-        for path in engine_source_files()
-        if (found := engine_view_reads(source_path=path, views=views))
-    }
-
-    assert reads == {}
+    assert scan_in_child(scan=view_reads_found) == {}
 
 
 # A module declaring views: an owner class, a marked module view and a class owning none, then
@@ -956,16 +1009,17 @@ def test_the_view_read_scan_finds_class_instance_and_module_reads(tmp_path):
     lazy_path = tmp_path / 'lazy.py'
     lazy_path.write_text(PLANTED_LAZY_IMPORT, encoding='utf-8')
     views = declared_views(source_paths=[planted_path, lazy_path])
+    classes = merged_classes(source_paths=[planted_path, lazy_path])
 
     assert views == {'Owner': frozenset({'OPTIONS', 'game'}), 'planted': frozenset({'manager'})}
-    assert engine_view_reads(source_path=planted_path, views=views) == [
+    assert engine_view_reads(source_path=planted_path, views=views, classes=classes) == [
         '30: Owner.OPTIONS',
         '31: owner.OPTIONS',
         '32: self.game.OPTIONS',
         '33: Owner.game',
         '41: planted.manager',
     ]
-    assert engine_view_reads(source_path=lazy_path, views=views) == []
+    assert engine_view_reads(source_path=lazy_path, views=views, classes=classes) == []
 
 
 # Appended to PLANTED_VIEWS: a subclass of the owner, read through the subclass, and the module
@@ -989,8 +1043,9 @@ def test_the_view_read_scan_follows_subclasses_and_module_attributes(tmp_path):
     planted_path = tmp_path / 'planted.py'
     planted_path.write_text(PLANTED_VIEWS + PLANTED_SUBCLASS_READS, encoding='utf-8')
     views = declared_views(source_paths=[planted_path])
+    classes = merged_classes(source_paths=[planted_path])
 
-    assert engine_view_reads(source_path=planted_path, views=views)[-2:] == [
+    assert engine_view_reads(source_path=planted_path, views=views, classes=classes)[-2:] == [
         '52: Derived.game',
         '52: planted.manager',
     ]
@@ -1033,8 +1088,9 @@ def test_the_view_read_scan_finds_reads_through_the_methods_own_class(tmp_path):
     planted_path = tmp_path / 'planted.py'
     planted_path.write_text(PLANTED_VIEWS + PLANTED_OWN_CLASS_READS, encoding='utf-8')
     views = declared_views(source_paths=[planted_path])
+    classes = merged_classes(source_paths=[planted_path])
 
-    assert engine_view_reads(source_path=planted_path, views=views)[5:] == [
+    assert engine_view_reads(source_path=planted_path, views=views, classes=classes)[5:] == [
         '47: cls.OPTIONS',
         '47: cls.game',
         '50: self.__class__.game',
@@ -1042,6 +1098,27 @@ def test_the_view_read_scan_finds_reads_through_the_methods_own_class(tmp_path):
         '54: type(self).OPTIONS',
         '66: cls.OPTIONS',
     ]
+
+
+def test_the_scans_find_the_same_views_and_reads_in_a_child_process(tmp_path):
+    """No finding is lost in the child: each guard's scan answers there what it answers here."""
+    planted_path = tmp_path / 'planted.py'
+    planted_path.write_text(
+        PLANTED_VIEWS + PLANTED_SUBCLASS_READS + PLANTED_OWN_CLASS_READS, encoding='utf-8'
+    )
+    lazy_path = tmp_path / 'lazy.py'
+    lazy_path.write_text(PLANTED_LAZY_IMPORT, encoding='utf-8')
+    arguments = {'source_paths': [str(planted_path), str(lazy_path)]}
+
+    in_this_process = (view_names_declared(**arguments), view_reads_found(**arguments))
+    in_a_child = (
+        scan_in_child(scan=view_names_declared, arguments=arguments),
+        scan_in_child(scan=view_reads_found, arguments=arguments),
+    )
+
+    assert in_a_child == in_this_process
+    assert in_this_process[0] == ['Owner.OPTIONS', 'Owner.game', 'planted.manager']
+    assert list(in_this_process[1]) == [str(planted_path)]
 
 
 def test_a_marked_name_the_module_getattr_never_answers_is_a_scan_error(tmp_path):
