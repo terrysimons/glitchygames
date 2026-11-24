@@ -42,7 +42,7 @@ import collections
 import dataclasses
 import importlib
 import logging
-from typing import TYPE_CHECKING, Any, Protocol, Self
+from typing import TYPE_CHECKING, Any, Protocol, Self, runtime_checkable
 
 import pygame
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -58,7 +58,7 @@ from glitchygames.input.state import (
 from glitchygames.sources import notify_device_answer
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
     from types import ModuleType
 
     # Type only: the module is optional at runtime (sdl_controller_module). The lazily
@@ -141,6 +141,8 @@ OPEN_MIDI_OUTPUT_CALL = 'open_midi_output'
 MIDI_UNAVAILABLE_MESSAGE = 'pygame.midi is unavailable in this pygame build'
 # What PortMidi answers for "no default port"
 NO_MIDI_PORT_ID = -1
+# How many messages one read of a MIDI input asks for (a bigger burst takes several reads)
+MIDI_READ_BATCH = 64
 
 type EnumerationValue = int | bool | str | list[str | int | bool] | None
 
@@ -623,6 +625,93 @@ def _midi_port_descriptor(
     return MidiPortDescriptor(kind=kind, port_id=port_id, name=info.name, interface=info.interface)
 
 
+class MidiPortReadable(Protocol):
+    """What the frame reads of an opened MIDI input (pygame.midi.Input, ReplayMidiInput)."""
+
+    def poll(self: Self) -> bool:
+        """Say whether messages are waiting."""
+        ...
+
+    def read(self: Self, num_events: int) -> list[Any]:
+        """Return up to ``num_events`` waiting messages, ``[[status, data1, data2, data3], t]``."""
+        ...
+
+
+@runtime_checkable
+class ReadsMidiInput(Protocol):
+    """A device registry that can hand the frame the MIDI input its opened ports received.
+
+    Not part of ``DeviceRegistry``: only the live and the stand-in registries have it. A replay
+    registry has no MIDI to read, because the recorded MIDI events are served by the event door.
+    """
+
+    def read_midi_input(self: Self) -> list[pygame.event.Event]:
+        """Return the MIDIIN events every opened input port received since the last call."""
+        ...
+
+
+class MidiInputReader:
+    """Reads opened MIDI input ports into MIDIIN events, dropping a port that fails.
+
+    One reader per registry, so the live and the stand-in registries share this one code path.
+    A port whose ``poll`` or ``read`` raises ``MidiException`` is dropped for the rest of the run:
+    logged once with its port id and name, and never read again. It is not closed: a port that
+    failed mid-run is a device that went away, and PortMidi's own close on it can raise too; it
+    stays in the registry's opened ports, so the open-once rule still holds.
+    """
+
+    def __init__(self: Self) -> None:
+        """Start with no port dropped."""
+        self._dropped_port_ids: set[int] = set()
+
+    def read(
+        self: Self,
+        *,
+        midi_module: ModuleType,
+        inputs: Mapping[int, MidiPortReadable],
+        port_name: Callable[[int], str],
+    ) -> list[pygame.event.Event]:
+        """Read every opened input, in port-id order, until each has nothing left waiting.
+
+        Args:
+            midi_module: ``pygame.midi`` (for ``midis2events`` and ``MidiException``).
+            inputs: The opened input ports by port id.
+            port_name: Looks up a port's name (only asked when a port is dropped).
+
+        Returns:
+            The MIDIIN events, ``vice_id`` being the port id. Timestamps are PortMidi's.
+
+        """
+        events: list[pygame.event.Event] = []
+        for port_id in sorted(inputs):
+            if port_id in self._dropped_port_ids:
+                continue
+            try:
+                events.extend(
+                    self._read_port(midi_module=midi_module, port_id=port_id, port=inputs[port_id])
+                )
+            except midi_module.MidiException:
+                self._dropped_port_ids.add(port_id)
+                LOG.exception(
+                    'MIDI input port %d (%s) failed and is no longer read',
+                    port_id,
+                    port_name(port_id),
+                )
+        return events
+
+    @staticmethod
+    def _read_port(
+        *, midi_module: ModuleType, port_id: int, port: MidiPortReadable
+    ) -> list[pygame.event.Event]:
+        events: list[pygame.event.Event] = []
+        while port.poll():
+            messages = port.read(MIDI_READ_BATCH)
+            if not messages:
+                break
+            events.extend(midi_module.midis2events(messages, port_id))
+        return events
+
+
 class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every DeviceRegistry member
     """Enumerates and opens real devices, remembers them, and polls them for the snapshot."""
 
@@ -640,6 +729,7 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         self._midi_inputs: dict[int, PygameMidiInput] = {}
         self._midi_outputs: dict[int, PygameMidiOutput] = {}
         self._new_midi_ports: list[MidiPortDescriptor] = []
+        self._midi_input_reader = MidiInputReader()
 
     def joystick_count(self: Self) -> int:
         """Return how many joysticks SDL reports (remembered for the recorder).
@@ -897,6 +987,33 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
 
         """
         return self._midi_inputs.get(port_id)
+
+    def read_midi_input(self: Self) -> list[pygame.event.Event]:
+        """Return the MIDIIN events every opened input port received since the last call.
+
+        Ports are read in port-id order, each until nothing is waiting, so a burst larger than
+        ``MIDI_READ_BATCH`` arrives whole, in one frame. Only opened ports are read. A port that
+        raises ``MidiException`` is dropped for the rest of the run (``MidiInputReader``).
+
+        Returns:
+            The events (``vice_id`` is the port id; timestamps are PortMidi's).
+
+        """
+        if not self._midi_inputs:
+            # Nothing opened, so nothing to read, and PortMidi is not touched (a replay's own
+            # live queue never opens a port)
+            return []
+        midi_module = import_midi_module(log_unavailable=False)
+        if midi_module is None:  # pragma: no cover - ports are opened only where PortMidi is
+            return []
+
+        def port_name(port_id: int) -> str:
+            info = _read_midi_port_info(midi_module=midi_module, port_id=port_id)
+            return 'unknown' if info is None else info.name
+
+        return self._midi_input_reader.read(
+            midi_module=midi_module, inputs=self._midi_inputs, port_name=port_name
+        )
 
     def midi_output_for_port(self: Self, *, port_id: int) -> PygameMidiOutput | None:
         """Return the opened MIDI output port ``port_id``, or None when it was never opened.
@@ -1948,8 +2065,17 @@ class ReplayDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Dev
             descriptor = self._midi_port_to_open(
                 call=OPEN_MIDI_INPUT_CALL, kind=MIDI_INPUT_KIND, port_id=port_id
             )
-            stand_in = self._midi_inputs[port_id] = ReplayMidiInput(descriptor=descriptor)
+            stand_in = self._midi_inputs[port_id] = self._new_midi_input(descriptor=descriptor)
         return stand_in
+
+    def _new_midi_input(self: Self, *, descriptor: MidiPortDescriptor) -> ReplayMidiInput:
+        """Return the stand-in for an input port being opened (a replay's has nothing to read).
+
+        Returns:
+            The stand-in.
+
+        """
+        return ReplayMidiInput(descriptor=descriptor)
 
     def open_midi_output(self: Self, *, port_id: int) -> ReplayMidiOutput:
         """Return the stand-in for the recorded MIDI output port ``port_id`` (one per port).

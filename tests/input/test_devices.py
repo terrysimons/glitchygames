@@ -10,12 +10,14 @@ import pytest
 from glitchygames.input.devices import (
     MIDI_INPUT_KIND,
     MIDI_OUTPUT_KIND,
+    MIDI_READ_BATCH,
     DeviceDescriptor,
     EnumerationAnswer,
     LiveDeviceRegistry,
     MidiPortDescriptor,
     MidiPortInfo,
     PolledDevices,
+    ReadsMidiInput,
     ReplayController,
     ReplayDeviceRegistry,
     ReplayJoystick,
@@ -1303,3 +1305,135 @@ def test_a_portmidi_start_failure_during_an_open_is_recorded_once_and_fails_the_
     )
     with pytest.raises(pygame.error, match='PortMidi cannot start'):
         replay.open_midi_input(port_id=0)
+
+
+TWO_INPUT_PORTS = [(b'CoreMIDI', b'Keys', 1, 0, 0), (b'CoreMIDI', b'Pads', 1, 0, 0)]
+
+
+class FakePortMidiInput:
+    """A PortMidi input as the hardware gives it: queued messages, read in batches."""
+
+    def __init__(self, *, messages, fails=False):
+        """Queue the messages; ``fails`` makes every poll raise MidiException."""
+        self.messages = list(messages)
+        self.fails = fails
+        self.read_sizes = []
+
+    def poll(self):
+        if self.fails:
+            message = 'Host error'
+            raise pygame.midi.MidiException(message)
+        return bool(self.messages)
+
+    def read(self, num_events):
+        self.read_sizes.append(num_events)
+        batch, self.messages = self.messages[:num_events], self.messages[num_events:]
+        return batch
+
+
+def _patch_portmidi_inputs(mocker, *, inputs_by_port):
+    """Stand in for PortMidi with two input ports whose Input objects are the given fakes."""
+    midi_module = mocker.Mock()
+    mocker.patch('glitchygames.input.devices.import_midi_module', return_value=midi_module)
+    midi_module.MidiException = pygame.midi.MidiException
+    midi_module.midis2events = pygame.midi.midis2events
+    midi_module.get_device_info.side_effect = lambda port_id: (
+        TWO_INPUT_PORTS[port_id] if 0 <= port_id < len(TWO_INPUT_PORTS) else None
+    )
+    midi_module.Input.side_effect = lambda port_id: inputs_by_port[port_id]
+    return midi_module
+
+
+def _timestamps(events):
+    return [event.timestamp for event in events]
+
+
+def test_a_live_burst_larger_than_one_read_is_read_whole_in_port_order(mocker):
+    """Every opened input is read until empty, a read asking for MIDI_READ_BATCH at a time."""
+    burst = [([0x90, 60, 100, 0], timestamp) for timestamp in range(MIDI_READ_BATCH * 2 + 5)]
+    keys = FakePortMidiInput(messages=burst)
+    pads = FakePortMidiInput(messages=[([0x99, 36, 90, 0], 7)])
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys, 1: pads})
+    registry = LiveDeviceRegistry()
+    # Opened out of order: the read is still in port-id order
+    registry.open_midi_input(port_id=1)
+    registry.open_midi_input(port_id=0)
+
+    events = registry.read_midi_input()
+
+    assert [event.vice_id for event in events] == [0] * len(burst) + [1]
+    assert _timestamps(events[: len(burst)]) == list(range(len(burst)))
+    assert keys.read_sizes == [MIDI_READ_BATCH] * 3
+    assert all(event.type == pygame.MIDIIN for event in events)
+    assert registry.read_midi_input() == []
+
+
+def test_a_live_read_with_no_opened_input_touches_nothing(mocker):
+    """A game that opened no input never reads PortMidi."""
+    midi_module = _patch_portmidi_inputs(mocker, inputs_by_port={})
+    registry = LiveDeviceRegistry()
+
+    assert registry.read_midi_input() == []
+    midi_module.Input.assert_not_called()
+
+
+def test_a_live_port_that_raises_is_dropped_once_and_the_others_still_read(mocker, caplog):
+    """A MidiException drops that port (logged once with id and name); the other keeps reading."""
+    keys = FakePortMidiInput(messages=[([0x90, 60, 100, 0], 1)], fails=True)
+    pads = FakePortMidiInput(messages=[([0x99, 36, 90, 0], 2)])
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys, 1: pads})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+    registry.open_midi_input(port_id=1)
+
+    with caplog.at_level('ERROR', logger='game.input.devices'):
+        first = registry.read_midi_input()
+        pads.messages.append(([0x89, 36, 0, 0], 3))
+        second = registry.read_midi_input()
+
+    assert _timestamps(first) == [2]
+    assert _timestamps(second) == [3]
+    failures = [record for record in caplog.records if 'failed' in record.getMessage()]
+    assert len(failures) == 1
+    assert 'port 0 (Keys)' in failures[0].getMessage()
+    # Dropped, not closed: the port stays the one the registry opened
+    assert registry.midi_input_for_port(port_id=0) is keys
+
+
+def test_only_the_live_and_stand_in_registries_read_midi_input():
+    """ReadsMidiInput is what the pump asks for: a replay registry does not have it."""
+    assert isinstance(LiveDeviceRegistry(), ReadsMidiInput)
+    assert isinstance(stand_in_registry(descriptors=[]), ReadsMidiInput)
+    assert not isinstance(
+        ReplayDeviceRegistry(descriptors=[], enumeration_answers=[]), ReadsMidiInput
+    )
+
+
+def test_stand_in_midi_input_is_read_only_from_opened_ports_and_only_once():
+    """Queued messages of a port nobody opened stay queued; a read takes them once, in order."""
+    registry = stand_in_registry(descriptors=[], midi_ports=[KEYS_PORT, KEYS_PORT])
+    registry.queue_midi_input(port_id=0, messages=[([0x90, 60, 100, 0], 5), ([0x80, 60, 0, 0], 9)])
+    registry.queue_midi_input(port_id=1, messages=[([0x90, 61, 100, 0], 6)])
+    registry.open_midi_input(port_id=0)
+
+    events = registry.read_midi_input()
+
+    assert [(event.vice_id, event.status, event.data1, event.timestamp) for event in events] == [
+        (0, 0x90, 60, 5),
+        (0, 0x80, 60, 9),
+    ]
+    assert registry.read_midi_input() == []
+    # Opened later, the other port's queue is still there
+    registry.open_midi_input(port_id=1)
+    assert _timestamps(registry.read_midi_input()) == [6]
+
+
+def test_a_live_port_that_says_waiting_but_reads_nothing_does_not_loop_forever(mocker):
+    """A port whose poll stays true while its read returns nothing ends the frame's read."""
+    keys = mocker.Mock(**{'poll.return_value': True, 'read.return_value': []})
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+
+    assert registry.read_midi_input() == []
+    keys.read.assert_called_once_with(MIDI_READ_BATCH)

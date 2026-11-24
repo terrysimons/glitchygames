@@ -17,7 +17,12 @@ from glitchygames import events
 from glitchygames.engine import GameEngine
 from glitchygames.engine_context import EngineContext
 from glitchygames.events import HashableEvent
-from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
+from glitchygames.input.devices import (
+    JOYSTICK_KIND,
+    MIDI_READ_BATCH,
+    DeviceDescriptor,
+    MidiPortInfo,
+)
 from glitchygames.render_target import set_render_target
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
 from glitchygames.scenes import Scene, SceneManager
@@ -535,6 +540,68 @@ class TestEngineEventSystem:
         assert scene.received_handler_names() == ['on_sys_wm_event']
         assert scene.received[0][1].msg == 'test_message'
         assert type(scene.received[0][1]) is HashableEvent
+
+
+KEYBOARD_PORT = MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False)
+NOTE_ON = [0x90, 60, 100, 0]
+
+
+class TestMidiInputInTheFrame:
+    """MIDI input arrives in the frame's event batch, like every other event."""
+
+    @staticmethod
+    def start_scene(midi_engine, *, port_count=4):
+        """Install stand-in doors with input ports, open them all, and return (scene, doors)."""
+        devices = install_stand_in_devices(descriptors=[], midi_ports=[KEYBOARD_PORT] * port_count)
+        midi_engine.install_game(scene_class=MidiRecordingScene)
+        pygame.event.clear()
+        for port_id in range(port_count):
+            devices.open_midi_input(port_id=port_id)
+        return midi_engine.scene_manager.active_scene, devices
+
+    def test_midi_input_reaches_the_scenes_handler_in_its_frame(self, midi_engine):
+        """A queued note-on is one MidiEvent in on_midi_in_event, in the frame it was queued."""
+        scene, devices = self.start_scene(midi_engine)
+        devices.queue_midi_input(port_id=3, messages=[(NOTE_ON, 1234)])
+
+        handled = midi_engine.process_events()
+
+        assert handled is True
+        assert scene.received_handler_names() == ['on_midi_in_event']
+        event = scene.received[0][1]
+        assert (event.status, event.data1, event.data2, event.data3) == (0x90, 60, 100, 0)
+        assert (event.timestamp, event.vice_id) == (1234, 3)
+
+    def test_a_burst_larger_than_one_read_arrives_whole_and_in_order(self, midi_engine):
+        """More messages than one read takes all arrive, oldest first, in one frame."""
+        scene, devices = self.start_scene(midi_engine)
+        count = MIDI_READ_BATCH * 3 + 8
+        devices.queue_midi_input(
+            port_id=0, messages=[(NOTE_ON, timestamp) for timestamp in range(count)]
+        )
+
+        midi_engine.process_events()
+
+        assert count == 200
+        assert [event.timestamp for _, event in scene.received] == list(range(count))
+        assert scene.received_handler_names() == ['on_midi_in_event'] * count
+
+    def test_a_failing_midi_port_is_dropped_and_the_others_still_read(self, midi_engine, caplog):
+        """A port raising MidiException is logged once; the next frame reads only the good port."""
+        scene, devices = self.start_scene(midi_engine, port_count=2)
+        devices.fail_midi_input(port_id=0)
+        devices.queue_midi_input(port_id=0, messages=[(NOTE_ON, 1)])
+        devices.queue_midi_input(port_id=1, messages=[(NOTE_ON, 2)])
+
+        with caplog.at_level('ERROR', logger='game.input.devices'):
+            midi_engine.process_events()
+            devices.queue_midi_input(port_id=1, messages=[(NOTE_ON, 3)])
+            midi_engine.process_events()
+
+        assert [(event.vice_id, event.timestamp) for _, event in scene.received] == [(1, 2), (1, 3)]
+        failures = [record.getMessage() for record in caplog.records if 'failed' in record.message]
+        assert len(failures) == 1
+        assert 'port 0 (Keys)' in failures[0]
 
 
 class TestNativeWindowMessages:

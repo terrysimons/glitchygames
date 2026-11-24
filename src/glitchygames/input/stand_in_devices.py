@@ -27,8 +27,10 @@ Task 1).
 
 from __future__ import annotations
 
+import collections
 from typing import TYPE_CHECKING, Any, Self, override
 
+from glitchygames.checks import required
 from glitchygames.input.devices import (
     CONTROLLER_COUNT_CALL,
     CONTROLLER_KIND,
@@ -42,15 +44,20 @@ from glitchygames.input.devices import (
     DeviceDescriptor,
     EnumerationAnswer,
     EnumerationValue,
+    MidiInputReader,
     MidiPortDescriptor,
     MidiPortInfo,
     ReplayDeviceRegistry,
+    ReplayMidiInput,
+    import_midi_module,
 )
 from glitchygames.live_sources import LiveSources
 from glitchygames.sources import install_sources
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    import pygame
 
     from glitchygames.audio.accounting import AudioFrameAccount
     from glitchygames.scenes import Scene
@@ -59,6 +66,65 @@ if TYPE_CHECKING:
 # The master seed of the doors ``install_stand_in_devices`` installs (a test's doors: nothing
 # it runs draws from them unless the test says so)
 STAND_IN_DOORS_RANDOM_SEED = 1
+# What a failing stand-in MIDI port says (PortMidi's own text for a vanished device)
+FAILING_PORT_MESSAGE = 'Host error'
+
+
+class StandInMidiInput(ReplayMidiInput):
+    """A stand-in MIDI input port that holds the messages a test queued for it.
+
+    Its ``poll`` and ``read`` behave as ``pygame.midi.Input``'s do: ``read`` returns up to
+    ``num_events`` messages, ``[[status, data1, data2, data3], timestamp]``, oldest first.
+    """
+
+    def __init__(
+        self: Self,
+        *,
+        descriptor: MidiPortDescriptor,
+        pending: collections.deque[tuple[list[int], int]],
+        failing_port_ids: set[int],
+    ) -> None:
+        """Hold the queue the registry keeps for this port.
+
+        Args:
+            descriptor: The port.
+            pending: The queued messages (shared with the registry, which fills it).
+            failing_port_ids: The ports whose reads raise (shared with the registry).
+
+        """
+        super().__init__(descriptor=descriptor)
+        self._pending = pending
+        self._failing_port_ids = failing_port_ids
+
+    @override
+    def poll(self: Self) -> bool:
+        """Say whether messages are waiting.
+
+        A port made to fail (``fail_midi_input``) raises ``pygame.midi.MidiException`` here.
+
+        Returns:
+            True when a message is queued.
+
+        """
+        self._raise_when_failing()
+        return bool(self._pending)
+
+    @override
+    def read(self: Self, num_events: int) -> list[Any]:
+        """Return up to ``num_events`` queued messages, oldest first.
+
+        Returns:
+            The messages.
+
+        """
+        self._raise_when_failing()
+        count = min(num_events, len(self._pending))
+        return [self._pending.popleft() for _ in range(count)]
+
+    def _raise_when_failing(self: Self) -> None:
+        if self.descriptor.port_id in self._failing_port_ids:
+            midi_module = required(import_midi_module(log_unavailable=False), what='pygame.midi')
+            raise midi_module.MidiException(FAILING_PORT_MESSAGE)
 
 
 class StandInDeviceRegistry(ReplayDeviceRegistry):
@@ -92,6 +158,10 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         self._given_answers: list[EnumerationAnswer] = []
         self._opened_descriptors: list[DeviceDescriptor] = []
         self._opened_midi_ports: list[MidiPortDescriptor] = []
+        # MIDI messages queued per port id, and the ports that fail when read
+        self._pending_midi_messages: dict[int, collections.deque[tuple[list[int], int]]] = {}
+        self._failing_midi_port_ids: set[int] = set()
+        self._midi_input_reader = MidiInputReader()
 
     @override
     def joystick_count(self: Self) -> int:
@@ -247,6 +317,60 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         self._opened_midi_ports.append(descriptor)
         self._keep_answer(call=call, device_index=port_id, value=port_id)
         return descriptor
+
+    @override
+    def _new_midi_input(self: Self, *, descriptor: MidiPortDescriptor) -> ReplayMidiInput:
+        """Return a stand-in input that serves the messages queued for its port.
+
+        Returns:
+            The stand-in.
+
+        """
+        return StandInMidiInput(
+            descriptor=descriptor,
+            pending=self._pending_for(port_id=descriptor.port_id),
+            failing_port_ids=self._failing_midi_port_ids,
+        )
+
+    def _pending_for(self: Self, *, port_id: int) -> collections.deque[tuple[list[int], int]]:
+        return self._pending_midi_messages.setdefault(port_id, collections.deque())
+
+    def queue_midi_input(
+        self: Self, *, port_id: int, messages: Sequence[tuple[list[int], int]]
+    ) -> None:
+        """Queue MIDI messages a port will hand the frame once it is opened and read.
+
+        Args:
+            port_id: The port's position in ``midi_ports``.
+            messages: PortMidi's messages: ``([status, data1, data2, data3], timestamp)``.
+
+        """
+        self._pending_for(port_id=port_id).extend(messages)
+
+    def fail_midi_input(self: Self, *, port_id: int) -> None:
+        """Make a port raise ``pygame.midi.MidiException`` whenever it is read.
+
+        Args:
+            port_id: The port's position in ``midi_ports``.
+
+        """
+        self._failing_midi_port_ids.add(port_id)
+
+    def read_midi_input(self: Self) -> list[pygame.event.Event]:
+        """Return the MIDIIN events the opened stand-in input ports hold, as the live registry does.
+
+        Returns:
+            The events (``vice_id`` is the port id).
+
+        """
+        midi_module = import_midi_module(log_unavailable=False)
+        if midi_module is None:  # pragma: no cover - a pygame build without PortMidi
+            return []
+        return self._midi_input_reader.read(
+            midi_module=midi_module,
+            inputs=self._midi_inputs,
+            port_name=lambda port_id: self._midi_inputs[port_id].descriptor.name,
+        )
 
     @override
     def take_opened_midi_ports(self: Self) -> list[MidiPortDescriptor]:

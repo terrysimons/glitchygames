@@ -1380,6 +1380,44 @@ class TestRecordingSources:
             kind=MIDI_INPUT_KIND, port_id=0, name='Keys', interface='CoreMIDI'
         )
 
+    def test_recorded_midi_input_replays_exactly(self, tmp_path, mocker):
+        """MIDI input is recorded with its frame's batch and replayed without any PortMidi."""
+        keys = MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False)
+        registry = stand_in_registry(descriptors=[], midi_ports=[keys, keys])
+        recorder = GameplayRecorder(
+            path=tmp_path / 'midi-input.jsonl.gz',
+            header={'game_class': 'Unit', 'random_seed': 1, 'recorded_at': '2026-11-24T12:00:00'},
+        )
+        sources = RecordingSources(
+            inner=StandInDeviceSources(registry=registry, random_seed=1), recorder=recorder
+        )
+        sources.devices().open_midi_input(port_id=1)
+        batches = []
+        for frame_number, messages in enumerate([
+            [([0x90, 60, 100, 0], 10), ([0x80, 60, 0, 0], 20)],
+            [],
+            [([0xB0, 1, 64, 0], 30)],
+        ]):
+            registry.queue_midi_input(port_id=1, messages=messages)
+            batches.append(sources.pump_events())
+            _end_frame(sources, frame_number=frame_number)
+        recorder.close()
+
+        # The replay never touches PortMidi
+        mocker.patch.object(devices_module, 'import_midi_module', side_effect=RuntimeError('no'))
+        replay = ReplaySources.from_path(path=recorder.path)
+        replayed = []
+        for frame_number in range(len(batches)):
+            replayed.append(replay.pump_events())
+            replay.end_frame(frame_number=frame_number, dt=0.016, scene=None, control_events=[])
+
+        def fields(batch):
+            return [(event.type, event.dict) for event in batch]
+
+        assert [len(batch) for batch in batches] == [2, 0, 1]
+        assert [fields(batch) for batch in replayed] == [fields(batch) for batch in batches]
+        assert all(event.type == pygame.MIDIIN for batch in replayed for event in batch)
+
     def test_input_changes_diff_against_the_previous_frame(self, tmp_path, mocker):
         """The first snapshot diffs against IDLE_INPUT; an unchanged frame records nothing."""
         path = tmp_path / 'unit.jsonl.gz'
