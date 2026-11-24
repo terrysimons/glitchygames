@@ -1143,6 +1143,18 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
                 'its 2 px and the old camera followed it'
             ),
         ),
+        ExpectedDifference(
+            frames=None,
+            sprite_pattern='HudLabel#*',
+            field='present',
+            expected=True,
+            reason=(
+                'HUD labels as sprites (plans/2026-11-20-game-code-into-the-engine.md): the '
+                "game's HUD text is HudLabel sprites in the scene's group, where the old scene "
+                'drew it straight onto the screen; its pixels are unchanged '
+                '(scripts/check_rebaselined_recordings.py compared every frame)'
+            ),
+        ),
     ],
     'brave_adventurer': [
         ExpectedDifference(
@@ -1214,6 +1226,18 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
                 'much'
             ),
         ),
+        ExpectedDifference(
+            frames=None,
+            sprite_pattern='HudLabel#*',
+            field='present',
+            expected=True,
+            reason=(
+                'HUD labels as sprites (plans/2026-11-20-game-code-into-the-engine.md): the '
+                "game's HUD text is HudLabel sprites in the scene's group, where the old scene "
+                'drew it straight onto the screen; its pixels are unchanged '
+                '(scripts/check_rebaselined_recordings.py compared every frame)'
+            ),
+        ),
     ],
     'brave_adventurer_papyrus': [
         ExpectedDifference(
@@ -1275,6 +1299,18 @@ EXPECTED_DIFFERENCES: dict[str, list[ExpectedDifference]] = {
                 'the frame, SPRITE_SCALE) where the old rect kept the native size of the frame '
                 'the sprite was built with; its position is unchanged (a moved position is '
                 "judged by the other entries' rules with the size change taken out)"
+            ),
+        ),
+        ExpectedDifference(
+            frames=None,
+            sprite_pattern='HudLabel#*',
+            field='present',
+            expected=True,
+            reason=(
+                'HUD labels as sprites (plans/2026-11-20-game-code-into-the-engine.md): the '
+                "Papyrus edition's HUD text is HudLabel sprites in the scene's group, where the "
+                'old scene drew it straight onto the screen; its pixels are unchanged '
+                '(scripts/check_rebaselined_recordings.py compared every frame)'
             ),
         ),
     ],
