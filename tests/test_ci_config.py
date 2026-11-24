@@ -3469,29 +3469,22 @@ def nox_steps_of(job: str) -> list[str]:
 
 
 def test_the_macos_job_runs_only_what_is_there_for_a_mac():
-    """The macOS job keeps the tests, the timer report and the build alone.
+    """The macOS job keeps the tests, the timer report, the benchmarks and the build alone.
 
     The owner, 2026-11-22 (through the coordinator): every non-test check ran on the one macOS
     machine, at 200 credits a minute, one macOS job at a time (job 5021: 1,601 s, 558 of them
-    lint). The timer report explains the macOS tests' timings and the build is the macOS
-    binary. The benchmarks left CI (the owner, 2026-11-23: "Don't run the macOS benchmarks"):
-    ``nox -s performance-test`` runs by hand.
+    lint). The timer report explains the macOS tests' timings, the benchmarks keep their history
+    on one hardware, and the build is the macOS binary.
     """
     job = macos_job()
 
     assert nox_steps_of(job) == [
         'nox-timer-report',
         'nox-test',
+        'nox-performance-test',
         'nox-build',
     ]
     assert 'install-supply-chain-tools' not in job
-
-
-def test_no_ci_job_runs_the_benchmarks():
-    """The benchmarks run by hand only (the owner, 2026-11-23: "Don't run the macOS benchmarks")."""
-    configuration = CIRCLECI_CONFIG_PATH.read_text(encoding='utf-8')
-
-    assert not re.search(r'^\s+nox -s performance-test\b', configuration, flags=re.MULTILINE)
 
 
 def test_the_checks_run_on_a_large_linux_container_beside_the_tests():

@@ -436,6 +436,14 @@ commands:
             export PATH="$HOME/.local/bin:$PATH"
             nox -s security-scan
 
+  nox-performance-test:
+    steps:
+      - run:
+          name: "Performance benchmarks"
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+            nox -s performance-test
+
   # The Bitmappy binary and the wheels, on Python 3.15 (noxfile.BUILD_PYTHONS; the owner,
   # 2026-11-18: "Switch the builds over to 3.15"). A job builds on its last machine only: every
   # step of a job runs on each of its machines, and both built the same thing. The last, so a
@@ -597,9 +605,9 @@ jobs:
           pythons: << pipeline.parameters.PYTHON_VERSION >>
       # Only what is there for a Mac (the owner, 2026-11-22: format, lint, the docs, type checks
       # and the security scan moved to checks-linux, at a tenth of a Mac's credits a minute): the
-      # timer report explains this machine's timing tests, and the build is the macOS binary.
-      # The benchmarks (nox -s performance-test) run by hand only (the owner, 2026-11-23: "Don't
-      # run the macOS benchmarks"; they held the one-at-a-time macOS queue on every push)
+      # timer report explains this machine's timing tests, the benchmarks keep their history on
+      # one hardware (their real-time relations flip under load: tests/benchmarks/), and the
+      # build is the macOS binary
       - nox-timer-report
       # 3.15, every session (noxfile.PINNED_PYTHONS; the owner, 2026-11-18: "Only 3.15 for macos
       # too", "Just change that job's name to test-python-3-15-macos"). Linux and Windows run it
@@ -607,12 +615,14 @@ jobs:
       # machines: the suite alone took Linux 59 minutes on one (jobs 3635, 3705, 3707)
       - nox-test:
           session: test-3.15
+      - nox-performance-test
       - nox-build
       - save-uv-cache-posix
 
   # The suite on Linux and Windows, a job each: only what differs by platform (the tests, the
   # OS's build, and its uv cache, saved last: the owner, 2026-11-18, "Yes, let's move the uv
-  # cache"). The checks that give the same answer on every OS run in checks-linux
+  # cache"). The checks that give the same answer on every OS run in checks-linux, and the
+  # benchmarks on macOS
   test-python-3-15-linux:
     docker:
       - image: cimg/python:<< pipeline.parameters.PYTHON_VERSION >>
@@ -805,7 +815,7 @@ jobs:
 
   # The test suite on real ARM hardware: a Raspberry Pi 4 (4 GB, no added cooling) running machine
   # runner 3 (plans/2026-11-04-raspberry-pi-ci-runner.md), set up by
-  # ansible/raspberry_pi_runner.yml. Never nox -s performance-test here: it runs
+  # ansible/raspberry_pi_runner.yml. Never nox-performance-test here: it runs
   # tests/benchmarks/test_logging_cost.py, whose heavy logs wear the Pi's SD card. The uv cache
   # stays on the host, so no CircleCI cache (storage and network use credits), and the job has no
   # sudo, so the host is provisioned with what it needs (fontconfig)
