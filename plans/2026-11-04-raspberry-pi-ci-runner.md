@@ -368,8 +368,23 @@ OS specific stuff still needs to be wired up". On this branch ("This branch").
 | Its settings | The Ubuntu 16 GB Pi's: `arm_freq` 3000, `gpu_freq` 1100, `over_voltage` 6, the Active Cooler on the firmware's default curve | The owner's parity; the same values on a different chip are to be proven by a load test after the first boot at 3 GHz |
 | The memory cgroup | Left alone: the boot arguments are not touched (the owner, 2026-11-16: "Leave boot arguments alone but make a todo"), so this Pi's runner `MemoryMax=2G` is written and not enforced. A to-do in plans/future-work.md ("The Raspberry Pi OS Pi's memory cgroup") | It matters only once a Pi's CircleCI job runs, and none does. If enabled later: append `cgroup_memory=1 cgroup_enable=memory` to `/boot/firmware/cmdline.txt` (https://docs.k3s.io/installation/requirements); not by removing `cgroup_disable=memory`, which cmdline.txt doesn't have: the firmware puts it in the boot arguments ahead of cmdline.txt's (read 2026-11-16: `/proc/device-tree/chosen/bootargs`) |
 | The display mode | One shared set of display tasks for both OSes: the same planner (`plan_display_mode.py`) reads mutter's state on GNOME and `wlr-randr --json` on labwc (an adapter to the same shape), and a login entry in `~/.config/autostart` applies it (lxsession-xdg-autostart runs those under labwc, as GNOME does) | The monitor's preferred mode is 3840x2160 at 60 Hz, so the runner's session would start in 4K. Not the user's `~/.config/labwc/autostart`: labwc reads it instead of the system one, which starts the panel and kanshi |
-| Natural order | Within each OS group | The inventory lists hosts group by group; no name keeps all four in one natural order |
+| Natural order | Within each OS group | The inventory lists hosts group by group; no name keeps all five in one natural order |
 | CI and measuring | Its `build-and-test-` job (off, as the others) and its place in the push-time measuring | Parity |
+
+### The 8 GB Pi on Raspberry Pi OS (the owner, 2026-11-21)
+
+A second Raspberry Pi OS Pi, `raspberry-pi-5-8gb-raspberry-pi-os`, reached at
+`glitchygames-pi5-8gb-raspberry-pi-os.local` (its hostname as it came, spelled `raspberry-pi-os`
+where the 16 GB Pi's is `raspberrypios`; a DHCP lease on wlan0). Read over SSH 2026-11-21:
+Raspberry Pi 5 Model B Rev 1.0, 8 GB, Debian 13 (13.7), kernel 6.18.60+rpt-rpi-2712, stock clock
+(`arm_freq=2400`, `over_voltage=0`), the `ondemand` governor (none set in the inventory), a PWM
+fan taken as the Active Cooler on the default curve, and a 1 TB microSD card (no NVMe SSD). Its
+`build-and-test-` job is defined and off in the workflow, like every Pi's. Provisioned 2026-11-22:
+the owner ran the playbook with `--limit` this host, which created the resource class
+`terrysimons/raspberry-pi-5-8gb-raspberry-pi-os` and registered its runner (online); read back
+over SSH, uv and the `~/glitchygames-measure` clone are in place and the runner service is active.
+Its cgroup has no memory controller, like the 16 GB Raspberry Pi OS Pi's (see the to-do in
+plans/future-work.md).
 
 ### Built (2026-11-16, uncommitted), and what only the Pi can prove
 

@@ -1904,7 +1904,8 @@ Loading and memory:
 
 - [ ] **Decide whether to enable the memory cgroup on Raspberry Pi OS.** Its firmware boots the
   kernel with `cgroup_disable=memory` (in its own boot arguments, ahead of `cmdline.txt`'s: read
-  2026-11-16 on `raspberry-pi-5-16gb-raspberry-pi-os`), so the runner's `MemoryMax=2G` and
+  2026-11-16 on `raspberry-pi-5-16gb-raspberry-pi-os`; not read on
+  `raspberry-pi-5-8gb-raspberry-pi-os`, added 2026-11-21), so the runner's `MemoryMax=2G` and
   `MemorySwapMax=0` are written and not enforced there; the Ubuntu Pis enforce them. Left alone
   for now (the owner: "Leave boot arguments alone but make a todo"). It matters only once a Pi's
   CircleCI job is switched on: no workflow runs one, and the push-time measuring logs in over SSH,

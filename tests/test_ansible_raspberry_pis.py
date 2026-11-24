@@ -46,6 +46,7 @@ PI4 = 'raspberry-pi-4-4gb-ubuntu'
 PI5_16GB = 'raspberry-pi-5-16gb-ubuntu'
 PI5_8GB = 'raspberry-pi-5-8gb-ubuntu'
 # The first Raspberry Pi OS Pi (2026-11-16): the 16 GB Pi 5 in the NVMe heat-sink case
+PI5_8GB_RASPBERRY_PI_OS = 'raspberry-pi-5-8gb-raspberry-pi-os'
 PI5_16GB_RASPBERRY_PI_OS = 'raspberry-pi-5-16gb-raspberry-pi-os'
 BLOCK_TASK = 'Write the firmware settings in their board section'
 CHANGED = 'raspberry_pi_hand_typed_removed.changed or raspberry_pi_firmware_block.changed'
@@ -351,7 +352,10 @@ def test_the_pis_are_grouped_by_os():
     assert set(group['children']) == {UBUNTU_GROUP, RASPBERRY_PI_OS_GROUP}
     assert 'hosts' not in group
     assert list(group['children'][UBUNTU_GROUP]['hosts']) == [PI4, PI5_8GB, PI5_16GB]
-    assert list(group['children'][RASPBERRY_PI_OS_GROUP]['hosts']) == [PI5_16GB_RASPBERRY_PI_OS]
+    assert list(group['children'][RASPBERRY_PI_OS_GROUP]['hosts']) == [
+        PI5_8GB_RASPBERRY_PI_OS,
+        PI5_16GB_RASPBERRY_PI_OS,
+    ]
 
 
 def test_the_natural_order_puts_8gb_before_16gb():
@@ -425,7 +429,13 @@ def test_each_os_group_says_what_it_is(group_name, expected):
 
 @pytest.mark.parametrize(
     ('host', 'release'),
-    [(PI4, '26.10'), (PI5_16GB, '26.04'), (PI5_8GB, '26.10'), (PI5_16GB_RASPBERRY_PI_OS, '13')],
+    [
+        (PI4, '26.10'),
+        (PI5_16GB, '26.04'),
+        (PI5_8GB, '26.10'),
+        (PI5_8GB_RASPBERRY_PI_OS, '13'),
+        (PI5_16GB_RASPBERRY_PI_OS, '13'),
+    ],
 )
 def test_each_pi_names_its_release(host, release):
     """The release each Pi runs (read 2026-11-08 to 2026-11-16), one its group supports."""
@@ -617,6 +627,8 @@ def test_the_runner_play_takes_the_desktop_role():
         ),
         # Stock at 2400 MHz, the Active Cooler on the default curve
         (PI5_8GB, 'pi5', False, {}, {'kind': 'active-cooler', 'levels': []}),
+        # Stock at 2400 MHz (read 2026-11-21), the Active Cooler on the default curve
+        (PI5_8GB_RASPBERRY_PI_OS, 'pi5', False, {}, {'kind': 'active-cooler', 'levels': []}),
         # The Ubuntu 16 GB Pi's overclock and cooling, in the same kind of case (the owner,
         # 2026-11-16: "the same sorts of corallary settings that the Ubuntu system had")
         (
@@ -1963,6 +1975,8 @@ REQUIREMENTS_PLATFORM_OF_HOST = {PI4: 'raspberry-pi-4', PI5_16GB: 'raspberry-pi-
         (PI5_8GB, 'Active cooling; the official cooled case'),
         # The Active Cooler, booting from an NVMe SSD in a case that is itself a heat sink
         (PI5_16GB, 'Active cooling; the NVMe case is a large heat sink'),
+        # A PWM fan, booting from a microSD card (read 2026-11-21)
+        (PI5_8GB_RASPBERRY_PI_OS, 'Active cooling; boots from a microSD card'),
         # The same kind of case and fan (read 2026-11-16)
         (PI5_16GB_RASPBERRY_PI_OS, 'Active cooling; the NVMe case is a large heat sink'),
     ],
@@ -2019,6 +2033,21 @@ def test_the_raspberry_pi_os_pi_is_reached_by_its_lasting_name_and_keeps_it():
     assert variables['raspberry_pi_resource_class'] == (
         'terrysimons/raspberry-pi-5-16gb-raspberry-pi-os'
     )
+
+
+def test_the_8gb_raspberry_pi_os_pi_is_reached_by_its_lasting_name_and_keeps_it():
+    """Its hostname is spelled raspberry-pi-os (the 16 GB Pi's is raspberrypios): kept as it is."""
+    variables = raspberry_pi_hosts()[PI5_8GB_RASPBERRY_PI_OS]
+
+    assert variables['ansible_host'] == 'glitchygames-pi5-8gb-raspberry-pi-os.local'
+    assert variables['raspberry_pi_hostname'] == 'glitchygames-pi5-8gb-raspberry-pi-os'
+    assert variables['ansible_host'] == f'{variables["raspberry_pi_hostname"]}.local'
+    assert variables['raspberry_pi_resource_class'] == (
+        'terrysimons/raspberry-pi-5-8gb-raspberry-pi-os'
+    )
+    assert variables['host_memory_gb'] == 8
+    assert variables['raspberry_pi_board'] == 'pi5'
+    assert 'raspberry_pi_cpu_governor' not in variables
 
 
 def test_the_16gb_ubuntu_pi_is_reached_by_its_mdns_name():
