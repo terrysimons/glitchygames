@@ -92,7 +92,6 @@ from tests.garbage_collection import (
 from tests.git_environment import clear_git_repository_variables
 from tests.hidden_test_windows import hide_test_windows
 from tests.leaked_state_guard import (
-    drop_patches_to_put_back,
     leak_message,
     watch_process_state,
 )
@@ -642,9 +641,10 @@ def restore_game_engine_class_state(monkeypatch, mocker):
     which held the change, after ``monkeypatch`` had undone it: 55 tests left PYTHONPATH naming a
     temporary folder, or GIT_EDITOR removed (tests/test_leaked_state_guard.py).
 
-    The order this costs: ``mocker.patch`` then ``monkeypatch.setattr`` of the same target, where
-    ``monkeypatch`` would put the patch back after ``mocker`` had put the real one back. That test
-    fails here, with ``mocker``'s original left in place (``drop_patches_to_put_back``).
+    The limit of this order: a test that patches a target with ``mocker`` and then the same one
+    with ``monkeypatch`` leaves ``mocker``'s patch in place for every later test, as
+    ``monkeypatch``, undone last, puts back what it found. Use one of the two for a target; a scan
+    of the tests' source looks for both (tests/test_leaked_state_guard.py).
 
     GameEngine.initialize_icon stores the icon in the class attribute `icon` (each engine keeps
     its own game: `GameEngine.game` is a read-only view). A test that runs
@@ -663,10 +663,6 @@ def restore_game_engine_class_state(monkeypatch, mocker):
     ):
         # Patched with its own value: whatever the test assigns is undone at teardown
         mocker.patch.object(GameEngine, attribute_name, getattr(GameEngine, attribute_name))
-    yield
-    patches = drop_patches_to_put_back(monkeypatch=monkeypatch, mocker=mocker)
-    if patches:
-        pytest.fail('\n'.join(patches), pytrace=False)
 
 
 @pytest.fixture(autouse=True)

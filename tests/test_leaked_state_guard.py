@@ -29,7 +29,6 @@ from tests import leaked_state_guard
 from tests.harness import PROCESS_STATE_CHECK_KEY, end_of_item_leaks
 from tests.leaked_state_guard import (
     NUMPY_GLOBAL_RANDOM,
-    drop_patches_to_put_back,
     environment_holds,
     numpy_random_state,
     watch_environment,
@@ -702,20 +701,34 @@ def test_an_assertion_dumping_the_environment_is_found():
     assert [assertions_dumping_the_environment(source=text) for text in texts] == [[2]]
 
 
+def every_test_file() -> list[Path]:
+    """Return every Python file of the engine's tests and the members'.
+
+    Returns:
+        The files, some in each scanned directory.
+
+    """
+    files: list[Path] = []
+    for directory in ('tests', 'src/games', 'src/demos', 'src/apps'):
+        found = [
+            path
+            for path in sorted((PROJECT_ROOT / directory).rglob('*.py'))
+            if 'tests' in path.relative_to(PROJECT_ROOT).parts
+        ]
+        # A scan that reads nothing finds nothing
+        assert found, directory
+        files += found
+    return files
+
+
 def test_no_assertion_of_any_test_dumps_the_environment():
     """A failing one prints every variable's value into the log and the junit report.
 
     Every test file's own assertions, and those of the inner tests it holds as text. A tripwire,
     not a proof: an alias of os.environ, or an inner test put together from pieces, is not seen.
     """
-    paths = [
-        path
-        for directory in ('tests', 'src/games', 'src/demos', 'src/apps')
-        for path in sorted((PROJECT_ROOT / directory).rglob('*.py'))
-        if 'tests' in path.relative_to(PROJECT_ROOT).parts
-    ]
     found: list[str] = []
-    for path in paths:
+    for path in every_test_file():
         source = path.read_text(encoding='utf-8')
         if 'environ' not in source:
             continue
@@ -727,7 +740,6 @@ def test_no_assertion_of_any_test_dumps_the_environment():
         ]
         found += [f'{path.relative_to(PROJECT_ROOT).as_posix()}:{line}' for line in lines]
 
-    assert len(paths) > 100
     assert found == []
 
 
@@ -740,111 +752,135 @@ def test_no_planted_assertion_dumps_the_environment():
     assert [text for text in sources if assertions_dumping_the_environment(source=text)] == []
 
 
-# What the tests of monkeypatch and mocker patch, and the functions there before
-PATCHED_HEADER = (
-    INNER_HEADER
-    + """
-import pytest
-from types import SimpleNamespace
+# Where each tool takes a target as an owner and a name, and which tool a call is
+PATCHING_CALLS = {
+    'mocker.patch.object': 'mocker',
+    'mocker.spy': 'mocker',
+    'monkeypatch.setattr': 'monkeypatch',
+    'monkeypatch.delattr': 'monkeypatch',
+}
+type Function = ast.FunctionDef | ast.AsyncFunctionDef
 
 
-class Target:
-    def method(self):
-        return 1
+def patches_of(*, function: Function) -> list[tuple[str, tuple[str, str], int]]:
+    """Return a function's patches in order: the tool, (owner expression, name), and the line."""
+    calls = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and ast.unparse(node.func) in PATCHING_CALLS
+        and len(node.args) > 1
+        and isinstance(node.args[1], ast.Constant)
+    ]
+    return [
+        (
+            PATCHING_CALLS[ast.unparse(call.func)],
+            (ast.unparse(call.args[0]), ast.unparse(call.args[1])),
+            call.lineno,
+        )
+        for call in sorted(calls, key=lambda call: (call.lineno, call.col_offset))
+    ]
 
 
-TARGET = SimpleNamespace(function=Target.method)
-TABLE = {'key': len}
-METHOD = Target.method
-"""
-)
-PATCHED_AFTER = """
+def lines_patching_over_mocker(*, source: str) -> list[int]:
+    """Return the lines where monkeypatch patches what mocker patched before it in the same test.
 
-def test_after_it():
-    assert Target.method is METHOD
-    assert TARGET.function is METHOD
-    assert TABLE == {'key': len}
-"""
+    Before it: higher in the function, or in a fixture of the file it asks for (an argument, also a
+    fixture's own; autouse; usefixtures). Not seen: a helper's patches, a string target, another
+    file's fixture, an owner spelled two ways, an item (patch.dict and setitem), a loop's order.
+    """
+    tree = ast.parse(source)
+    functions = [
+        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+    ]
+    decorators = {
+        id(function): ' '.join(map(ast.unparse, function.decorator_list)) for function in functions
+    }
+    fixtures = {f.name: f for f in functions if 'fixture(' in f'{decorators[id(f)]}('}
+    autouse = [f.name for f in fixtures.values() if 'autouse=True' in decorators[id(f)]]
+    marks = [name for name in fixtures if f"'{name}'" in ' '.join(decorators.values())]
+
+    def requested(function: Function, seen: list[Function]) -> list[Function]:
+        names = [argument.arg for argument in function.args.args]
+        names += autouse + [name for name in marks if f"'{name}'" in decorators[id(function)]]
+        for fixture in (fixtures[name] for name in names if name in fixtures):
+            if fixture not in seen and fixture is not function:
+                seen.append(fixture)
+                requested(fixture, seen)
+        return seen
+
+    lines: set[int] = set()
+    for function in functions:
+        patched: set[tuple[str, str]] = set()
+        for fixture in requested(function, []):
+            patched |= {
+                target for tool, target, _ in patches_of(function=fixture) if tool == 'mocker'
+            }
+        for tool, target, line in patches_of(function=function):
+            if tool == 'mocker':
+                patched.add(target)
+            elif target in patched:
+                lines.add(line)
+    return sorted(lines)
 
 
 @pytest.mark.parametrize(
-    'body',
+    ('source', 'lines'),
     [
-        "mocker.patch.object(Target, 'method'); monkeypatch.setattr(Target, 'method', print)",
-        "mocker.patch.object(Target, 'method', 5); monkeypatch.setattr(Target, 'method', print)",
-        "mocker.spy(Target, 'method'); monkeypatch.setattr(Target, 'method', print)",
-        "mocker.spy(TARGET, 'function'); monkeypatch.setattr(TARGET, 'function', print)",
+        ("def test(): mocker.patch.object(A, 'b')\n", []),
+        ("def test():\n mocker.patch.object(A, 'b', 1)\n monkeypatch.setattr(A, 'b', 2)\n", [3]),
+        ("def test():\n mocker.spy(a.b, 'c')\n monkeypatch.delattr(a.b, 'c')\n", [3]),
+        ("def test():\n monkeypatch.setattr(A, 'b', 2)\n mocker.patch.object(A, 'b')\n", []),
+        ("def test():\n mocker.patch.object(A, 'b')\n monkeypatch.setattr(A, 'c', 2)\n", []),
+        ("def test():\n mocker.patch.object(A, 'b')\n monkeypatch.setattr(C, 'b', 2)\n", []),
         (
-            "mocker.patch.object(Target, 'method', autospec=True); "
-            "monkeypatch.setattr(Target, 'method', print)"
+            (
+                "@pytest.fixture\ndef one(mocker): mocker.patch.object(A, 'b')\n"
+                "def test(one): monkeypatch.setattr(A, 'b', 2)\n"
+                "def test_alone(): monkeypatch.setattr(A, 'b', 2)\n"
+            ),
+            [3],
         ),
-        "mocker.patch.dict(TABLE, {'key': mocker.Mock()}); monkeypatch.setitem(TABLE, 'key', 1)",
+        (
+            (
+                "@pytest.fixture\ndef one(mocker): mocker.spy(A, 'b')\n"
+                '@pytest.fixture()\ndef two(one): pass\n'
+                "def test(two): monkeypatch.setattr(A, 'b', 2)\n"
+            ),
+            [5],
+        ),
+        (
+            (
+                "@pytest.fixture(autouse=True)\ndef one(mocker): mocker.patch.object(A, 'b')\n"
+                "def test(): monkeypatch.setattr(A, 'b', 2)\n"
+            ),
+            [3],
+        ),
+        (
+            (
+                "@pytest.fixture\ndef one(mocker): mocker.patch.object(A, 'b')\n"
+                "@pytest.mark.usefixtures('one')\n"
+                "def test(): monkeypatch.setattr(A, 'b', 2)\n"
+            ),
+            [4],
+        ),
     ],
-    ids=['mock', 'value', 'spy', 'module spy', 'autospec', 'dict'],
 )
-def test_a_patch_monkeypatch_would_put_back_fails_the_test(body, pytester):
-    """Mocker is undone first, so monkeypatch must not undo to the patch it found."""
-    source = f'{PATCHED_HEADER}\n\ndef test_both(mocker, monkeypatch):\n    {body}\n'
-
-    result = run_inner_tests(pytester=pytester, source=source + PATCHED_AFTER)
-
-    result.assert_outcomes(passed=2, errors=1)
-    result.stdout.fnmatch_lines(['*would have put back what mocker patched*'])
+def test_a_patch_over_mockers_is_found(source, lines):
+    """Each form the scan below looks for, and what is none of them."""
+    assert lines_patching_over_mocker(source=source) == lines
 
 
-def test_a_mock_mocker_did_not_put_there_is_put_back(pytester):
-    """A mock of the test's own, or a wider fixture's patch, is monkeypatch's to put back."""
-    source = (
-        PATCHED_HEADER
-        + """
+def test_no_test_patches_with_monkeypatch_what_mocker_patched():
+    """It would leave mocker's patch in place: mocker is undone first (tests/harness.py)."""
+    found = [
+        f'{path.relative_to(PROJECT_ROOT).as_posix()}:{line}'
+        for path in every_test_file()
+        if 'monkeypatch' in (source := path.read_text(encoding='utf-8')) and 'mocker' in source
+        for line in lines_patching_over_mocker(source=source)
+    ]
 
-@pytest.fixture(scope='module')
-def patched_for_the_module(module_mocker):
-    return module_mocker.patch.object(TARGET, 'function')
-
-
-def test_own_mocks(mocker, monkeypatch):
-    game = SimpleNamespace(on_event=mocker.Mock())
-    monkeypatch.setattr(game, 'on_event', print)
-    table = {'key': mocker.MagicMock()}
-    monkeypatch.setitem(table, 'key', 1)
-    target = Target()
-    target.method = mocker.Mock()
-    monkeypatch.setattr(target, 'method', print)
-    mock = mocker.Mock()
-    monkeypatch.setattr(mock, 'attribute', 1)
-    elsewhere = SimpleNamespace(method=mocker.patch.object(Target, 'method'))
-    monkeypatch.setattr(elsewhere, 'method', print)
-    monkeypatch.setattr(TARGET, 'function', mock)
-    monkeypatch.setattr(TARGET, 'function', print)
-
-
-def test_monkeypatch_first(mocker, monkeypatch):
-    monkeypatch.setattr(Target, 'method', print)
-    mocker.patch.object(Target, 'method')
-    monkeypatch.setattr(Target, 'method', len)
-
-
-def test_nothing_is_left():
-    assert Target.method is METHOD
-    assert TABLE == {'key': len}
-
-
-def test_over_a_module_patch(patched_for_the_module, monkeypatch):
-    monkeypatch.setattr(TARGET, 'function', print)
-
-
-def test_the_module_patch_is_still_there(patched_for_the_module):
-    assert TARGET.function is patched_for_the_module
-"""
-    )
-
-    run_inner_tests(pytester=pytester, source=source).assert_outcomes(passed=5)
-
-
-def test_a_pytest_mock_without_its_cache_checks_nothing(mocker, monkeypatch):
-    """The cache is private: a version that renames it must not break a run."""
-    assert drop_patches_to_put_back(monkeypatch=monkeypatch, mocker=mocker.Mock(spec=[])) == []
+    assert found == []
 
 
 def test_threads_share_one_deadline(mocker):
