@@ -8,6 +8,7 @@ import textwrap
 import wave
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import pygame
 import pytest
@@ -28,6 +29,10 @@ from glitchygames.replay.rebuild import (
     restart_command,
 )
 from glitchygames.replay.silence import FrameSilencer
+from tests.audio.pending_callback import gil_held, until_idle_with_a_chunk_queued
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # How long the real child processes of the end-to-end restart test may run
 CHILD_TIMEOUT_SECONDS = 120.0
@@ -610,6 +615,57 @@ class TestFrameSilencer:
         silencer.begin()
         silencer.silence_frame()
         assert not live_channel.get_busy()
+        silencer.finish()
+
+    @staticmethod
+    def _queued_channel() -> tuple[pygame.mixer.Channel, Callable[[], None]]:
+        """A channel playing a short sound with a long one queued, and how to make it so again.
+
+        Returns:
+            The channel, and the function.
+
+        """
+        channel = pygame.mixer.Channel(0)
+        playing = pygame.mixer.Sound(buffer=bytes(4 * 8820))
+        queued = pygame.mixer.Sound(buffer=bytes(4 * 44100))
+
+        def play_and_queue() -> None:
+            channel.play(playing)
+            channel.queue(queued)
+
+        play_and_queue()
+        return channel, play_and_queue
+
+    @staticmethod
+    def _what_plays(channel: pygame.mixer.Channel) -> pygame.mixer.Sound | None:
+        channel.unpause()  # a pending end callback has run once this returns
+        return channel.get_sound()
+
+    @pytest.mark.parametrize('spares', [False, True], ids=['rebuild', 'instant-replay'])
+    def test_a_silent_frame_stops_the_queued_sound_too(self, dummy_mixer, spares):
+        """A channel's stop() starts its queued sound: one stop left it playing."""
+        silencer = FrameSilencer(spares_playing_sounds=spares)
+        silencer.begin()
+        channel, _ = self._queued_channel()
+        silencer.silence_frame()
+        assert self._what_plays(channel) is None
+        silencer.finish()
+
+    @pytest.mark.parametrize('inner', [False, True], ids=['instant-replay', 'inner-context'])
+    def test_a_sound_about_to_start_on_an_idle_looking_channel_is_stopped(
+        self, dummy_mixer, mocker, inner
+    ):
+        """The channel reads idle until pygame's end callback starts the queued sound."""
+        if inner:
+            mocker.patch.object(silence, 'is_inner_context', return_value=True)
+            mocker.patch.object(silence, '_channel_indices_to_silence', return_value=(0,))
+        silencer = FrameSilencer(spares_playing_sounds=not inner)
+        silencer.begin()
+        channel, play_and_queue = self._queued_channel()
+        with gil_held():
+            until_idle_with_a_chunk_queued(channel, keep_queued=play_and_queue)
+            silencer.silence_frame()
+        assert self._what_plays(channel) is None
         silencer.finish()
 
     @pytest.mark.parametrize('first_to_stop', [0, 1], ids=['outer-first', 'inner-first'])

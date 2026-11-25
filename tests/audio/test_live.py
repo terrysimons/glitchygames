@@ -16,10 +16,18 @@ import numpy as np
 import pygame
 import pytest
 
+from glitchygames import clock
 from glitchygames.audio import live
 from glitchygames.audio.effects import Tremolo
 from glitchygames.audio.instrument import Filter, Instrument
-from glitchygames.audio.live import LiveAudio, LiveStream, LiveVoiceOptions, VoiceState
+from glitchygames.audio.live import (
+    ChannelState,
+    LiveAudio,
+    LiveStream,
+    LiveVoiceOptions,
+    VoiceState,
+    channel_state,
+)
 from glitchygames.audio.live_instrument import InstrumentVoice
 from glitchygames.audio.route import set_audible
 from glitchygames.audio.voices import (
@@ -30,9 +38,14 @@ from glitchygames.audio.voices import (
 from glitchygames.engine_context import EngineContext
 from glitchygames.process import OutputCapture, run_command
 from glitchygames.randomness import numpy_stream, reset_streams
-from tests.audio import live_pan_probe
+from tests.audio import live_pan_probe, live_restart_probe
 from tests.audio.channel_fade_analysis import RECORDING_TIMEOUT_SECONDS, REPOSITORY_ROOT
 from tests.audio.library_support import start_mixer, stop_mixer
+from tests.audio.pending_callback import (
+    gil_held,
+    spin_until,
+    until_idle_with_a_chunk_queued,
+)
 from tests.audio.voice_support import LIBRARY_CHANNELS, LIVE_POOL, start_reserved_mixer
 
 RATE = 44100
@@ -156,6 +169,7 @@ class TestLiveVoiceStopping:
         channel.stop.assert_not_called()  # stop()/fadeout() would start the queued chunk
         assert stream.is_playing
         channel.get_busy.return_value = False
+        channel.get_sound.return_value = None  # its end callback has run
         assert not stream.is_playing
 
     def test_stop_now_silences_immediately(self, channel, rendered_chunks):
@@ -198,14 +212,16 @@ class TestLiveVoiceStopping:
         assert abs(rendered_chunks[-1][-1]) < 1e-9
 
     def test_underrun_recovers(self, channel, rendered_chunks, mocker):
-        """Review focus 5: a long hitch drains the channel; the voice restarts."""
+        """Review focus 5: a long hitch drains the channel; the same update restarts the voice."""
         debug = mocker.patch.object(live.log, 'debug')
         stream = _voice(channel).stream
         stream.start()
         channel.get_busy.return_value = False
+        channel.get_sound.return_value = None  # drained: the end callback has run
         stream.update()
         assert debug.called
-        assert channel.queue.call_count + channel.play.call_count >= 2
+        assert channel.play.call_count == 2
+        channel.queue.assert_not_called()
 
     def test_pause_and_resume(self, channel, rendered_chunks):
         stream = _voice(channel).stream
@@ -342,7 +358,9 @@ class TestLiveAudio:
         single.update(active_scene='scene', previous_scene=None, active_transitions=())
         assert stream.state is VoiceState.DRAINING
         drained_channel.get_busy.return_value = False
+        drained_channel.get_sound.return_value = None  # its end callback has run
         single.update(active_scene='scene', previous_scene=None, active_transitions=())
+        assert stream.state is VoiceState.STOPPED
         assert self._create(single, 'scene') is not None
 
     def test_releasing_a_voice_twice_is_idempotent(self, audio):
@@ -838,7 +856,9 @@ class TestLiveStreamKeepsItsChunks:
 
         playing.update()
         never_started.start()
+        playing.pause()  # nothing is asked of the channel
 
+        assert playing.state is VoiceState.PAUSED
         rendered.assert_not_called()
         rendered_unstarted.assert_not_called()
         assert playing.held_chunks == ()
@@ -912,6 +932,614 @@ class TestChunksTheChannelNames:
 
         channel.queue.assert_not_called()
         channel.play.assert_not_called()
+
+
+class TableChunk:
+    """A chunk on a ``TableChannel``: only its identity counts."""
+
+    def __init__(self, number):
+        """Number a chunk in the order it was rendered."""
+        self.number = number
+        self.volume = 1.0
+
+    def set_volume(self, volume):
+        """Set its volume (``Sound.set_volume``)."""
+        self.volume = volume
+
+
+class TableChannel:
+    """A channel as pygame-ce 2.5.8 and SDL_mixer 2.8.2 keep one, its end callback a step.
+
+    The contract, by source line (pygame-ce 2.5.8's src_c/mixer.c; SDL_mixer 2.8.2's src/mixer.c):
+
+    - SDL marks a channel idle and calls the callback, under its lock: ``mix_channels``
+      (SDL 395-408), ``Mix_HaltChannel_locked`` (SDL 979-990). ``Mix_Playing``, so ``get_busy``,
+      takes no lock (SDL 1362-1385).
+    - ``endsound_callback`` (pygame 291-317) reads the queue slot *before* it has the GIL (298). A
+      queued Sound: with the GIL it becomes the playing one, then SDL plays it. None: with the GIL
+      the playing slot is cleared. So the callback is decided, and pending until Python gives the
+      GIL up.
+    - ``play`` (1103-1135) gives the GIL up around ``Mix_PlayChannelTimed``, which calls the
+      callback on a channel still playing (SDL 1121-1122) and un-pauses it (1132); the table then
+      names only the new Sound. ``queue`` (1148-1174) plays at once if the playing slot is empty,
+      and else only fills the queue slot, keeping the GIL. ``stop`` (1203-1213), ``unpause``
+      (1225-1235) and ``set_volume`` (1269-1318) give it up and take SDL's lock: a pending callback
+      runs first.
+    - ``pause`` (1215-1223) keeps the GIL and, like ``unpause``, changes only a channel SDL has
+      playing (``Mix_Pause``, ``Mix_Resume``: SDL 1429-1473). ``get_busy`` (1177), ``get_sound``
+      (1334) and ``get_queue`` (1348) keep it too.
+    """
+
+    def __init__(self):
+        """An empty channel."""
+        self.id = 0
+        self.sound = None
+        self.queued = None
+        self.sdl_chunk = None  # what SDL is playing
+        self.paused = False
+        self.pending = None  # the callback decided, waiting for the GIL
+        self.finished = []  # chunks heard to their end
+        self.cut = []  # chunks SDL was playing as something else took the channel
+        self.read_count = 0
+        self.runs_after_read = 0  # the read after which the callback runs (0: none)
+
+    def end_chunk(self):
+        """SDL plays the chunk out, if it is playing one; the callback is then pending."""
+        if self.sdl_chunk is None or self.paused:
+            return
+        self.finished.append(self.sdl_chunk)
+        self.sdl_chunk = None
+        self.pending = 'clear' if self.queued is None else 'promote'
+
+    def give_up_the_gil(self):
+        """A pending callback runs."""
+        pending, self.pending = self.pending, None
+        if pending is not None:
+            self._run(pending)
+
+    def _run(self, callback):
+        if callback == 'promote':
+            self.sound, self.queued = self.queued, None
+            self.sdl_chunk, self.paused = self.sound, False
+        else:
+            self.sound = None
+
+    def _halt(self):
+        if self.sdl_chunk is not None:
+            self.cut.append(self.sdl_chunk)
+            self.sdl_chunk = None
+            self._run('clear' if self.queued is None else 'promote')
+
+    def _read(self, value):
+        self.read_count += 1
+        if self.runs_after_read == self.read_count:
+            self.give_up_the_gil()
+        return value
+
+    def get_busy(self):
+        """Whether SDL plays a chunk (paused counts).
+
+        Returns:
+            True when it does.
+        """
+        return self.sdl_chunk is not None
+
+    def get_sound(self):
+        """The playing slot.
+
+        Returns:
+            Its chunk, or None.
+        """
+        return self._read(self.sound)
+
+    def get_queue(self):
+        """The queue slot.
+
+        Returns:
+            Its chunk, or None.
+        """
+        return self._read(self.queued)
+
+    def play(self, chunk):
+        """Play a chunk over whatever is there."""
+        self.give_up_the_gil()
+        if self.sdl_chunk is not None:
+            self._halt()
+            if self.sdl_chunk is not None:  # the queued one, started by the halt
+                self.cut.append(self.sdl_chunk)
+        self.sound, self.queued = chunk, None
+        self.sdl_chunk, self.paused = chunk, False
+
+    def queue(self, chunk):
+        """Queue a chunk, or play it if the playing slot is empty."""
+        if self.sound is None:
+            self.give_up_the_gil()
+            self.sound, self.sdl_chunk, self.paused = chunk, chunk, False
+        else:
+            self.queued = chunk
+
+    def stop(self):
+        """Halt the channel: its queued chunk starts."""
+        self.give_up_the_gil()
+        self._halt()
+
+    def pause(self):
+        """Pause what SDL plays."""
+        if self.sdl_chunk is not None:
+            self.paused = True
+
+    def unpause(self):
+        """Resume what SDL plays."""
+        self.give_up_the_gil()
+        if self.sdl_chunk is not None:
+            self.paused = False
+
+    def set_volume(self, *gains):
+        """Set its gains."""
+        self.give_up_the_gil()
+
+    @property
+    def named(self):
+        """The chunks the table names.
+
+        Returns:
+            The playing one, then the queued one.
+        """
+        return [chunk for chunk in (self.sound, self.queued) if chunk is not None]
+
+
+# Every state pygame and SDL can leave a channel in as Python reads it: (sound, queue, busy, the
+# pending callback). Busy with no playing slot is not one: the callback and chan_play fill the slot
+# with the GIL (TableChannel).
+CHANNEL_CASES = {
+    'empty': (False, False, False, None),
+    'playing': (True, False, True, None),
+    'playing, one queued': (True, True, True, None),
+    'ended, callback pending': (True, False, False, 'clear'),
+    'ended, the queued one about to start': (True, True, False, 'promote'),
+    'ended, queued after the callback looked': (True, True, False, 'clear'),
+    'stranded': (False, True, False, None),
+}
+SETTLED_STATES = {
+    'empty': ChannelState.ENDED,
+    'playing': ChannelState.PLAYING,
+    'playing, one queued': ChannelState.QUEUED,
+    'ended, callback pending': ChannelState.ENDED,
+    'ended, the queued one about to start': ChannelState.PLAYING,
+    'ended, queued after the callback looked': ChannelState.STRANDED,
+    'stranded': ChannelState.STRANDED,
+}
+
+
+class TestChannelStateFromTheTable:
+    """A stream decides by pygame's table, whatever ``get_busy`` says (``TableChannel``)."""
+
+    @pytest.fixture(autouse=True)
+    def mixer(self):
+        """A mixer, so channel 0 is one of its channels, stopped after the streams let go.
+
+        Yields:
+            The partition.
+        """
+        self._streams = []
+        yield start_reserved_mixer()
+        for stream in self._streams:
+            stream._held_chunks.clear()  # nothing real plays: nothing to release
+        stop_mixer()
+
+    @pytest.fixture
+    def rendered(self, mocker):
+        """Render every chunk as a ``TableChunk``.
+
+        Returns:
+            The chunks, in the order they were rendered.
+        """
+        chunks = []
+
+        def numbered_chunk(samples, *, volume, side_gains):
+            chunks.append(TableChunk(len(chunks) + 1))
+            return chunks[-1]
+
+        mocker.patch.object(live, 'to_sound', side_effect=numbered_chunk)
+        return chunks
+
+    def _stream(self, channel):
+        stream = LiveStream(
+            channel=channel,
+            owner='scene',
+            render=np.zeros,
+            sample_rate=RATE,
+            options=LiveVoiceOptions(chunk_seconds=0.03),
+        )
+        self._streams.append(stream)
+        return stream
+
+    def _stream_in(self, case, *, state):
+        """A stream in a lifecycle state, its channel in one of ``CHANNEL_CASES``.
+
+        Returns:
+            The stream and its channel.
+        """
+        has_sound, has_queue, is_busy, pending = CHANNEL_CASES[case]
+        channel = TableChannel()
+        stream = self._stream(channel)
+        playing, queued = TableChunk('playing'), TableChunk('queued')
+        channel.sound = playing if has_sound else None
+        channel.queued = queued if has_queue else None
+        channel.sdl_chunk = playing if is_busy else None
+        channel.pending = pending
+        stream._held_chunks.extend(channel.named)
+        stream._state = state
+        stream._fade_total_samples = stream._fade_remaining_samples = RATE
+        channel.paused = state is VoiceState.PAUSED and is_busy
+        return stream, channel
+
+    @pytest.mark.parametrize('case', CHANNEL_CASES)
+    def test_a_channels_state_is_the_tables_once_the_pending_callback_has_run(self, case):
+        _, channel = self._stream_in(case, state=VoiceState.PLAYING)
+
+        assert channel_state(channel) is SETTLED_STATES[case]
+        assert channel.pending is None
+
+    @pytest.mark.parametrize('case', ['playing', 'playing, one queued'])
+    def test_reading_a_paused_channel_never_resumes_it(self, case):
+        _, channel = self._stream_in(case, state=VoiceState.PAUSED)
+
+        channel_state(channel)
+
+        assert channel.paused
+
+    def test_a_channel_that_never_settles_is_read_from_the_table_after_a_bounded_wait(self, mocker):
+        _, channel = self._stream_in('ended, callback pending', state=VoiceState.PLAYING)
+        unpause = mocker.patch.object(channel, 'unpause')
+
+        assert channel_state(channel) is ChannelState.PLAYING
+        assert unpause.call_count == live.MAXIMUM_SETTLING_ATTEMPTS
+
+    @pytest.mark.parametrize('case', CHANNEL_CASES)
+    @pytest.mark.parametrize(
+        'state', [state for state in VoiceState if state is not VoiceState.IDLE]
+    )
+    def test_an_update_never_cuts_a_chunk_and_leaves_the_channel_as_its_state_says(
+        self, rendered, case, state
+    ):
+        stream, channel = self._stream_in(case, state=state)
+        expected = channel_state(self._stream_in(case, state=state)[1])
+
+        stream.update()
+        channel.give_up_the_gil()
+
+        assert channel.cut == []
+        assert len(stream.held_chunks) <= live.MAXIMUM_HELD_CHUNKS
+        assert all(any(chunk is held for held in stream.held_chunks) for chunk in channel.named)
+        if state in {VoiceState.PLAYING, VoiceState.FADING}:
+            assert channel.sdl_chunk is not None  # an underrun restarts in the same update
+        if state is VoiceState.DRAINING and expected is not ChannelState.ENDED:
+            assert channel.sdl_chunk is not None  # what is left of the fade plays
+        if state in {VoiceState.PAUSED, VoiceState.DRAINING, VoiceState.STOPPED}:
+            assert rendered == []
+        if state is VoiceState.PAUSED:
+            assert channel.paused == channel.get_busy()
+        if expected is ChannelState.STRANDED and state in {
+            VoiceState.PLAYING,
+            VoiceState.FADING,
+            VoiceState.DRAINING,
+        }:
+            assert channel.sdl_chunk.number == 'queued'
+
+    @pytest.mark.parametrize('case', CHANNEL_CASES)
+    @pytest.mark.parametrize('state', VoiceState)
+    def test_a_draining_voice_is_finished_only_when_the_table_names_nothing(self, case, state):
+        stream, channel = self._stream_in(case, state=state)
+
+        finished = stream.is_finished
+
+        if state is VoiceState.DRAINING:
+            assert finished == (channel.named == [])
+            assert stream.is_playing == (not finished)
+        else:
+            assert finished == (state is VoiceState.STOPPED)
+
+    @pytest.mark.parametrize('case', CHANNEL_CASES)
+    def test_a_pause_holds_whatever_is_about_to_start(self, case):
+        stream, channel = self._stream_in(case, state=VoiceState.PLAYING)
+
+        stream.pause()
+        channel.give_up_the_gil()
+
+        assert stream.state is VoiceState.PAUSED
+        assert channel.paused == channel.get_busy()
+        assert channel.cut == []
+
+    @pytest.mark.parametrize('again', ['pause', 'update'])
+    def test_a_chunk_that_started_as_the_channel_was_paused_is_paused_next(self, again):
+        """SDL pauses without its lock: a chunk may end as it does, and the next starts unpaused."""
+        stream, channel = self._stream_in('playing, one queued', state=VoiceState.PLAYING)
+        stream.pause()
+        channel.paused = False
+        channel.end_chunk()
+        channel.give_up_the_gil()
+        assert channel.get_busy()
+
+        getattr(stream, again)()
+
+        assert channel.paused
+
+    @pytest.mark.parametrize('case', CHANNEL_CASES)
+    @pytest.mark.parametrize('state', [VoiceState.PLAYING, VoiceState.PAUSED, VoiceState.DRAINING])
+    def test_a_stopped_voice_leaves_nothing_on_its_channel_and_holds_nothing(self, case, state):
+        stream, channel = self._stream_in(case, state=state)
+
+        stream.stop_now()
+
+        assert channel.named == []
+        assert stream.held_chunks == ()
+        assert not channel.get_busy()
+
+    def test_a_stranded_chunk_is_muted_before_it_is_played_only_to_be_dropped(self):
+        stream, channel = self._stream_in('stranded', state=VoiceState.PLAYING)
+        stranded = channel.queued
+
+        stream.stop_now()
+
+        assert stranded.volume == 0.0
+
+    def test_a_dropped_stream_with_a_stranded_chunk_frees_its_channel(self):
+        stream, channel = self._stream_in('stranded', state=VoiceState.PLAYING)
+
+        self._streams.clear()
+        del stream
+        gc.collect()
+
+        assert channel.named == []
+        assert len(live.take_unreleased_live_stream_reports()) == 1
+
+    def test_another_streams_stranded_chunk_is_played_over(self, rendered):
+        stream, channel = self._stream_in('stranded', state=VoiceState.PLAYING)
+        stream._held_chunks.clear()
+
+        stream.update()
+
+        assert channel.sdl_chunk is rendered[0]
+
+    def test_a_chunk_that_starts_between_the_tables_two_reads_is_still_held(self):
+        """Never let go: pygame's table would hold its last reference (#313)."""
+        stream, channel = self._stream_in(
+            'ended, the queued one about to start', state=VoiceState.DRAINING
+        )
+        queued = channel.queued
+        channel.runs_after_read = 1
+
+        stream._let_go_of_chunks_played_out(channel)
+
+        assert channel.sound is queued
+        assert any(chunk is queued for chunk in stream.held_chunks)
+
+    def test_a_play_over_its_own_chunk_is_refused_and_logged_once(self, rendered, mocker):
+        """The invariant's last guard: no noise is drawn, and the player's game goes on."""
+        warning = mocker.patch.object(live.log, 'warning')
+        stream, channel = self._stream_in('playing, one queued', state=VoiceState.PLAYING)
+
+        stream._play(channel)
+        stream._play(channel)
+
+        assert channel.cut == []
+        assert rendered == []
+        warning.assert_called_once()
+
+    @pytest.mark.parametrize('seed', range(20))
+    def test_every_chunk_rendered_is_heard_whole_and_in_order_until_the_voice_stops(
+        self, rendered, seed
+    ):
+        """The invariant, over any order of chunk ends, callbacks, updates and pauses."""
+        chooser = np.random.default_rng(seed)
+        channel = TableChannel()
+        stream = self._stream(channel)
+        stream.start()
+        actions = [
+            channel.end_chunk,
+            channel.end_chunk,
+            channel.give_up_the_gil,
+            stream.update,
+            stream.update,
+            stream.pause,
+            stream.resume,
+        ]
+        for step in range(400):
+            if step == 300:
+                stream.resume()
+                stream.stop(fade_out=0.2)
+            actions[chooser.integers(len(actions))]()
+            assert channel.cut == []
+            assert len(stream.held_chunks) <= live.MAXIMUM_HELD_CHUNKS
+            assert all(any(chunk is held for held in stream.held_chunks) for chunk in channel.named)
+        for _ in range(50):
+            stream.update()
+            channel.end_chunk()
+
+        assert stream.is_finished
+        assert channel.named == []
+        assert [chunk.number for chunk in channel.finished] == [chunk.number for chunk in rendered]
+        assert len(rendered) > 20
+
+
+class WatchedChannel:
+    """A real channel that notes each play over a chunk pygame's table names as playing."""
+
+    def __init__(self, index):
+        """Watch a mixer channel."""
+        self._channel = pygame.mixer.Channel(index)
+        self.plays_over_a_chunk = 0
+
+    def __getattr__(self, name):
+        """Everything else is the channel's own.
+
+        Returns:
+            The channel's attribute.
+        """
+        return getattr(self._channel, name)
+
+    def play(self, sound):
+        """Play a chunk."""
+        self.plays_over_a_chunk += self._channel.get_sound() is not None
+        self._channel.play(sound)
+
+
+class TestPendingEndCallback:
+    """The real mixer, caught with pygame's end callback waiting for the GIL.
+
+    tests/audio/pending_callback.py: no assertion depends on how fast the mixer or machine runs.
+    """
+
+    @pytest.fixture(autouse=True)
+    def mixer(self):
+        """A stereo mixer on the dummy driver, stopped after.
+
+        Yields:
+            None.
+        """
+        start_mixer(channels=2)
+        yield
+        pygame.mixer.stop()
+        pygame.mixer.stop()
+        stop_mixer()
+
+    @staticmethod
+    def _started(*, chunk_seconds=0.1):
+        channel = WatchedChannel(0)
+        stream = LiveStream(
+            channel=channel,
+            owner='scene',
+            render=lambda count: np.full(count, 0.5),
+            sample_rate=RATE,
+            options=LiveVoiceOptions(chunk_seconds=chunk_seconds),
+        )
+        stream.start()
+        stream.update()
+        return stream, channel
+
+    def test_an_update_never_plays_over_the_chunk_about_to_start(self):
+        stream, channel = self._started()
+
+        for _ in range(3):
+            with gil_held():
+                until_idle_with_a_chunk_queued(channel, keep_queued=stream.update)
+                stream.update()
+
+        assert channel.plays_over_a_chunk == 0
+        stream.stop_now()
+
+    def test_a_releases_fade_is_not_finished_while_it_is_about_to_start(self):
+        stream, channel = self._started()
+        with gil_held():
+            until_idle_with_a_chunk_queued(channel, keep_queued=stream.update)
+            stream._state = VoiceState.DRAINING  # the queued chunk is the fade's last
+            finished, playing = stream.is_finished, stream.is_playing
+            named = _channel_slots(channel)
+
+        assert named == [] or not finished
+        assert playing or named == []
+        stream.stop_now()
+
+    def test_a_pause_stops_the_chunk_about_to_start(self):
+        """Nothing plays on while another channel is heard to play more than a chunk's length."""
+        stream, channel = self._started(chunk_seconds=0.5)
+        with gil_held():
+            until_idle_with_a_chunk_queued(channel, keep_queued=stream.update)
+            about_to_start = channel.get_queue()
+            stream.pause()
+        meter = pygame.mixer.Channel(1)
+        meter.play(live.to_sound(np.zeros(RATE), volume=1.0))  # a second, two chunks
+
+        _wait_until_idle(meter)
+
+        assert channel.get_sound() is about_to_start
+        assert channel.get_busy()
+        stream.stop_now()
+
+    def test_a_chunk_queued_after_the_callback_looked_is_played_not_skipped(self):
+        stream, channel = self._started()
+        stream.stop_now()
+        stream._state = VoiceState.PLAYING
+        stranded = self._strand(stream, channel)
+
+        with gil_held():
+            stream.update()
+            playing = channel.get_sound()
+
+        assert playing is stranded
+        stream.stop_now()
+
+    def test_a_stopped_voice_leaves_no_stranded_chunk_in_the_table(self):
+        stream, channel = self._started()
+        stream.stop_now()
+        stream._state = VoiceState.PLAYING
+        self._strand(stream, channel)
+
+        stream.stop_now()
+
+        assert _channel_slots(channel) == []
+        assert stream.held_chunks == ()
+
+    @staticmethod
+    def _strand(stream, channel):
+        """Queue a chunk on a channel whose end callback has found nothing queued.
+
+        Returns:
+            The chunk, stranded.
+        """
+        chunk = live.to_sound(np.full(RATE // 2, 0.5), volume=1.0)
+        ending = live.to_sound(np.zeros(RATE // 5), volume=1.0)
+
+        def _end_is_pending():
+            if channel.get_sound() is None:  # a stalled machine let it end and its callback run
+                channel._channel.play(ending)
+            return not channel.get_busy() and channel.get_sound() is not None
+
+        with gil_held():
+            spin_until(_end_is_pending)
+            stream._held_chunks.append(chunk)
+            channel.queue(chunk)
+        channel.unpause()  # the callback runs
+        assert _channel_slots(channel) == [chunk]
+        assert channel.get_sound() is None
+        return chunk
+
+
+def _wait_until_idle(channel):
+    deadline = clock.raw_counter_seconds() + RECORDING_TIMEOUT_SECONDS
+    while channel.get_busy():
+        assert clock.raw_counter_seconds() < deadline, 'the mixer is not playing'
+        clock.raw_sleep(0.01)
+
+
+class TestChunksHeardWhole:
+    """What the mixer plays of each chunk, recorded by tests/audio/live_restart_probe.py."""
+
+    def test_every_chunk_is_heard_from_its_first_sample_to_its_last(self, tmp_path):
+        path = tmp_path / 'restarts.raw'
+        result = run_command(
+            command=[sys.executable, '-m', live_restart_probe.__name__],
+            environment={
+                **os.environ,
+                'SDL_AUDIODRIVER': 'disk',
+                'SDL_DISKAUDIOFILE': str(path),
+                'SDL_VIDEODRIVER': 'dummy',
+            },
+            timeout_seconds=RECORDING_TIMEOUT_SECONDS,
+            capture_output=OutputCapture.TOGETHER,
+            working_directory=REPOSITORY_ROOT,
+        )
+        assert result.returncode == 0, result.stdout
+        heard = np.fromfile(path, dtype='<i2')[::2] / FULL_SCALE
+        numbers = np.rint(heard[heard > 0.0] / np.sqrt(0.5) / live_restart_probe.LEVEL_STEP)
+        order = numbers[np.insert(np.diff(numbers) != 0, 0, values=True)].astype(int).tolist()
+
+        assert order == list(range(1, len(order) + 1))  # none heard twice, skipped or split
+        assert len(order) >= live_restart_probe.UPDATE_COUNT
+        # stop_now() cuts the last one or two
+        for number in order[:-2]:
+            assert np.count_nonzero(numbers == number) == live_restart_probe.CHUNK_SAMPLES
 
 
 # Loud enough to clip: a chunk at its gains must hold whatever the samples are

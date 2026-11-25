@@ -5,7 +5,7 @@ Run as ``python -m tests.audio.live_pan_probe CASE`` from the repository root, w
 tests/audio/channel_fade_probe.py). Only the mixer's output shows what a channel does to a chunk:
 SDL_mixer drops a channel's pan when a queued chunk starts, and no call reads a pan back.
 
-Every live sound here is a constant, so its level is its gain and a chunk cut short is no step.
+Every live sound here is a constant, so its level is its gain.
 Each case goes on until enough chunks have been rendered, which a slow device only makes longer
 (``WAIT_LIMIT_SECONDS`` bounds it, and passing it fails the probe); the restart waits until the
 channel has drained. No level the test asserts depends on how fast the mixer thread runs.
@@ -51,8 +51,7 @@ LEVEL = 0.5
 NEXT_USER_LEVEL = 0.25
 CHUNK_SECONDS = 0.1
 FRAME_SECONDS = 1.0 / 60.0
-# Chunks rendered per stretch: all but the last two have played (a chunk cut short by a restart
-# over a queued one, the bug record's open sibling, leaves plenty)
+# Chunks rendered per stretch: all but the last two have played
 CHUNKS_PER_STRETCH = 8
 # No stretch takes this long, however slow the device
 WAIT_LIMIT_SECONDS = 50.0
