@@ -4,8 +4,9 @@ import json
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import httpx2
 import pytest
 
 from glitchygames import ai_link
@@ -43,6 +44,9 @@ class FakeService:
         self.ready_checks = 0
         # How many readiness checks answer 503 before it turns ready
         self.not_ready_for = 0
+        # How many readiness checks get no answer until the test is over
+        self.held_for = 0
+        self.held_checks_end = threading.Event()
 
 
 @pytest.fixture
@@ -58,6 +62,9 @@ def service():
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             fake.ready_checks += 1
+            if fake.ready_checks <= fake.held_for:
+                fake.held_checks_end.wait()
+                return
             status = fake.ready_status
             if fake.ready_checks <= fake.not_ready_for:
                 status = HTTPStatus.SERVICE_UNAVAILABLE
@@ -84,6 +91,7 @@ def service():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield fake, f'http://127.0.0.1:{server.server_address[1]}'
+    fake.held_checks_end.set()
     server.shutdown()
     server.server_close()
     thread.join(timeout=5)
@@ -134,6 +142,80 @@ def test_a_running_service_is_left_alone(service, tmp_path):
     client_for(root=tmp_path, base_url=base_url).create(model='reasoning', messages=MESSAGES)
 
     assert not calls.exists()
+
+
+def test_a_running_service_slow_to_answer_is_waited_for_not_started(service, tmp_path, mocker):
+    """A check accepted but not answered in time is a running service (CircleCI job 6150)."""
+    fake, base_url = service
+    calls = install(root=tmp_path)
+    mocker.patch.object(local_service, 'HEALTH_TIMEOUT_SECONDS', 0.2)
+    fake.held_for = 2
+
+    response = client_for(root=tmp_path, base_url=base_url).create(
+        model='reasoning', messages=MESSAGES
+    )
+
+    assert response.choices[0].message.content == '42'
+    assert fake.ready_checks > fake.held_for
+    assert not calls.exists()
+
+
+def test_a_hung_service_is_given_up_on_and_not_started(service, tmp_path, mocker):
+    """Waiting for a service that accepts connections and never answers is bounded."""
+    fake, base_url = service
+    calls = install(root=tmp_path)
+    mocker.patch.object(local_service, 'HEALTH_TIMEOUT_SECONDS', 0.2)
+    fake.held_for = 1000
+    readings = iter([0.0, 1.0, local_service.READY_TIMEOUT_SECONDS + 1.0])
+    mocker.patch('glitchygames.clock.raw_counter_seconds', side_effect=lambda: next(readings))
+
+    with pytest.raises(LocalAIServiceError, match='was not ready'):
+        client_for(root=tmp_path, base_url=base_url).create(model='reasoning', messages=MESSAGES)
+
+    assert not calls.exists()
+
+
+@pytest.mark.parametrize('failure', [httpx2.ConnectError, httpx2.ConnectTimeout])
+def test_a_service_that_accepts_no_connection_is_started(service, tmp_path, mocker, failure):
+    """Refused is stopped, and so is a connection that times out, as Windows' closed ports do."""
+    _fake, base_url = service
+    calls = install(root=tmp_path)
+    real_get = httpx2.get
+    failures = [failure('nothing listens')]
+
+    def fail_once(*arguments: Any, **keywords: Any) -> httpx2.Response:
+        if failures:
+            raise failures.pop()
+        return real_get(*arguments, **keywords)
+
+    mocker.patch.object(httpx2, 'get', side_effect=fail_once)
+
+    client_for(root=tmp_path, base_url=base_url).create(model='reasoning', messages=MESSAGES)
+
+    assert calls.read_text(encoding='utf-8').split() == ['start']
+
+
+def test_a_slow_service_that_then_stops_is_started_once(service, tmp_path, mocker):
+    """What was slow and is then gone is started, however many checks still find it gone."""
+    _fake, base_url = service
+    calls = install(root=tmp_path)
+    real_get = httpx2.get
+    failures = [
+        httpx2.ReadTimeout('slow'),
+        httpx2.ConnectError('gone'),
+        httpx2.ConnectError('still starting'),
+    ]
+
+    def fail_first(*arguments: Any, **keywords: Any) -> httpx2.Response:
+        if failures:
+            raise failures.pop(0)
+        return real_get(*arguments, **keywords)
+
+    mocker.patch.object(httpx2, 'get', side_effect=fail_first)
+
+    client_for(root=tmp_path, base_url=base_url).create(model='reasoning', messages=MESSAGES)
+
+    assert calls.read_text(encoding='utf-8').split() == ['start']
 
 
 def test_a_stopped_service_is_started_and_waited_for(service, tmp_path):
@@ -339,7 +421,7 @@ def test_a_dropped_stream_is_a_service_error(tmp_path, mocker):
     (tmp_path / 'config').mkdir()
     (tmp_path / 'config' / 'service-api-key').write_text('key', encoding='utf-8')
     client = local_service.LocalAIClient(locations=ServiceLocations.in_one_folder(root=tmp_path))
-    mocker.patch.object(client, '_is_ready', return_value=True)
+    mocker.patch.object(client, '_readiness', return_value=local_service.Readiness.READY)
     failure = local_service.httpx2.ReadError('the connection dropped')
     mocker.patch.object(local_service.httpx2, 'stream', side_effect=failure)
 
