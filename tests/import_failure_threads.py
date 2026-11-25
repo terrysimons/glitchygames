@@ -16,7 +16,7 @@ so this plugin adds the rest:
 - When a test's setup, call or teardown fails with an exception raised from the import machinery,
   its report gains five sections: ``live threads at the import failure`` (each live thread's name,
   whether it is a daemon, the test that started it, and its current stack; then every ident running
-  Python code, threading's or not), ``recorded sys.modules removals`` (newest first, those
+  Python code that threading does not know), ``recorded sys.modules removals`` (newest first, those
   overlapping an import marked), ``sys.modules at the import failure``
   (tests/import_failure_state.py: what is there under the failed module's package, whether the
   dictionary was rebound, and the garbage collector's state), ``recorded points of the failed
@@ -124,26 +124,15 @@ def live_thread_report(*, threads: Iterable[threading.Thread], frames: dict[int,
     return '\n'.join(blocks)
 
 
-def thread_ident_report(*, threads: Iterable[threading.Thread], frames: dict[int, Any]) -> str:
-    """List every ident running Python code, those threading does not know with their stacks.
-
-    Args:
-        threads: The threads threading knows (``threading.enumerate()``).
-        frames: Each thread's current frame by ident (``sys._current_frames()``).
-
-    Returns:
-        One line per ident, and the stack of each that is not a threading thread.
-
-    """
-    names = {thread.ident: thread.name for thread in threads}
-    lines = ['every ident running Python code (sys._current_frames()):']
-    for ident, frame in frames.items():
-        if ident in names:
-            lines.append(f'  {ident}: {names[ident]}')
-        else:
-            stack = ''.join(traceback.format_stack(frame))
-            lines.append(f'  {ident}: not a threading thread\n{stack}'.rstrip())
-    return '\n'.join(lines)
+def unknown_thread_report(*, threads: Iterable[threading.Thread], frames: dict[int, Any]) -> str:
+    """Describe each ident running Python code that is not a threading thread, with its stack."""
+    known = {thread.ident for thread in threads}
+    blocks = [
+        f'ident {ident} (not a threading thread)\n{"".join(traceback.format_stack(frame))}'
+        for ident, frame in frames.items()
+        if ident not in known
+    ]
+    return '\n'.join(blocks) or 'every ident running Python code is one of these'
 
 
 def threads_section() -> str:
@@ -157,7 +146,7 @@ def threads_section() -> str:
     frames = sys._current_frames()  # type: ignore[reportPrivateUsage]
     return '\n'.join((
         live_thread_report(threads=threads, frames=frames),
-        thread_ident_report(threads=threads, frames=frames),
+        unknown_thread_report(threads=threads, frames=frames),
     ))
 
 

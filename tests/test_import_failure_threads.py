@@ -20,7 +20,7 @@ from tests.import_failure_threads import (
     raised_by_import_machinery,
     section_text,
     started_during,
-    thread_ident_report,
+    unknown_thread_report,
 )
 from tests.module_removals import NOT_RECORDED
 
@@ -105,15 +105,18 @@ def test_a_thread_without_a_frame_reports_no_stack():
     )
 
 
-def test_an_ident_threading_does_not_know_is_named_with_its_stack():
-    """Every ident is listed; only the unknown one carries a stack."""
+def test_an_ident_threading_does_not_know_is_described_with_its_stack():
+    """Only the unknown one; with none, that is said."""
     thread = threading.current_thread()
     frame = sys._getframe()
 
-    report = thread_ident_report(threads=[thread], frames={thread.ident: frame, 7: frame})
+    report = unknown_thread_report(threads=[thread], frames={thread.ident: frame, 7: frame})
+    none = unknown_thread_report(threads=[thread], frames={thread.ident: frame})
 
-    assert f'  {thread.ident}: {thread.name}\n  7: not a threading thread\n' in report
-    assert report.count(__file__) >= 1
+    assert report.startswith('ident 7 (not a threading thread)\n')
+    assert __file__ in report
+    assert str(thread.ident) not in report
+    assert none == 'every ident running Python code is one of these'
 
 
 def run_child_pytest(

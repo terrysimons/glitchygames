@@ -27,6 +27,9 @@
   `test_a_refusal_carries_its_status_for_the_callers_retries`.
   Its report has the live threads (MainThread and the test's own serve_forever thread, in select)
   and no recorder sections. Evidence: the ledger's `.ledger/triage/httpcore2/job-search/`.
+- **What the search covered**: failed CircleCI test jobs of the pipelines since 2026-11-19 only, 84 of
+  them, 7 without test results to read. An earlier sighting, or one in a job with no results, would
+  not be found, so four is a count of those known, not of those that happened.
 - **What job 6031 shows**: the 28 removals recorded in that worker were all on the main thread and
   none was during the failing test, so a `patch.dict` end, a pytester restore or a `monkeypatch`
   change is contradicted for this occurrence, as far as those wrapped calls go (an unwrapped one
@@ -133,11 +136,14 @@
   `sys.monitoring` events on `_load_unlocked`'s code alone, under a tool id that was free (coverage
   keeps id 1; here 4, else 3), read whether the module's entry is present after the store, at the
   pop's line, as pop is called and as it returns or raises, with every garbage collection beside
-  them (and the importing module's entry before and after it). At a pop that raises it also reads
+  them (and the importing module's entry before and after it; across threads the readings and their
+  order are approximate). At a pop that raises it also reads
   the entry by hash and by iteration, which modules loaded since the outermost import began are
   missing, and the other threads' stacks, before anything unwinds. The places are found in the code
-  object's instructions; an unrecognised shape, or no free id, is reported as not recorded. The
-  report also lists every ident running Python code and the interpreter's build. It costs about 7
+  object's instructions; an unrecognised shape, no free id or a fault installing is reported as not
+  recorded, and stops no run. Loads run inside a callback, or begun before it was installed, are not
+  seen. The report also describes each ident running Python code that threading does not know, and
+  the interpreter's build. It costs about 7
   microseconds an import and 1.2 a collection (measured, macOS), and no more on collecting the suite
   than its noise (about 0.1 s of 5), so it runs in every test run.
 - **The probe's caveat**: an instrumented `_load_unlocked` does not run as the plain one does: its
@@ -147,7 +153,7 @@
   for the failure on a run without it) before drawing anything from their absence.
 - **How to read the next failure** (the section `recorded points of the failed import`; each is a
   hint, with what it leaves open):
-  - "left between the store and the pop's line": removed while `exec_module` ran, by the module, by
+  - "left between the store and the pop's line": removed while the module was executed, by the module, by
     what it called, by a finalizer or by another thread; the pop did not miss a present entry. A
     collection marked `THE ENTRY WENT DURING THIS COLLECTION` points at a finalizer (another thread
     can run inside one). With none marked, a finalizer by reference count stays open. The other
@@ -159,6 +165,7 @@
     callback calls nothing after its reading, so no Python code should run on that thread between
     the reading and the pop (read from the bytecode, not proven); C code stays open.
   - "already absent at the first line after the store": a lost store, or a removal in that gap.
+  - "sys.modules was rebound during the load" or "renamed": no claim about an entry.
   - "not recorded" or a count of faults that is not 0: nothing follows from the missing readings.
 - **The class, swept** (2026-11-20, again 2026-11-24; `git grep` for `sys.modules` changes in `tests/` and `src/`):
   - Whole-dict restores (uncovered: each one, when it ends, drops every module imported since it

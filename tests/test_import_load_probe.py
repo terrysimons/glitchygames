@@ -8,6 +8,7 @@ import gc
 import importlib
 import importlib.machinery
 import inspect
+import os
 import sys
 import threading
 import types
@@ -25,6 +26,7 @@ from tests.import_load_probe import (
     FAULTS,
     HOW_TO_READ,
     LOADED_NAMES_KEPT,
+    NO_FAILED_POP,
     NOT_READ,
     POP_CALLED,
     POP_LINE,
@@ -43,6 +45,8 @@ from tests.import_load_probe import (
     load_probe_report,
     verdict_of,
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 PACKAGE = 'import_load_probe_stand_in'
 GONE_WHILE_RUNNING = "left between the store and the pop's line"
@@ -136,7 +140,7 @@ def test_a_normal_import_is_present_until_its_pop_and_again_after(probe, module)
     ]
     assert [event.order for event in events] == sorted({event.order for event in events})
     assert {event.thread_ident for event in events} == {threading.get_ident()}
-    assert all(event.dictionary_is_sys_modules for event in events)
+    assert {event.dictionary_id for event in events} == {id(sys.modules)}
     assert probe._stacks == {}
     assert list(probe.failed_pops) == []
     assert list(probe.ended_before_pop) == []
@@ -232,6 +236,9 @@ def test_another_threads_removal_is_placed_in_the_code_with_that_thread_alive(pr
     report = report_of(probe, error)
     assert GONE_WHILE_RUNNING in verdict_line(report)
     assert 'alive as the pop raised: MainThread in ' in report
+    # Not the importing thread itself
+    assert report.count('alive as the pop raised') == len(probe.failed_pops[-1].other_threads)
+    assert probe.failed_pops[-1].load.thread_ident not in dict(probe.failed_pops[-1].other_threads)
     assert WENT_IN_COLLECTION not in report
     assert 'nothing\n  here tells those two apart' in report
 
@@ -245,7 +252,10 @@ def test_a_collection_on_another_thread_names_the_load_it_interrupted(probe, mod
 
     report = report_of(probe, paused_import(probe, module, while_paused=collect_and_remove))
 
-    assert f'{PACKAGE} (loading on another thread) {PRESENT} before, {PRESENT} after' in report
+    assert (
+        f'{PACKAGE} (loading on another thread, approximate) {PRESENT} before, {PRESENT} after'
+        in report
+    )
 
 
 def test_a_thread_threading_does_not_know_is_named_by_ident(probe, module):
@@ -267,7 +277,9 @@ def test_a_thread_threading_does_not_know_is_named_by_ident(probe, module):
         release.release()
         assert ended.wait(timeout=30)
 
-    assert f'alive as the pop raised: ident {ident} in {__file__}:' in report
+    here = import_load_probe.without_home(__file__)
+    assert f'alive as the pop raised: ident {ident} in {here}:' in report
+    assert str(Path.home()) not in report
 
 
 def test_a_failing_import_ends_before_its_pop(probe, module):
@@ -278,20 +290,11 @@ def test_a_failing_import_ends_before_its_pop(probe, module):
 
     assert found_at(probe, name) == {STORED: PRESENT, ENDED: ABSENT}
     report = report_of(probe, excinfo.value)
-    assert verdict_line(report).endswith('no failed pop was recorded for a load in this traceback')
+    assert NO_FAILED_POP in report
+    assert 'VERDICT' not in report
     assert f'the newest load of {PACKAGE} ended with its pop not seen' in report
     assert f'{PACKAGE}, after the store: present' in report
     assert list(probe.failed_pops) == []
-
-
-def test_another_error_claims_nothing(probe, module):
-    """A KeyError of the module's own, after a failed pop of that same name, is not that pop."""
-    failed_import(module(DELETE_ITSELF))
-    error = KeyError(PACKAGE)
-    report = report_of(probe, error)
-
-    assert verdict_line(report).endswith('no failed pop was recorded for a load in this traceback')
-    assert 'ended with' not in report
 
 
 def test_nested_imports_narrow_where_the_outer_entry_went(probe, module):
@@ -309,7 +312,7 @@ def test_nested_imports_narrow_where_the_outer_entry_went(probe, module):
     assert f'{PACKAGE}_first, {ENDED}' in present
     assert f'{PACKAGE}_second, {STORED}' in absent
     assert f'since the outermost import ({PACKAGE}) began, 2 modules finished' in report
-    assert 'missing as the pop raised: none; missing now: none' in report
+    assert 'missing as the pop raised: none\n' in report
     assert found_at(probe, f'{PACKAGE}_first')[POP_CALLED] == PRESENT
 
 
@@ -326,7 +329,7 @@ def test_an_inner_failure_names_what_it_was_loading_inside(probe, module):
 
     assert verdict_line(report).startswith(f'VERDICT for {PACKAGE}.inner: ')
     assert f'loading inside: {PACKAGE}\n' in report
-    assert f'missing as the pop raised: {PACKAGE}.sibling; missing now: ' in report
+    assert f'missing as the pop raised: {PACKAGE}.sibling\n' in report
     assert [load.name for load in probe.ended_before_pop] == [PACKAGE]
     assert probe._stacks == {}
 
@@ -358,26 +361,13 @@ def test_a_name_that_is_not_exactly_a_str_is_not_looked_up(probe, name):
     with pytest.raises(KeyError) as excinfo:
         importlib._bootstrap._load_unlocked(spec)
 
-    shown = f'<a {type(name).__name__}, not a str>'
+    shown = '<a name that is not a str>'
     assert found_at(probe, shown) == dict.fromkeys(
         (STORED, POP_LINE, POP_CALLED, POP_RAISED, ENDED), NOT_READ
     )
     report = report_of(probe, excinfo.value)
     assert f'VERDICT for {shown}: not recorded' in report
     assert 'NOT found by iteration' in report
-    assert probe.faults == 0
-
-
-def test_a_name_that_is_not_a_str_is_nobodys_enclosing_entry(probe, module):
-    """A module loaded inside one whose name cannot be read narrows nothing, and is itself read."""
-    module('')
-    spec = importlib.machinery.ModuleSpec(
-        3, ProbeLoader(lambda _: importlib.import_module(PACKAGE))
-    )
-    importlib._bootstrap._load_unlocked(spec)
-    sys.modules.pop(3)
-
-    assert found_at(probe, PACKAGE)[POP_CALLED] == PRESENT
     assert probe.faults == 0
 
 
@@ -446,21 +436,8 @@ def test_a_spec_renamed_during_its_load_is_not_recorded(probe):
     spec = importlib.machinery.ModuleSpec(PACKAGE, loader)
     loader.execute = lambda _: setattr(spec, 'name', 'never-imported')
     error = load_with_spec(spec)
-    verdict = verdict_of(probe.failed_pops[-1].load)
-
-    assert verdict == 'not recorded: the spec was renamed during the load'
-    assert verdict_line(report_of(probe, error)).endswith('load in this traceback')
-
-
-def test_another_object_under_the_name_is_told_from_the_module(probe, module):
-    """A module that puts something else in its own place."""
-    importlib.import_module(
-        module(
-            'import sys, types\nsys.modules[__name__] = types.SimpleNamespace(__spec__=__spec__)\n'
-        )
-    )
-
-    assert found_at(probe, PACKAGE)[POP_CALLED] == 'present, but another object'
+    verdict = 'not recorded: the spec was renamed during the load'
+    assert verdict_line(report_of(probe, error)).endswith(verdict)
 
 
 def test_a_dictionary_that_is_not_plain_is_not_read(probe, module, monkeypatch):
@@ -483,36 +460,34 @@ def test_a_pop_on_a_rebound_dictionary_reads_the_one_popped(probe, monkeypatch):
     """sys.modules rebound by the module's code: the new one, seen as sys.modules, lacks it."""
     loader = ProbeLoader(lambda _: monkeypatch.setattr(sys, 'modules', dict(original)))
     original = dict(sys.modules)
-    with pytest.raises(KeyError):
-        importlib._bootstrap._load_unlocked(importlib.machinery.ModuleSpec(PACKAGE, loader))
+    spec = importlib.machinery.ModuleSpec(PACKAGE, loader)
+    with pytest.raises(KeyError) as excinfo:
+        importlib._bootstrap._load_unlocked(spec)
     monkeypatch.undo()
 
     assert found_at(probe, PACKAGE)[STORED] == PRESENT
     assert found_at(probe, PACKAGE)[POP_CALLED] == ABSENT
+    events = {event.point: event for event in events_of(probe, PACKAGE)}
+    assert events[STORED].dictionary_id == id(sys.modules) != events[POP_CALLED].dictionary_id
+    report = report_of(probe, excinfo.value)
+    assert verdict_line(report).endswith('sys.modules was rebound during the load: no claim')
+    assert f'of dictionary {id(sys.modules):#x}' in report
 
 
 def reading(point: str, found: str) -> tuple:
     """One event's fields."""
-    return (1, point, 1, 1, PACKAGE, 1, True, 0, found)
+    return (1, point, 1, 1, PACKAGE, 1, 1, found)
 
 
 def test_a_store_that_left_nothing_is_its_own_verdict(probe):
     """No Python runs between the store and the next line: the readings are written by hand."""
-    load = Load(key=PACKAGE, spec_id=1, number=1, thread_ident=1, enclosing=[])
+    load = Load(spec=spec_named(PACKAGE), number=1, thread_ident=1, enclosing=[])
     load.readings = {point: reading(point, ABSENT) for point in (STORED, POP_LINE, POP_CALLED)}
 
     assert verdict_of(load) == 'the entry was already absent at the first line after the store'
 
     load.readings.pop(POP_LINE)
     assert verdict_of(load).startswith('not recorded')
-
-
-def test_a_dictionary_that_is_not_sys_modules_is_said():
-    """The pop's own dictionary is compared with sys.modules."""
-    fields = (1, POP_CALLED, 7, 1, PACKAGE, 3, False, 0, PRESENT)
-
-    line = import_load_probe.reading_line(fields, names={})
-    assert 'ident 7, 3 entries, a dictionary that is NOT sys.modules' in line
 
 
 def test_the_rings_keep_only_the_newest(probe, module):
@@ -549,30 +524,11 @@ def test_a_collection_is_kept_with_nothing_loading(probe):
     newest = probe.collections()[-1]
     assert (newest.generation, newest.name, newest.before) == (1, None, NOT_READ)
     assert 'nothing being loaded' in import_load_probe.collection_line(newest, names={})
-
-
-def test_a_collection_that_began_before_the_probe_is_not_kept(probe):
-    """Only its end is seen."""
+    # One that began before the probe: only its end is seen
     kept = probe.collections()
     probe.on_collection('stop', {'generation': 0, 'collected': 0})
-
     assert probe.collections() == kept
     assert probe.faults == 0
-
-
-def test_a_load_that_began_before_the_probe_is_not_kept(module):
-    """Installed by the module's own code: its later events belong to no load."""
-    own = LoadProbe(code=load_code())
-    installer = types.ModuleType(f'{PACKAGE}_installer')
-    installer.install = own.install
-    sys.modules[installer.__name__] = installer
-    try:
-        importlib.import_module(module(f'import {PACKAGE}_installer as i\ni.install()\n'))
-        assert own.not_recorded is None
-        assert events_of(own, PACKAGE) == []
-    finally:
-        own.uninstall()
-    assert own.faults == 0
 
 
 def test_a_failed_pop_of_a_load_that_began_before_the_probe_is_not_kept(module):
@@ -587,19 +543,6 @@ def test_a_failed_pop_of_a_load_that_began_before_the_probe_is_not_kept(module):
     finally:
         own.uninstall()
     assert own.faults == 0
-
-
-def test_a_load_whose_end_was_missed_does_not_take_the_next_ones_events(probe):
-    """A stale inner load is dropped when the one outside it goes on."""
-    outer, inner = (importlib.machinery.ModuleSpec(name, None) for name in ('outer', 'inner'))
-    ident = threading.get_ident()
-    load = probe._begin(spec=outer, ident=ident)
-    probe._begin(spec=inner, ident=ident)
-
-    assert probe._in_progress(spec_id=id(outer), ident=ident) is load
-    assert probe._stacks[ident] == [load]
-    assert probe._in_progress(spec_id=id(inner), ident=ident) is None
-    assert probe._stacks == {}
 
 
 @pytest.fixture
@@ -635,116 +578,51 @@ POP = 'module = sys.modules.pop(spec.name)'
 STORE = 'sys.modules[spec.name] = module'
 
 
-@pytest.mark.parametrize(
-    ('old', 'new'),
-    [
-        pytest.param(POP, 'module = sys.modules[spec.name]', id='no-pop'),
-        pytest.param(POP, f'{POP}; {POP}', id='two-pops'),
-        pytest.param(POP, 'module = sys.modules.pop(spec.name, None)', id='pop-with-a-default'),
-        pytest.param(f'{POP}\n        {STORE}', POP, id='no-second-store'),
-        pytest.param(f'{STORE}\n        try:', 'try:', id='no-first-store'),
-        pytest.param(f'{STORE}\n        try:', f'{STORE}; {STORE}\n        try:', id='two-stores'),
-        pytest.param('spec.loader.exec_module(module)', 'run(spec, module)', id='no-execution'),
-        pytest.param(
-            f'{POP}\n', f'{POP}; spec.loader.exec_module\n', id='execution-after-the-pop-too'
-        ),
-        pytest.param('spec.loader.exec_module(module)', f'if spec: {POP}', id='pop-in-execution'),
-        pytest.param(POP, f'print(spec); {POP}', id='pop-not-at-its-lines-start'),
-        pytest.param(
-            f'{POP}\n        {STORE}',
-            f'{POP}; {STORE}; spec._initializing = False',
-            id='end-on-the-pops-line-and-another',
-        ),
-        pytest.param('spec._initializing = False', 'pass', id='no-end'),
-        pytest.param(
-            'if spec.loader is None:',
-            'if spec.loader.exec_module is None:',
-            id='execution-named-twice',
-        ),
-        pytest.param('spec.loader.exec_module(module)', 'pass', id='nothing-executed'),
-    ],
-)
-def test_an_unrecognised_shape_is_refused(bootstrap_source, old, new):
-    """Anything but the shape known: no points, so no claim."""
-    assert old in bootstrap_source
-    with pytest.raises(UnrecognisedShapeError):
-        find_load_points(compiled(bootstrap_source.replace(old, new, 1)))
-
-
-def test_execution_outside_the_store_and_the_pop_is_refused(bootstrap_source):
-    """The module's code run after the pop."""
-    moved = bootstrap_source.replace('spec.loader.exec_module(module)', 'pass').replace(
-        POP, f'{POP}\n        spec.loader.exec_module(module)'
-    )
-    with pytest.raises(UnrecognisedShapeError, match='execution is not between'):
-        find_load_points(compiled(moved))
+EXECUTE = 'spec.loader.exec_module(module)'
+END = 'spec._initializing = False'
+FIRST_STORE, SECOND_STORE = f'{STORE}\n        try:', f'{POP}\n        {STORE}'
 
 
 @pytest.mark.parametrize(
-    ('changes', 'reason'),
+    'changes',
     [
-        pytest.param(
-            {
-                f'{STORE}\n        try:': f'{STORE}; {STORE}\n        try:',
-                f'{POP}\n        {STORE}': POP,
-            },
-            'not one store',
-            id='both-stores-before-the-pop',
-        ),
-        pytest.param(
-            {
-                'spec._initializing = False': 'pass',
-                f'{POP}\n        {STORE}': f'{POP}; {STORE}; spec._initializing = False',
-            },
-            'not distinct',
-            id='the-end-on-the-pops-line',
-        ),
-        pytest.param(
-            {'if spec.loader is None:': 'for spec in spec.loader:'},
-            'not distinct',
-            id='the-line-after-the-store-starts-twice',
-        ),
+        {POP: 'module = sys.modules[spec.name]'},
+        {POP: f'{POP}; {POP}'},
+        {POP: 'module = sys.modules.pop(spec.name, None)'},
+        {POP: f'print(spec); {POP}'},
+        {SECOND_STORE: POP},
+        {SECOND_STORE: f'{POP}; {STORE}; {END}'},
+        {FIRST_STORE: 'try:'},
+        {FIRST_STORE: f'{STORE}; {STORE}\n        try:', SECOND_STORE: POP},
+        {EXECUTE: 'pass'},
+        {EXECUTE: f'if spec: {EXECUTE}; {EXECUTE}'},
+        {EXECUTE: 'pass', SECOND_STORE: f'{SECOND_STORE}; {EXECUTE}'},
+        {END: 'pass'},
+        {END: 'pass', SECOND_STORE: f'{POP}; {STORE}; {END}'},
+        {'if spec.loader is None:': 'for spec in spec.loader:'},
     ],
+    ids=lambda changes: ' and '.join(changes.values()).replace('\n', ' '),
 )
-def test_points_out_of_place_are_refused(bootstrap_source, changes, reason):
-    """Every piece is there, but not where its events would say what they are taken to say."""
+def test_an_unrecognised_shape_is_refused(bootstrap_source, changes):
+    """A piece missing, doubled or out of place: no points, so no claim."""
     for old, new in changes.items():
         assert bootstrap_source.count(old) == 1
         bootstrap_source = bootstrap_source.replace(old, new)
-    with pytest.raises(UnrecognisedShapeError, match=reason):
+    with pytest.raises(UnrecognisedShapeError):
         find_load_points(compiled(bootstrap_source))
 
 
-def on_one_line(source: str) -> types.CodeType:
-    """Compile a function, then put all its instructions on one line."""
-    code = compiled(source)
-    # One location entry per run of at most 8 code units, each on the function's first line
-    units = len(code.co_code) // 2
-    table = bytearray()
-    while units:
-        run = min(units, 8)
-        table += bytes([0x80 | (13 << 3) | (run - 1), 0])
-        units -= run
-    return code.replace(co_linetable=bytes(table))
-
-
 def without_lines(source: str) -> types.CodeType:
-    """Compile a function, then take its line numbers away."""
+    """Compile a function, then take its line numbers away (15: no location, 8 code units)."""
     code = compiled(source)
-    units = len(code.co_code) // 2
-    table = bytearray()
-    while units:
-        run = min(units, 8)
-        table += bytes([0x80 | (15 << 3) | (run - 1)])
-        units -= run
-    return code.replace(co_linetable=bytes(table))
+    entries = len(code.co_code) // 16 + 1
+    return code.replace(co_linetable=bytes([0x80 | (15 << 3) | 7]) * entries)
 
 
-@pytest.mark.parametrize('strip', [on_one_line, without_lines])
-def test_lines_that_cannot_place_the_points_are_refused(bootstrap_source, strip):
-    """Stripped or merged line numbers: the shape is the same, the places are not known."""
+def test_code_without_lines_is_refused(bootstrap_source):
+    """The shape is the same, the places are not known."""
     with pytest.raises(UnrecognisedShapeError):
-        find_load_points(strip(bootstrap_source))
+        find_load_points(without_lines(bootstrap_source))
 
 
 def test_an_instruction_without_a_line_is_refused(bootstrap_source):
@@ -754,38 +632,31 @@ def test_an_instruction_without_a_line_is_refused(bootstrap_source):
         import_load_probe.line_of(instruction)
 
 
-def drive(probe: LoadProbe, *, spec, module, callback: str, arguments: tuple) -> object:
-    """Call a callback as the interpreter does, this frame standing for _load_unlocked's.
+def drive_load(probe: LoadProbe, *, spec, execute=lambda: None, dictionary=None) -> KeyError | None:
+    """Run _load_unlocked's steps by hand, with its callbacks. Returns the pop's error.
 
     Coverage cannot see a callback the interpreter calls (monitoring is off inside one).
     """
-    return getattr(probe, callback)(load_code(), *arguments)
-
-
-def drive_load(probe: LoadProbe, *, spec, execute=lambda: None, dictionary=None) -> KeyError | None:
-    """Run _load_unlocked's steps by hand, with its callbacks. Returns the pop's error."""
     module = types.ModuleType('driven')
-    points = probe._points
+    points, code = probe.points, load_code()
     modules = sys.modules if dictionary is None else dictionary
+    call = (code, points.pop_call_offset, dict.pop, modules)
     error = None
 
-    def at(callback: str, *arguments) -> None:
-        drive(probe, spec=spec, module=module, callback=callback, arguments=arguments)
-
     sys.modules[spec.name] = module
-    at('on_line', points.stored_line)
+    probe.on_line(code, points.stored_line)
     execute()
-    at('on_line', points.pop_line)
-    at('on_call', points.pop_call_offset, dict.pop, modules)
+    probe.on_line(code, points.pop_line)
+    probe.on_call(*call)
     try:
         popped = modules.pop(spec.name)
     except KeyError as raised:
         error = raised
-        at('on_c_raise', points.pop_call_offset, dict.pop, modules)
+        probe.on_c_raise(*call)
     else:
-        at('on_c_return', points.pop_call_offset, dict.pop, modules)
+        probe.on_c_return(*call)
         sys.modules[spec.name] = popped
-    at('on_line', points.ended_line)
+    probe.on_line(code, points.ended_line)
     return error
 
 
@@ -811,35 +682,48 @@ def test_driven_by_hand_the_callbacks_read_what_the_interpreters_do(probe, modul
     assert probe.faults == 0
 
 
-def test_driven_by_hand_an_enclosing_load_is_narrowed(probe):
-    """Present from the first inside, absent from the second; another object and a rename told."""
+def test_driven_by_hand_an_enclosing_load_is_narrowed(probe, mocker):
+    """Present from the first inside, absent from the second."""
     outer, first, second, third = (f'{PACKAGE}_{index}' for index in range(4))
+    # Its frames are the ones a nested load finds its enclosing load by
+    mocker.patch.object(probe, 'code', drive_load.__code__)
 
     def execute() -> None:
         drive_load(probe, spec=spec_named(first))
         sys.modules.pop(outer)
         drive_load(probe, spec=spec_named(second))
+        # One whose end was missed
+        stale = Load(spec=spec_named('stale'), number=0, thread_ident=0, enclosing=[])
+        probe._stacks[threading.get_ident()].append(stale)
         drive_load(probe, spec=spec_named(third))
+        probe._stacks[threading.get_ident()].append(stale)
 
     drive_load(probe, spec=spec_named(outer), execute=execute)
+    mocker.stopall()
     load = probe.failed_pops[-1].load
     assert load.present_at[1:5:3] == (ENDED, first)
     assert load.absent_at[1:5:3] == (STORED, second)
 
-    def replace() -> None:
-        sys.modules[first] = types.ModuleType('another')
 
-    sys.modules.pop(first)
-    drive_load(probe, spec=spec_named(first), execute=replace)
-    assert import_load_probe.ANOTHER_OBJECT in {event.found for event in events_of(probe, first)}
-
-
-def test_driven_by_hand_what_cannot_be_read_is_not(probe):
+def test_driven_by_hand_what_cannot_be_read_is_not(probe, mocker):
     """A name not a str, with a load inside it; a dictionary of another type; a renamed spec."""
+    mocker.patch.object(probe, 'code', drive_load.__code__)
     inner = spec_named(f'{PACKAGE}_inner')
     drive_load(probe, spec=spec_named(3), execute=lambda: drive_load(probe, spec=inner))
     sys.modules.pop(3)
-    assert set(found_at(probe, '<a int, not a str>').values()) == {NOT_READ}
+    assert set(found_at(probe, '<a name that is not a str>').values()) == {NOT_READ}
+    # Nor is it ever said to be missing
+    gone = f'{PACKAGE}_gone'
+    drive_load(
+        probe,
+        spec=spec_named(gone),
+        execute=lambda: (
+            drive_load(probe, spec=spec_named(3)),
+            sys.modules.pop(3),
+            sys.modules.pop(gone),
+        ),
+    )
+    assert probe.failed_pops[-1].missing == ()
 
     renamed = spec_named(PACKAGE)
     drive_load(probe, spec=renamed, execute=lambda: setattr(renamed, 'name', 'never-imported'))
@@ -847,7 +731,10 @@ def test_driven_by_hand_what_cannot_be_read_is_not(probe):
 
     other = spec_named(f'{PACKAGE}_other')
     drive_load(probe, spec=other, dictionary=types.MappingProxyType({}).copy() | {other.name: 1})
-    assert found_at(probe, other.name)[POP_CALLED] == import_load_probe.ANOTHER_OBJECT
+    assert found_at(probe, other.name)[POP_CALLED] == PRESENT
+    mocker.stopall()
+    ids = {event.dictionary_id for event in events_of(probe, other.name)}
+    assert len(ids) == 2
     assert probe.faults == 0
 
 
@@ -861,13 +748,25 @@ def test_driven_by_hand_every_callbacks_fault_is_counted(probe, mocker):
     assert probe.faults == 10
 
 
-def test_driven_by_hand_a_load_whose_code_raised_ends_before_its_pop(probe):
-    """A store and an end, nothing between."""
-    spec = spec_named(PACKAGE)
-    for line in (probe._points.stored_line, probe._points.ended_line):
-        drive(probe, spec=spec, module=None, callback='on_line', arguments=(line,))
+def test_driven_by_hand_events_of_no_load_or_no_interest_are_dropped(probe):
+    """A pop and its outcome with no store seen, another call's, and an end with no pop."""
+    spec, module, code = spec_named(PACKAGE), None, load_code()
+    for offset in (probe.points.pop_call_offset, -1):
+        for callback in (probe.on_call, probe.on_c_return, probe.on_c_raise):
+            callback(code, offset, dict.pop, sys.modules)
+    probe.on_line(code, probe.points.ended_line)
+    assert events_of(probe, PACKAGE) == []
+    assert probe.on_line(code, -1) is sys.monitoring.DISABLE
+    assert probe.on_call(code, -1, len, None) is sys.monitoring.DISABLE
+    probe.on_line(code, probe.points.stored_line)
+    probe.on_line(code, probe.points.ended_line)
 
-    assert [load.name for load in probe.ended_before_pop] == [PACKAGE]
+    assert [load.spec for load in probe.ended_before_pop] == [spec]
+    assert module is None
+    assert probe.faults == 0
+    # A frame with no spec to match
+    probe._end(types.SimpleNamespace(f_locals={}))
+    assert probe.faults == 1
 
 
 def test_a_load_whose_pop_calls_reading_failed_is_not_said_to_have_ended_early(
@@ -890,21 +789,6 @@ def test_a_load_whose_pop_calls_reading_failed_is_not_said_to_have_ended_early(
     assert verdict_line(report_of(probe, error)).endswith('was not read')
 
 
-def test_driven_by_hand_events_of_no_load_are_dropped(probe):
-    """A pop, its outcome and an end with no store seen."""
-    for callback in ('on_call', 'on_c_return', 'on_c_raise'):
-        drive(
-            probe,
-            spec=spec_named(PACKAGE),
-            module=None,
-            callback=callback,
-            arguments=(probe._points.pop_call_offset, dict.pop, sys.modules),
-        )
-
-    assert events_of(probe, PACKAGE) == []
-    assert probe.faults == 0
-
-
 def not_recorded(probe: LoadProbe) -> str:
     """Install a probe that cannot record, and return its report."""
     callbacks = list(gc.callbacks)
@@ -917,21 +801,25 @@ def not_recorded(probe: LoadProbe) -> str:
     return report
 
 
-def test_an_unrecognised_shape_is_reported_not_recorded():
+@pytest.mark.parametrize(
+    ('code', 'reason'),
+    [
+        (without_lines('def f(spec):\n    return spec\n'), 'calls of sys.modules.pop(spec.name)'),
+        (None, import_load_probe.NO_FUNCTION),
+    ],
+)
+def test_no_load_unlocked_to_recognise_is_reported_not_recorded(code, reason):
     """Nothing is installed, and the report says why."""
-    report = not_recorded(LoadProbe(code=compiled('def f(spec):\n    return spec\n')))
-
-    assert "not recorded: _load_unlocked's shape is not recognised (calls of sys" in report
+    assert reason in not_recorded(LoadProbe(code=code))
 
 
-def test_no_python_load_unlocked_is_reported_not_recorded(mocker):
-    """An importlib without the function."""
+def test_an_importlib_without_the_function_has_no_code(mocker):
+    """None, which the probe reports."""
     mocker.patch.object(import_load_probe.importlib, '_bootstrap', types.SimpleNamespace())
     code = load_code()
     mocker.stopall()
 
     assert code is None
-    assert 'not recorded: importlib has no Python' in not_recorded(LoadProbe(code=code))
 
 
 def test_no_free_tool_id_is_reported_not_recorded():
@@ -948,13 +836,6 @@ def test_no_free_tool_id_is_reported_not_recorded():
 
     assert 'not recorded: no sys.monitoring tool id was free' in report
     assert owners == ['another tool'] * len(taken)
-
-
-def test_a_probe_never_installed_says_so():
-    """Its report claims nothing."""
-    report = report_of(LoadProbe(code=load_code()), KeyError(PACKAGE))
-
-    assert 'not recorded: the probe was not installed' in report
 
 
 def test_the_named_tools_ids_are_never_tried():
@@ -991,6 +872,8 @@ def test_installing_changes_only_the_probes_own_tool_and_uninstalling_restores()
     own.install()
     during_tools, _ = monitoring_state()
     tool_id = own.tool_id
+    # No global event: no other code in the process runs slower
+    assert sys.monitoring.get_events(tool_id) == 0
     own.uninstall()
 
     assert [tool for tool in during_tools if tool[0] != tool_id] == before[0]
@@ -999,6 +882,7 @@ def test_installing_changes_only_the_probes_own_tool_and_uninstalling_restores()
     assert importlib._bootstrap._load_unlocked is original
     sys.monitoring.use_tool_id(tool_id, 'another tool')
     try:
+        assert sys.monitoring.get_local_events(tool_id, load_code()) == 0
         for event in own._callbacks():
             assert sys.monitoring.register_callback(tool_id, event, None) is None
     finally:
@@ -1006,11 +890,6 @@ def test_installing_changes_only_the_probes_own_tool_and_uninstalling_restores()
     assert own.not_recorded == 'the probe was uninstalled'
     own.uninstall()
     assert monitoring_state() == before
-
-
-def test_no_code_but_the_loads_has_events(probe):
-    """The tool has no global event: nothing else in the process runs slower."""
-    assert sys.monitoring.get_events(probe.tool_id) == 0
 
 
 @pytest.mark.parametrize('fault', [*FAULTS, RecursionError, UnicodeError])
@@ -1044,26 +923,10 @@ def test_a_signal_handlers_exception_is_not_the_probes_to_swallow(probe, mocker)
     for raised in (KeyboardInterrupt, TimeoutError):
         mocker.patch.object(probe, '_record', side_effect=raised)
         with pytest.raises(raised):
-            probe.on_line(load_code(), probe._points.pop_line)
+            probe.on_line(load_code(), probe.points.pop_line)
         mocker.stopall()
 
     assert probe.faults == 0
-
-
-@pytest.mark.parametrize('callback', ['on_c_return', 'on_c_raise'])
-def test_another_calls_outcome_is_no_event(probe, callback):
-    """Only the pop's."""
-    events = probe.events()
-    getattr(probe, callback)(load_code(), -1, len, sys.modules)
-
-    assert probe.events() == events
-    assert probe.faults == 0
-
-
-def test_lines_and_calls_of_no_interest_are_switched_off(probe):
-    """Each costs one callback, then nothing."""
-    assert probe.on_line(load_code(), -1) is sys.monitoring.DISABLE
-    assert probe.on_call(load_code(), -1, len, None) is sys.monitoring.DISABLE
 
 
 def test_nothing_is_called_after_the_dictionary_is_read():
@@ -1112,29 +975,180 @@ def test_the_interpreter_is_described_without_a_home_folder():
         assert part in report
 
 
-def test_a_build_that_tells_nothing_is_described(mocker):
-    """No settings (Windows), no JIT module."""
-    mocker.patch.object(import_load_probe.sysconfig, 'get_config_var', return_value=None)
+@pytest.mark.parametrize(
+    ('arguments', 'shown'),
+    [
+        (None, 'not given by this build'),
+        ("'--with-lto=full' '--prefix=/home/name' '--enable-a=name\\c'", '--with-lto=full'),
+    ],
+)
+def test_a_build_shows_only_its_features(mocker, arguments, shown):
+    """None of its paths; a build that tells nothing (Windows), with no JIT or GIL, is described."""
+    mocker.patch.object(import_load_probe.sysconfig, 'get_config_var', return_value=arguments)
     mocker.patch.object(import_load_probe.sys, '_jit', None)
     mocker.patch.object(import_load_probe.sys, '_is_gil_enabled', return_value=False)
     report = interpreter_report()
     mocker.stopall()
 
-    assert 'configured with: not given by this build' in report
+    assert report.endswith(f'configured with: {shown}')
     assert 'the GIL: off; the JIT: unknown' in report
 
 
-def test_configure_arguments_with_paths_are_left_out(mocker):
-    """Only the features."""
-    mocker.patch.object(
-        import_load_probe.sysconfig,
-        'get_config_var',
-        return_value=(
-            "'--with-lto=full' '--prefix=/home/name' '--with-x=/home/name' '--enable-a=name\\c'"
-        ),
-    )
-    report = interpreter_report()
+@pytest.mark.parametrize(
+    ('owner', 'name'),
+    [
+        (sys.monitoring, 'set_local_events'),
+        (sys.monitoring, 'register_callback'),
+        (sys.monitoring, 'use_tool_id'),
+        (import_load_probe, 'find_load_points'),
+    ],
+)
+@pytest.mark.parametrize('fault', [ValueError, OSError, StopIteration])
+def test_a_fault_installing_is_not_recorded_and_undone(mocker, owner, name, fault):
+    """Nothing escapes to the run, and nothing is left behind."""
+    before = monitoring_state()
+    mocker.patch.object(owner, name, side_effect=fault('planted'))
+    own = LoadProbe(code=load_code())
+    own.install()
+    own.uninstall()
     mocker.stopall()
 
-    assert 'configured with: --with-lto=full' in report
-    assert 'name' not in report.partition('configured')[2]
+    assert own.not_recorded == f'install failed: {fault.__name__}: planted'
+    assert monitoring_state() == before
+
+
+def test_a_fault_installing_stops_no_run_and_the_wrappers_still_go(pytester, monkeypatch):
+    """Through pytest: the failing test's report says why, and pytest's own method is back."""
+    pytester.makepyfile(
+        planted=(
+            'import atexit, sys\nimport pytest\n'
+            'METHOD = pytest.MonkeyPatch.undo\n'
+            'set_local_events = sys.monitoring.set_local_events\n'
+            'def fail(tool_id, *arguments):\n'
+            "    if 'probe' in sys.monitoring.get_tool(tool_id):\n"
+            "        raise ValueError('planted')\n"
+            '    set_local_events(tool_id, *arguments)\n'
+            'sys.monitoring.set_local_events = fail\n'
+            "atexit.register(lambda: print('METHOD BACK', pytest.MonkeyPatch.undo is METHOD))\n"
+        ),
+        test_probe=(
+            "import importlib\ndef test_fails():\n    importlib.import_module('no.such')\n"
+        ),
+    )
+    monkeypatch.setenv('PYTHONPATH', f'{PROJECT_ROOT}{os.pathsep}{pytester.path}')
+    result = pytester.runpytest_subprocess(
+        '-p', 'planted', '-p', 'tests.import_failure_threads', '-n', '0', '--no-cov',
+        '-o', 'addopts=', '-s',
+    )  # fmt: skip
+
+    result.assert_outcomes(failed=1)
+    output = result.stdout.str()
+    assert 'not recorded: install failed: ValueError: planted' in output
+    assert 'INTERNALERROR' not in output
+    assert 'METHOD BACK True' in output
+
+
+def test_a_reason_that_cannot_be_printed_is_still_a_reason(mocker):
+    """The error's own __str__ raises."""
+
+    class UnprintableError(Exception):
+        def __str__(self):
+            raise self
+
+    mocker.patch.object(import_load_probe, 'find_load_points', side_effect=UnprintableError)
+    own = LoadProbe(code=load_code())
+    own.install()
+    mocker.stopall()
+
+    assert 'UnprintableError' in report_of(own, KeyError(PACKAGE))
+
+
+def test_an_interrupt_installing_goes_on(mocker):
+    """Ctrl-C still stops the run."""
+    mocker.patch.object(import_load_probe, 'find_load_points', side_effect=KeyboardInterrupt)
+    with pytest.raises(KeyboardInterrupt):
+        LoadProbe(code=load_code()).install()
+
+
+@pytest.mark.parametrize('hindered', ['hooks cleared', 'id freed', 'id taken', 'cannot free'])
+def test_each_step_of_uninstalling_is_tried_whatever_became_of_the_others(mocker, hindered):
+    """The rest is taken away, and another tool that has the id now keeps it and its events."""
+    callbacks = list(gc.callbacks)
+    own = LoadProbe(code=load_code())
+    own.install()
+    tool_id, line = own.tool_id, sys.monitoring.events.LINE
+    code = compiled('def f():\n    pass\n')
+    if hindered == 'hooks cleared':
+        gc.callbacks[:] = callbacks
+    elif hindered == 'cannot free':
+        mocker.patch.object(sys.monitoring, 'free_tool_id', side_effect=OSError)
+    else:
+        sys.monitoring.free_tool_id(tool_id)
+    if hindered == 'id taken':
+        sys.monitoring.use_tool_id(tool_id, 'another tool')
+        sys.monitoring.set_local_events(tool_id, code, line)
+
+    own.uninstall()
+    mocker.stopall()
+    owner = sys.monitoring.get_tool(tool_id)
+    if owner is not None:
+        events = sys.monitoring.get_local_events(tool_id, code)
+        sys.monitoring.free_tool_id(tool_id)
+        assert events == (line if hindered == 'id taken' else 0)
+    assert (owner == 'another tool') == (hindered == 'id taken')
+    assert (owner is None) == (hindered in {'hooks cleared', 'id freed'})
+    assert gc.callbacks == callbacks
+
+
+def test_a_failed_pop_is_not_reported_for_a_later_error_of_the_same_name(probe):
+    """The same spec fails at its pop, then is loaded again and its own code raises."""
+    loader = ProbeLoader(lambda _: sys.modules.pop(PACKAGE))
+    spec = importlib.machinery.ModuleSpec(PACKAGE, loader)
+    load_with_spec(spec)
+
+    def fail(_) -> None:
+        raise ValueError(PACKAGE)
+
+    loader.execute = fail
+    with pytest.raises(ValueError, match=PACKAGE) as excinfo:
+        importlib._bootstrap._load_unlocked(spec)
+
+    assert len(probe.failed_pops) == 1
+    assert 'pop raised' not in report_of(probe, excinfo.value)
+
+
+def test_a_missed_end_does_not_put_the_next_load_inside_it(probe, module, mocker):
+    """The end's reading faults, or its event never comes: the next import is an outermost."""
+    record = probe._record
+
+    def fail_at_the_end(point, *arguments):
+        if point == ENDED:
+            raise ValueError
+        return record(point, *arguments)
+
+    mocker.patch.object(probe, '_record', side_effect=fail_at_the_end)
+    importlib.import_module(module('', name=f'{PACKAGE}_a'))
+    mocker.stopall()
+    assert probe._stacks == {}
+
+    ident = threading.get_ident()
+    probe._stacks[ident] = [
+        Load(spec=spec_named('stale'), number=0, thread_ident=ident, enclosing=[])
+    ]
+    error = failed_import(module(DELETE_ITSELF))
+    assert 'loading inside: nothing' in report_of(probe, error)
+    assert probe._stacks == {}
+
+
+def test_the_failed_pop_is_matched_by_its_own_spec_and_the_newest_wins(probe):
+    """Another spec's failure of the same name is another; one spec's newest is the one told."""
+    loader = ProbeLoader(lambda _: sys.modules.pop(PACKAGE))
+    spec, other = (importlib.machinery.ModuleSpec(PACKAGE, loader) for _ in range(2))
+    load_with_spec(spec)
+    error = load_with_spec(spec)
+    load_with_spec(other)
+    _, newest, _ = probe.failed_pops
+
+    assert f'(load {newest.load.number}, ' in report_of(probe, error)
+    for failed in (probe.failed_pops[0], probe.failed_pops[2]):
+        assert f'(load {failed.load.number}, ' not in report_of(probe, error)

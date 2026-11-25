@@ -17,9 +17,10 @@ What a callback may do: read, and write into the fixed-size rings here. It repla
 importlib or ``sys.modules`` and sets no dictionary watcher (tests/module_removals.py: why not).
 The errors its own reading can raise (``FAULTS``) are counted, never raised; anything else (a signal
 handler's exception, Ctrl-C) is not the probe's, and goes on, as it would from any Python code run
-there. After a callback has read the dictionary it makes no call, so CPython's eval loop has no
-point in it to switch threads or collect garbage before the pop. That is read from the bytecode (a
-test checks it), not proven of the interpreter.
+there (at the load's end, that leaves the spec's ``_initializing`` True, which importlib alone would
+not). After a callback has read the dictionary it makes no call, so CPython's eval loop has no point
+in it to switch threads or collect garbage before the pop. That is read from the bytecode (a test
+checks it), not proven of the interpreter.
 
 Caveat: an instrumented function does not run as the plain one does. Its calls take CPython's
 instrumented path in place of the specialised one (and no JIT trace of it is used), and the
@@ -32,8 +33,8 @@ Tests: tests/test_import_load_probe.py.
 
 from __future__ import annotations
 
-import _thread
 import collections
+import contextlib
 import dis
 import gc
 import importlib._bootstrap
@@ -51,6 +52,7 @@ if TYPE_CHECKING:
     from types import CodeType, FrameType, TracebackType
 
 # What an unrecognised shape is reported as
+NO_FUNCTION = 'importlib has no Python _load_unlocked'
 STORES_UNRECOGNISED = 'not one store into sys.modules before the pop and one after'
 EXECUTION_UNRECOGNISED = "the module's execution is not between the store and the pop"
 LINES_UNRECOGNISED = 'the lines of the store, the pop and the end are not distinct'
@@ -82,12 +84,17 @@ POP_RETURNED = 'the pop returned'
 POP_RAISED = 'the pop raised'
 ENDED = 'the load ended'
 
+# Reported when the events cannot be matched with the error
+NO_FAILED_POP = (
+    'not recorded: no failed pop matches this traceback (the probe sees no load run inside one of '
+    "its own or another tool's callbacks, and none begun before it was installed)"
+)
+
 # Those a failed pop's report shows, in order
 POINTS_TO_THE_RAISE = (STORED, POP_LINE, POP_CALLED, POP_RAISED)
 
-# What a reading found under the module's name
+# What a reading found under the module's name (whatever object it is)
 PRESENT = 'present'
-ANOTHER_OBJECT = 'present, but another object'
 ABSENT = 'ABSENT'
 NOT_READ = 'not read (the name is not a str, or the dictionary not a dict)'
 
@@ -104,10 +111,11 @@ HOW_TO_READ = (
     '- gone while the code ran: removed by the module, by what it called, by a finalizer or by',
     '  another thread. The narrowing lines say between which events; a collection that saw the',
     '  entry go suggests a finalizer (another thread can run inside one), and no collection listed',
-    '  rules out only the garbage collector (a reference count reaching 0 runs finalizers too)',
+    '  rules out only the collections still in the ring (a reference count runs finalizers too)',
     "- another thread alive at the pop may have done it, and so may the module's own code: nothing",
-    '  here tells those two apart unless the recorded removals section names the call; thread',
-    '  counts that differ mean one started or ended meanwhile',
+    '  here tells those two apart unless the recorded removals section names the call',
+    '- what is read of another thread is approximate: the order of events on two threads, and a',
+    "  collection's readings of a module loading on another thread, which goes on meanwhile",
     '- present at the pop call, and the pop raised: perhaps an interpreter or dictionary fault.',
     '  Left open: a removal between the reading and the pop, which no Python code should be able',
     '  to make on this thread (another thread without the GIL, or C code, could)',
@@ -135,10 +143,10 @@ class UnrecognisedShapeError(Exception):
 
 
 def only[T](found: Iterable[T], *, what: str) -> T:
-    """Return the one item found.
+    """Return the one item found; refuse none, or more than one.
 
     Raises:
-        UnrecognisedShapeError: There is none, or more than one.
+        UnrecognisedShapeError: As refused.
 
     """
     items = tuple(found)
@@ -148,12 +156,7 @@ def only[T](found: Iterable[T], *, what: str) -> T:
 
 
 def is_modules_call(instructions: list[dis.Instruction], index: int) -> bool:
-    """Tell whether ``sys.modules.pop(spec.name)`` begins at an instruction.
-
-    Returns:
-        True when the six instructions there are that call's.
-
-    """
+    """Tell whether the six instructions there are ``sys.modules.pop(spec.name)``'s."""
     expected = (
         ('LOAD_GLOBAL', 'sys'),
         ('LOAD_ATTR', 'modules'),
@@ -170,10 +173,10 @@ def is_modules_call(instructions: list[dis.Instruction], index: int) -> bool:
 
 
 def line_of(instruction: dis.Instruction) -> int:
-    """Return an instruction's line.
+    """Return an instruction's line; refuse one without.
 
     Raises:
-        UnrecognisedShapeError: It has none.
+        UnrecognisedShapeError: As refused.
 
     """
     if instruction.line_number is None:
@@ -188,11 +191,8 @@ def first_line_after(
 
     A bare ``try:`` is a NOP, outside the block that cleans up after a failed execution.
 
-    Returns:
-        The instruction the line starts with.
-
     Raises:
-        UnrecognisedShapeError: No line starts after the store.
+        UnrecognisedShapeError: There is none.
 
     """
     for instruction in line_starts:
@@ -201,14 +201,8 @@ def first_line_after(
     raise UnrecognisedShapeError(LINES_UNRECOGNISED)
 
 
-def find_load_points(code: CodeType) -> LoadPoints:
+def find_load_points(code: CodeType | None) -> LoadPoints:
     """Find the events' places in ``_load_unlocked``'s code, whatever its line numbers.
-
-    Args:
-        code: The function's code object.
-
-    Returns:
-        The lines and the offset to watch.
 
     Raises:
         UnrecognisedShapeError: The code is not one store of ``sys.modules[spec.name]``, the
@@ -216,6 +210,8 @@ def find_load_points(code: CodeType) -> LoadPoints:
             store, and one line clearing ``_initializing``, in that order.
 
     """
+    if code is None:
+        raise UnrecognisedShapeError(NO_FUNCTION)
     instructions = list(dis.get_instructions(code))
     pop_start = only(
         (index for index in range(len(instructions)) if is_modules_call(instructions, index)),
@@ -268,43 +264,17 @@ def find_load_points(code: CodeType) -> LoadPoints:
 
 
 def load_code() -> CodeType | None:
-    """Find ``_load_unlocked``'s code object.
-
-    Returns:
-        It, or None when importlib has no such Python function.
-
-    """
+    """Find ``_load_unlocked``'s code object (None: importlib has no such Python function)."""
     return getattr(getattr(importlib._bootstrap, '_load_unlocked', None), '__code__', None)
 
 
-def shown_name(key: object) -> str:
-    """Return a module's name for the report, running no code of the name's own.
+def key_of(spec: object) -> str | None:
+    """Read a spec's name from its ``__dict__``, where ModuleSpec keeps it, running no code of its.
 
-    Returns:
-        The name, or its type when it is not exactly a ``str``.
-
+    None unless it is exactly a ``str``: looking up anything else runs its own hash and comparison.
     """
-    return key if type(key) is str else f'<a {type(key).__name__}, not a str>'
-
-
-def spec_name(spec: object) -> object:
-    """Read a spec's name from its own ``__dict__``, where ModuleSpec keeps it, running no code.
-
-    Returns:
-        The name.
-
-    """
-    return object.__getattribute__(spec, '__dict__')['name']
-
-
-def is_same_name(name: object, key: str) -> bool:
-    """Compare a name with the one stored under, running no code of the name's own.
-
-    Returns:
-        True when it is exactly a ``str`` and equal.
-
-    """
-    return type(name) is str and name == key
+    name = object.__getattribute__(spec, '__dict__')['name']
+    return name if type(name) is str else None
 
 
 class Reading(NamedTuple):
@@ -320,18 +290,18 @@ class Reading(NamedTuple):
     load_number: int
     name: str
     entries: int
-    dictionary_is_sys_modules: bool
-    threads: int
+    dictionary_id: int
     found: str
 
 
-type ReadingFields = tuple[int, str, int, int, str, int, bool, int, str]
+type ReadingFields = tuple[int, str, int, int, str, int, int, str]
 
 
 class Collection(NamedTuple):
     """One garbage collection, and the entry of the module being loaded before and after it.
 
-    The module is the collecting thread's innermost, or another thread's when it is loading none.
+    The module is the collecting thread's innermost, or another thread's when it is loading none:
+    that thread may run between the readings, so they are approximate.
     """
 
     order: int
@@ -371,18 +341,18 @@ class Load:
         'present_at',
         'readings',
         'renamed',
-        'spec_id',
+        'spec',
         'thread_ident',
     )
 
     def __init__(
-        self, *, key: object, spec_id: int, number: int, thread_ident: int, enclosing: list[Load]
+        self, *, spec: object, number: int, thread_ident: int, enclosing: list[Load]
     ) -> None:
         """Start a load, nested in those its thread has in progress."""
-        # Exactly str: looking up anything else would run its own hash and comparison
-        self.key = key if type(key) is str else None
-        self.name = shown_name(key)
-        self.spec_id = spec_id
+        self.key = key_of(spec)
+        self.name = '<a name that is not a str>' if self.key is None else self.key
+        # Held, so that no later spec can have its id and be taken for it
+        self.spec = spec
         self.number = number
         self.thread_ident = thread_ident
         # No cycle: an enclosing load never points at those inside it
@@ -390,7 +360,7 @@ class Load:
         self.nesting = [load.name for load in enclosing]
         self.episode = enclosing[0].episode if enclosing else Episode(self.name)
         self.readings: dict[str, ReadingFields] = {}
-        # The spec's name is no longer the one stored under: the readings are of another entry
+        # The spec's name is no longer the one stored under
         self.renamed = False
         # Seen from the events of the loads inside this one
         self.present_at: ReadingFields | None = None
@@ -407,12 +377,7 @@ class FailedPop(NamedTuple):
 
 
 def other_thread_stacks(this_thread: int) -> tuple[tuple[int, tuple[str, ...]], ...]:
-    """Describe what every other thread runs now, innermost frames first, reading no source.
-
-    Returns:
-        Each thread's ident and at most ``FRAMES_KEPT`` lines.
-
-    """
+    """Describe what every other thread runs now, innermost frames first, reading no source."""
     described: list[tuple[int, tuple[str, ...]]] = []
     innermost: FrameType | None = None
     frame: FrameType | None = None
@@ -433,21 +398,39 @@ def other_thread_stacks(this_thread: int) -> tuple[tuple[int, tuple[str, ...]], 
 
 
 def failed_pop(load: Load) -> FailedPop:
-    """Read what a pop's exception will change as it unwinds.
-
-    Returns:
-        The failed pop.
-
-    """
-    by_iteration = load.key is not None and any(
-        is_same_name(name, load.key) for name in tuple(sys.modules)
-    )
+    """Read what a pop's exception will change as it unwinds."""
     return FailedPop(
         load=load,
-        found_by_iteration=by_iteration,
+        found_by_iteration=load.key in [name for name in tuple(sys.modules) if type(name) is str],
         missing=tuple(name for name in load.episode.loaded if name not in sys.modules),
         other_threads=other_thread_stacks(load.thread_ident),
     )
+
+
+class InstallFault:
+    """Turns whatever stops the installing into the reason nothing is recorded."""
+
+    def __init__(self, probe: LoadProbe) -> None:
+        """Say it of this probe."""
+        self.probe = probe
+
+    def __enter__(self) -> None:
+        """Guard the installing: a triage tool stops no run."""
+
+    def __exit__(
+        self,
+        error_type: type[BaseException] | None,
+        error: BaseException | None,
+        traceback_object: TracebackType | None,
+    ) -> bool:
+        """Keep the reason; a ``KeyboardInterrupt`` or an exit goes on."""
+        del error_type, traceback_object
+        if not isinstance(error, Exception):
+            return False
+        # Never the error's own __str__, which may raise
+        reason = ''.join(traceback.format_exception_only(error)).strip()
+        self.probe.not_recorded = f'install failed: {reason}'
+        return True
 
 
 class LoadProbe:
@@ -455,19 +438,19 @@ class LoadProbe:
 
     Args:
         code: ``_load_unlocked``'s code object (None: there is none to watch).
-        tool_ids: The ``sys.monitoring`` tool ids to try, in order.
 
     """
 
-    def __init__(self, *, code: CodeType | None, tool_ids: tuple[int, ...] = TOOL_IDS) -> None:
+    def __init__(self, *, code: CodeType | None) -> None:
         """Start with nothing recorded and nothing watched."""
         self.code = code
-        self.tool_ids = tool_ids
         self.tool_id: int | None = None
+        # Its own, so that uninstalling never frees another tool's id
+        self.tool_name = f'{TOOL_NAME} {id(self):#x}'
         self.not_recorded: str | None = 'the probe was not installed'
         self.faults = 0
         self.newest_order = 0
-        self._points = LoadPoints(-1, -1, -1, -1)
+        self.points = LoadPoints(-1, -1, -1, -1)
         self._orders = itertools.count(1)
         self._load_numbers = itertools.count(1)
         self._line_points: dict[int, str] = {}
@@ -483,21 +466,26 @@ class LoadProbe:
         self.ended_before_pop: collections.deque[Load] = collections.deque(maxlen=FAILURES_KEPT)
 
     def install(self) -> None:
-        """Set the events on the code, under a free tool id; otherwise say why not."""
-        if self.code is None:
-            self.not_recorded = 'importlib has no Python _load_unlocked'
-            return
-        try:
-            self._points = find_load_points(self.code)
-        except UnrecognisedShapeError as error:
-            self.not_recorded = f"_load_unlocked's shape is not recognised ({error})"
-            return
-        self._line_points = {
-            self._points.stored_line: STORED,
-            self._points.pop_line: POP_LINE,
-            self._points.ended_line: ENDED,
-        }
-        self.tool_id = self._claim_tool_id()
+        """Set the events on the code, under a free tool id; whatever stops that is the reason."""
+        self.not_recorded = None
+        with InstallFault(self):
+            self.points = find_load_points(self.code)
+            self._line_points = {
+                self.points.stored_line: STORED,
+                self.points.pop_line: POP_LINE,
+                self.points.ended_line: ENDED,
+            }
+            self._watch()
+        if self.not_recorded is not None:
+            self.uninstall()
+
+    def _watch(self) -> None:
+        """Claim the first free tool id, and set the events and the collector's hook."""
+        for tool_id in TOOL_IDS:
+            if sys.monitoring.get_tool(tool_id) is None:
+                sys.monitoring.use_tool_id(tool_id, self.tool_name)
+                self.tool_id = tool_id
+                break
         if self.tool_id is None:
             self.not_recorded = 'no sys.monitoring tool id was free'
             return
@@ -508,27 +496,24 @@ class LoadProbe:
         events = sys.monitoring.events
         sys.monitoring.set_local_events(self.tool_id, self.code, events.LINE | events.CALL)
         gc.callbacks.append(self.on_collection)
-        self.not_recorded = None
 
     def uninstall(self) -> None:
-        """Take the events and the callbacks away, and free the tool id (no-op if not installed)."""
-        if self.tool_id is None or self.code is None:
+        """Take the events and the callbacks away, each whatever became of the others."""
+        if self.not_recorded is None:
+            self.not_recorded = 'the probe was uninstalled'
+        with contextlib.suppress(Exception):
+            gc.callbacks.remove(self.on_collection)
+        tool_id, self.tool_id = self.tool_id, None
+        if tool_id is None or sys.monitoring.get_tool(tool_id) != self.tool_name:
             return
-        self.not_recorded = 'the probe was uninstalled'
-        gc.callbacks.remove(self.on_collection)
-        sys.monitoring.set_local_events(self.tool_id, self.code, 0)
-        for event in self._callbacks():
-            sys.monitoring.register_callback(self.tool_id, event, None)
-        sys.monitoring.free_tool_id(self.tool_id)
-        self.tool_id = None
+        with contextlib.suppress(Exception):
+            # Freeing the id clears the callbacks, but leaves a code object's own events set
+            sys.monitoring.set_local_events(tool_id, self.code, 0)
+        with contextlib.suppress(Exception):
+            sys.monitoring.free_tool_id(tool_id)
 
     def _callbacks(self) -> Mapping[int, Any]:
-        """List the callback for each event.
-
-        Returns:
-            The callbacks by event.
-
-        """
+        """List the callback for each event."""
         events = sys.monitoring.events
         return {
             events.LINE: self.on_line,
@@ -537,26 +522,8 @@ class LoadProbe:
             events.C_RAISE: self.on_c_raise,
         }
 
-    def _claim_tool_id(self) -> int | None:
-        """Take the first free tool id.
-
-        Returns:
-            The id, or None when every one tried is in use.
-
-        """
-        for tool_id in self.tool_ids:
-            if sys.monitoring.get_tool(tool_id) is None:
-                sys.monitoring.use_tool_id(tool_id, TOOL_NAME)
-                return tool_id
-        return None
-
     def on_line(self, code: CodeType, line: int) -> object:
-        """Read at a line of interest; switch the event off at any other.
-
-        Returns:
-            ``sys.monitoring.DISABLE`` for a line of no interest, else None.
-
-        """
+        """Read at a line of interest; switch the event off at any other."""
         del code
         point = self._line_points.get(line)
         if point is None:
@@ -565,17 +532,16 @@ class LoadProbe:
             self._record(point, sys._getframe(1), sys.modules)
         except FAULTS:
             self.faults += 1
+        finally:
+            # Whatever became of the reading
+            if point == ENDED:
+                self._end(sys._getframe(1))
         return None
 
     def on_call(self, code: CodeType, offset: int, function: object, dictionary: object) -> object:
-        """Read as the pop is called; switch the event off at any other call.
-
-        Returns:
-            ``sys.monitoring.DISABLE`` for another call, else None.
-
-        """
+        """Read as the pop is called; switch the event off at any other call."""
         del code, function
-        if offset != self._points.pop_call_offset:
+        if offset != self.points.pop_call_offset:
             return sys.monitoring.DISABLE
         try:
             self._record(POP_CALLED, sys._getframe(1), dictionary)
@@ -588,7 +554,7 @@ class LoadProbe:
     ) -> None:
         """Read as the pop returns."""
         del code, function
-        if offset != self._points.pop_call_offset:
+        if offset != self.points.pop_call_offset:
             return
         try:
             self._record(POP_RETURNED, sys._getframe(1), dictionary)
@@ -598,7 +564,7 @@ class LoadProbe:
     def on_c_raise(self, code: CodeType, offset: int, function: object, dictionary: object) -> None:
         """Read as the pop raises, and keep what the unwinding will change."""
         del code, function
-        if offset != self._points.pop_call_offset:
+        if offset != self.points.pop_call_offset:
             return
         try:
             load = self._record(POP_RAISED, sys._getframe(1), dictionary)
@@ -613,18 +579,10 @@ class LoadProbe:
         Nothing after the line marked below is a call, so nothing can run between the
         reading and this function's return.
 
-        Args:
-            point: Which of the load's points this is.
-            frame: ``_load_unlocked``'s frame.
-            modules: The dictionary: the pop's own at the pop, else ``sys.modules``.
-
-        Returns:
-            The load, or None for one that began before the probe was installed.
-
+        ``modules`` is the dictionary: the pop's own at the pop, else ``sys.modules``. Returns None
+        for a load that began before the probe was installed.
         """
-        variables = frame.f_locals
-        module = variables['module']
-        load, before_reading = self._prepare(point=point, spec=variables['spec'], modules=modules)
+        load, before_reading = self._prepare(point=point, frame=frame, modules=modules)
         if load is None:
             return None
         enclosing = load.enclosing if point in {STORED, ENDED} else None
@@ -632,10 +590,7 @@ class LoadProbe:
         # The reading: from here to the return, no call
         found = NOT_READ
         if readable and key is not None:
-            if key in modules:
-                found = PRESENT if modules[key] is module else ANOTHER_OBJECT
-            else:
-                found = ABSENT
+            found = PRESENT if key in modules else ABSENT
         reading = (*before_reading, found)
         load.readings[point] = reading
         self._events[reading[0] % EVENTS_KEPT] = reading
@@ -648,85 +603,68 @@ class LoadProbe:
         return load
 
     def _prepare(
-        self, *, point: str, spec: object, modules: Any
-    ) -> tuple[Load | None, tuple[int, str, int, int, str, int, bool, int]]:
-        """Do everything a reading needs that makes calls.
-
-        Returns:
-            The load (None for one that began before the probe was installed), and the reading's
-            fields but the last.
-
-        """
+        self, *, point: str, frame: FrameType, modules: Any
+    ) -> tuple[Load | None, tuple[int, str, int, int, str, int, int]]:
+        """Do everything a reading needs that makes calls: the load, and all fields but the last."""
+        spec = frame.f_locals['spec']
         ident = threading.get_ident()
         order = next(self._orders)
         if point == STORED:
-            load = self._begin(spec=spec, ident=ident)
+            load = self._begin(spec=spec, ident=ident, frame=frame)
         else:
-            load = self._in_progress(spec_id=id(spec), ident=ident)
+            load = self._in_progress(spec=spec, ident=ident)
         if load is None:
-            return None, (order, point, ident, 0, '', 0, False, 0)
-        if load.key is not None and not is_same_name(spec_name(spec), load.key):
+            return None, (order, point, ident, 0, '', 0, 0)
+        if key_of(spec) != load.key:
             load.renamed = True
-        if point == POP_RETURNED:
-            load.episode.loaded.append(load.name)
+        if point == POP_RETURNED and load.key is not None:
+            load.episode.loaded.append(load.key)
             load.episode.loaded_count += 1
-        if point == ENDED:
-            self._end(load)
-        same = modules is sys.modules
-        fields = (order, point, ident, load.number, load.name, len(modules), same, _thread._count())
-        return load, fields
+        return load, (order, point, ident, load.number, load.name, len(modules), id(modules))
 
-    def _begin(self, *, spec: object, ident: int) -> Load:
-        """Put a new load on its thread's stack.
-
-        Returns:
-            The load.
-
-        """
-        stack = self._stacks.get(ident)
-        if stack is None:
-            stack = self._stacks[ident] = []
-        load = Load(
-            key=spec_name(spec),
-            spec_id=id(spec),
-            number=next(self._load_numbers),
-            thread_ident=ident,
-            enclosing=stack,
-        )
+    def _begin(self, *, spec: object, ident: int, frame: FrameType) -> Load:
+        """Put a new load on its thread's stack, dropping any there whose end was missed."""
+        stack = self._stacks.get(ident, [])
+        # Nothing to walk for an outermost import; else the nearest load's frame is a few up
+        outer = frame.f_back if stack else None
+        while outer is not None and outer.f_code is not self.code:
+            outer = outer.f_back
+        enclosing_spec = None if outer is None else outer.f_locals['spec']
+        while stack and stack[-1].spec is not enclosing_spec:
+            stack.pop()
+        self._stacks[ident] = stack
+        load = Load(spec=spec, number=next(self._load_numbers), thread_ident=ident, enclosing=stack)
         stack.append(load)
         return load
 
-    def _in_progress(self, *, spec_id: int, ident: int) -> Load | None:
-        """Find this thread's load of a spec, dropping any inside it whose end was not seen.
-
-        Returns:
-            The load, or None when it is not on the stack.
-
-        """
-        stack = self._stacks.get(ident, ())
+    def _in_progress(self, *, spec: object, ident: int) -> Load | None:
+        """Find this thread's load of a spec, dropping any inside it whose end was missed."""
+        stack = self._stacks.get(ident, [])
         while stack:
-            if stack[-1].spec_id == spec_id:
+            if stack[-1].spec is spec:
                 return stack[-1]
             stack.pop()
         self._stacks.pop(ident, None)
         return None
 
-    def _end(self, load: Load) -> None:
+    def _end(self, frame: FrameType) -> None:
         """Take a load off its thread's stack, keeping one whose pop was not seen."""
-        stack = self._stacks[load.thread_ident]
-        stack.pop()
-        if not stack:
-            del self._stacks[load.thread_ident]
+        ident = threading.get_ident()
+        load = None
+        try:
+            load = self._in_progress(spec=frame.f_locals['spec'], ident=ident)
+        except FAULTS:
+            self.faults += 1
+        if load is None:
+            return
+        self._stacks[ident].pop()
+        if not self._stacks[ident]:
+            del self._stacks[ident]
         if load.readings.keys().isdisjoint({POP_LINE, POP_CALLED, POP_RETURNED, POP_RAISED}):
             self.ended_before_pop.append(load)
 
     def _innermost(self, ident: int) -> Load | None:
-        """Find the load a collection on a thread is inside, else another thread's newest.
-
-        Returns:
-            The load, or None when nothing is being loaded.
-
-        """
+        """Find the load a collection on a thread is inside, else another thread's newest."""
         stack = self._stacks.get(ident)
         if stack:
             return stack[-1]
@@ -779,83 +717,55 @@ class LoadProbe:
 
 
 def entry_of(load: Load | None) -> str:
-    """Read whether a load's entry is in ``sys.modules``.
-
-    Returns:
-        ``PRESENT``, ``ABSENT`` or ``NOT_READ``.
-
-    """
+    """Read whether a load's entry is in ``sys.modules``."""
     modules = sys.modules
     if load is None or load.key is None or type(modules) is not dict:
         return NOT_READ
     return PRESENT if load.key in modules else ABSENT
 
 
-def loads_in_traceback(
-    *, code: CodeType | None, traceback_object: TracebackType | None
-) -> list[tuple[int, str]]:
-    """Find the loads a traceback passes through.
+def loads_stopped_at_pop(
+    *, probe: LoadProbe, traceback_object: TracebackType | None
+) -> list[object]:
+    """Find the specs whose loads a traceback left at their pop's line."""
+    return [
+        frame.f_locals['spec']
+        for frame, line in traceback.walk_tb(traceback_object)
+        if frame.f_code is probe.code and line == probe.points.pop_line
+    ]
 
-    Returns:
-        Each one's spec, by id, and module name. Each spec is alive, held by its frame.
 
-    """
-    found: list[tuple[int, str]] = []
-    for frame, _ in traceback.walk_tb(traceback_object):
-        if frame.f_code is code:
-            spec = frame.f_locals['spec']
-            found.append((id(spec), shown_name(spec_name(spec))))
-    return found
+def without_home(text: str) -> str:
+    """Hide the home folder's name."""
+    return text.replace(str(Path.home()), '~')
 
 
 def thread_names() -> dict[int | None, str]:
-    """Name each thread threading knows, registering none.
-
-    Returns:
-        The names by ident.
-
-    """
+    """Name each thread threading knows, by ident, registering none."""
     return {thread.ident: thread.name for thread in threading.enumerate()}
 
 
 def reading_line(reading: ReadingFields, *, names: Mapping[int | None, str]) -> str:
-    """Describe one event.
-
-    Returns:
-        Its line.
-
-    """
+    """Describe one event."""
     event = Reading._make(reading)
-    dictionary = '' if event.dictionary_is_sys_modules else ', a dictionary that is NOT sys.modules'
     return (
         f'#{event.order} {event.name}, {event.point}: {event.found} (load {event.load_number}, '
-        f'{names.get(event.thread_ident, f"ident {event.thread_ident}")}, {event.entries} entries'
-        f'{dictionary}, {event.threads} started threads alive)'
+        f'{names.get(event.thread_ident, f"ident {event.thread_ident}")}, {event.entries} entries '
+        f'of dictionary {event.dictionary_id:#x})'
     )
 
 
 def collection_line(collection: Collection, *, names: Mapping[int | None, str]) -> str:
-    """Describe one collection.
-
-    Returns:
-        Its line, marked when the entry went during it.
-
-    """
+    """Describe one collection, marked when the entry went during it."""
     on = names.get(collection.thread_ident, f'ident {collection.thread_ident}')
-    went = collection.before == PRESENT and collection.after == ABSENT
-    mark = ' *** THE ENTRY WENT DURING THIS COLLECTION ***' if went else ''
-    if collection.name is None:
-        loading = 'nothing being loaded'
-    else:
-        whose = (
-            'the same thread'
-            if collection.loading_thread_ident == collection.thread_ident
-            else 'another thread'
-        )
-        loading = (
-            f'{collection.name} (loading on {whose}) {collection.before} before, '
-            f'{collection.after} after'
-        )
+    loading, mark = 'nothing being loaded', ''
+    if collection.name is not None:
+        same = collection.loading_thread_ident == collection.thread_ident
+        whose = 'the same thread' if same else 'another thread, approximate'
+        loading = f'{collection.name} (loading on {whose}) {collection.before} before'
+        loading += f', {collection.after} after'
+    if collection.before == PRESENT and collection.after == ABSENT:
+        mark = ' *** THE ENTRY WENT DURING THIS COLLECTION ***'
     return (
         f'#{collection.order}-{collection.ended_order} garbage collection of generation '
         f'{collection.generation} on {on}, {collection.collected} objects: {loading}{mark}'
@@ -863,38 +773,35 @@ def collection_line(collection: Collection, *, names: Mapping[int | None, str]) 
 
 
 def verdict_of(load: Load) -> str:
-    """Say where the entry of a load whose pop raised was lost, as far as the readings go.
-
-    Returns:
-        The verdict.
-
-    """
+    """Say where the entry of a load whose pop raised was lost, as far as the readings go."""
     if load.renamed:
         return 'not recorded: the spec was renamed during the load'
     found = {
         point: Reading._make(load.readings[point]).found if point in load.readings else NOT_READ
         for point in (STORED, POP_LINE, POP_CALLED)
     }
+    dictionaries = {Reading._make(reading).dictionary_id for reading in load.readings.values()}
+    if len(dictionaries) > 1:
+        return 'not recorded: sys.modules was rebound during the load: no claim'
     if NOT_READ in found.values():
         return 'not recorded: at least one point of this load was not read'
-    if found[STORED] == ABSENT:
-        return 'the entry was already absent at the first line after the store'
-    if found[POP_LINE] == ABSENT:
-        return "the entry left between the store and the pop's line: while exec_module ran it"
-    if found[POP_CALLED] == ABSENT:
-        return "the entry left between the start of the pop's line and the call of pop"
+    for point, verdict in (
+        (STORED, 'the entry was already absent at the first line after the store'),
+        (
+            POP_LINE,
+            "the entry left between the store and the pop's line: while its code (if any) ran",
+        ),
+        (POP_CALLED, "the entry left between the start of the pop's line and the call of pop"),
+    ):
+        if found[point] == ABSENT:
+            return verdict
     return 'the entry was present when pop was called, and pop raised'
 
 
 def failed_pop_report(
     *, failed: FailedPop, probe: LoadProbe, names: Mapping[int | None, str]
 ) -> list[str]:
-    """Describe a failed pop: its points in order, what narrows it, and what else happened.
-
-    Returns:
-        The lines.
-
-    """
+    """Describe a failed pop: its points in order, what narrows it, and what else happened."""
     load = failed.load
     at_raise = Reading._make(load.readings[POP_RAISED])
     by_iteration = 'found' if failed.found_by_iteration else 'NOT found'
@@ -916,12 +823,12 @@ def failed_pop_report(
     lines.append(
         f'since the outermost import ({episode.outermost}) began, {episode.loaded_count} modules '
         f'finished loading (the newest {len(episode.loaded)} kept); missing as the pop raised: '
-        f'{", ".join(failed.missing) or "none"}; missing now: '
-        f'{", ".join(name for name in episode.loaded if name not in sys.modules) or "none"}'
+        f'{", ".join(failed.missing) or "none"}'
     )
     for ident, stack in failed.other_threads:
         lines.append(
-            f'alive as the pop raised: {names.get(ident, f"ident {ident}")} in {"; ".join(stack)}'
+            f'alive as the pop raised: {names.get(ident, f"ident {ident}")} in '
+            f'{without_home("; ".join(stack))}'
         )
     if not failed.other_threads:
         lines.append('no other Python thread was alive as the pop raised')
@@ -935,8 +842,8 @@ def failed_pop_report(
     ]
     between = [line for order, line in sorted(entries) if began <= order <= at_raise.order]
     lines.append(
-        f'events and collections from the store to the raise (the newest {LINES_REPORTED} of '
-        f'{len(between)} kept):'
+        f'events and collections from the store to the raise (at most the newest {LINES_REPORTED} '
+        f'of the {len(between)} still in the rings; older ones are lost):'
     )
     lines.extend(f'  {line}' for line in between[-LINES_REPORTED:])
     return lines
@@ -945,55 +852,30 @@ def failed_pop_report(
 def load_probe_report(
     *, probe: LoadProbe, failed_name: str | None, traceback_object: TracebackType | None
 ) -> str:
-    """Describe what the probe recorded of a failed import.
-
-    Args:
-        probe: The process's probe.
-        failed_name: The module the error names, or None.
-        traceback_object: The error's traceback.
-
-    Returns:
-        The section's text.
-
-    """
+    """Describe what the probe recorded of a failed import of the module the error names."""
     lines = [EVIDENCE_NOT_A_FIX]
     if probe.not_recorded is not None:
         return '\n'.join((*lines, f'not recorded: {probe.not_recorded}'))
     lines.append(f'Faults in the recording: {probe.faults}')
     names = thread_names()
-    in_traceback = loads_in_traceback(code=probe.code, traceback_object=traceback_object)
-    failed = next(
-        (
-            failed
-            for failed in reversed(tuple(probe.failed_pops))
-            if (failed.load.spec_id, failed.load.name) in in_traceback
-        ),
-        None,
-    )
-    if failed is not None:
-        lines.extend(failed_pop_report(failed=failed, probe=probe, names=names))
-        lines.extend(HOW_TO_READ)
-        return '\n'.join(lines)
-    lines.append('VERDICT: no failed pop was recorded for a load in this traceback')
-    ended = next(
-        (load for load in reversed(tuple(probe.ended_before_pop)) if load.name == failed_name), None
-    )
-    if ended is not None:
+    stopped = loads_stopped_at_pop(probe=probe, traceback_object=traceback_object)
+    for failed in reversed(tuple(probe.failed_pops)):
+        if any(failed.load.spec is spec for spec in stopped):
+            lines.extend(failed_pop_report(failed=failed, probe=probe, names=names))
+            return '\n'.join((*lines, *HOW_TO_READ))
+    lines.append(NO_FAILED_POP)
+    ended = [load for load in tuple(probe.ended_before_pop) if load.name == failed_name]
+    if ended:
         lines.append(
             f'the newest load of {failed_name} ended with its pop not seen: perhaps its own code '
             'raised, or the import was interrupted (matched by name alone)'
         )
-        lines.extend(reading_line(reading, names=names) for reading in ended.readings.values())
+        lines.extend(reading_line(reading, names=names) for reading in ended[-1].readings.values())
     return '\n'.join(lines)
 
 
 def interpreter_report() -> str:
-    """Describe the interpreter and how it was built, with no path but its own.
-
-    Returns:
-        The section's text.
-
-    """
+    """Describe the interpreter and how it was built, with no path but its own."""
     # Only whole words about features: the other configure arguments are paths
     configured = [
         word
@@ -1001,7 +883,6 @@ def interpreter_report() -> str:
         if word.startswith(('--with', '--enable')) and not {'/', '\\'} & set(word)
     ]
     jit: Any = getattr(sys, '_jit', None)
-    executable = sys.executable.replace(str(Path.home()), '~')
     variables = ', '.join(
         f'{name} {sysconfig.get_config_var(name)}'
         for name in ('Py_DEBUG', 'Py_GIL_DISABLED', 'Py_TAIL_CALL_INTERP')
@@ -1011,7 +892,7 @@ def interpreter_report() -> str:
     jit_state = 'unknown' if jit is None else f'enabled: {jit.is_enabled()}'
     return '\n'.join((
         f'sys.version: {sys.version}',
-        f'sys.executable: {executable}',
+        f'sys.executable: {without_home(sys.executable)}',
         f'platform: {sysconfig.get_platform()}, {build}',
         f'build settings (None: not given by this build): {variables}',
         f'the GIL: {gil}; the JIT: {jit_state}',
