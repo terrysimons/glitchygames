@@ -142,7 +142,7 @@ class MemberImport(NamedTuple):
         return f'from {self.module} import {self.name}'
 
 
-def _string_loaded_module(*, call: ast.Call, bindings: dict[str, str]) -> str | None:
+def string_loaded_module(*, call: ast.Call, bindings: dict[str, str]) -> str | None:
     """Return the module a call loads by a literal name, else None.
 
     Args:
@@ -196,7 +196,7 @@ def member_imports(*, tree: ast.Module, member_packages: frozenset[str]) -> list
                     for alias in node.names
                 )
         elif isinstance(node, ast.Call):
-            loaded = _string_loaded_module(call=node, bindings=bindings)
+            loaded = string_loaded_module(call=node, bindings=bindings)
             if loaded is not None and loaded.split('.')[0] in member_packages:
                 found.append(MemberImport(line=node.lineno, module=loaded, name=None))
     # A name of None (a plain import) sorts before any name on the same line and module

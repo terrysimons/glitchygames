@@ -148,7 +148,7 @@ So the `dt` that frame N's logic receives is the time frame N - 1 took, start to
 | `hold_frame`, `paced_frame_seconds` | `run_frame_step` | `src/glitchygames/scenes/scene.py` |
 | `pump_events` | `GameEngine._pump_events` | `src/glitchygames/engine/game_engine.py` |
 | `input_snapshot` | `GameEngine.process_events` | `src/glitchygames/input/state.py` holds it |
-| `devices` | `Scene.input_devices`, device listing, opening a controller | `src/glitchygames/input/input_devices.py`, `input/device_listing.py`, `events/controller.py` |
+| `devices` | `Scene.input_devices`, device listing, opening a controller or a named MIDI port (`events/midi.py`); `LiveSources.pump_events()` also reads the opened MIDI inputs into the frame's batch | `src/glitchygames/input/input_devices.py`, `input/device_listing.py`, `events/controller.py`, `events/midi.py` |
 | `saves` | `open_saves`, a game opening its save store | `src/glitchygames/state/sandbox.py` |
 | `wall_clock_time`, frame clock | `clock.wall_clock_time()`, `clock.frame_clock_seconds()`, `clock.elapsed_seconds()` | `src/glitchygames/clock.py` |
 | random seed | the named streams | `src/glitchygames/randomness.py` |

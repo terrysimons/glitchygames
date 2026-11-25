@@ -33,6 +33,8 @@ from glitchygames.events.controller import ControllerEventManager
 from glitchygames.exit_codes import ExitCode
 from glitchygames.host import HostSources
 from glitchygames.input import devices as devices_module
+from glitchygames.input.devices import MidiPortInfo
+from glitchygames.input.stand_in_devices import StandInDeviceSources, stand_in_registry
 from glitchygames.input.state import IDLE_INPUT, apply_snapshot_changes
 from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_name
@@ -47,6 +49,7 @@ from glitchygames.recording import (
     EXTERNAL_ORIGIN,
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
+    MIDI_PORTS_HEADER_FIELD,
     RECORDING_SOURCE,
     SAVES_HEADER_FIELD,
     SAVES_OPENED_FIELD,
@@ -1347,6 +1350,29 @@ class TestRecordingEdgeCases:
 
         header = read_trace_result(path=path).trace
         assert header[SAVES_HEADER_FIELD]['other-doors']['progress']['data'] == {'level': 4}
+
+    def test_midi_ports_opened_before_recording_are_in_the_header_only_when_there_are_any(
+        self, tmp_path
+    ):
+        """A port opened before the first frame is in the header's midi_ports; none, no field."""
+        keys = MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False)
+        with_port = tmp_path / 'with-port.jsonl.gz'
+        without_port = tmp_path / 'without-port.jsonl.gz'
+        for path, midi_ports in ((with_port, [keys]), (without_port, [])):
+            with constructed_engine() as engine:
+                registry = stand_in_registry(descriptors=[], midi_ports=midi_ports)
+                install_sources(
+                    sources=StandInDeviceSources(registry=registry, random_seed=RANDOM_SEED)
+                )
+                if midi_ports:
+                    registry.open_midi_input(port_id=0)
+                engine.start_trace_recording(path=path)
+                engine.stop_trace_recording()
+
+        assert read_trace_result(path=with_port).trace[MIDI_PORTS_HEADER_FIELD] == [
+            {'kind': 'midi_input', 'port_id': 0, 'name': 'Keys', 'interface': 'CoreMIDI'}
+        ]
+        assert MIDI_PORTS_HEADER_FIELD not in read_trace_result(path=without_port).trace
 
     def test_an_unwritable_recording_is_refused_before_the_game_runs(
         self, mocker, tmp_path, caplog

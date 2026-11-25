@@ -7,6 +7,7 @@ This module combines tests for:
 """
 
 import argparse
+import operator
 
 import pygame
 import pygame.midi
@@ -18,8 +19,18 @@ from glitchygames.events import (
     MidiEventStubs,
     UnhandledEventError,
 )
-from glitchygames.events.midi import MidiEventManager, import_midi_module
+from glitchygames.events.midi import MidiEventManager
+from glitchygames.input.devices import (
+    MIDI_INPUT_KIND,
+    MIDI_OUTPUT_KIND,
+    MidiPortDescriptor,
+    MidiPortInfo,
+    ReplayDeviceRegistry,
+    import_midi_module,
+)
+from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene
+from tests.input.stand_in_devices import install_stand_in_devices
 
 EVENT_TEST_OPTIONS = {'debug_events': False, 'no_unhandled_events': True}
 
@@ -333,10 +344,9 @@ class TestMidiEventProxyForwarding:
         """Test proxy forwards on_midi_in_event to game."""
         game = MidiRecordingScene()
         manager = MidiEventManager(game=game)
-        proxy = manager.proxies[0]
 
         event = HashableEvent(pygame.MIDIIN, device_id=1, status=144, data1=60, data2=127)
-        proxy.on_midi_in_event(event)
+        manager.on_midi_in_event(event)
 
         assert game.midi_events_received == [('midi_in', event)]
 
@@ -344,10 +354,9 @@ class TestMidiEventProxyForwarding:
         """Test proxy forwards on_midi_out_event to game."""
         game = MidiRecordingScene()
         manager = MidiEventManager(game=game)
-        proxy = manager.proxies[0]
 
         event = HashableEvent(pygame.MIDIOUT, device_id=1, status=144, data1=60, data2=127)
-        proxy.on_midi_out_event(event)
+        manager.on_midi_out_event(event)
 
         assert game.midi_events_received == [('midi_out', event)]
 
@@ -358,22 +367,20 @@ class TestMidiEventProxyMissingHandlers:
     def test_proxy_skips_missing_midi_in_handler(self):
         """Test proxy does nothing when game lacks on_midi_in_event."""
         manager = MidiEventManager(game=GameWithoutMidiHandlers())
-        proxy = manager.proxies[0]
 
         event = HashableEvent(pygame.MIDIIN, device_id=1, status=144, data1=60, data2=127)
 
         # Should not raise
-        proxy.on_midi_in_event(event)
+        manager.on_midi_in_event(event)
 
     def test_proxy_skips_missing_midi_out_handler(self):
         """Test proxy does nothing when game lacks on_midi_out_event."""
         manager = MidiEventManager(game=GameWithoutMidiHandlers())
-        proxy = manager.proxies[0]
 
         event = HashableEvent(pygame.MIDIOUT, device_id=1, status=144, data1=60, data2=127)
 
         # Should not raise
-        proxy.on_midi_out_event(event)
+        manager.on_midi_out_event(event)
 
 
 # ---------------------------------------------------------------------------
@@ -413,9 +420,8 @@ class TestMidiEventManagerCoverage:
         manager = MidiEventManager(game=game)
 
         assert manager.game is game
-        assert len(manager.proxies) == 1
-        # The proxy asks the game first, then pygame.midi (the real module)
-        assert manager.proxies[0].proxies == [game, pygame.midi]
+        assert manager.proxies == [game]
+        assert manager.ports == {}
 
     def test_midi_manager_initialization_no_game(self):
         """Test MidiEventManager initialization without game."""
@@ -457,22 +463,7 @@ class TestMidiEventManagerArgs:
 
 
 class TestOptionalMidiModule:
-    """pygame.midi is proxied where pygame has it and left out where it does not."""
-
-    def test_proxy_includes_pygame_midi_when_available(self):
-        """Desktop pygame has PortMidi: the proxy asks pygame.midi after the game."""
-        game = GameWithoutMidiHandlers()
-        proxy = MidiEventManager(game=game).proxies[0]
-
-        assert proxy.proxies == [game, pygame.midi]
-
-    def test_proxy_has_only_the_game_without_pygame_midi(self, mocker):
-        """Without pygame.midi (a WebAssembly build) the proxy forwards to the game only."""
-        mocker.patch('glitchygames.events.midi.MIDI_MODULE', None)
-        game = GameWithoutMidiHandlers()
-        proxy = MidiEventManager(game=game).proxies[0]
-
-        assert proxy.proxies == [game]
+    """pygame.midi is optional: where pygame has no PortMidi the import helper says so."""
 
     def test_import_midi_module_returns_pygame_midi(self):
         """The import helper returns pygame.midi where it imports."""
@@ -481,10 +472,214 @@ class TestOptionalMidiModule:
     def test_import_midi_module_is_none_when_pygame_midi_cannot_import(self, mocker, caplog):
         """A pygame build without PortMidi (no pygame.pypm) gives None, logged once."""
         mocker.patch(
-            'glitchygames.events.midi.importlib.import_module',
+            'glitchygames.input.devices.importlib.import_module',
             side_effect=ModuleNotFoundError("No module named 'pygame.pypm'"),
         )
-        with caplog.at_level('INFO', logger='game.midi'):
+        with caplog.at_level('INFO', logger='game.input.devices'):
             assert import_midi_module() is None
 
         assert 'pygame.midi is unavailable' in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Named ports: one proxy per opened port (plans/2026-11-24-midi-devices.md)
+# ---------------------------------------------------------------------------
+
+KEYS_INPUT = MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False)
+SYNTH_OUTPUT = MidiPortInfo(interface='CoreMIDI', name='Synth', is_input=False, is_output=True)
+
+
+class TestNamedMidiPorts:
+    """A named port opens through the devices door, and nothing else asks about MIDI."""
+
+    def test_a_named_input_port_opens_one_proxy(self):
+        """--midi-input Keys gives one proxy keyed (MIDI_INPUT_KIND, 0) that reaches the port."""
+        devices = install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
+        manager = MidiEventManager(game=MidiRecordingScene(), input_names=['Keys'])
+
+        assert list(manager.ports) == [(MIDI_INPUT_KIND, 0)]
+        proxy = manager.ports[MIDI_INPUT_KIND, 0]
+        assert proxy.proxies[1] is devices.midi_input_for_port(port_id=0)
+        # The port's methods, through the proxy: what waits is the frame's, not a game's
+        devices.queue_midi_input(port_id=0, messages=[([0x90, 60, 100, 0], 5)])
+        assert proxy.poll() is False
+        assert proxy.read(8) == []
+        assert [event.data1 for event in devices.read_midi_input()] == [60]
+        assert proxy.get_device_info() == (b'CoreMIDI', b'Keys', 1, 0, 1)
+
+    def test_a_named_output_port_opens_one_proxy(self):
+        """--midi-output Synth gives one proxy keyed (MIDI_OUTPUT_KIND, 1); writes are dropped."""
+        devices = install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT, SYNTH_OUTPUT])
+        manager = MidiEventManager(game=MidiRecordingScene(), output_names=['Synth'])
+
+        assert list(manager.ports) == [(MIDI_OUTPUT_KIND, 1)]
+        proxy = manager.ports[MIDI_OUTPUT_KIND, 1]
+        assert proxy.proxies[1] is devices.midi_output_for_port(port_id=1)
+        proxy.write_short(0x90, 60, 100)
+        assert proxy.get_device_info() == (b'CoreMIDI', b'Synth', 0, 1, 1)
+
+    def test_a_named_port_that_is_absent_is_logged_and_skipped(self, caplog):
+        """--midi-input Nope: no proxy, one warning naming it, the other port still opens."""
+        devices = install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
+        with caplog.at_level('WARNING', logger='game.midi'):
+            manager = MidiEventManager(game=MidiRecordingScene(), input_names=['Nope', 'Keys'])
+
+        warnings = [record.getMessage() for record in caplog.records if record.name == 'game.midi']
+        assert len(warnings) == 1
+        assert 'Nope' in warnings[0]
+        assert list(manager.ports) == [(MIDI_INPUT_KIND, 0)]
+        # The absence is an ordinary answer, recorded
+        assert devices.take_enumeration_answers()
+
+    def test_an_input_name_does_not_match_an_output_only_port(self, caplog):
+        """The kind decides: an output port is not found as an input."""
+        install_stand_in_devices(descriptors=[], midi_ports=[SYNTH_OUTPUT])
+        with caplog.at_level('WARNING', logger='game.midi'):
+            manager = MidiEventManager(game=MidiRecordingScene(), input_names=['Synth'])
+
+        assert manager.ports == {}
+        assert 'Synth' in caplog.text
+
+    def test_a_port_that_fails_to_open_is_logged_and_skipped(self, mocker, caplog):
+        """A pygame.error from the open is treated as an absent port."""
+        devices = install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
+        mocker.patch.object(
+            devices, 'open_midi_input', side_effect=pygame.error('PortMidi: cannot open')
+        )
+        with caplog.at_level('WARNING', logger='game.midi'):
+            manager = MidiEventManager(game=MidiRecordingScene(), input_names=['Keys'])
+
+        assert manager.ports == {}
+        assert 'Keys' in caplog.text
+        assert 'cannot open' in caplog.text
+
+    def test_a_port_that_cannot_be_looked_up_is_logged_and_skipped(self, mocker, caplog):
+        """A pygame.error from the door while listing ports is logged, naming the port."""
+        devices = install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
+        mocker.patch.object(
+            devices, 'midi_port_count', side_effect=pygame.error('PortMidi is gone')
+        )
+        with caplog.at_level('WARNING', logger='game.midi'):
+            manager = MidiEventManager(game=MidiRecordingScene(), input_names=['Keys'])
+
+        assert manager.ports == {}
+        assert 'Keys' in caplog.text
+        assert 'PortMidi is gone' in caplog.text
+
+    def test_a_portmidi_constructor_failure_is_skipped_and_recorded(self, mocker, caplog):
+        """PortMidi's Input raises a plain Exception (bytes): skipped, logged, answer recorded."""
+        midi_module = mocker.Mock()
+        mocker.patch('glitchygames.input.devices.import_midi_module', return_value=midi_module)
+        midi_module.get_device_info.side_effect = lambda port_id: (b'CoreMIDI', b'Keys', 1, 0, 0)
+        midi_module.get_count.return_value = 1
+        midi_module.Input.side_effect = Exception(b'PortMidi: Device already open')
+        sources = LiveSources(random_seed=1)
+        mocker.patch('glitchygames.events.midi.active_sources', return_value=sources)
+
+        with caplog.at_level('WARNING', logger='game.midi'):
+            manager = MidiEventManager(game=MidiRecordingScene(), input_names=['Keys'])
+
+        assert manager.ports == {}
+        assert 'PortMidi: Device already open' in caplog.text
+        errors = [a.error for a in sources.devices().take_enumeration_answers() if a.error]
+        assert errors == ['PortMidi: Device already open']
+
+    def test_naming_a_port_twice_opens_it_once(self):
+        """The same name twice is one proxy."""
+        install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
+        manager = MidiEventManager(game=MidiRecordingScene(), input_names=['Keys', 'Keys'])
+
+        assert list(manager.ports) == [(MIDI_INPUT_KIND, 0)]
+
+    def test_no_named_port_asks_the_door_nothing_about_midi(self):
+        """With no name the manager makes no MIDI call, so nothing is recorded."""
+        devices = install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
+        manager = MidiEventManager(game=MidiRecordingScene())
+
+        assert manager.ports == {}
+        assert devices.take_enumeration_answers() == []
+
+    def test_the_proxy_no_longer_reaches_pygame_midi(self):
+        """A game cannot go around the door through a proxy to pygame.midi."""
+        install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
+        manager = MidiEventManager(game=MidiRecordingScene(), input_names=['Keys'])
+        proxy = manager.ports[MIDI_INPUT_KIND, 0]
+
+        with pytest.raises(AttributeError):
+            operator.attrgetter('Input')(proxy)
+
+    def test_an_event_reaches_the_game_once_through_the_manager_not_the_proxy(self):
+        """The manager gives an event to its game; a proxy has no handler of its own to run."""
+        install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
+        game = MidiRecordingScene()
+        manager = MidiEventManager(game=game, input_names=['Keys'])
+        event = HashableEvent(pygame.MIDIIN, vice_id=0, status=144, data1=60, data2=127)
+
+        manager.on_midi_in_event(event)
+        manager.on_midi_out_event(event)
+
+        assert [label for label, _ in game.midi_events_received] == ['midi_in', 'midi_out']
+        proxy_class = type(manager.ports[MIDI_INPUT_KIND, 0])
+        assert not issubclass(proxy_class, MidiEvents)
+        assert {'on_midi_in_event', 'on_midi_out_event'}.isdisjoint(vars(proxy_class))
+
+    def test_an_event_for_a_game_without_handlers_is_skipped_with_a_port_open(self):
+        """A game with no MIDI handlers is skipped, not raised on."""
+        install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
+        manager = MidiEventManager(game=GameWithoutMidiHandlers(), input_names=['Keys'])
+        event = HashableEvent(pygame.MIDIIN, vice_id=0, status=144, data1=60, data2=127)
+
+        manager.on_midi_in_event(event)
+        manager.on_midi_out_event(event)
+
+
+class TestAdoptedMidiPorts:
+    """An instant replay's ports: stand-ins the scope's door holds, asking it nothing."""
+
+    def test_adopted_ports_are_the_registrys_stand_ins_and_the_managers_own_stay(self):
+        """One proxy per descriptor, by kind and port id; ``ports`` is the caller's to change."""
+        manager = MidiEventManager(game=MidiRecordingScene())
+        registry = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+        # The same port id in both directions: kept apart by kind
+        keys = MidiPortDescriptor(
+            kind=MIDI_INPUT_KIND, port_id=0, name='Keys', interface='CoreMIDI'
+        )
+        synth = MidiPortDescriptor(
+            kind=MIDI_OUTPUT_KIND, port_id=0, name='Synth', interface='CoreMIDI'
+        )
+
+        adopted = manager.adopt_midi_ports(descriptors=[keys, synth], registry=registry)
+
+        assert list(adopted) == [(MIDI_INPUT_KIND, 0), (MIDI_OUTPUT_KIND, 0)]
+        assert adopted[MIDI_INPUT_KIND, 0].port is registry.midi_input_for_port(port_id=0)
+        assert adopted[MIDI_OUTPUT_KIND, 0].port is registry.midi_output_for_port(port_id=0)
+        assert adopted[MIDI_OUTPUT_KIND, 0].get_device_info() == (b'CoreMIDI', b'Synth', 0, 1, 1)
+        assert adopted[MIDI_INPUT_KIND, 0].game is manager.game
+        assert manager.ports == {}
+
+    def test_adopting_no_port_makes_no_proxy(self):
+        manager = MidiEventManager(game=MidiRecordingScene())
+        registry = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+
+        assert manager.adopt_midi_ports(descriptors=(), registry=registry) == {}
+
+
+class TestMidiOptions:
+    """--midi-input and --midi-output are repeatable and empty by default."""
+
+    def test_the_options_default_to_empty_and_repeat(self):
+        """Each flag appends; neither given gives an empty list."""
+        parser = MidiEventManager.args(argparse.ArgumentParser())
+
+        empty = parser.parse_args([])
+        named = parser.parse_args([
+            '--midi-input',
+            'Keys',
+            '--midi-input',
+            'Pads',
+            '--midi-output',
+            'Synth',
+        ])
+
+        assert (empty.midi_input, empty.midi_output) == ([], [])
+        assert (named.midi_input, named.midi_output) == (['Keys', 'Pads'], ['Synth'])
