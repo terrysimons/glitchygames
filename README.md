@@ -257,7 +257,7 @@ The other replay options (`--replay-fps`, `--audit`, `--compare-processing`, `--
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-l`, `--log-level` | Logging level: `debug`, `info`, `warning`, `error`, `critical` | `info` |
+| `-l`, `--log-level` | Logging level: `debug`, `info`, `warning`, `error`, `critical` | `warning` |
 | `--no-unhandled-events` | Fail on unhandled events (used in testing) | `False` |
 | `-p`, `--profile` | Enable cProfile profiling | `False` |
 
