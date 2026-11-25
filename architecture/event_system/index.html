@@ -4779,8 +4779,8 @@ the joystick and controller managers, the game):</p>
 </tr>
 <tr>
 <td><code>MidiEventManager</code></td>
-<td><code>[self.game, pygame.midi]</code> (<code>[self.game]</code> when this pygame build has no PortMidi)</td>
-<td><code>get_count()</code>, <code>get_device_info()</code>, etc.</td>
+<td><code>[self.game]</code>; each named <abbr title="Musical Instrument Digital Interface">MIDI</abbr> port (<code>--midi-input</code>, <code>--midi-output</code>) has a proxy in <code>ports</code>, whose <code>proxies</code> are <code>[self.game, port]</code></td>
+<td>an output port's own methods (<code>write_short()</code>, <code>note_on()</code>, ...) and the proxy's <code>get_device_info()</code>, answered from the port's descriptor</td>
 </tr>
 </tbody>
 </table>
@@ -6120,35 +6120,92 @@ which hands them to the active scene's handlers below (<code>Scene</code>'s log 
 <h3 id="midievents-midieventstubs">MidiEvents → MidiEventStubs<a class="headerlink" href="#midievents-midieventstubs" title="Permanent link">#</a></h3>
 <p><code>GameEngine.process_midi_event</code> hands <code>MIDIIN</code> to <code>midi_manager.on_midi_in_event</code> and <code>MIDIOUT</code>
 to <code>on_midi_out_event</code>. The engine builds that <code>MidiEventManager</code> with the scene manager as its
-game, so its proxy forwards each event to the scene manager, which passes any <code>on_*_event</code> call
+game, and it gives each event to the scene manager itself (not through a port's proxy: a joystick's
+proxy keeps its device's state from its events, and a port's has none to keep), which passes any <code>on_*_event</code> call
 to the active scene. <code>Scene</code> has the stubs, so a scene without its own handler gets
 <code>unhandled_event</code>, which raises under <code>--no-unhandled-events</code>
 (bugs/2026-11-22-midi-events-skip-the-midi-manager.md: before #300 both types went to
-<code>SceneManager.handle_event()</code>, which ignores them). Nothing in the repository posts <abbr title="Musical Instrument Digital Interface">MIDI</abbr> events
-yet. The <code>vice_id</code> field below is pygame's own spelling: <code>pygame.midi.midis2events</code> builds the
-events with <code>vice_id=device_id</code>.</p>
+<code>SceneManager.handle_event()</code>, which ignores them). The <code>vice_id</code> field below is pygame's own
+spelling: <code>pygame.midi.midis2events</code> builds the events with <code>vice_id=device_id</code>, so a message's
+<code>vice_id</code> is the port id it came in on.</p>
+<h4 id="midi-ports"><abbr title="Musical Instrument Digital Interface">MIDI</abbr> ports<a class="headerlink" href="#midi-ports" title="Permanent link">#</a></h4>
+<p><abbr title="Musical Instrument Digital Interface">MIDI</abbr> is off until a port is named, and is wired through the devices door like a joystick
+(<code>src/glitchygames/input/devices.py</code>, whose module docstring is the contract).</p>
+<p><strong>Naming ports.</strong> <code>--midi-input NAME</code> and <code>--midi-output NAME</code> (repeatable; see
+<a href="../argument_system/#midi-options">Midi Options</a>) name ports by the name PortMidi lists. The first
+port with that name whose direction fits is opened; a name that matches nothing, or a port that
+fails to open, is logged (naming it) and skipped, and the run goes on. With no port named,
+PortMidi is never initialized and a run is recorded exactly as before.</p>
+<p><strong>What a game receives.</strong> Each opened input port is read once per frame, during the event pump,
+and its messages join that frame's batch after <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s events as <code>MIDIIN</code> events (<code>status</code>,
+<code>data1</code>-<code>data3</code>, <code>timestamp</code> in PortMidi's milliseconds, <code>vice_id</code> the port id). A scene gets them
+in <code>on_midi_in_event(event)</code>, in the frame they were read, in arrival order. A burst larger than
+one read arrives whole, up to a cap per port per frame (<code>MIDI_MESSAGES_PER_PORT_PER_FRAME</code>, 5120);
+the rest comes the next frame.</p>
+<p><strong>What a game sends.</strong> The manager holds a proxy per opened port in <code>ports</code>, keyed <code>(kind, port
+id)</code> (<code>MIDI_INPUT_KIND</code> or <code>MIDI_OUTPUT_KIND</code>, from <code>glitchygames.input.devices</code>), with the port's
+<code>descriptor</code>. Reach it through <code>current_engine().midi_manager.ports</code>, and call an output's own
+methods through the proxy (<code>note_on()</code>, <code>note_off()</code>, <code>write_short()</code>, <code>write()</code>,
+<code>set_instrument()</code>, <code>pitch_bend()</code>, <code>write_sys_ex()</code>). An input has nothing for a game to call: its
+port is read by the door alone, for the frame's events, and a game holds a handle whose <code>poll()</code>
+is False, whose <code>read()</code> is empty and whose <code>close()</code> closes nothing, live as in a replay (a
+message a game read would be missing from its recording). <code>get_device_info()</code> is the proxy's own and answers from the
+descriptor the port was opened with. A write posts no event (<code>MIDIOUT</code> has no producer) and is not
+recorded. In a replay, a playback scope or an instant replay the port is a stand-in that accepts
+every write and drops it.</p>
+<p><strong>A test with stand-in ports.</strong> Tests have no <abbr title="Musical Instrument Digital Interface">MIDI</abbr> hardware: install stand-in doors with the
+ports PortMidi would list, queue messages, and run the frame (as
+<code>tests/engine/test_engine_event_system.py</code> does):</p>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-79-1"><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">glitchygames.input.devices</span><span class="w"> </span><span class="kn">import</span> <span class="n">MidiPortInfo</span>
+</span><span id="__span-79-2"><a id="__codelineno-79-2" name="__codelineno-79-2" href="#__codelineno-79-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">tests.input.stand_in_devices</span><span class="w"> </span><span class="kn">import</span> <span class="n">install_stand_in_devices</span>
+</span><span id="__span-79-3"><a id="__codelineno-79-3" name="__codelineno-79-3" href="#__codelineno-79-3"></a>
+</span><span id="__span-79-4"><a id="__codelineno-79-4" name="__codelineno-79-4" href="#__codelineno-79-4"></a><span class="n">keys</span> <span class="o">=</span> <span class="n">MidiPortInfo</span><span class="p">(</span><span class="n">interface</span><span class="o">=</span><span class="s1">'CoreMIDI'</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">'Keys'</span><span class="p">,</span> <span class="n">is_input</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">is_output</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span><span id="__span-79-5"><a id="__codelineno-79-5" name="__codelineno-79-5" href="#__codelineno-79-5"></a><span class="n">devices</span> <span class="o">=</span> <span class="n">install_stand_in_devices</span><span class="p">(</span><span class="n">descriptors</span><span class="o">=</span><span class="p">[],</span> <span class="n">midi_ports</span><span class="o">=</span><span class="p">[</span><span class="n">keys</span><span class="p">])</span>  <span class="c1"># port id = position</span>
+</span><span id="__span-79-6"><a id="__codelineno-79-6" name="__codelineno-79-6" href="#__codelineno-79-6"></a><span class="n">devices</span><span class="o">.</span><span class="n">open_midi_input</span><span class="p">(</span><span class="n">port_id</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-79-7"><a id="__codelineno-79-7" name="__codelineno-79-7" href="#__codelineno-79-7"></a><span class="n">devices</span><span class="o">.</span><span class="n">queue_midi_input</span><span class="p">(</span><span class="n">port_id</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">messages</span><span class="o">=</span><span class="p">[([</span><span class="mh">0x90</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="mi">1234</span><span class="p">)])</span>  <span class="c1"># (message, timestamp)</span>
+</span><span id="__span-79-8"><a id="__codelineno-79-8" name="__codelineno-79-8" href="#__codelineno-79-8"></a><span class="c1"># the next frame's pump delivers one MIDIIN event, status 0x90, data1 60, vice_id 0</span>
+</span></code></pre></div>
+<p><code>devices.fail_midi_input(port_id=0)</code> makes a port fail as PortMidi's does, and opening a port that
+is not there, or that goes the other way, raises <code>pygame.error</code> as live does. The stand-in input
+follows PortMidi's observed behaviour (its buffer holds 4096 messages; a full one refuses input
+until a read reports the overflow, once), so a test of a burst sees what hardware does.</p>
+<p><strong>What is recorded.</strong> The run's options (<code>midi_input</code>, <code>midi_output</code>: in every new recording, empty
+when no port was named), every enumeration and open
+answer (failures included), a descriptor of each opened port (<code>midi_ports</code> in the header,
+<code>midi_ports_opened</code> on a frame) and the <code>MIDIIN</code> events as ordinary pumped events with their
+PortMidi timestamps. See <a href="../gameplay_replay/#recording-record-trace-path">Recording</a>. A replay
+takes the recording's port names, never its own command line's, answers from the recording and
+never touches <abbr title="Musical Instrument Digital Interface">MIDI</abbr> hardware; its input ports have nothing to read, and the recorded events are
+served by the event door.</p>
+<p><strong>Limitations.</strong></p>
+<ul>
+<li>Ports are the ones present at start: PortMidi lists them once and pygame posts no <abbr title="Musical Instrument Digital Interface">MIDI</abbr> device
+  events, so there is no hot-plugging, and on macOS an unplugged port raises nothing, it just
+  falls silent.</li>
+<li>A port is opened once per registry (one engine context's live doors), not once per process.
+  Two live contexts naming one port is not supported; an inner game is always a replay today.</li>
+<li>A full PortMidi buffer loses input (the messages that did not fit, and up to 63 the overflowing
+  read had already taken): the overflow is logged once per burst and the port goes on. A port
+  whose read fails any other way is dropped for the rest of the run.</li>
+<li>pygame-ce 2.5.8's <code>close()</code> does not close a PortMidi port, so ports end at the engine's
+  teardown, which closes them and quits PortMidi.</li>
+<li><abbr title="Musical Instrument Digital Interface">MIDI</abbr> output is not in an output record (none exists yet), and a note still sounding when a
+  playback scope starts keeps sounding until the live game lets it go.</li>
+<li>No browser <abbr title="Musical Instrument Digital Interface">MIDI</abbr>: pygame's WebAssembly builds have no PortMidi, so the door answers "no
+  ports".</li>
+<li>During an in-game playback scope the player's <abbr title="Musical Instrument Digital Interface">MIDI</abbr> input is sorted by its message: a note
+  played is a press, which ends the scope only where that scope exits on input; releases and each control's latest message are held and handed to the live
+  game after the scope; parameter data (controllers 6, 38, 96-101) set during it is lost
+  (<a href="../gameplay_replay/#in-game-playback">In-game playback</a>).</li>
+</ul>
+<p>Plans: <code>plans/2026-11-24-midi-devices.md</code>; what is deferred is in <code>plans/future-work.md</code>.</p>
 <details class="note">
 <summary>Its 2 handlers: each diagram, then the handler's signature</summary>
 <pre class="mermaid"><code>flowchart LR
     MI1["MIDIIN"] --&gt; MIH1["on_midi_in_event"]
     click MI1 "https://pyga.me/docs/ref/midi.html" _blank</code></pre>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-79-1"><a id="__codelineno-79-1" name="__codelineno-79-1" href="#__codelineno-79-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_midi_in_event</span><span class="p">(</span>
-</span><span id="__span-79-2"><a id="__codelineno-79-2" name="__codelineno-79-2" href="#__codelineno-79-2"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">MidiEvent</span><span class="p">(</span><span class="n">MIDIIN</span> <span class="p">{</span>
-</span><span id="__span-79-3"><a id="__codelineno-79-3" name="__codelineno-79-3" href="#__codelineno-79-3"></a>        <span class="s1">'status'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-79-4"><a id="__codelineno-79-4" name="__codelineno-79-4" href="#__codelineno-79-4"></a>        <span class="s1">'data1'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-79-5"><a id="__codelineno-79-5" name="__codelineno-79-5" href="#__codelineno-79-5"></a>        <span class="s1">'data2'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-79-6"><a id="__codelineno-79-6" name="__codelineno-79-6" href="#__codelineno-79-6"></a>        <span class="s1">'data3'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-79-7"><a id="__codelineno-79-7" name="__codelineno-79-7" href="#__codelineno-79-7"></a>        <span class="s1">'timestamp'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-79-8"><a id="__codelineno-79-8" name="__codelineno-79-8" href="#__codelineno-79-8"></a>        <span class="s1">'vice_id'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
-</span><span id="__span-79-9"><a id="__codelineno-79-9" name="__codelineno-79-9" href="#__codelineno-79-9"></a>    <span class="p">})</span>
-</span><span id="__span-79-10"><a id="__codelineno-79-10" name="__codelineno-79-10" href="#__codelineno-79-10"></a><span class="p">):</span>
-</span><span id="__span-79-11"><a id="__codelineno-79-11" name="__codelineno-79-11" href="#__codelineno-79-11"></a>    <span class="o">...</span>
-</span></code></pre></div>
-<pre class="mermaid"><code>flowchart LR
-    MI2["MIDIOUT"] --&gt; MIH2["on_midi_out_event"]
-    click MI2 "https://pyga.me/docs/ref/midi.html" _blank</code></pre>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-80-1"><a id="__codelineno-80-1" name="__codelineno-80-1" href="#__codelineno-80-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_midi_out_event</span><span class="p">(</span>
-</span><span id="__span-80-2"><a id="__codelineno-80-2" name="__codelineno-80-2" href="#__codelineno-80-2"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">MidiEvent</span><span class="p">(</span><span class="n">MIDIOUT</span> <span class="p">{</span>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-80-1"><a id="__codelineno-80-1" name="__codelineno-80-1" href="#__codelineno-80-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_midi_in_event</span><span class="p">(</span>
+</span><span id="__span-80-2"><a id="__codelineno-80-2" name="__codelineno-80-2" href="#__codelineno-80-2"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">MidiEvent</span><span class="p">(</span><span class="n">MIDIIN</span> <span class="p">{</span>
 </span><span id="__span-80-3"><a id="__codelineno-80-3" name="__codelineno-80-3" href="#__codelineno-80-3"></a>        <span class="s1">'status'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 </span><span id="__span-80-4"><a id="__codelineno-80-4" name="__codelineno-80-4" href="#__codelineno-80-4"></a>        <span class="s1">'data1'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
 </span><span id="__span-80-5"><a id="__codelineno-80-5" name="__codelineno-80-5" href="#__codelineno-80-5"></a>        <span class="s1">'data2'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
@@ -6158,6 +6215,21 @@ events with <code>vice_id=device_id</code>.</p>
 </span><span id="__span-80-9"><a id="__codelineno-80-9" name="__codelineno-80-9" href="#__codelineno-80-9"></a>    <span class="p">})</span>
 </span><span id="__span-80-10"><a id="__codelineno-80-10" name="__codelineno-80-10" href="#__codelineno-80-10"></a><span class="p">):</span>
 </span><span id="__span-80-11"><a id="__codelineno-80-11" name="__codelineno-80-11" href="#__codelineno-80-11"></a>    <span class="o">...</span>
+</span></code></pre></div>
+<pre class="mermaid"><code>flowchart LR
+    MI2["MIDIOUT"] --&gt; MIH2["on_midi_out_event"]
+    click MI2 "https://pyga.me/docs/ref/midi.html" _blank</code></pre>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-81-1"><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">on_midi_out_event</span><span class="p">(</span>
+</span><span id="__span-81-2"><a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a>    <span class="n">event</span><span class="p">:</span> <span class="n">MidiEvent</span><span class="p">(</span><span class="n">MIDIOUT</span> <span class="p">{</span>
+</span><span id="__span-81-3"><a id="__codelineno-81-3" name="__codelineno-81-3" href="#__codelineno-81-3"></a>        <span class="s1">'status'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-81-4"><a id="__codelineno-81-4" name="__codelineno-81-4" href="#__codelineno-81-4"></a>        <span class="s1">'data1'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-81-5"><a id="__codelineno-81-5" name="__codelineno-81-5" href="#__codelineno-81-5"></a>        <span class="s1">'data2'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-81-6"><a id="__codelineno-81-6" name="__codelineno-81-6" href="#__codelineno-81-6"></a>        <span class="s1">'data3'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-81-7"><a id="__codelineno-81-7" name="__codelineno-81-7" href="#__codelineno-81-7"></a>        <span class="s1">'timestamp'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-81-8"><a id="__codelineno-81-8" name="__codelineno-81-8" href="#__codelineno-81-8"></a>        <span class="s1">'vice_id'</span><span class="p">:</span> <span class="o">...</span><span class="p">,</span>
+</span><span id="__span-81-9"><a id="__codelineno-81-9" name="__codelineno-81-9" href="#__codelineno-81-9"></a>    <span class="p">})</span>
+</span><span id="__span-81-10"><a id="__codelineno-81-10" name="__codelineno-81-10" href="#__codelineno-81-10"></a><span class="p">):</span>
+</span><span id="__span-81-11"><a id="__codelineno-81-11" name="__codelineno-81-11" href="#__codelineno-81-11"></a>    <span class="o">...</span>
 </span></code></pre></div>
 </details>
 <h2 id="joystick-vs-controller-two-input-subsystems">Joystick vs Controller: Two Input Subsystems<a class="headerlink" href="#joystick-vs-controller-two-input-subsystems" title="Permanent link">#</a></h2>
@@ -6234,9 +6306,9 @@ mapped pads only (other devices are hidden and their events dropped). <code>Acti
 same families: <code>auto</code> binds a <code>controller_button</code> to both. The joystick demo
 (<code>src/demos/joystick-demo/src/joystick_demo/__init__.py</code>) lists every device with its event layer's live
 inputs.</p>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-81-1"><a id="__codelineno-81-1" name="__codelineno-81-1" href="#__codelineno-81-1"></a><span class="k">for</span> <span class="n">device</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_devices</span><span class="p">:</span>
-</span><span id="__span-81-2"><a id="__codelineno-81-2" name="__codelineno-81-2" href="#__codelineno-81-2"></a>    <span class="n">layer</span> <span class="o">=</span> <span class="n">device</span><span class="o">.</span><span class="n">controller</span> <span class="k">if</span> <span class="n">device</span><span class="o">.</span><span class="n">controller</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">device</span><span class="o">.</span><span class="n">joystick</span>
-</span><span id="__span-81-3"><a id="__codelineno-81-3" name="__codelineno-81-3" href="#__codelineno-81-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">layer</span><span class="o">.</span><span class="n">axes</span><span class="p">,</span> <span class="n">layer</span><span class="o">.</span><span class="n">buttons</span><span class="p">)</span>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-82-1"><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a><span class="k">for</span> <span class="n">device</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_devices</span><span class="p">:</span>
+</span><span id="__span-82-2"><a id="__codelineno-82-2" name="__codelineno-82-2" href="#__codelineno-82-2"></a>    <span class="n">layer</span> <span class="o">=</span> <span class="n">device</span><span class="o">.</span><span class="n">controller</span> <span class="k">if</span> <span class="n">device</span><span class="o">.</span><span class="n">controller</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">device</span><span class="o">.</span><span class="n">joystick</span>
+</span><span id="__span-82-3"><a id="__codelineno-82-3" name="__codelineno-82-3" href="#__codelineno-82-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">device</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">layer</span><span class="o">.</span><span class="n">axes</span><span class="p">,</span> <span class="n">layer</span><span class="o">.</span><span class="n">buttons</span><span class="p">)</span>
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Disabling joystick events disables controller events</p>
@@ -6355,13 +6427,13 @@ it nor forwards it. The snippets below are the state updates, simplified.</p>
     state Pressed {
         [*] : _buttons[i] = True
     }</code></pre>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-82-1"><a id="__codelineno-82-1" name="__codelineno-82-1" href="#__codelineno-82-1"></a><span class="c1"># Proxy state update on JOYBUTTONDOWN</span>
-</span><span id="__span-82-2"><a id="__codelineno-82-2" name="__codelineno-82-2" href="#__codelineno-82-2"></a><span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buttons</span><span class="p">):</span>
-</span><span id="__span-82-3"><a id="__codelineno-82-3" name="__codelineno-82-3" href="#__codelineno-82-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_buttons</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buttons</span><span class="p">)))</span>
-</span><span id="__span-82-4"><a id="__codelineno-82-4" name="__codelineno-82-4" href="#__codelineno-82-4"></a><span class="bp">self</span><span class="o">.</span><span class="n">_buttons</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">button</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-</span><span id="__span-82-5"><a id="__codelineno-82-5" name="__codelineno-82-5" href="#__codelineno-82-5"></a>
-</span><span id="__span-82-6"><a id="__codelineno-82-6" name="__codelineno-82-6" href="#__codelineno-82-6"></a><span class="c1"># Proxy state update on JOYBUTTONUP</span>
-</span><span id="__span-82-7"><a id="__codelineno-82-7" name="__codelineno-82-7" href="#__codelineno-82-7"></a><span class="bp">self</span><span class="o">.</span><span class="n">_buttons</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">button</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-83-1"><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a><span class="c1"># Proxy state update on JOYBUTTONDOWN</span>
+</span><span id="__span-83-2"><a id="__codelineno-83-2" name="__codelineno-83-2" href="#__codelineno-83-2"></a><span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buttons</span><span class="p">):</span>
+</span><span id="__span-83-3"><a id="__codelineno-83-3" name="__codelineno-83-3" href="#__codelineno-83-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_buttons</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buttons</span><span class="p">)))</span>
+</span><span id="__span-83-4"><a id="__codelineno-83-4" name="__codelineno-83-4" href="#__codelineno-83-4"></a><span class="bp">self</span><span class="o">.</span><span class="n">_buttons</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">button</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+</span><span id="__span-83-5"><a id="__codelineno-83-5" name="__codelineno-83-5" href="#__codelineno-83-5"></a>
+</span><span id="__span-83-6"><a id="__codelineno-83-6" name="__codelineno-83-6" href="#__codelineno-83-6"></a><span class="c1"># Proxy state update on JOYBUTTONUP</span>
+</span><span id="__span-83-7"><a id="__codelineno-83-7" name="__codelineno-83-7" href="#__codelineno-83-7"></a><span class="bp">self</span><span class="o">.</span><span class="n">_buttons</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">button</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
 </span></code></pre></div>
 <h4 id="axis-state">Axis state<a class="headerlink" href="#axis-state" title="Permanent link">#</a></h4>
 <p>Axes are tracked as a <code>list[float]</code>. Each axis value ranges from -1.0 to 1.0.</p>
@@ -6376,8 +6448,8 @@ it nor forwards it. The snippets below are the state updates, simplified.</p>
     state Updated {
         [*] : _axes[i] = event.value, range -1.0 to 1.0
     }</code></pre>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-83-1"><a id="__codelineno-83-1" name="__codelineno-83-1" href="#__codelineno-83-1"></a><span class="c1"># Proxy state update on JOYAXISMOTION</span>
-</span><span id="__span-83-2"><a id="__codelineno-83-2" name="__codelineno-83-2" href="#__codelineno-83-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">axis</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">value</span>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-84-1"><a id="__codelineno-84-1" name="__codelineno-84-1" href="#__codelineno-84-1"></a><span class="c1"># Proxy state update on JOYAXISMOTION</span>
+</span><span id="__span-84-2"><a id="__codelineno-84-2" name="__codelineno-84-2" href="#__codelineno-84-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">axis</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">value</span>
 </span></code></pre></div>
 <h4 id="hat-state">Hat state<a class="headerlink" href="#hat-state" title="Permanent link">#</a></h4>
 <p>Hats (D-pads) are tracked as a <code>list[tuple[int, int]]</code>. Each value is an
@@ -6394,14 +6466,14 @@ it nor forwards it. The snippets below are the state updates, simplified.</p>
     state Pressed {
         [*] : _hats[i] = tuple x,y where each is -1, 0, or 1
     }</code></pre>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-84-1"><a id="__codelineno-84-1" name="__codelineno-84-1" href="#__codelineno-84-1"></a><span class="c1"># Proxy state update on JOYHATMOTION</span>
-</span><span id="__span-84-2"><a id="__codelineno-84-2" name="__codelineno-84-2" href="#__codelineno-84-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_hats</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">hat</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">value</span>  <span class="c1"># (x, y) tuple</span>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-85-1"><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a><span class="c1"># Proxy state update on JOYHATMOTION</span>
+</span><span id="__span-85-2"><a id="__codelineno-85-2" name="__codelineno-85-2" href="#__codelineno-85-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_hats</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">hat</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">value</span>  <span class="c1"># (x, y) tuple</span>
 </span></code></pre></div>
 <h4 id="trackball-state">Trackball state<a class="headerlink" href="#trackball-state" title="Permanent link">#</a></h4>
 <p>Trackballs are tracked as a <code>list[tuple[int, int]]</code> (starting at <code>(0, 0)</code>: they
 are not in the snapshot) storing the relative motion of the last event.</p>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-85-1"><a id="__codelineno-85-1" name="__codelineno-85-1" href="#__codelineno-85-1"></a><span class="c1"># Proxy state update on JOYBALLMOTION</span>
-</span><span id="__span-85-2"><a id="__codelineno-85-2" name="__codelineno-85-2" href="#__codelineno-85-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_balls</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">ball</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">rel</span>  <span class="c1"># (dx, dy) tuple</span>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-86-1"><a id="__codelineno-86-1" name="__codelineno-86-1" href="#__codelineno-86-1"></a><span class="c1"># Proxy state update on JOYBALLMOTION</span>
+</span><span id="__span-86-2"><a id="__codelineno-86-2" name="__codelineno-86-2" href="#__codelineno-86-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_balls</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">ball</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">rel</span>  <span class="c1"># (dx, dy) tuple</span>
 </span></code></pre></div>
 <h3 id="controller-state-tracking">Controller state tracking<a class="headerlink" href="#controller-state-tracking" title="Permanent link">#</a></h3>
 <p>Controllers use the same button and axis state tracking as joysticks, but with
@@ -6422,16 +6494,16 @@ dynamically for non-standard buttons.</p>
     state Pressed {
         [*] : _buttons[i] = True
     }</code></pre>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-86-1"><a id="__codelineno-86-1" name="__codelineno-86-1" href="#__codelineno-86-1"></a><span class="c1"># Standard SDL GameController button constants</span>
-</span><span id="__span-86-2"><a id="__codelineno-86-2" name="__codelineno-86-2" href="#__codelineno-86-2"></a><span class="n">BUTTONS</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-86-3"><a id="__codelineno-86-3" name="__codelineno-86-3" href="#__codelineno-86-3"></a>    <span class="n">CONTROLLER_BUTTON_A</span><span class="p">,</span>      <span class="n">CONTROLLER_BUTTON_B</span><span class="p">,</span>
-</span><span id="__span-86-4"><a id="__codelineno-86-4" name="__codelineno-86-4" href="#__codelineno-86-4"></a>    <span class="n">CONTROLLER_BUTTON_X</span><span class="p">,</span>      <span class="n">CONTROLLER_BUTTON_Y</span><span class="p">,</span>
-</span><span id="__span-86-5"><a id="__codelineno-86-5" name="__codelineno-86-5" href="#__codelineno-86-5"></a>    <span class="n">CONTROLLER_BUTTON_DPAD_UP</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_DPAD_DOWN</span><span class="p">,</span>
-</span><span id="__span-86-6"><a id="__codelineno-86-6" name="__codelineno-86-6" href="#__codelineno-86-6"></a>    <span class="n">CONTROLLER_BUTTON_DPAD_LEFT</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_DPAD_RIGHT</span><span class="p">,</span>
-</span><span id="__span-86-7"><a id="__codelineno-86-7" name="__codelineno-86-7" href="#__codelineno-86-7"></a>    <span class="n">CONTROLLER_BUTTON_LEFTSHOULDER</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_RIGHTSHOULDER</span><span class="p">,</span>
-</span><span id="__span-86-8"><a id="__codelineno-86-8" name="__codelineno-86-8" href="#__codelineno-86-8"></a>    <span class="n">CONTROLLER_BUTTON_LEFTSTICK</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_RIGHTSTICK</span><span class="p">,</span>
-</span><span id="__span-86-9"><a id="__codelineno-86-9" name="__codelineno-86-9" href="#__codelineno-86-9"></a>    <span class="n">CONTROLLER_BUTTON_BACK</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_GUIDE</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_START</span><span class="p">,</span>
-</span><span id="__span-86-10"><a id="__codelineno-86-10" name="__codelineno-86-10" href="#__codelineno-86-10"></a><span class="p">]</span>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-87-1"><a id="__codelineno-87-1" name="__codelineno-87-1" href="#__codelineno-87-1"></a><span class="c1"># Standard SDL GameController button constants</span>
+</span><span id="__span-87-2"><a id="__codelineno-87-2" name="__codelineno-87-2" href="#__codelineno-87-2"></a><span class="n">BUTTONS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-87-3"><a id="__codelineno-87-3" name="__codelineno-87-3" href="#__codelineno-87-3"></a>    <span class="n">CONTROLLER_BUTTON_A</span><span class="p">,</span>      <span class="n">CONTROLLER_BUTTON_B</span><span class="p">,</span>
+</span><span id="__span-87-4"><a id="__codelineno-87-4" name="__codelineno-87-4" href="#__codelineno-87-4"></a>    <span class="n">CONTROLLER_BUTTON_X</span><span class="p">,</span>      <span class="n">CONTROLLER_BUTTON_Y</span><span class="p">,</span>
+</span><span id="__span-87-5"><a id="__codelineno-87-5" name="__codelineno-87-5" href="#__codelineno-87-5"></a>    <span class="n">CONTROLLER_BUTTON_DPAD_UP</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_DPAD_DOWN</span><span class="p">,</span>
+</span><span id="__span-87-6"><a id="__codelineno-87-6" name="__codelineno-87-6" href="#__codelineno-87-6"></a>    <span class="n">CONTROLLER_BUTTON_DPAD_LEFT</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_DPAD_RIGHT</span><span class="p">,</span>
+</span><span id="__span-87-7"><a id="__codelineno-87-7" name="__codelineno-87-7" href="#__codelineno-87-7"></a>    <span class="n">CONTROLLER_BUTTON_LEFTSHOULDER</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_RIGHTSHOULDER</span><span class="p">,</span>
+</span><span id="__span-87-8"><a id="__codelineno-87-8" name="__codelineno-87-8" href="#__codelineno-87-8"></a>    <span class="n">CONTROLLER_BUTTON_LEFTSTICK</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_RIGHTSTICK</span><span class="p">,</span>
+</span><span id="__span-87-9"><a id="__codelineno-87-9" name="__codelineno-87-9" href="#__codelineno-87-9"></a>    <span class="n">CONTROLLER_BUTTON_BACK</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_GUIDE</span><span class="p">,</span> <span class="n">CONTROLLER_BUTTON_START</span><span class="p">,</span>
+</span><span id="__span-87-10"><a id="__codelineno-87-10" name="__codelineno-87-10" href="#__codelineno-87-10"></a><span class="p">]</span>
 </span></code></pre></div>
 <h4 id="controller-axis-state">Controller axis state<a class="headerlink" href="#controller-axis-state" title="Permanent link">#</a></h4>
 <p>Six fixed axes with semantic names. Values range from -32768 to 32767 for
@@ -6447,12 +6519,12 @@ sticks, 0 to 32767 for triggers.</p>
     state Updated {
         [*] : _axes[i] = event.value
     }</code></pre>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-87-1"><a id="__codelineno-87-1" name="__codelineno-87-1" href="#__codelineno-87-1"></a><span class="c1"># Standard SDL GameController axis constants</span>
-</span><span id="__span-87-2"><a id="__codelineno-87-2" name="__codelineno-87-2" href="#__codelineno-87-2"></a><span class="n">AXIS</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-87-3"><a id="__codelineno-87-3" name="__codelineno-87-3" href="#__codelineno-87-3"></a>    <span class="n">CONTROLLER_AXIS_LEFTX</span><span class="p">,</span>       <span class="n">CONTROLLER_AXIS_LEFTY</span><span class="p">,</span>
-</span><span id="__span-87-4"><a id="__codelineno-87-4" name="__codelineno-87-4" href="#__codelineno-87-4"></a>    <span class="n">CONTROLLER_AXIS_RIGHTX</span><span class="p">,</span>      <span class="n">CONTROLLER_AXIS_RIGHTY</span><span class="p">,</span>
-</span><span id="__span-87-5"><a id="__codelineno-87-5" name="__codelineno-87-5" href="#__codelineno-87-5"></a>    <span class="n">CONTROLLER_AXIS_TRIGGERLEFT</span><span class="p">,</span> <span class="n">CONTROLLER_AXIS_TRIGGERRIGHT</span><span class="p">,</span>
-</span><span id="__span-87-6"><a id="__codelineno-87-6" name="__codelineno-87-6" href="#__codelineno-87-6"></a><span class="p">]</span>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-88-1"><a id="__codelineno-88-1" name="__codelineno-88-1" href="#__codelineno-88-1"></a><span class="c1"># Standard SDL GameController axis constants</span>
+</span><span id="__span-88-2"><a id="__codelineno-88-2" name="__codelineno-88-2" href="#__codelineno-88-2"></a><span class="n">AXIS</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-88-3"><a id="__codelineno-88-3" name="__codelineno-88-3" href="#__codelineno-88-3"></a>    <span class="n">CONTROLLER_AXIS_LEFTX</span><span class="p">,</span>       <span class="n">CONTROLLER_AXIS_LEFTY</span><span class="p">,</span>
+</span><span id="__span-88-4"><a id="__codelineno-88-4" name="__codelineno-88-4" href="#__codelineno-88-4"></a>    <span class="n">CONTROLLER_AXIS_RIGHTX</span><span class="p">,</span>      <span class="n">CONTROLLER_AXIS_RIGHTY</span><span class="p">,</span>
+</span><span id="__span-88-5"><a id="__codelineno-88-5" name="__codelineno-88-5" href="#__codelineno-88-5"></a>    <span class="n">CONTROLLER_AXIS_TRIGGERLEFT</span><span class="p">,</span> <span class="n">CONTROLLER_AXIS_TRIGGERRIGHT</span><span class="p">,</span>
+</span><span id="__span-88-6"><a id="__codelineno-88-6" name="__codelineno-88-6" href="#__codelineno-88-6"></a><span class="p">]</span>
 </span></code></pre></div>
 <h2 id="unhandled-event-safety-net">Unhandled Event Safety Net<a class="headerlink" href="#unhandled-event-safety-net" title="Permanent link">#</a></h2>
 <p>When an event has no handler, the stub system catches it. The behavior is
@@ -6651,22 +6723,22 @@ the type and returns whether it handled it.</p>
 <pre class="mermaid"><code>flowchart LR
     EVENT["Incoming event\nevent.type = 768\n#40;KEYDOWN#41;"] --&gt; LOOKUP["self.event_handlers#91;768#93;"]
     LOOKUP --&gt; HANDLER["process_keyboard_event#40;event#41;"]</code></pre>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-88-1"><a id="__codelineno-88-1" name="__codelineno-88-1" href="#__codelineno-88-1"></a><span class="c1"># What the dict looks like after construction:</span>
-</span><span id="__span-88-2"><a id="__codelineno-88-2" name="__codelineno-88-2" href="#__codelineno-88-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">event_handlers</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-88-3"><a id="__codelineno-88-3" name="__codelineno-88-3" href="#__codelineno-88-3"></a>    <span class="mi">768</span><span class="p">:</span> <span class="n">process_keyboard_event</span><span class="p">,</span>   <span class="c1"># KEYDOWN</span>
-</span><span id="__span-88-4"><a id="__codelineno-88-4" name="__codelineno-88-4" href="#__codelineno-88-4"></a>    <span class="mi">769</span><span class="p">:</span> <span class="n">process_keyboard_event</span><span class="p">,</span>   <span class="c1"># KEYUP</span>
-</span><span id="__span-88-5"><a id="__codelineno-88-5" name="__codelineno-88-5" href="#__codelineno-88-5"></a>    <span class="mi">1024</span><span class="p">:</span> <span class="n">process_mouse_event</span><span class="p">,</span>     <span class="c1"># MOUSEMOTION</span>
-</span><span id="__span-88-6"><a id="__codelineno-88-6" name="__codelineno-88-6" href="#__codelineno-88-6"></a>    <span class="mi">1025</span><span class="p">:</span> <span class="n">process_mouse_event</span><span class="p">,</span>     <span class="c1"># MOUSEBUTTONDOWN</span>
-</span><span id="__span-88-7"><a id="__codelineno-88-7" name="__codelineno-88-7" href="#__codelineno-88-7"></a>    <span class="mi">1026</span><span class="p">:</span> <span class="n">process_mouse_event</span><span class="p">,</span>     <span class="c1"># MOUSEBUTTONUP</span>
-</span><span id="__span-88-8"><a id="__codelineno-88-8" name="__codelineno-88-8" href="#__codelineno-88-8"></a>    <span class="c1"># ... one entry per pygame event type</span>
-</span><span id="__span-88-9"><a id="__codelineno-88-9" name="__codelineno-88-9" href="#__codelineno-88-9"></a><span class="p">}</span>
-</span><span id="__span-88-10"><a id="__codelineno-88-10" name="__codelineno-88-10" href="#__codelineno-88-10"></a>
-</span><span id="__span-88-11"><a id="__codelineno-88-11" name="__codelineno-88-11" href="#__codelineno-88-11"></a><span class="c1"># Runtime dispatch in GameEngine.process_events — O(1) lookup:</span>
-</span><span id="__span-88-12"><a id="__codelineno-88-12" name="__codelineno-88-12" href="#__codelineno-88-12"></a><span class="n">event_was_handled</span> <span class="o">=</span> <span class="kc">False</span>
-</span><span id="__span-88-13"><a id="__codelineno-88-13" name="__codelineno-88-13" href="#__codelineno-88-13"></a><span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_handlers</span><span class="p">:</span>
-</span><span id="__span-88-14"><a id="__codelineno-88-14" name="__codelineno-88-14" href="#__codelineno-88-14"></a>    <span class="n">event_was_handled</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">event_handlers</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">type</span><span class="p">](</span><span class="n">event</span><span class="p">))</span>
-</span><span id="__span-88-15"><a id="__codelineno-88-15" name="__codelineno-88-15" href="#__codelineno-88-15"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">event_was_handled</span><span class="p">:</span>
-</span><span id="__span-88-16"><a id="__codelineno-88-16" name="__codelineno-88-16" href="#__codelineno-88-16"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">process_unimplemented_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-89-1"><a id="__codelineno-89-1" name="__codelineno-89-1" href="#__codelineno-89-1"></a><span class="c1"># What the dict looks like after construction:</span>
+</span><span id="__span-89-2"><a id="__codelineno-89-2" name="__codelineno-89-2" href="#__codelineno-89-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">event_handlers</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-89-3"><a id="__codelineno-89-3" name="__codelineno-89-3" href="#__codelineno-89-3"></a>    <span class="mi">768</span><span class="p">:</span> <span class="n">process_keyboard_event</span><span class="p">,</span>   <span class="c1"># KEYDOWN</span>
+</span><span id="__span-89-4"><a id="__codelineno-89-4" name="__codelineno-89-4" href="#__codelineno-89-4"></a>    <span class="mi">769</span><span class="p">:</span> <span class="n">process_keyboard_event</span><span class="p">,</span>   <span class="c1"># KEYUP</span>
+</span><span id="__span-89-5"><a id="__codelineno-89-5" name="__codelineno-89-5" href="#__codelineno-89-5"></a>    <span class="mi">1024</span><span class="p">:</span> <span class="n">process_mouse_event</span><span class="p">,</span>     <span class="c1"># MOUSEMOTION</span>
+</span><span id="__span-89-6"><a id="__codelineno-89-6" name="__codelineno-89-6" href="#__codelineno-89-6"></a>    <span class="mi">1025</span><span class="p">:</span> <span class="n">process_mouse_event</span><span class="p">,</span>     <span class="c1"># MOUSEBUTTONDOWN</span>
+</span><span id="__span-89-7"><a id="__codelineno-89-7" name="__codelineno-89-7" href="#__codelineno-89-7"></a>    <span class="mi">1026</span><span class="p">:</span> <span class="n">process_mouse_event</span><span class="p">,</span>     <span class="c1"># MOUSEBUTTONUP</span>
+</span><span id="__span-89-8"><a id="__codelineno-89-8" name="__codelineno-89-8" href="#__codelineno-89-8"></a>    <span class="c1"># ... one entry per pygame event type</span>
+</span><span id="__span-89-9"><a id="__codelineno-89-9" name="__codelineno-89-9" href="#__codelineno-89-9"></a><span class="p">}</span>
+</span><span id="__span-89-10"><a id="__codelineno-89-10" name="__codelineno-89-10" href="#__codelineno-89-10"></a>
+</span><span id="__span-89-11"><a id="__codelineno-89-11" name="__codelineno-89-11" href="#__codelineno-89-11"></a><span class="c1"># Runtime dispatch in GameEngine.process_events — O(1) lookup:</span>
+</span><span id="__span-89-12"><a id="__codelineno-89-12" name="__codelineno-89-12" href="#__codelineno-89-12"></a><span class="n">event_was_handled</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span id="__span-89-13"><a id="__codelineno-89-13" name="__codelineno-89-13" href="#__codelineno-89-13"></a><span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">type</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_handlers</span><span class="p">:</span>
+</span><span id="__span-89-14"><a id="__codelineno-89-14" name="__codelineno-89-14" href="#__codelineno-89-14"></a>    <span class="n">event_was_handled</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">event_handlers</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">type</span><span class="p">](</span><span class="n">event</span><span class="p">))</span>
+</span><span id="__span-89-15"><a id="__codelineno-89-15" name="__codelineno-89-15" href="#__codelineno-89-15"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">event_was_handled</span><span class="p">:</span>
+</span><span id="__span-89-16"><a id="__codelineno-89-16" name="__codelineno-89-16" href="#__codelineno-89-16"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">process_unimplemented_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
 </span></code></pre></div>
 
 
@@ -6688,7 +6760,7 @@ the type and returns whether it handled it.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 23:08:06 UTC">November 24, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 04:58:02 UTC">November 25, 2026</span>
   </span>
 
     

@@ -3832,9 +3832,13 @@ talking to, so a replay runs the real engine and the real game code again.</p>
 <p><code>tests/test_engine_doors.py</code> scans the package and fails if any file but
 <code>src/glitchygames/clock.py</code> uses the <code>time</code> module (a read, <code>time.sleep</code>, anything) or reads
 <code>datetime</code>'s now, or if anything outside the doors polls pygame's keyboard or mouse, reads or
-posts pygame events directly, uses pygame's timers, or enumerates or opens joysticks and
-controllers. Its <code>ALLOWED_BYPASSES</code> lists the few exceptions, each with its reason. The engine's
-own pacing, measurement and diagnostics read real time through the clock module's raw functions
+posts pygame events directly, uses pygame's timers, enumerates or opens joysticks and
+controllers, or uses <code>pygame.midi</code> (or PortMidi's <code>pygame.pypm</code> under it) in any literal form
+(import, alias, attribute, <code>importlib.import_module('pygame.midi')</code>), which only
+<code>src/glitchygames/input/devices.py</code> may. A static scan cannot see a module or attribute named as
+the code runs: <code>importlib.import_module(name)</code>, <code>getattr(pygame, name)</code> (a literal <code>'midi'</code>
+there too), <code>sys.modules[...]</code>, <code>exec</code> and <code>eval</code>. Its <code>ALLOWED_BYPASSES</code> lists the few
+exceptions, each with its reason. The engine's own pacing, measurement and diagnostics read real time through the clock module's raw functions
 (<code>raw_counter_ns()</code>, <code>raw_counter_seconds()</code>, <code>raw_sleep()</code>, <code>raw_wall_clock_time()</code>), which are
 never replayed and are not for game code.</p>
 <h2 id="rules-for-game-code">Rules for game code<a class="headerlink" href="#rules-for-game-code" title="Permanent link">#</a></h2>
@@ -3933,6 +3937,20 @@ a descriptor of every opened device. A replay gives the recorded answers and sta
 (<code>ReplayJoystick</code>, <code>ReplayController</code>) whose positions come from the snapshot and whose rumble is
 dropped, so it never needs the recorded hardware and never sees a device that happens to be
 plugged in.</p>
+<p><abbr title="Musical Instrument Digital Interface">MIDI</abbr> ports are devices too, and are enumerated and opened only when a game names one
+(<code>--midi-input NAME</code>, <code>--midi-output NAME</code>): <code>midi_port_count()</code>, <code>midi_port_info(port_id=...)</code>,
+<code>default_midi_input_id()</code>, <code>default_midi_output_id()</code>, <code>open_midi_input(port_id=...)</code> and
+<code>open_midi_output(port_id=...)</code>, each answer recorded like a joystick's. <abbr title="Musical Instrument Digital Interface">MIDI</abbr> input is read in the
+live pump and recorded as ordinary <code>MIDIIN</code> events (see
+<a href="../event_system/#midi-ports"><abbr title="Musical Instrument Digital Interface">MIDI</abbr> ports</a>). A game never reads an input port: live as in a replay
+it holds a handle (<code>MidiInputHandle</code>) whose <code>poll()</code> is False and whose <code>read()</code> is empty, and only
+the door holds the port. A replay serves them from the recording and opens
+<code>ReplayMidiInput</code> and <code>ReplayMidiOutput</code> stand-ins (an input with nothing to read, an output that
+drops writes). With no port named, the door is asked nothing about <abbr title="Musical Instrument Digital Interface">MIDI</abbr> and no <abbr title="Musical Instrument Digital Interface">MIDI</abbr> answer is
+recorded, and a recording made before <abbr title="Musical Instrument Digital Interface">MIDI</abbr> existed replays unchanged. A replay opens the ports its
+recording named (<code>--midi-input</code> and <code>--midi-output</code> are recorded options), not its own command
+line's. Options that are not lists of names make the recording unusable: a replay refuses it
+(<code>UNUSABLE_INPUT</code>), and a playback does not start.</p>
 <h3 id="saves">Saves<a class="headerlink" href="#saves" title="Permanent link">#</a></h3>
 <p>Open a save store with <code>glitchygames.state.open_saves(app_name=...)</code>. Live play gets a
 <code>DiskSaveManager</code>. A replay gets a <code>MemorySaveManager</code> seeded from the recording's snapshot of
@@ -3959,7 +3977,7 @@ the same time are listed by name, so <code>list_slots()</code> gives the same or
   dropped). A supervisor that posts with <code>post_event</code> is taken for the game itself, and a
   replay that does not run it diverges. While a demo or instant replay plays, its input posts
   of <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> types (keys, buttons, device and window events) are the player's input: a press ends
-  a demo, a release is held for the live game, exactly as a replay of the session without the
+  a demo that exits on input, a release is held for the live game, exactly as a replay of the session without the
   supervisor serves them.</li>
 <li>A supervisor may post any event this way, game events (<code>GAMEEVENT</code>, <code>MENUEVENT</code>, any
   <code>pygame.event.custom_type()</code>) included. The rule: input of an <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr> type posted during a demo
@@ -3988,10 +4006,12 @@ supervisor actions replay exactly. A future cheat device will use this hook and 
 header line, then exactly one line per main-loop frame. Each frame holds its <code>dt</code>, every event
 batch the engine read from <abbr title="Simple DirectMedia Layer: the library under pygame-ce that opens windows, plays sound and reads input">SDL</abbr>'s queue (each event tagged <code>external</code> or <code>internal</code>) and the
 sprites. Format 3 adds per-frame <code>input_changes</code>, <code>control_events</code>, <code>devices_opened</code>,
-<code>saves_opened</code> and <code>device_enumeration</code>; later recordings add <code>scene_start</code> and
+<code>saves_opened</code> and <code>device_enumeration</code>; later recordings add <code>midi_ports_opened</code> (and
+<code>midi_ports</code> in the header: the <abbr title="Musical Instrument Digital Interface">MIDI</abbr> ports a run opened), <code>scene_start</code> and
 <code>redelivered_events</code>, which needed no format version (readers pass fields they do not use
 through). Each is written only when not empty. The
-header holds the game, scene and versions, every option, the start time, the random seed, and the
+header holds the game, scene and versions, every option (since <abbr title="Musical Instrument Digital Interface">MIDI</abbr> ports, two more in every
+new recording, <code>midi_input</code> and <code>midi_output</code>, empty when the run named no port), the start time, the random seed, and the
 saves and devices the run took in before recording started. The full format is described in the
 <code>src/glitchygames/recording.py</code> module docstring.</p>
 <h3 id="scene-starts">Scene starts<a class="headerlink" href="#scene-starts" title="Permanent link">#</a></h3>
@@ -4657,8 +4677,8 @@ writes what that code did to NEW: the same inputs and a new picture. The contrac
 <li>NEW holds OLD's inputs as the replay served them: the event batches with their origins
   (code-posted events stay <code>internal</code>, so replaying NEW delivers nothing twice), <code>dt</code>,
   <code>input_changes</code>, re-applied control events, and each frame's <code>saves_opened</code>,
-  <code>devices_opened</code> and <code>device_enumeration</code> copied from OLD. Its sprites and markers are the
-  current code's. Its header is OLD's (seed, start time, options, saves, devices), except the
+  <code>devices_opened</code>, <code>midi_ports_opened</code> and <code>device_enumeration</code> copied from OLD. Its sprites and
+  markers are the current code's. Its header is OLD's (seed, start time, options, saves, devices), except the
   game's names (<code>game_class</code>, <code>game_module</code>, <code>game</code>), which are this run's, with
   <code>rebaselined_from</code> naming OLD and this run's engine, pygame and Python versions.</li>
 <li>A cut-off (truncated) OLD gives NEW <code>source_truncated</code>: NEW ends as truncated too, so its
@@ -5115,8 +5135,10 @@ instant replays and ghosts. Demos and instant replays run in a <strong>playback 
 engine run (<code>src/glitchygames/replay/playback.py</code>'s docstring is the contract): the scene is
 rebuilt from its start (see Scene starts above) on scoped doors that serve the recording, the
 live scene is stashed untouched, saves are a sandbox, the random streams, clocks and <abbr title="Frames per second">FPS</abbr> timer
-are put back afterwards, and the live game's own posts and the player's releases, device and
-window events are held and handed back when the scope ends. A <code>--record-trace</code> session that
+are put back afterwards, and the live game's own posts and the player's releases (<abbr title="Musical Instrument Digital Interface">MIDI</abbr> note-offs
+among them), device and window events, and where each <abbr title="Musical Instrument Digital Interface">MIDI</abbr> control was left, are held and handed
+back when the scope ends. The live controllers and <abbr title="Musical Instrument Digital Interface">MIDI</abbr> ports wait while the scope holds stand-ins
+of its own, so nothing it rumbles or writes reaches a device. A <code>--record-trace</code> session that
 plays a scope records it, and replays it exactly. An error inside the scope ends the scope
 (logged) and the live game goes on. <code>scene_manager.last_playback_outcome</code> says how the last
 scope ended (its kind, reason and frames played).</p>
@@ -5285,7 +5307,7 @@ play: they have no hitbox and change nothing the game does.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 13:41:28 UTC">November 24, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 04:58:02 UTC">November 25, 2026</span>
   </span>
 
     
