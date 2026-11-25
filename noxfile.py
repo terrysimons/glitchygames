@@ -3007,11 +3007,13 @@ def performance_test(session: nox.Session) -> None:
     """
     _install_from_lockfile(session)
 
-    # Override addopts to avoid conflict with --cov flags from pyproject.toml
+    # Override addopts to avoid conflict with --cov flags from pyproject.toml. Its import mode
+    # stays: pytest's default one changes sys.path as a tests package is entered
     session.run(
         'pytest',
         '-o',
         'addopts=',
+        '--import-mode=importlib',
         '-p',
         'no:xdist',
         '--benchmark-only',
