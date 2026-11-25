@@ -17,7 +17,8 @@ entry's index and deleting by it, so Python code there lets another thread or a 
 the dictionary, and the process crashes (measured; the bug record has the details).
 
 A wrapped call does what it did before, raising included, and a fault in the recording is counted
-(``RemovalRecorder.recording_errors``), never raised. An entry is kept before the call runs and
+(``RemovalRecorder.recording_errors``), never raised; a method that is not there is reported as not
+recorded. An entry is kept before the call runs and
 completed after it, so an import that fails during the call still finds the entry. The names
 removed are the keys missing after the call, so another thread's changes meanwhile count in it.
 
@@ -29,9 +30,9 @@ puts the original methods back. Tests: tests/test_module_removals.py.
 
 from __future__ import annotations
 
+import contextlib
 import enum
 import functools
-import gc
 import itertools
 import sys
 import threading
@@ -57,6 +58,12 @@ STACK_LINES_KEPT = 12
 NOT_RECORDED = (
     "Not recorded: direct `del sys.modules[...]` and `sys.modules.pop(...)`, third-party code's "
     "own changes, and importlib's own delete when a module's import fails."
+)
+
+# What the marks are worth, said in every report
+MARKS_ARE_SAMPLES = (
+    'Imports in progress are read just before and just after each call: one marked may overlap it, '
+    'and a missing mark proves nothing.'
 )
 
 # Where importlib's ``_load_unlocked`` runs a module's code
@@ -90,11 +97,14 @@ class Removal(BaseModel):
     test_node_id: str
     stack: tuple[str, ...]
     loads_in_progress: tuple[LoadInProgress, ...]
+    # Those that were in progress after the call and not before
+    loads_after: tuple[LoadInProgress, ...] = ()
     # The names gone after the call (at most NAMES_KEPT) and how many; None while the call runs
     names_removed: tuple[str, ...] | None = None
     removed_count: int = 0
-    # The loads in progress whose module the call removed (all of them for a whole dictionary)
-    overlaps: tuple[LoadInProgress, ...] = ()
+    # The loads in progress (before or after the call) that it may have overlapped: those whose
+    # module it removed, and every one for a whole dictionary
+    may_overlap: tuple[LoadInProgress, ...] = ()
 
 
 def call_stack(frame: FrameType | None) -> tuple[str, ...]:
@@ -120,18 +130,25 @@ def loads_in_progress() -> tuple[LoadInProgress, ...]:
     """
     this_thread = threading.get_ident()
     found: list[LoadInProgress] = []
-    for thread_ident, innermost in sys._current_frames().items():
-        frame: FrameType | None = innermost
-        while frame is not None:
-            code = frame.f_code
-            if code.co_name == LOAD_FUNCTION and code.co_filename == LOAD_FILENAME:
-                found.append(
-                    LoadInProgress(
-                        module=frame.f_locals['spec'].name,
-                        same_thread=thread_ident == this_thread,
+    innermost: FrameType | None = None
+    frame: FrameType | None = None
+    try:
+        for thread_ident, innermost in sys._current_frames().items():
+            frame = innermost
+            while frame is not None:
+                code = frame.f_code
+                if code.co_name == LOAD_FUNCTION and code.co_filename == LOAD_FILENAME:
+                    found.append(
+                        LoadInProgress(
+                            module=frame.f_locals['spec'].name,
+                            same_thread=thread_ident == this_thread,
+                        )
                     )
-                )
-            frame = frame.f_back
+                frame = frame.f_back
+    finally:
+        # One of these frames is this function's own: kept in its own locals, it would be a
+        # reference cycle keeping every caller's locals alive until a garbage collection
+        innermost = frame = None
     return tuple(found)
 
 
@@ -156,11 +173,12 @@ class RemovalRecorder:
         self.running_test_node_id = OUTSIDE_ANY_TEST
         self.recording_errors = 0
         self.installs = 0
+        self.not_wrapped: list[str] = []
         self.startup_modules = sys.modules
         self._orders = itertools.count(1)
         # A ring: removal N is in slot N % REMOVALS_KEPT. Each read and write of a slot is atomic
-        # under the GIL,
-        # so no lock is needed (a finalizer recording on a thread that held one would deadlock)
+        # under the GIL, so no lock is needed (a finalizer recording on a thread that held one
+        # would deadlock)
         self._slots: list[Removal | None] = [None] * REMOVALS_KEPT
         self._wrapped: list[tuple[type, str, Any, Any]] = []
 
@@ -224,7 +242,7 @@ class RemovalRecorder:
                 test_node_id=self.running_test_node_id,
                 stack=stack,
                 loads_in_progress=loads,
-                overlaps=loads if whole_dictionary else (),
+                may_overlap=loads if whole_dictionary else (),
             )
             self._slots[order % REMOVALS_KEPT] = removal
             return removal, set(sys.modules)
@@ -237,13 +255,16 @@ class RemovalRecorder:
         with self:
             removal, names_before = begun
             removed = names_before.difference(sys.modules)
+            before = removal.loads_in_progress
+            after = tuple(load for load in loads_in_progress() if load not in before)
             completed = removal.model_copy(
                 update={
                     'names_removed': tuple(sorted(removed)[:NAMES_KEPT]),
                     'removed_count': len(removed),
-                    'overlaps': tuple(
+                    'loads_after': after,
+                    'may_overlap': tuple(
                         load
-                        for load in removal.loads_in_progress
+                        for load in (*before, *after)
                         if removal.whole_dictionary or load.module in removed
                     ),
                 }
@@ -270,38 +291,94 @@ class RemovalRecorder:
 
         @functools.wraps(original)
         def recorded(*args: Any, **keywords: Any) -> Any:
-            recorded_as = Recorded.NOT
-            with self:
-                recorded_as = decide(self, args, keywords)
-            if recorded_as is Recorded.NOT or not self.installs:
-                return original(*args, **keywords)
-            begun = self.begin(
-                made_by=made_by,
-                whole_dictionary=recorded_as is Recorded.WHOLE_DICTIONARY,
-                caller=sys._getframe(1),
-            )
+            __tracebackhide__ = True
+            result: Any = None
+            begun: tuple[Removal, set[str]] | None = None
+            # Nothing in the recording, Ctrl-C included, may skip the call or hide what it raises
             try:
-                return original(*args, **keywords)
+                recorded_as = Recorded.NOT
+                if self.installs:
+                    with self:
+                        recorded_as = decide(self, args, keywords)
+                if recorded_as is not Recorded.NOT:
+                    begun = self.begin(
+                        made_by=made_by,
+                        whole_dictionary=recorded_as is Recorded.WHOLE_DICTIONARY,
+                        caller=sys._getframe(1),
+                    )
             finally:
-                self.complete(begun)
+                call_raised = True
+                try:
+                    result = original(*args, **keywords)
+                    call_raised = False
+                finally:
+                    with EveryFault(self) if call_raised else self:
+                        self.complete(begun)
+            return result
 
         vars(recorded)[RECORDER_ATTRIBUTE] = self
         return recorded
 
     def wrap_methods(self) -> None:
-        """Put the wrappers in place of ``wrapped_methods``."""
-        for method in wrapped_methods():
-            original = vars(method.owner)[method.name]
-            wrapper = self.wrapping(original=original, made_by=method.made_by, decide=method.decide)
-            setattr(method.owner, method.name, wrapper)
-            self._wrapped.append((method.owner, method.name, original, wrapper))
+        """Put the wrappers in place of ``wrapped_methods``, noting each that cannot be.
+
+        A private method that a new pytest or Python renamed must not stop the run.
+        """
+        wrapped_all = False
+        try:
+            for method in wrapped_methods():
+                self.not_wrapped.append(method.made_by)
+                with self:
+                    owner = method.find_owner()
+                    original = vars(owner)[method.name]
+                    wrapper = self.wrapping(
+                        original=original, made_by=method.made_by, decide=method.decide
+                    )
+                    setattr(owner, method.name, wrapper)
+                    self._wrapped.append((owner, method.name, original, wrapper))
+                    self.not_wrapped.remove(method.made_by)
+            wrapped_all = True
+        finally:
+            if not wrapped_all:
+                self.unwrap_methods()
 
     def unwrap_methods(self) -> None:
         """Put the original methods back (leaving alone one that something else replaced since)."""
         for owner, name, original, wrapper in self._wrapped:
-            if vars(owner)[name] is wrapper:
+            if vars(owner).get(name) is wrapper:
                 setattr(owner, name, original)
         self._wrapped.clear()
+
+
+class EveryFault:
+    """Guards recording while the recorded call's own exception is on its way out.
+
+    A Ctrl-C then is dropped and counted: raised, it would replace that exception.
+    """
+
+    def __init__(self, recorder: RemovalRecorder) -> None:
+        """Count into a recorder."""
+        self.recorder = recorder
+
+    def __enter__(self) -> None:
+        """Guard one piece of recording."""
+
+    def __exit__(
+        self,
+        error_type: type[BaseException] | None,
+        error: BaseException | None,
+        traceback_object: TracebackType | None,
+    ) -> bool:
+        """Count a fault in the recording, and keep it from the call being recorded.
+
+        Returns:
+            Always True.
+
+        """
+        del error_type, traceback_object
+        if error is not None:
+            self.recorder.recording_errors += 1
+        return True
 
 
 class Recorded(enum.Enum):
@@ -318,7 +395,7 @@ type Decision = Callable[[RemovalRecorder, tuple[Any, ...], Mapping[str, Any]], 
 class WrappedMethod(NamedTuple):
     """A method whose calls are recorded."""
 
-    owner: type
+    find_owner: Callable[[], type]
     name: str
     made_by: str
     decide: Decision
@@ -335,8 +412,12 @@ def patch_start(
     """
     del keywords
     patcher = args[0]
-    targets_modules = patcher.in_dict == 'sys.modules' or recorder.is_modules(patcher.in_dict)
-    return Recorded.WHOLE_DICTIONARY if patcher.clear and targets_modules else Recorded.NOT
+    if not patcher.clear:
+        return Recorded.NOT
+    target = patcher.in_dict
+    # Only a string is compared: a dictionary-like target's __eq__ is the test's own code
+    named = isinstance(target, str) and target == 'sys.modules'
+    return Recorded.WHOLE_DICTIONARY if named or recorder.is_modules(target) else Recorded.NOT
 
 
 def patch_end(
@@ -392,51 +473,93 @@ def monkeypatch_undo(
     return Recorded.SOME_ENTRIES if changed else Recorded.NOT
 
 
-def wrapped_methods() -> tuple[WrappedMethod, ...]:
-    """List the methods wrapped, importing pytester only now.
+def patch_dict_class() -> type:
+    """Find the class behind ``patch.dict``.
+
+    Returns:
+        ``unittest.mock``'s ``_patch_dict``.
+
+    """
+    return type(mock.patch.dict({}))
+
+
+def snapshot_class() -> type:
+    """Find pytester's snapshot class, importing pytester only now.
 
     Imported at the top of a plugin, pytester would come before ``-p pytester`` could ask for it,
     and pytest would warn that it is too late to rewrite its asserts.
 
     Returns:
-        Every method whose calls are recorded.
+        ``SysModulesSnapshot``.
 
     """
     from _pytest.pytester import SysModulesSnapshot
 
-    patch_dict_class = type(mock.patch.dict({}))
+    return SysModulesSnapshot
+
+
+def monkeypatch_class() -> type:
+    """Find the class behind ``monkeypatch``.
+
+    Returns:
+        ``pytest.MonkeyPatch``.
+
+    """
+    return pytest.MonkeyPatch
+
+
+def wrapped_methods() -> tuple[WrappedMethod, ...]:
+    """List the methods wrapped.
+
+    Returns:
+        Every method whose calls are recorded.
+
+    """
     return (
         WrappedMethod(
-            owner=patch_dict_class,
+            find_owner=patch_dict_class,
             name='_patch_dict',
             made_by='patch.dict(sys.modules, clear=True) starting',
             decide=patch_start,
         ),
         WrappedMethod(
-            owner=patch_dict_class,
+            find_owner=patch_dict_class,
             name='_unpatch_dict',
             made_by='patch.dict(sys.modules) ending (clears the dictionary, then refills it)',
             decide=patch_end,
         ),
         WrappedMethod(
-            owner=SysModulesSnapshot,
+            find_owner=snapshot_class,
             name='restore',
             made_by='pytester SysModulesSnapshot.restore (clears the dictionary, then refills it)',
             decide=snapshot_restore,
         ),
         WrappedMethod(
-            owner=pytest.MonkeyPatch,
+            find_owner=monkeypatch_class,
             name='delitem',
             made_by='monkeypatch.delitem(sys.modules, ...)',
             decide=monkeypatch_delitem,
         ),
         WrappedMethod(
-            owner=pytest.MonkeyPatch,
+            find_owner=monkeypatch_class,
             name='undo',
             made_by='monkeypatch.undo of changes to sys.modules',
             decide=monkeypatch_undo,
         ),
     )
+
+
+def recorder_in_place() -> RemovalRecorder | None:
+    """Find the recorder whose wrappers are in place.
+
+    Returns:
+        The recorder any wrapped method carries, or None.
+
+    """
+    for method in wrapped_methods():
+        with contextlib.suppress(ImportError, AttributeError):
+            return getattr(getattr(method.find_owner(), method.name), RECORDER_ATTRIBUTE)
+    return None
 
 
 def install() -> RemovalRecorder:
@@ -446,7 +569,7 @@ def install() -> RemovalRecorder:
         The process's recorder; each install needs one ``release``.
 
     """
-    recorder = getattr(pytest.MonkeyPatch.undo, RECORDER_ATTRIBUTE, None)
+    recorder = recorder_in_place()
     if recorder is None:
         recorder = RemovalRecorder()
         recorder.wrap_methods()
@@ -478,7 +601,7 @@ def removal_report(removal: Removal) -> str:
         What made it, where, what it removed, the loads it overlapped, and its stack.
 
     """
-    mark = ' *** OVERLAPS AN IMPORT ***' if removal.overlaps else ''
+    mark = ' *** MAY OVERLAP AN IMPORT ***' if removal.may_overlap else ''
     main = 'the main thread' if removal.on_main_thread else 'not the main thread'
     if removal.names_removed is None:
         removed = 'still running when this was written'
@@ -493,9 +616,13 @@ def removal_report(removal: Removal) -> str:
         f'  {removed}',
         f'  thread: {removal.thread_name} ({main}), during: {removal.test_node_id}',
     ]
-    if removal.overlaps:
-        lines.append(f'  overlapped: {", ".join(map(load_report, removal.overlaps))}')
-    others = [load for load in removal.loads_in_progress if load not in removal.overlaps]
+    if removal.may_overlap:
+        lines.append(f'  may overlap: {", ".join(map(load_report, removal.may_overlap))}')
+    others = [
+        load
+        for load in (*removal.loads_in_progress, *removal.loads_after)
+        if load not in removal.may_overlap
+    ]
     if others:
         lines.append(f'  other modules executing: {", ".join(map(load_report, others))}')
     lines.extend(f'    {line}' for line in removal.stack)
@@ -512,6 +639,8 @@ def removals_report(recorder: RemovalRecorder) -> str:
     removals = recorder.removals()
     blocks = [
         NOT_RECORDED,
+        *(f'not recorded: {name} (its method was not found)' for name in recorder.not_wrapped),
+        MARKS_ARE_SAMPLES,
         f'The newest {REMOVALS_KEPT} are kept',
         f'Faults in the recording: {recorder.recording_errors}',
         *(removal_report(removal) for removal in removals),
@@ -519,48 +648,3 @@ def removals_report(recorder: RemovalRecorder) -> str:
     if not removals:
         blocks.append('none recorded')
     return '\n'.join(blocks)
-
-
-def failed_module(error: BaseException) -> str | None:
-    """Return the module an import failure names.
-
-    Returns:
-        A ``KeyError``'s key, an ``ImportError``'s module, or None when there is neither.
-
-    """
-    match error:
-        case KeyError(args=(str() as name,)):
-            return name
-        case ImportError(name=name):
-            return name
-        case _:
-            return None
-
-
-def modules_state_report(*, error: BaseException, recorder: RemovalRecorder) -> str:
-    """Describe ``sys.modules`` and garbage collection at the failure.
-
-    Returns:
-        Whether the failed module and each parent package is in ``sys.modules``, whether that is
-        still the dictionary seen at startup, and the process's garbage-collection state.
-
-    """
-    lines: list[str] = []
-    name = failed_module(error)
-    if name is None:
-        lines.append('the failure names no module')
-    else:
-        parts = name.split('.')
-        for length in range(len(parts), 0, -1):
-            part_name = '.'.join(parts[:length])
-            present = 'in' if part_name in sys.modules else 'NOT in'
-            lines.append(f'{part_name}: {present} sys.modules')
-    same = sys.modules is recorder.startup_modules
-    lines.extend((
-        'sys.modules is the dictionary seen at startup'
-        if same
-        else 'sys.modules is NOT the dictionary seen at startup: it was rebound',
-        f'garbage collection: {"enabled" if gc.isenabled() else "disabled"}',
-        f'garbage collection counts {gc.get_count()}, thresholds {gc.get_threshold()}',
-    ))
-    return '\n'.join(lines)

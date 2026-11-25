@@ -8,6 +8,8 @@ import itertools
 import sys
 import threading
 import types
+import weakref
+from collections import UserDict
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,7 @@ from _pytest.pytester import SysModulesSnapshot
 
 from tests import module_removals
 from tests.module_removals import (
+    MARKS_ARE_SAMPLES,
     NAMES_KEPT,
     NOT_RECORDED,
     RECORDER_ATTRIBUTE,
@@ -348,11 +351,11 @@ def test_a_removal_by_the_importing_thread_is_marked_same_thread(
 
     removal = recorder.removals()[0]
     assert removal.names_removed == ('removed_by_itself',)
-    assert removal.overlaps == (LoadInProgress(module='removed_by_itself', same_thread=True),)
+    assert removal.may_overlap == (LoadInProgress(module='removed_by_itself', same_thread=True),)
     assert removal.stack[0].endswith(f' {function}')
     report = module_removals.removal_report(removal)
-    assert 'OVERLAPS AN IMPORT' in report
-    assert 'overlapped: removed_by_itself (the same thread)' in report
+    assert 'MAY OVERLAP AN IMPORT' in report
+    assert 'may overlap: removed_by_itself (the same thread)' in report
 
 
 def test_a_removal_of_something_else_during_an_import_is_not_an_overlap(
@@ -371,9 +374,9 @@ def test_a_removal_of_something_else_during_an_import_is_not_an_overlap(
         sys.modules.pop('removes_another', None)
 
     removal = recorder.removals()[0]
-    assert removal.overlaps == ()
+    assert removal.may_overlap == ()
     report = module_removals.removal_report(removal)
-    assert 'OVERLAPS' not in report
+    assert 'MAY OVERLAP' not in report
     assert 'other modules executing: removes_another (the same thread)' in report
 
 
@@ -390,58 +393,323 @@ def test_an_empty_record_says_so_and_what_is_not_recorded():
     report = module_removals.removals_report(module_removals.RemovalRecorder())
 
     assert NOT_RECORDED in report
+    assert MARKS_ARE_SAMPLES in report
     assert 'none recorded' in report
 
 
-@pytest.mark.parametrize(
-    ('error', 'expected'),
-    [
-        (KeyError('sys.missing_part'), ['sys.missing_part: NOT in sys.modules', 'sys: in']),
-        (ImportError('x', name='sys'), ['sys: in sys.modules']),
-        (ImportError('x'), ['the failure names no module']),
-        (KeyError(3), ['the failure names no module']),
-        (ValueError('x'), ['the failure names no module']),
-    ],
-)
-def test_the_state_says_whether_the_module_and_its_packages_are_present(error, expected):
-    """The name comes from KeyError or ImportError; each parent package is looked up too."""
-    report = module_removals.modules_state_report(
-        error=error, recorder=module_removals.RemovalRecorder()
-    )
-
-    for line in expected:
-        assert line in report
-    assert 'sys.modules is the dictionary seen at startup' in report
-
-
-def test_the_state_says_when_sys_modules_was_rebound(monkeypatch):
-    """A new dictionary in sys.modules's place is named as such; both count as sys.modules."""
+def test_both_dictionaries_count_once_sys_modules_is_rebound(monkeypatch):
+    """The one seen at startup and the one there now are both sys.modules."""
     recorder = module_removals.RemovalRecorder()
     original = sys.modules
     monkeypatch.setattr(sys, 'modules', dict(sys.modules))
 
-    report = module_removals.modules_state_report(error=KeyError('sys'), recorder=recorder)
-
-    assert 'sys.modules is NOT the dictionary seen at startup' in report
     assert recorder.is_modules(original)
     assert recorder.is_modules(sys.modules)
 
 
-@pytest.mark.parametrize(('enabled', 'word'), [(True, 'enabled'), (False, 'disabled')])
-def test_the_state_says_whether_garbage_collection_is_on(mocker, enabled, word):
-    """Off, no finalizer of a cycle could have run by itself."""
-    mocker.patch.object(gc, 'isenabled', return_value=enabled)
+def by_delitem() -> None:
+    """Remove a name through monkeypatch."""
+    sys.modules[STAND_IN] = types.ModuleType(STAND_IN)
+    with pytest.MonkeyPatch.context() as context:
+        context.delitem(sys.modules, STAND_IN)
+    sys.modules.pop(STAND_IN)
 
-    report = module_removals.modules_state_report(
-        error=KeyError('sys'), recorder=module_removals.RemovalRecorder()
+
+def by_undo() -> None:
+    """Remove a name by undoing a setitem."""
+    with pytest.MonkeyPatch.context() as context:
+        context.setitem(sys.modules, STAND_IN, types.ModuleType(STAND_IN))
+
+
+class Held:
+    """A caller's local that can be watched."""
+
+
+@pytest.mark.parametrize('beside_another_thread', [False, True])
+@pytest.mark.parametrize('remove', [by_delitem, by_undo, 'patch_dict'])
+def test_recording_keeps_nothing_of_the_caller_alive(
+    recorder, mocker, remove, beside_another_thread
+):
+    """With collection off, the caller's locals go when it returns, and nothing of ours is left."""
+    patch_dict = mocker.mock_module.patch.dict
+
+    def call_it() -> weakref.ref[Held]:
+        held = Held()
+        if remove == 'patch_dict':
+            with patch_dict(sys.modules):
+                pass
+        else:
+            remove()
+        return weakref.ref(held)
+
+    release = threading.Event()
+    other = threading.Thread(target=release.wait, name='beside')
+    if beside_another_thread:
+        other.start()
+    was_enabled = gc.isenabled()
+    flags = gc.get_debug()
+    gc.collect()
+    gc.disable()
+    try:
+        held = call_it()
+        assert held() is None
+        gc.set_debug(gc.DEBUG_SAVEALL)
+        gc.collect()
+        ours = [
+            found
+            for found in gc.garbage
+            if type(found).__module__ == module_removals.__name__
+            or (
+                isinstance(found, types.FrameType)
+                and found.f_code.co_filename == module_removals.__file__
+            )
+        ]
+        assert ours == []
+    finally:
+        gc.set_debug(flags)
+        gc.garbage.clear()
+        if was_enabled:
+            gc.enable()
+        release.set()
+        if beside_another_thread:
+            other.join()
+
+
+def test_every_load_on_a_stack_is_found(recorder, stand_in, tmp_path, monkeypatch):
+    """A module importing another is loading too: the scan goes past the first load it finds."""
+    (tmp_path / 'outer_load_probe.py').write_text('import inner_load_probe\n')
+    (tmp_path / 'inner_load_probe.py').write_text(
+        'import sys, pytest\n'
+        'pytest.MonkeyPatch().delitem(sys.modules, "outer_load_probe")\n'
+        'sys.modules["outer_load_probe"] = sys.modules[__name__]\n'
+    )
+    monkeypatch.syspath_prepend(tmp_path)
+    try:
+        importlib.import_module('outer_load_probe')
+    finally:
+        sys.modules.pop('outer_load_probe', None)
+        sys.modules.pop('inner_load_probe', None)
+
+    removal = recorder.removals()[0]
+    assert [load.module for load in removal.loads_in_progress] == [
+        'inner_load_probe',
+        'outer_load_probe',
+    ]
+    assert [load.module for load in removal.may_overlap] == ['outer_load_probe']
+
+
+def test_a_whole_restore_may_overlap_a_load_it_removed_nothing_of(
+    recorder, mocker, tmp_path, monkeypatch
+):
+    """The module was in the snapshot, so it came back; it was gone in between."""
+    (tmp_path / 'restores_probe.py').write_text(
+        'import sys\nfrom unittest import mock\nwith mock.patch.dict(sys.modules):\n    pass\n'
+    )
+    monkeypatch.syspath_prepend(tmp_path)
+    try:
+        importlib.import_module('restores_probe')
+    finally:
+        sys.modules.pop('restores_probe', None)
+
+    removal = recorder.removals()[0]
+    assert removal.names_removed == ()
+    assert removal.may_overlap == (LoadInProgress(module='restores_probe', same_thread=True),)
+
+
+def test_a_whole_restore_is_marked_before_it_ends(recorder, mocker):
+    """An import failing while the restore still runs finds the mark already there."""
+    load = LoadInProgress(module='a_load', same_thread=False)
+    mocker.patch.object(module_removals, 'loads_in_progress', return_value=(load,))
+    begun = recorder.begin(made_by='a probe', whole_dictionary=True, caller=None)
+
+    assert recorder.removals()[0].may_overlap == (load,)
+    mocker.stopall()
+    recorder.complete(begun)
+
+
+@pytest.mark.parametrize(('whole_dictionary', 'marked'), [(True, True), (False, False)])
+def test_a_load_that_began_during_the_call_is_listed_too(
+    recorder, mocker, whole_dictionary, marked
+):
+    """The loads are read again after the call; removing nothing of it, only a restore marks it."""
+    load = LoadInProgress(module='a_load', same_thread=False)
+    mocker.patch.object(module_removals, 'loads_in_progress', side_effect=[(), (load,)])
+    recorder.complete(
+        recorder.begin(made_by='a probe', whole_dictionary=whole_dictionary, caller=None)
+    )
+    mocker.stopall()
+
+    removal = recorder.removals()[0]
+    assert removal.loads_after == (load,)
+    assert removal.may_overlap == ((load,) if marked else ())
+    report = module_removals.removal_report(removal)
+    assert ('MAY OVERLAP' in report) is marked
+    assert ('other modules executing: a_load' in report) is not marked
+
+
+def test_every_method_is_there_to_wrap(recorder):
+    """A pytest or Python that renames one fails here, and nowhere else."""
+    assert len(module_removals.wrapped_methods()) == 5
+    assert recorder.not_wrapped == []
+    for method in wrapped_now():
+        assert vars(method)[RECORDER_ATTRIBUTE] is recorder
+
+
+@pytest.mark.parametrize('missing', ['method', 'class'])
+def test_a_missing_method_is_skipped_and_said(mocker, missing):
+    """The rest are wrapped, and put back; the report names the one that is not."""
+    in_place = wrapped_now()
+    all_methods = module_removals.wrapped_methods()
+    if missing == 'method':
+        broken = all_methods[2]._replace(name='renamed_since')
+    else:
+        broken = all_methods[2]._replace(find_owner=mocker.Mock(side_effect=ImportError))
+    mocker.patch.object(
+        module_removals,
+        'wrapped_methods',
+        return_value=(*all_methods[:2], broken, *all_methods[3:]),
+    )
+    recorder = module_removals.RemovalRecorder()
+    recorder.wrap_methods()
+    try:
+        assert recorder.not_wrapped == [broken.made_by]
+        assert f'not recorded: {broken.made_by}' in module_removals.removals_report(recorder)
+        assert vars(pytest.MonkeyPatch)['undo'] is not in_place[4]
+        assert module_removals.recorder_in_place() is recorder
+    finally:
+        recorder.unwrap_methods()
+        mocker.stopall()
+
+    assert wrapped_now() == in_place
+
+
+def test_no_method_at_all_shares_nothing(mocker):
+    """With nothing to find, there is no recorder in place."""
+    mocker.patch.object(module_removals, 'wrapped_methods', return_value=())
+
+    assert module_removals.recorder_in_place() is None
+
+
+def test_an_interrupted_install_puts_back_what_it_wrapped(mocker):
+    """Ctrl-C half-way leaves no wrapper."""
+    in_place = wrapped_now()
+    all_methods = module_removals.wrapped_methods()
+    stopped = all_methods[1]._replace(find_owner=mocker.Mock(side_effect=KeyboardInterrupt))
+    mocker.patch.object(module_removals, 'wrapped_methods', return_value=(all_methods[0], stopped))
+
+    with pytest.raises(KeyboardInterrupt):
+        module_removals.RemovalRecorder().wrap_methods()
+    mocker.stopall()
+
+    assert wrapped_now() == in_place
+
+
+class ComparedDictionary(UserDict):
+    """A patch target whose comparison must never run."""
+
+    __hash__ = None
+
+    def __eq__(self, other):
+        """Fail: the target is never compared."""
+        pytest.fail('the target was compared')
+
+
+def test_a_targets_own_comparison_is_never_run(recorder, mocker):
+    """patch.dict is given any dictionary-like object; its __eq__ is the test's code."""
+    faults = recorder.recording_errors
+    target = ComparedDictionary(key=1)
+
+    mocker.patch.dict(target, clear=True)
+    assert len(target) == 0
+    mocker.stopall()
+
+    assert len(target) == 1
+    assert recorder.recording_errors == faults
+
+
+def test_the_wrappers_are_hidden_from_tracebacks(pytester, monkeypatch):
+    """A test's own KeyError from delitem shows no frame of ours."""
+    monkeypatch.setenv('PYTHONPATH', str(PROJECT_ROOT))
+    pytester.makepyfile(
+        test_hidden='import sys\n'
+        'def test_it(monkeypatch):\n'
+        "    monkeypatch.delitem(sys.modules, 'no_such_name')\n"
     )
 
-    assert f'garbage collection: {word}' in report
+    result = pytester.runpytest_subprocess(
+        '-p', 'tests.import_failure_threads', '-p', 'no:cacheprovider', '-n', '0', '--no-cov',
+        '-o', 'addopts=',
+    )  # fmt: skip
+
+    result.assert_outcomes(failed=1)
+    assert 'module_removals.py' not in result.stdout.str()
+
+
+@pytest.fixture
+def unshared_recorder():
+    """A recorder of the test's own: the harness's calls never reach its broken parts.
+
+    Returns:
+        It, recording.
+
+    """
+    own = module_removals.RemovalRecorder()
+    own.installs = 1
+    return own
+
+
+@pytest.mark.parametrize('interrupted', ['decide', 'begin'])
+def test_an_interrupt_before_the_call_does_not_skip_it(unshared_recorder, mocker, interrupted):
+    """The restore still happens, and Ctrl-C still reaches the run."""
+    recorder = unshared_recorder
+    original = mocker.Mock(return_value='result')
+    decide = mocker.Mock(return_value=module_removals.Recorded.WHOLE_DICTIONARY)
+    if interrupted == 'decide':
+        decide.side_effect = KeyboardInterrupt
+    else:
+        mocker.patch.object(recorder, 'begin', side_effect=KeyboardInterrupt)
+    method = recorder.wrapping(original=original, made_by='a probe', decide=decide)
+
+    with pytest.raises(KeyboardInterrupt):
+        method('argument', key='value')
+
+    original.assert_called_once_with('argument', key='value')
+
+
+def test_an_interrupt_after_the_call_does_not_hide_what_it_raised(unshared_recorder, mocker):
+    """The call's own exception is the one that gets out; the dropped Ctrl-C is counted."""
+    recorder = unshared_recorder
+    faults = recorder.recording_errors
+    mocker.patch.object(recorder, 'complete', side_effect=KeyboardInterrupt)
+    method = recorder.wrapping(
+        original=mocker.Mock(side_effect=LookupError('its own')),
+        made_by='a probe',
+        decide=mocker.Mock(return_value=module_removals.Recorded.WHOLE_DICTIONARY),
+    )
+
+    with pytest.raises(LookupError, match='its own'):
+        method()
+
+    assert recorder.recording_errors == faults + 1
+
+
+def test_an_interrupt_after_a_call_that_returned_goes_on(unshared_recorder, mocker):
+    """Nothing is hidden by it, so it is raised."""
+    recorder = unshared_recorder
+    mocker.patch.object(recorder, 'complete', side_effect=KeyboardInterrupt)
+    method = recorder.wrapping(
+        original=mocker.Mock(),
+        made_by='a probe',
+        decide=mocker.Mock(return_value=module_removals.Recorded.WHOLE_DICTIONARY),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        method()
 
 
 def wrapped_now() -> list[object]:
     """The methods now in place where the wrappers go."""
-    return [vars(method.owner)[method.name] for method in module_removals.wrapped_methods()]
+    return [vars(method.find_owner())[method.name] for method in module_removals.wrapped_methods()]
 
 
 def test_installing_again_shares_the_wrappers(recorder):

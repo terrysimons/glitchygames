@@ -16,6 +16,7 @@ from tests.import_failure_threads import (
     STATE_SECTION_TITLE,
     live_thread_report,
     raised_by_import_machinery,
+    section_text,
     started_during,
 )
 from tests.module_removals import NOT_RECORDED
@@ -251,15 +252,17 @@ def test_a_removal_during_another_threads_import_is_named_and_marked(
     removals = section(output, REMOVALS_SECTION_TITLE)
     newest = removals[removals.index('#') :]
     assert newest.split('\n')[0].partition(' ')[2].startswith(made_by)
-    assert newest.split('\n')[0].endswith('*** OVERLAPS AN IMPORT ***')
+    assert newest.split('\n')[0].endswith('*** MAY OVERLAP AN IMPORT ***')
     assert 'pauses_mid_import' in newest.split('\n')[1]
     assert (
         'thread: MainThread (the main thread), '
         'during: test_probe.py::test_import_meets_a_removal' in newest
     )
-    assert 'overlapped: pauses_mid_import (another thread)' in newest
+    assert 'may overlap: pauses_mid_import (another thread)' in newest
     assert 'test_probe.py:' in newest
-    assert 'pauses_mid_import: NOT in sys.modules' in section(output, STATE_SECTION_TITLE)
+    assert 'pauses_mid_import in sys.modules: NOT found by hash, NOT found by iteration' in section(
+        output, STATE_SECTION_TITLE
+    )
 
 
 def test_a_direct_delete_during_an_import_is_said_not_to_be_recorded(pytester, monkeypatch):
@@ -277,9 +280,11 @@ def test_a_direct_delete_during_an_import_is_said_not_to_be_recorded(pytester, m
     assert "KeyError: 'pauses_mid_import'" in output
     removals = section(output, REMOVALS_SECTION_TITLE)
     assert NOT_RECORDED in removals
-    assert 'OVERLAPS' not in removals
+    assert 'MAY OVERLAP' not in removals
     assert 'none recorded' in removals
-    assert 'pauses_mid_import: NOT in sys.modules' in section(output, STATE_SECTION_TITLE)
+    assert 'pauses_mid_import in sys.modules: NOT found by hash, NOT found by iteration' in section(
+        output, STATE_SECTION_TITLE
+    )
 
 
 @pytest.mark.parametrize(
@@ -331,3 +336,76 @@ def test_a_skip_raised_while_importing_reports_nothing(pytester, monkeypatch):
 
     result.assert_outcomes(skipped=1)
     result.stdout.fnmatch_lines(['*SECTIONS call []*'])
+
+
+def test_a_fault_writing_a_section_becomes_its_text():
+    """A report tool's own fault never becomes pytest's INTERNALERROR."""
+
+    class UnprintableError(Exception):
+        def __str__(self):
+            raise self
+
+    def fail():
+        raise UnprintableError
+
+    assert 'this section could not be written' in section_text(fail)
+    assert 'UnprintableError' in section_text(fail)
+
+
+def test_an_interrupt_writing_a_section_goes_on():
+    """Ctrl-C still stops the run."""
+
+    def interrupt():
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        section_text(interrupt)
+
+
+def test_a_fault_in_each_section_leaves_the_tests_own_report(pytester, monkeypatch):
+    """Through pytest: every writer broken, the failure is still reported, with three faults."""
+    result = run_child_pytest(
+        pytester,
+        monkeypatch,
+        'import importlib\n'
+        'def test_import_fails(tmp_path, monkeypatch):\n'
+        f"    (tmp_path / 'leaves_mid_import.py').write_text({SELF_REMOVING_MODULE!r})\n"
+        '    monkeypatch.syspath_prepend(tmp_path)\n'
+        "    importlib.import_module('leaves_mid_import')\n",
+        conftest_source=(
+            'from tests import import_failure_state, import_failure_threads, module_removals\n'
+            'def fail(*args, **keywords):\n'
+            "    raise ValueError('planted')\n"
+            'import_failure_threads.live_thread_report = fail\n'
+            'module_removals.removals_report = fail\n'
+            'import_failure_state.modules_state_report = fail\n'
+        ),
+    )
+
+    result.assert_outcomes(failed=1)
+    output = result.stdout.str()
+    assert 'INTERNALERROR' not in output
+    assert "KeyError: 'leaves_mid_import'" in output
+    for title in (SECTION_TITLE, REMOVALS_SECTION_TITLE, STATE_SECTION_TITLE):
+        assert 'this section could not be written: ValueError: planted' in section(output, title)
+
+
+def test_collections_are_counted_from_the_failing_tests_own_start(pytester, monkeypatch):
+    """Through pytest: an earlier test's full collections are not this test's."""
+    result = run_child_pytest(
+        pytester,
+        monkeypatch,
+        'import gc, importlib\n'
+        'def test_collects():\n'
+        '    for _ in range(50):\n'
+        '        gc.collect()\n'
+        'def test_import_fails(tmp_path, monkeypatch):\n'
+        '    gc.disable()\n'
+        '    gc.collect()\n'
+        f"    (tmp_path / 'leaves_mid_import.py').write_text({SELF_REMOVING_MODULE!r})\n"
+        '    monkeypatch.syspath_prepend(tmp_path)\n'
+        "    importlib.import_module('leaves_mid_import')\n",
+    )
+
+    result.assert_outcomes(passed=1, failed=1)
+    assert 'generation 2: 1 collections' in section(result.stdout.str(), STATE_SECTION_TITLE)

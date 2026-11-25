@@ -16,8 +16,8 @@ so this plugin adds the rest:
   its report gains three sections: ``live threads at the import failure`` (each live thread's name,
   whether it is a daemon, the test that started it, and its current stack), ``recorded sys.modules
   removals`` (newest first, those overlapping an import marked) and ``sys.modules at the import
-  failure`` (whether the failed module and its packages are in it, whether it was rebound, and the
-  garbage collector's state).
+  failure`` (tests/import_failure_state.py: what is there under the failed module's package, whether
+  the dictionary was rebound, and the garbage collector's state).
 
 It adds nothing to a passing test, or to a failure raised elsewhere, and it logs nothing (warnings
 are errors in this suite). The stacks are taken when the report is made, just after the test's
@@ -27,6 +27,7 @@ conftest.py's ``pytest_plugins``. Tests: tests/test_import_failure_threads.py.
 
 from __future__ import annotations
 
+import gc
 import sys
 import threading
 import traceback
@@ -34,7 +35,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from tests import module_removals
+from tests import import_failure_state, module_removals
 from tests.module_removals import OUTSIDE_ANY_TEST
 
 if TYPE_CHECKING:
@@ -57,11 +58,12 @@ STARTED_DURING_ATTRIBUTE = '_glitchygames_started_during_test'
 
 
 class RunningTest:
-    """The node id of the test running now, for the threads it starts to be marked with."""
+    """The test running now: its node id, for the threads it starts, and where its gc began."""
 
     def __init__(self) -> None:
         """Start with no test running."""
         self.node_id = OUTSIDE_ANY_TEST
+        self.collections_before = gc.get_stats()
 
 
 RUNNING_TEST_KEY = pytest.StashKey[RunningTest]()
@@ -79,8 +81,8 @@ def raised_by_import_machinery(traceback_object: TracebackType | None) -> bool:
 
     """
     return any(
-        frame.filename in IMPORT_MACHINERY_FILENAMES
-        for frame in traceback.extract_tb(traceback_object)
+        frame.f_code.co_filename in IMPORT_MACHINERY_FILENAMES
+        for frame, _ in traceback.walk_tb(traceback_object)
     )
 
 
@@ -113,6 +115,49 @@ def live_thread_report(*, threads: Iterable[threading.Thread], frames: dict[int,
         stack = ''.join(traceback.format_stack(frame)) if frame is not None else '  (no stack)\n'
         blocks.append(f'{header}\n{stack}')
     return '\n'.join(blocks)
+
+
+class FaultAsLine:
+    """Turns an exception raised while writing a section into the section's text."""
+
+    def __init__(self, lines: list[str]) -> None:
+        """Write into these lines."""
+        self.lines = lines
+
+    def __enter__(self) -> None:
+        """Guard the writing of one section."""
+
+    def __exit__(
+        self,
+        error_type: type[BaseException] | None,
+        error: BaseException | None,
+        traceback_object: TracebackType | None,
+    ) -> bool:
+        """Add the fault's line.
+
+        Returns:
+            True for an ``Exception``; a ``KeyboardInterrupt`` or an exit goes on.
+
+        """
+        del error_type, traceback_object
+        if isinstance(error, Exception):
+            fault = ''.join(traceback.format_exception_only(error)).strip()
+            self.lines.append(f'this section could not be written: {fault}')
+            return True
+        return False
+
+
+def section_text(write: Callable[[], str]) -> str:
+    """Write one section: a fault in the writing is its text, never an error of pytest's own.
+
+    Returns:
+        What the writer returns, or the fault.
+
+    """
+    lines: list[str] = []
+    with FaultAsLine(lines):
+        lines.append(write())
+    return '\n'.join(lines)
 
 
 def marking_start(
@@ -161,6 +206,7 @@ def pytest_runtest_protocol(
     del nextitem
     running_test = item.config.stash[RUNNING_TEST_KEY]
     running_test.node_id = item.nodeid
+    running_test.collections_before = gc.get_stats()
     # The recorder is the process's: a run inside a test gives the outer test's id back
     recorder = item.config.stash[RECORDER_KEY]
     outer_node_id = recorder.running_test_node_id
@@ -184,16 +230,33 @@ def pytest_runtest_makereport(
     """
     report = yield
     if report.failed and call.excinfo is not None and raised_by_import_machinery(call.excinfo.tb):
-        report.sections.append((
-            SECTION_TITLE,
-            live_thread_report(threads=threading.enumerate(), frames=sys._current_frames()),  # type: ignore[reportPrivateUsage]
-        ))
+        error, traceback_object = call.excinfo.value, call.excinfo.tb
         recorder = item.config.stash[RECORDER_KEY]
+        running_test = item.config.stash[RUNNING_TEST_KEY]
         report.sections.extend((
-            (REMOVALS_SECTION_TITLE, module_removals.removals_report(recorder)),
+            (
+                SECTION_TITLE,
+                section_text(
+                    lambda: live_thread_report(
+                        threads=threading.enumerate(),
+                        frames=sys._current_frames(),  # type: ignore[reportPrivateUsage]
+                    )
+                ),
+            ),
+            (
+                REMOVALS_SECTION_TITLE,
+                section_text(lambda: module_removals.removals_report(recorder)),
+            ),
             (
                 STATE_SECTION_TITLE,
-                module_removals.modules_state_report(error=call.excinfo.value, recorder=recorder),
+                section_text(
+                    lambda: import_failure_state.modules_state_report(
+                        error=error,
+                        traceback_object=traceback_object,
+                        startup_modules=recorder.startup_modules,
+                        collections_before=running_test.collections_before,
+                    )
+                ),
             ),
         ))
     return report
