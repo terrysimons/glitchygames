@@ -15,9 +15,17 @@ pytest-mock, ruff, basedpyright, ty.
 
 **Spec:** `plans/2026-11-24-midi-devices.md` (approved by the owner 2026-11-24). Read it first.
 
+**Status:** Tasks 1-6 built on `feature/midi-devices`; this body says what was built, and the
+decisions that departed from the first draft are in "Decisions record" at the end.
+
 ## Global Constraints
 
-- `pygame.midi` is called only in `src/glitchygames/input/devices.py` (the devices door).
+- `pygame.midi` (and PortMidi's extension module under it) is used only in
+  `src/glitchygames/input/devices.py` (the devices door).
+- Ports are opened once per registry (one engine context's live doors), not once per process.
+- PortMidi's failures (constructors, `Poll`, `Read`, `Close`) are plain `Exception`, never
+  `pygame.midi.MidiException`; fakes follow PortMidi's observed behaviour, not the caller's
+  assumptions.
 - MIDI starts only when a port is named (`--midi-input NAME`, `--midi-output NAME`): with none
   named, `pygame.midi.init()` is never called and nothing about MIDI is asked or recorded.
 - MIDI ports are their own namespace (kind + PortMidi port id), never keys in the joystick maps.
@@ -36,12 +44,14 @@ pytest-mock, ruff, basedpyright, ty.
 
 1. A named port that isn't present: the run goes on, logs it once, and records the answer, so the
    replay gives the same answer (Task 4).
-2. The same port named twice, or named by two games in one process: one open, one proxy (Task 2,
-   Task 4).
-3. A port that fails mid-run (`pygame.midi.MidiException` on read): logged, that port stops being
-   read, the others go on, and the frame's batch is still recorded (Task 3).
-4. A burst of messages larger than one read (`Input.read(n)` returns at most n): every pending
-   message reaches the batch in the same frame, in arrival order (Task 3).
+2. The same port named twice: one open, one proxy (Task 2, Task 4). Two live contexts naming one
+   port are not supported (deferred, `plans/future-work.md`).
+3. A port that fails mid-run (a plain `Exception` on read): logged, that port stops being read,
+   the others go on, and the frame's batch is still recorded. A buffer overflow is not that
+   failure: it is lost input, the port is kept (Task 3).
+4. A burst of messages larger than one read (`Input.read(n)` returns at most n): the pending
+   messages reach the batch in arrival order, up to the per-frame cap, the rest next frame
+   (Task 3).
 5. An instant replay started while a MIDI output port is open: writes during it reach no live port,
    and leaving it restores the live port (Task 5).
 
@@ -57,9 +67,9 @@ pytest-mock, ruff, basedpyright, ty.
 - Test: `tests/input/test_devices.py`, `tests/events/test_midi_events.py`
 
 **Interfaces:**
-- Produces: `import_midi_module() -> ModuleType | None` and `MIDI_MODULE` move to
-  `input/devices.py` (`events/midi.py` re-imports them for its tests' sake only if a test needs
-  it; otherwise update the test import). Constants `MIDI_INPUT_KIND = 'midi_input'`,
+- Produces: `import_midi_module(*, log_unavailable=True) -> ModuleType | None` moves to
+  `input/devices.py`; `MIDI_MODULE` is removed (callers ask the function at call time; tests import
+  the function from the door). Constants `MIDI_INPUT_KIND = 'midi_input'`,
   `MIDI_OUTPUT_KIND = 'midi_output'`, `MIDI_PORT_COUNT_CALL = 'midi_port_count'`,
   `MIDI_PORT_INFO_CALL = 'midi_port_info'`, `DEFAULT_MIDI_INPUT_CALL = 'default_midi_input_id'`,
   `DEFAULT_MIDI_OUTPUT_CALL = 'default_midi_output_id'`.
@@ -71,7 +81,8 @@ pytest-mock, ruff, basedpyright, ty.
   `name: str`, `is_input: bool`, `is_output: bool`; recorded as the answer value
   `[interface, name, is_input, is_output]`.
 - Produces: `find_midi_port(*, devices: DeviceRegistry, name: str, kind: str) -> int | None`
-  (the first port whose name matches and whose direction fits `kind`).
+  (the first port whose name matches and whose direction fits `kind`; an unknown `kind` raises
+  `ValueError`) and `find_midi_port_with_info`, which also returns the `MidiPortInfo`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -97,14 +108,13 @@ pytest-mock, ruff, basedpyright, ty.
 - [ ] **Step 3: Implement** the constants, `MidiPortInfo`, the four calls on the three registries
   (live: lazy `init()` on first MIDI call; answers and failures remembered through the existing
   `_remember_answer` / `_remember_failure`; replay: from recorded answers, as joysticks), and
-  `find_midi_port`. Move `import_midi_module` / `MIDI_MODULE`; `events/midi.py` imports them from
-  the door.
+  `find_midi_port`. Move `import_midi_module`; `events/midi.py` imports it from the door.
 
 - [ ] **Step 4: Run them to verify they pass**, plus `tests/events/test_midi_events.py`.
 
 - [ ] **Step 5: Commit** — "MIDI devices: the door enumerates MIDI ports, recorded and replayed".
 
-### Task 2: Opening ports, once per process, recorded
+### Task 2: Opening ports, once per registry, recorded
 
 **Files:**
 - Modify: `src/glitchygames/input/devices.py`, `src/glitchygames/input/stand_in_devices.py`
@@ -146,7 +156,7 @@ pytest-mock, ruff, basedpyright, ty.
 - [ ] **Step 3: Implement** the descriptor, the open and lookup calls (live keeps
   `dict[tuple[str, int], port]`), the replay stand-ins, and the recorder and replay fields.
 - [ ] **Step 4: Run them to verify they pass**, plus `tests/input/` and the recording tests.
-- [ ] **Step 5: Commit** — "MIDI devices: ports open through the door once per process; replays
+- [ ] **Step 5: Commit** — "MIDI devices: ports open through the door once per registry; replays
   open stand-ins".
 
 ### Task 3: MIDI input into the frame's events
@@ -160,8 +170,13 @@ pytest-mock, ruff, basedpyright, ty.
 **Interfaces:**
 - Consumes: Task 2's opened inputs.
 - Produces: `LiveDeviceRegistry.read_midi_input() -> list[pygame.event.Event]` (every opened
-  input port, in port-id order; for each, `read(MIDI_READ_BATCH)` until `poll()` is false, then
-  `pygame.midi.midis2events(messages, port_id)`); `MIDI_READ_BATCH = 64`.
+  input port, in port-id order; for each, `read(MIDI_READ_BATCH)` until a read returns nothing or
+  `MIDI_MESSAGES_PER_PORT_PER_FRAME` messages are taken, then `pygame.midi.midis2events(messages,
+  port_id)`); `MIDI_READ_BATCH = 64`. `poll()` is never asked: PortMidi reports an overflow only
+  to a read. The reading is `MidiInputReader`, shared by the live and the stand-in registries.
+- An overflow (PortMidi raises `Exception(b'PortMidi: Buffer overflow')` once, the next read works)
+  loses that batch, is logged once per port per burst and keeps the port, which is read on once in
+  the same frame. Any other failure of `read` drops the port for the rest of the run.
 - Produces: `StandInDeviceRegistry.queue_midi_input(*, port_id: int, messages:
   list[tuple[list[int], int]]) -> None` and its `read_midi_input()` returning them as events.
 - `LiveSources.pump_events()` returns SDL's batch, then `self.devices().read_midi_input()` when
@@ -174,9 +189,12 @@ pytest-mock, ruff, basedpyright, ty.
     `vice_id=3`, in the same frame.
   - `test_a_burst_larger_than_one_read_arrives_whole_and_in_order` (200 queued messages): 200
     events, timestamps ascending, one frame.
-  - `test_a_failing_midi_port_is_dropped_and_the_others_still_read` (one stand-in port raises
-    `pygame.midi.MidiException`): logged once, the other port's events still arrive, the next
-    frame reads only the good port.
+  - `test_a_failing_midi_port_is_dropped_and_the_others_still_read` (one stand-in port raises a
+    plain `Exception`, as PortMidi does): logged once, the other port's events still arrive, the
+    next frame reads only the good port.
+  - An overflowed stand-in port (its queue follows PortMidi: `poll()` False until a read raises
+    the overflow, once) keeps its port, loses that batch, logs once per burst, and the next frame
+    reads on; a burst past the cap arrives over the next frames, in order.
   - `test_recorded_midi_input_replays_exactly`: record a run with queued MIDI input to `tmp_path`,
     replay it headless with `pygame.midi` patched to raise: the scene receives identical events
     and the replay reports no divergence.
@@ -210,7 +228,8 @@ pytest-mock, ruff, basedpyright, ty.
   - `test_no_named_port_means_portmidi_is_never_initialized`: an engine started with default
     options never calls `pygame.midi.init` and its recording has no MIDI answers.
   - `test_a_named_input_port_opens_one_proxy` (stand-in port `'Keys'`): `--midi-input Keys` gives
-    one proxy keyed `(MIDI_INPUT_KIND, 0)`, and `proxy.get_device_info` reaches the port.
+    one proxy keyed `(MIDI_INPUT_KIND, 0)`, and `proxy.get_device_info()` answers from the
+    descriptor (pygame's ports have no such method), `(b'CoreMIDI', b'Keys', 1, 0, 1)`.
   - `test_a_named_port_that_is_absent_is_logged_and_skipped` (`--midi-input Nope`): no proxy, one
     warning naming `Nope`, the run continues, and the answers are recorded.
   - `test_naming_a_port_twice_opens_it_once`.
@@ -244,7 +263,14 @@ pytest-mock, ruff, basedpyright, ty.
   ReplayMidiOutput`; `MidiEventManager.adopt_midi_ports(*, descriptors:
   Sequence[MidiPortDescriptor], registry: ReplayDeviceRegistry) -> dict[...]`.
 - A recording file's scope opens its recording's ports through the scope's door
-  (`open_connected_midi_ports` with the recorded names); an instant replay adopts them.
+  (`open_connected_midi_ports` with the recorded names: a recording's port names come from the
+  recording, `--midi-input` / `--midi-output` being recorded options); an instant replay adopts
+  them. A scope that fails to open devices ends (logged) and the live game goes on.
+- What a scope does with the player's MIDI input (`replay/playback.py`): a note played is a press
+  (a pedal's is not); a note-off, a note-on at velocity 0 and a channel's letting go are releases,
+  held; a control moved (pitch bend, pressures, controllers below 120, pedals) is held as its
+  latest message per port, channel and control and redelivered after the scope; the parameter
+  numbers and their data (controllers 6, 38, 96-101) and the rest are dropped.
 
 - [ ] **Step 1: Write the failing tests**
   - `test_an_instant_replay_adopts_stand_in_midi_ports_and_restores_the_live_ones`: during the
@@ -263,28 +289,48 @@ pytest-mock, ruff, basedpyright, ty.
 ### Task 6: Guards and docs
 
 **Files:**
-- Modify: `tests/test_engine_doors.py` (`WATCHED_DOOR_MODULES` gains `'pygame.midi'`; the scan
-  also resolves `importlib.import_module('pygame.midi')`; allowlist: `input/devices.py` only)
-- Modify: `tests/test_process_state_guard.py` rows / `tests/test_engine_context.py` checks for
-  any new module-level state (the live registry's lazy-init flag belongs to the registry, not the
-  module)
-- Modify: `docs/architecture/event_system.md` (MIDI section and table: ports, options, proxies),
-  `docs/architecture/gameplay_replay.md` (devices: MIDI ports), `CLAUDE.md` (the doors line if it
-  lists device kinds; run `uv run pytest tests/test_claude_md.py`), `plans/future-work.md` (link
-  this plan from the output-record entry's MIDI lines), `plans/2026-11-24-midi-devices.md`
-  (status line)
+- Modify: `tests/test_engine_doors.py` (`WATCHED_DOOR_MODULES` gains `pygame.midi`, `pygame.pypm`,
+  `pygame._pypm`; the scan also reads imports and string loads; allowlist: `input/devices.py`
+  only), `tests/ast_scanning.py` (`string_loaded_module` made public)
+- `tests/test_process_state_guard.py` / `tests/test_engine_context.py`: no new module-level state
+  (the live registry's init flag belongs to the registry, not the module); `MIDI_MODULE`'s audit
+  row is gone with the constant.
+- Modify: `docs/architecture/event_system.md` (ports, what a game receives and sends, stand-in
+  ports in a test, limitations), `gameplay_replay.md`, `argument_system.md`,
+  `playback/recording-file.md`; `CLAUDE.md` (its doors line names no device kinds: unchanged;
+  `uv run pytest tests/test_claude_md.py`); `plans/future-work.md` (this plan linked from the
+  output-record entry's MIDI lines); `plans/2026-11-24-midi-devices.md` (status line)
 
-- [ ] **Step 1: Write the failing guard test** `test_pygame_midi_is_called_only_in_the_devices_door`
-  with a planted `pygame.midi.get_count()` in a temporary engine module: the guard reports it;
-  remove the plant.
-- [ ] **Step 2: Run it** (`uv run pytest tests/test_engine_doors.py -n 4 --dummy-only`): FAIL
-  before the scan change, PASS after.
+- [ ] **Step 1: Write the failing guard test** `test_pygame_midi_is_called_only_in_the_devices_door`,
+  parametrized over a plant per form (import, aliased import, from-import of the module and of a
+  name, attribute access on `pygame`, `importlib.import_module('pygame.midi')`, `__import__`, the
+  private `pygame.midi._pypm`, `pygame.pypm`): the scan reports each, and the door's allowance
+  covers all of them; plus the real tree passes.
+- [ ] **Step 2: Run it** (`uv run pytest tests/test_engine_doors.py -n 2 --dummy-only`): the
+  scan, without the door's allowance, reports `input/devices.py`'s own uses (so it is not vacuous).
 - [ ] **Step 3: Update the docs**; run `uv run nox -s lint-docs`, `uv run python -m
   scripts.docs_claims` (0 claims), `uv run pytest tests/test_docs_claims.py tests/test_claude_md.py`.
 - [ ] **Step 4: Commit** — "MIDI devices: the doors guard watches pygame.midi; docs".
 
 ## Done means
 
-All six tasks committed; `uv run pytest -n 4 --dummy-only` on the touched test folders green;
+All six tasks committed; `uv run pytest -n 2 --dummy-only` on the touched test folders green;
 `uv run glitchygames verify` all PASS (no golden changes: MIDI is off unless a port is named);
 then the pre-push gate on a Ledger slot.
+
+## Decisions record
+
+- Ports open once per registry (one engine context's live doors), not once per process: PortMidi
+  refuses a second open of a port, but a process-wide owner would need a ruling on who reads a
+  shared input, with no live inner game to test it. Deferred to `plans/future-work.md`.
+- PortMidi raises plain `Exception` (constructors, `Poll`, `Read`, `Close`); the first draft said
+  `MidiException`, which it never raises. Opens become the one remembered `pygame.error`.
+- A buffer overflow is met only by a read (`poll()` stays False until one reports it), so an input
+  is read first until empty, capped per frame; an overflow is lost input, not a dead port.
+- `MIDI_MODULE` is gone; `import_midi_module()` is the one way to ask for `pygame.midi`.
+- The proxy's `get_device_info()` answers from the descriptor (pygame's ports have none).
+- A recording's port names come from the recording (`--midi-input` / `--midi-output` are recorded
+  options, not replay-local ones).
+- Playback scopes: presses, releases, held controls and dropped parameter data as the spec says.
+- pygame-ce 2.5.8's `close()` does not close a port: the teardown closes each and quits PortMidi.
+- Deferred: see the spec's "Not built".

@@ -342,7 +342,7 @@ Added by `MidiEventManager.args()` in `src/glitchygames/events/midi.py`. MIDI st
 port is named: with neither option given the manager asks the devices door nothing about MIDI,
 PortMidi is never initialized and a recording holds no MIDI answers.
 
-- `--midi-input NAME` (`append`, default none): open the MIDI input port with this name (repeatable). A port that is not present, or that fails to open, is logged once and skipped; the run goes on
+- `--midi-input NAME` (`append`, default none): open the MIDI input port with this name, as PortMidi lists it (repeatable; the first port of that name that is an input, and naming one twice opens it once). A port that is not present, or that fails to open, is logged once and skipped; the run goes on. The game then receives its messages as `MIDIIN` events (`docs/architecture/event_system.md`, MIDI ports)
 - `--midi-output NAME` (`append`, default none): open the MIDI output port with this name (repeatable), as `--midi-input`
 
 Both are recorded in a recording's options, and a replay takes the recording's, not its own

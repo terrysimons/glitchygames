@@ -593,7 +593,7 @@ class TestMidiInputInTheFrame:
         assert scene.received_handler_names() == ['on_midi_in_event'] * count
 
     def test_a_failing_midi_port_is_dropped_and_the_others_still_read(self, midi_engine, caplog):
-        """A port raising MidiException is logged once; the next frame reads only the good port."""
+        """A port raising a plain Exception (PortMidi's way) is logged once and then not read."""
         scene, devices = self.start_scene(midi_engine, port_count=2)
         devices.fail_midi_input(port_id=0)
         devices.queue_midi_input(port_id=0, messages=[(NOTE_ON, 1)])

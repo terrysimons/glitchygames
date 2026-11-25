@@ -465,7 +465,8 @@ Found while fixing that review (2026-10-27):
     read by playbacks, devices and tools. A notification event of the same output lets game
     code or a wrapper react to it.
   - Sinks: pluggable per kind (SDL rumble, serial, MIDI out, OSC, DMX); a playback's policy
-    picks which sinks it drives (rumble door, above).
+    picks which sinks it drives (rumble door, above). MIDI out's ports and their writes (not
+    recorded until this record exists) are built: `plans/2026-11-24-midi-devices.md`.
   Other candidates worth recording the same way:
   - Haptics beyond rumble: trigger rumble and adaptive triggers (DualSense).
   - Controller lights: DualSense/DualShock light bar colour, player LEDs.
@@ -478,8 +479,9 @@ Found while fixing that review (2026-10-27):
   - Save writes: what was written and when (they are sandboxed in a replay; recorded, they could
     be compared).
   - Presentation changes: fullscreen, resolution and window changes.
-  Input from such devices (an Arduino's buttons, MIDI in) would come back through the input
-  door as device events, recorded as external input like a controller's.
+  Input from such devices (an Arduino's buttons) would come back through the input door as
+  device events, recorded as external input like a controller's. MIDI in already does
+  (`plans/2026-11-24-midi-devices.md`).
 - ~~**Content hashes and measurement history in recordings**~~ **Done** 2026-10-21 (design doc
   `plans/2026-10-20-recording-content-hash-and-history.md`, hashing option "Better"; plan
   `plans/2026-10-21-recording-content-hash-and-history-implementation.md`). The golden fixtures
@@ -2312,8 +2314,9 @@ discussing it found and decided:
 ## MIDI ports across live engine contexts (2026-11-24, plans/2026-11-24-midi-devices.md)
 
 MIDI ports are opened once per registry (one engine context's live doors), not once per process,
-and only the outermost context shuts PortMidi down. That holds while an inner game is always a
-replay (no live doors). Not decided, for the day a live game runs inside another:
+and whichever live context tears down closes its ports and shuts PortMidi down. Today only the
+outermost context runs live, because an inner game is always a replay (no live doors). Not
+decided, for the day a live game runs inside another:
 
 - [ ] **Two live contexts opening one port.** PortMidi refuses a second `Input` on an open port,
   and each context's registry opens its own: the second open fails (a logged, skipped port). The

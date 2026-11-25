@@ -85,8 +85,10 @@ The modules:
 `tests/test_engine_doors.py` scans the package and fails if any file but
 `src/glitchygames/clock.py` uses the `time` module (a read, `time.sleep`, anything) or reads
 `datetime`'s now, or if anything outside the doors polls pygame's keyboard or mouse, reads or
-posts pygame events directly, uses pygame's timers, or enumerates or opens joysticks and
-controllers. Its `ALLOWED_BYPASSES` lists the few exceptions, each with its reason. The engine's
+posts pygame events directly, uses pygame's timers, enumerates or opens joysticks and
+controllers, or uses `pygame.midi` (or PortMidi's `pygame.pypm` under it) in any form (import,
+alias, attribute, `importlib.import_module('pygame.midi')`), which only
+`src/glitchygames/input/devices.py` may. Its `ALLOWED_BYPASSES` lists the few exceptions, each with its reason. The engine's
 own pacing, measurement and diagnostics read real time through the clock module's raw functions
 (`raw_counter_ns()`, `raw_counter_seconds()`, `raw_sleep()`, `raw_wall_clock_time()`), which are
 never replayed and are not for game code.
@@ -179,6 +181,17 @@ a descriptor of every opened device. A replay gives the recorded answers and sta
 dropped, so it never needs the recorded hardware and never sees a device that happens to be
 plugged in.
 
+MIDI ports are devices too, and are enumerated and opened only when a game names one
+(`--midi-input NAME`, `--midi-output NAME`): `midi_port_count()`, `midi_port_info(port_id=...)`,
+`default_midi_input_id()`, `default_midi_output_id()`, `open_midi_input(port_id=...)` and
+`open_midi_output(port_id=...)`, each answer recorded like a joystick's. MIDI input is read in the
+live pump and recorded as ordinary `MIDIIN` events (see
+[MIDI ports](event_system.md#midi-ports)); a replay serves them from the recording and opens
+`ReplayMidiInput` and `ReplayMidiOutput` stand-ins (an input with nothing to read, an output that
+drops writes). With no port named, nothing about MIDI is asked or recorded, and a recording made
+before MIDI existed replays unchanged. A replay opens the ports its recording named
+(`--midi-input` and `--midi-output` are recorded options), not its own command line's.
+
 ### Saves
 
 Open a save store with `glitchygames.state.open_saves(app_name=...)`. Live play gets a
@@ -241,7 +254,8 @@ A recording is a gzip JSON Lines trace (format version 3; versions 2 and 3 can b
 header line, then exactly one line per main-loop frame. Each frame holds its `dt`, every event
 batch the engine read from SDL's queue (each event tagged `external` or `internal`) and the
 sprites. Format 3 adds per-frame `input_changes`, `control_events`, `devices_opened`,
-`saves_opened` and `device_enumeration`; later recordings add `scene_start` and
+`saves_opened` and `device_enumeration`; later recordings add `midi_ports_opened` (and
+`midi_ports` in the header: the MIDI ports a run opened), `scene_start` and
 `redelivered_events`, which needed no format version (readers pass fields they do not use
 through). Each is written only when not empty. The
 header holds the game, scene and versions, every option, the start time, the random seed, and the

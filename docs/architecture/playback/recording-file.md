@@ -17,7 +17,7 @@ header has mtime 0 and no file name, so identical traces give identical bytes (`
 ```mermaid
 flowchart TD
     file[("PATH.jsonl.gz")]
-    header["Line 1: header<br/>format_version, source, game (logical name), game_class, game_module,<br/>scene_class, options, screen_size, random_seed, recorded_at,<br/>custom_event_types, engine/pygame/Python versions, saves, devices, device_enumeration,<br/>measurement_runs, rebaselined_from"]
+    header["Line 1: header<br/>format_version, source, game (logical name), game_class, game_module,<br/>scene_class, options, screen_size, random_seed, recorded_at,<br/>custom_event_types, engine/pygame/Python versions, saves, devices, midi_ports, device_enumeration,<br/>measurement_runs, rebaselined_from"]
     key["Frame line: keyframe<br/>(frame 0, a new scene object, or forced)<br/>frame, scene, sprites (full list)"]
     delta["Frame line: delta<br/>changed / added / removed / order<br/>against the previous frame"]
     always["On every frame line:<br/>dt, event_batches,<br/>content_hash [history], processing_seconds [history]"]

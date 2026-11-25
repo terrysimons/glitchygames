@@ -24,7 +24,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.ast_scanning import PROJECT_ROOT, import_bindings, qualified_name
+from tests.ast_scanning import (
+    PROJECT_ROOT,
+    STRING_LOAD_MODULES,
+    import_bindings,
+    qualified_name,
+    string_loaded_module,
+)
 from tests.engine_source import ENGINE_DIRECTORY
 from tests.workspace_sources import scanned_source_files, write_project_with_member_module
 
@@ -49,12 +55,21 @@ WATCHED_DOOR_MODULES = frozenset({
     'pygame._sdl2.controller',
     'pygame.controller',
     'pygame.fastevent',
+    'pygame.midi',
+    'pygame.pypm',
+    'pygame._pypm',
 })
 
 # Any name in the time module counts (time.sleep, time.perf_counter, time.CLOCK_MONOTONIC, ...):
 # the scan reports it under its own name, and only ANY_TIME_MODULE_USE in an allowance permits it
 TIME_MODULE_PREFIX = 'time.'
 ANY_TIME_MODULE_USE = 'time.*'
+
+# PortMidi is reached through pygame.midi, and through the extension module under it (pygame.pypm,
+# which pygame.midi imports as _pypm; ``pygame.midi._pypm`` is the same module). Any use of one,
+# in any form, is the devices door's alone (the allowance spells it ANY_PYGAME_MIDI_USE)
+PYGAME_MIDI_MODULES = ('pygame.midi', 'pygame.pypm', 'pygame._pypm')
+ANY_PYGAME_MIDI_USE = 'pygame.midi.*'
 
 # datetime's reads of now (its other names format and parse, and stay free to use)
 DATETIME_CLOCK_READS = frozenset({
@@ -112,6 +127,7 @@ ALLOWED_BYPASSES: dict[str, frozenset[str]] = {
         'pygame.mouse.get_focused',
     }),
     'input/devices.py': frozenset({
+        ANY_PYGAME_MIDI_USE,
         'pygame.joystick.Joystick',
         'pygame.joystick.get_count',
         'pygame._sdl2.controller.Controller',
@@ -161,14 +177,43 @@ def _allowed(relative_path: str) -> frozenset[str]:
     return ALLOWED_BYPASSES.get(relative_path, frozenset())
 
 
+def _is_midi_use(name: str) -> bool:
+    return any(name == module or name.startswith(f'{module}.') for module in PYGAME_MIDI_MODULES)
+
+
 def _is_bypass(name: str) -> bool:
-    return name in DOOR_BYPASSES or name.startswith(TIME_MODULE_PREFIX)
+    return name in DOOR_BYPASSES or name.startswith(TIME_MODULE_PREFIX) or _is_midi_use(name)
 
 
 def _is_allowed(*, name: str, allowed: frozenset[str]) -> bool:
-    return name in allowed or (
-        name.startswith(TIME_MODULE_PREFIX) and ANY_TIME_MODULE_USE in allowed
+    return (
+        name in allowed
+        or (name.startswith(TIME_MODULE_PREFIX) and ANY_TIME_MODULE_USE in allowed)
+        or (_is_midi_use(name) and ANY_PYGAME_MIDI_USE in allowed)
     )
+
+
+def _midi_names_of_statement(*, node: ast.AST, load_bindings: dict[str, str]) -> list[str]:
+    """Return the PortMidi modules a statement or call imports or loads by name.
+
+    The attribute scan sees ``pygame.midi.Input`` but not the ``import`` that makes it
+    resolvable, nor a module loaded from a string, so those are read here: ``import pygame.midi``
+    (aliased or not), ``from pygame import midi``, ``from pygame.midi import Input``, and
+    ``importlib.import_module('pygame.midi')`` or ``__import__('pygame.midi')`` with a literal name.
+
+    Returns:
+        The qualified names (``pygame.midi``, ``pygame.midi.Input``, ...), none for other nodes.
+
+    """
+    if isinstance(node, ast.Import):
+        return [alias.name for alias in node.names if _is_midi_use(alias.name)]
+    if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module is not None:
+        qualified = [f'{node.module}.{alias.name}' for alias in node.names]
+        return [name for name in (node.module, *qualified) if _is_midi_use(name)]
+    if isinstance(node, ast.Call):
+        loaded = string_loaded_module(call=node, bindings=load_bindings)
+        return [loaded] if loaded is not None and _is_midi_use(loaded) else []
+    return []
 
 
 def _allowed_inside_functions(
@@ -220,19 +265,22 @@ def door_bypasses(
     allowed_by_node = _allowed_inside_functions(
         tree=tree, allowed_in_functions=allowed_in_functions or {}
     )
+    load_bindings = import_bindings(tree=tree, watched_modules=STRING_LOAD_MODULES)
     found: list[str] = []
     for node in ast.walk(tree):
+        names = _midi_names_of_statement(node=node, load_bindings=load_bindings)
         if isinstance(node, (ast.Attribute, ast.Name)):
             name = qualified_name(
                 node=node, bindings=bindings, watched_modules=WATCHED_DOOR_MODULES
             )
-            if (
-                name is not None
-                and _is_bypass(name)
-                and not _is_allowed(name=name, allowed=allowed)
-                and not _is_allowed(name=name, allowed=allowed_by_node.get(id(node), frozenset()))
-            ):
-                found.append(f'{node.lineno}: {name}')
+            if name is not None and _is_bypass(name):
+                names.append(name)
+        found.extend(
+            f'{node.lineno}: {name}'
+            for name in names
+            if not _is_allowed(name=name, allowed=allowed)
+            and not _is_allowed(name=name, allowed=allowed_by_node.get(id(node), frozenset()))
+        )
     return sorted(set(found))
 
 
@@ -514,6 +562,92 @@ def test_scan_finds_every_kind(offending_file):
         'pygame.time.set_timer',
         'pygame.time.Clock',
     }
+
+
+# One plant per form a use of PortMidi could take: (source, what the scan reports it as)
+MIDI_PLANTS = {
+    'import': ('import pygame.midi\n', 'pygame.midi'),
+    'aliased import': ('import pygame.midi as portmidi\n', 'pygame.midi'),
+    'from-import of the module': ('from pygame import midi\n', 'pygame.midi'),
+    'from-import of a name': ('from pygame.midi import Input\n', 'pygame.midi.Input'),
+    'from-import with an alias': (
+        'from pygame.midi import get_count as count\n\n\ndef ports():\n    return count()\n',
+        'pygame.midi.get_count',
+    ),
+    'attribute access on pygame': (
+        'import pygame\n\n\ndef ports():\n    return pygame.midi.get_count()\n',
+        'pygame.midi.get_count',
+    ),
+    'attribute access through an alias': (
+        (
+            'import pygame as engine_pygame\n\n\ndef ports():\n'
+            '    return engine_pygame.midi.get_count()\n'
+        ),
+        'pygame.midi.get_count',
+    ),
+    'importlib.import_module': (
+        "import importlib\n\nPORTMIDI = importlib.import_module('pygame.midi')\n",
+        'pygame.midi',
+    ),
+    'an aliased importlib': (
+        "from importlib import import_module as load\n\nPORTMIDI = load('pygame.midi')\n",
+        'pygame.midi',
+    ),
+    '__import__': ("PORTMIDI = __import__('pygame.midi')\n", 'pygame.midi'),
+    'the private module under pygame.midi': (
+        'import pygame\n\n\ndef start():\n    pygame.midi._pypm.Initialize()\n',
+        'pygame.midi._pypm.Initialize',
+    ),
+    'pygame.pypm': (
+        'import pygame\n\n\ndef start():\n    pygame.pypm.Initialize()\n',
+        'pygame.pypm.Initialize',
+    ),
+    'from pygame import pypm': ('from pygame import pypm\n', 'pygame.pypm'),
+    'from pygame.pypm import a name': (
+        'from pygame.pypm import Initialize\n',
+        'pygame.pypm.Initialize',
+    ),
+}
+
+
+@pytest.mark.parametrize(('source', 'reported'), MIDI_PLANTS.values(), ids=MIDI_PLANTS.keys())
+def test_pygame_midi_is_called_only_in_the_devices_door(tmp_path, source, reported):
+    """A use of PortMidi outside the devices door is reported, in every form it could take.
+
+    The door itself may use all of them (its allowance), and nothing else may.
+    """
+    path = tmp_path / 'planted.py'
+    path.write_text(source, encoding='utf-8')
+
+    names = {entry.split(': ', 1)[1] for entry in door_bypasses(source_path=path)}
+
+    assert reported in names
+    assert door_bypasses(source_path=path, allowed=_allowed('input/devices.py')) == []
+
+
+def test_other_modules_of_pygame_are_not_taken_for_pygame_midi(tmp_path):
+    """The midi names match whole dotted names: ``pygame.midiish`` and ``pygame.mixer`` are free."""
+    path = tmp_path / 'neighbours.py'
+    path.write_text(
+        "import importlib\nimport pygame\n\nMIXER = importlib.import_module('pygame.mixer')\n"
+        'VOLUME = pygame.mixer.music.get_volume()\nOTHER = pygame.midiish\n',
+        encoding='utf-8',
+    )
+
+    assert door_bypasses(source_path=path) == []
+
+
+def test_only_the_devices_door_may_use_pygame_midi():
+    """No file but the devices door has a PortMidi allowance, and the door's is the whole of it."""
+    holders = [
+        location for location, names in ALLOWED_BYPASSES.items() if ANY_PYGAME_MIDI_USE in names
+    ]
+    assert holders == ['input/devices.py']
+    assert not any(
+        ANY_PYGAME_MIDI_USE in names
+        for functions in ALLOWED_FUNCTION_BYPASSES.values()
+        for names in functions.values()
+    )
 
 
 def test_every_allowed_path_exists_unless_pending():

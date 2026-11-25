@@ -33,7 +33,27 @@ and the recorder takes the opened ports' descriptors (``take_opened_midi_ports``
 fields, ``midi_ports`` in the header and ``midi_ports_opened`` on a frame, so a recording made
 before MIDI existed loads unchanged. A replay hands out ``ReplayMidiInput`` / ``ReplayMidiOutput``:
 an input never has anything to read (the recorded MIDI events are served by the event door), an
-output drops what a game writes.
+output drops what a game writes. A port is described to the game by the descriptor it was opened
+with (a port proxy's ``get_device_info()`` asks no PortMidi), so live and replay answer alike.
+
+Only live play reads MIDI. ``LiveSources.pump_events()`` appends ``read_midi_input()`` (the live
+registry's and the stand-in registry's; a replay registry has none, as the recorded events are
+served by the event door) to the frame's SDL events: every opened input port, in port-id order,
+read until it has nothing left (``MidiInputReader``), as ``MIDIIN`` events whose ``vice_id`` is the
+port id and whose ``timestamp`` is PortMidi's, which the recording keeps. A port is read, never
+polled for waiting messages: a full PortMidi buffer reports its overflow only to a read, so an
+overflow is lost input (logged, bounded), not a dead port, and a frame stops reading a port at
+``MIDI_MESSAGES_PER_PORT_PER_FRAME`` messages, the rest waiting for the next frame. A port whose
+read fails otherwise (PortMidi raises a plain ``Exception``, never ``pygame.midi.MidiException``)
+is dropped for the rest of the run, and the others go on. Writes through an output port post no
+event (``MIDIOUT`` has no producer) and are not recorded.
+
+Ports close where their lifetime ends, at the engine's teardown (``close_midi_ports``): every
+opened port is closed and PortMidi shut down with ``quit()``. The quit is what ends a port:
+pygame-ce 2.5.8's own ``close()`` does not close a PortMidi port, so one closed any other way
+cannot be opened again in the process. Ports are opened once per registry, one engine context's
+live doors, not once per process (plans/future-work.md, "MIDI ports across live engine
+contexts", for two live contexts).
 """
 
 from __future__ import annotations
@@ -141,11 +161,14 @@ MIDI_UNAVAILABLE_MESSAGE = 'pygame.midi is unavailable in this pygame build'
 # What PortMidi answers for "no default port"
 NO_MIDI_PORT_ID = -1
 # How many messages one read of a MIDI input asks for (a bigger burst takes several reads). It
-# divides PortMidi's buffer (4096, pygame's default): a read that meets an overflow part way loses
-# what it had taken, and a full buffer read in these batches ends on a batch
+# divides PortMidi's buffer (4096, pygame's default), so a full buffer read in these batches ends on
+# a batch. A read that meets an overflow part way loses what it had taken (up to 63 messages), so
+# a buffer that refills while it is being read can lose up to 63 messages more beside the overflow
 MIDI_READ_BATCH = 64
-# The most messages taken from one port in one frame (a whole buffer, its overflow and some of what
-# came after it); the rest waits for the next frame, in order
+# The most messages a frame stops reading a port at: 5120, a whole buffer (4096), its overflow and
+# some of what came after it. Reads are whole batches, so a frame can take up to 63 more than this
+# when a short batch (one with fewer than 64 messages) comes just before it; the rest waits for
+# the next frame, in order
 MIDI_MESSAGES_PER_PORT_PER_FRAME = 80 * MIDI_READ_BATCH
 # How many frames an input is read without an overflow before a burst of them ends
 MIDI_OVERFLOW_QUIET_READS = 60
@@ -740,11 +763,11 @@ class MidiInputReader:
     a burst ending after ``MIDI_OVERFLOW_QUIET_READS`` frames of the port's without one, so a port
     logs at most once in that many frames.
 
-    A port whose ``read`` raises anything else (PortMidi raises a plain
-    ``Exception``) is dropped for the rest of the run: logged once with its port id and name, and
-    never read again. It is not closed: a port that failed mid-run is a device that went away, and
-    PortMidi's own close on it can raise too; it stays in the registry's opened ports, so the
-    open-once rule still holds.
+    A port whose ``read`` raises anything else (PortMidi raises a plain ``Exception``) is dropped
+    for the rest of the run: logged once with its port id and name, and never read again. It is
+    not closed: a port that failed mid-run is a device that went away, and PortMidi's own close
+    on it can raise too; it stays in the registry's opened ports, so the open-once rule still
+    holds.
     """
 
     def __init__(self: Self) -> None:
