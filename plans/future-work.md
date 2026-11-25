@@ -440,6 +440,17 @@ Found while fixing that review (2026-10-27):
 
 ## Gameplay replay
 
+- [ ] **A replay touches nothing real** (clipboard, the player's files, the sound cache): decided, not
+  built: [the plan](2026-11-24-replays-touch-nothing-real.md).
+- [ ] **Every format's version number is a member of a string enumeration** (the owner, 2026-11-25: "Any
+  formats we create need to have their integer based version #s in a string enumeration for
+  ease-of-refactor"). Members named for what changed; files keep the same integers, so nothing committed
+  is rewritten. Today: `tracing.TRACE_FORMAT_VERSION` and `READABLE_FORMAT_VERSIONS`, its copy
+  `replay/driver.CONTROL_EVENTS_FORMAT_VERSION`, `state/manager.SAVE_FORMAT_VERSION`,
+  `audio/assets` (current and legacy sound files), `audio/spec.AUDIO_RENDER_VERSION`,
+  `ai_link.PROTOCOL_VERSION` and the service's own copy (separate code: a test that they agree). Found by
+  name; formats without a `VERSION` constant still need a search.
+
 - **Rumble door** (the user chose option c, 2026-10-20): rumble goes through the doors like
   events, saves and devices. Live sends to the real controllers; a recording also writes each
   send (`rumble_sent`: low/high levels, duration, target device) into its frame; a replay
