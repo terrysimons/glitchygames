@@ -1010,7 +1010,6 @@ def test_a_fault_installing_is_not_recorded_and_undone(mocker, owner, name, faul
     mocker.patch.object(owner, name, side_effect=fault('planted'))
     own = LoadProbe(code=load_code())
     own.install()
-    own.uninstall()
     mocker.stopall()
 
     assert own.not_recorded == f'install failed: {fault.__name__}: planted'
