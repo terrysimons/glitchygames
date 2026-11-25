@@ -1,4 +1,4 @@
-# An Import of httpcore2 Failed With KeyError on CircleCI's Windows Job
+# Imports Under httpcore2 Failed With KeyError on CircleCI's Windows Jobs
 
 - **Description**: CircleCI job 4241 (`test-python-3-15-windows`, node 0, branch
   `docs/arcade-5-playback-core-plan` at `0e5de482`) failed
@@ -16,14 +16,42 @@
   not necessary. The line that raised, `<frozen importlib._bootstrap>:868`, is `_load_unlocked`'s
   `module = sys.modules.pop(spec.name)` in 3.15.2. Evidence: the ledger's
   `.ledger/triage/httpcore2/job5768/`.
-- **Status**: Open (root cause not found; failed twice; a triage tool is in, 2026-11-20, branch
+- **Third failure**: CircleCI job 6031, node 0, PR #320's 921262618, Windows, Python 3.15.2, gw2,
+  shuffled (seed 2467454726): KeyError 'h11._util' in
+  `tests/test_ai_behaviour.py::test_a_refusal_or_endless_tool_calls_fail_the_question`, the first
+  report with the recorder's sections (below). Evidence: the ledger's
+  `.ledger/triage/httpcore2/job6031/`.
+- **Fourth failure** (found afterwards by searching past jobs; it ran before job 6031): CircleCI job
+  5925, node 1, main 11a1f298b, Windows, Python 3.15.2, gw2, shuffled (seed 2145114001): KeyError
+  'httpcore2._models' in `tests/ai/test_local_service.py`,
+  `test_a_refusal_carries_its_status_for_the_callers_retries`.
+  Its report has the live threads (MainThread and the test's own serve_forever thread, in select)
+  and no recorder sections. Evidence: the ledger's `.ledger/triage/httpcore2/job-search/`.
+- **What the search covered**: failed CircleCI test jobs of the pipelines since 2026-11-19 only, 84 of
+  them, 7 without test results to read. An earlier sighting, or one in a job with no results, would
+  not be found, so four is a count of those known, not of those that happened.
+- **What job 6031 shows**: the 28 removals recorded in that worker were all on the main thread and
+  none was during the failing test, so a `patch.dict` end, a pytester restore or a `monkeypatch`
+  change is contradicted for this occurrence, as far as those wrapped calls go (an unwrapped one
+  is not seen). `h11._abnf`, loaded earlier in the same import, was still there, its package's own
+  object: a whole-dictionary restore to a snapshot from before that import would have taken it.
+  Only the failed name was absent under h11 (h11 itself and the modules running were absent too, as
+  unwinding leaves them). `sys.modules` was the dictionary seen at startup. The other thread,
+  serve_forever, was in select when the report was made, which is after the failure, not at it. The
+  collector ran 12 generation-0 and 1 generation-1 collections since the test began (21 and 3,532
+  objects): a finalizer had chances to run; whether one ran during the import is not known. It does
+  not show whether the entry was there when the pop ran. It says nothing of the other three.
+- **Status**: Open (root cause not found; four sightings, all on Windows and all on the first import
+  of httpcore2 in a worker; a triage tool is in, 2026-11-20, branch
   `fix/httpcore2-import-keyerror-triage`; it records the known removals too since 2026-11-24,
-  branch `triage/sys-modules-watcher`)
+  branch `triage/sys-modules-watcher`, and the points of each import, branch
+  `triage/import-probe`; none of it is a fix)
 - **Priority**: Medium (a CI flake; the same class can break any import in the suite)
 - **What the error means**: importlib's `_load_unlocked` runs the module, then does
-  `module = sys.modules.pop(spec.name)`. A `KeyError` there means the module's entry left
-  `sys.modules` while the module's own code was running. Its code does not remove itself, so
-  something else did, and the importing thread's traceback cannot show what. That need not be a
+  `module = sys.modules.pop(spec.name)`. A `KeyError` there means that, for the pop, the module's
+  entry was not in `sys.modules`: it left after the store (most likely while the module's own code
+  ran), or it was there and the pop missed it. The code of the modules that failed does not remove
+  itself, and the importing thread's traceback cannot show what did. That need not be a
   second thread: the failing import ran on the main thread, and code run on that same thread during
   it (a finalizer in a garbage collection, say) can remove the entry too.
 - **Reproduced (the mechanism, not the CI run)**, with scripts kept in
@@ -55,16 +83,20 @@
   gives the first failure's name and is an unlikely way to the second's. Limits: traced points are
   not moments of time, and the snapshot was taken just before the import with httpx2, anyio and ssl
   already loaded; what CI's worker had loaded, and any snapshot's age, may differ.
-- **Hypotheses, most likely first (speculation: no evidence singles one out)**:
-  1. A targeted removal of the failed name, or a second load of it whose failure-path delete
-     removed it, by code running on the importing thread or on one that had ended by report time.
-  2. A whole-dictionary restore on another thread that had ended by report time. For `_api` it must
-     have landed as that module's body ended; for `_synchronization` it had far more room.
-  3. A whole-dictionary restore on the importing thread during the import: a finalizer, or an
-     abandoned generator's `with patch.dict(sys.modules)` closing when it is collected. The same
-     room as 2, with no second thread to see.
-  4. A fault in the dictionary or the interpreter (the pop missing an entry that is there): Windows
-     only so far, and the state section's lookups by hash and by iteration would show it.
+- **Surviving hypotheses (speculation: no evidence singles one out, and the order is not a ranking;
+  the four failures are taken to share a cause, which is itself not shown)**:
+  - A targeted removal of the failed name, or a second load of it whose failure-path delete removed
+    it, by code running on the importing thread or on one that had ended by report time.
+  - A finalizer run on the importing thread during the import (by a collection or by a reference
+    count reaching 0) that removes the name, or that ends a restore whose snapshot still held the
+    earlier modules.
+  - A whole-dictionary restore on another thread that had ended by report time. Job 6031 contradicts
+    it for that occurrence, unless its call is not one of the wrapped ones and its snapshot was
+    taken after `h11._abnf` loaded. For the other three nothing recorded speaks to it: for `_api` it
+    must have landed as that module's body ended; for `_synchronization` it had far more room.
+  - A fault in the dictionary or the interpreter (the pop missing an entry that is there): Windows
+    only so far. Job 6031's two lookups agreed that the name was absent, but after the failure: they
+    do not say what the pop met.
 - **A dictionary watcher must not be used in the suite** (`PyDict_AddWatcher` with a Python callback,
   through ctypes or otherwise). Read, in CPython's 3.15 branch `Objects/dictobject.c` (through a
   summary, not the whole file): `_PyDict_DelItem_KnownHash_LockHeld` finds the entry's index, calls
@@ -83,8 +115,9 @@
   thread at teardown, before the next test starts, so it cannot overlap the next test's import;
   and no code found restores `sys.modules` off the main thread. Running that order locally
   (`-n 0`, the five tests then the failing one) passed 15 times of 15.
-- **Test gap**: nothing records the other threads when an import fails, so the one failure gave
-  only the importing thread's stack.
+- **Test gap**: nothing records the other threads when an import fails, so the first failure
+  gave only the importing thread's stack; and nothing recorded the steps of an import, so job 6031's
+  report could not say whether the entry was there when the pop ran.
 - **The triage tool**: `tests/import_failure_threads.py` (a plugin in the root `conftest.py`)
   marks every thread with the test that started it and, when a test's setup, call or teardown fails
   inside the import machinery, adds `live threads at the import failure` to its report: each live
@@ -94,11 +127,46 @@
   same or another thread; a missing mark proves nothing) and `sys.modules at the import failure`
   (`tests/import_failure_state.py`: whether the failed name is present, what else is under its
   package, whether the dictionary was rebound, the garbage collector's state, and how to read it).
-  Not recorded: direct `del` and `pop`, third-party code's changes, importlib's failure-path
+  Not recorded by it: direct `del` and `pop`, third-party code's changes, importlib's failure-path
   delete. Tests:
   `tests/test_import_failure_threads.py` (a planted failure, a module that deletes its own
   `sys.modules` entry mid-import, gives the CI signature), `tests/test_module_removals.py`,
   `tests/test_import_failure_state.py`.
+- **The probe** (2026-11-24, `tests/import_load_probe.py`, part of the recorder; evidence, not a fix):
+  `sys.monitoring` events on `_load_unlocked`'s code alone, under a tool id that was free (coverage
+  keeps id 1; here 4, else 3), read whether the module's entry is present after the store, at the
+  pop's line, as pop is called and as it returns or raises, with every garbage collection beside
+  them (and the importing module's entry before and after it; across threads the readings and their
+  order are approximate). At a pop that raises it also reads
+  the entry by hash and by iteration, which modules loaded since the outermost import began are
+  missing, and the other threads' stacks, before anything unwinds. The places are found in the code
+  object's instructions; an unrecognised shape, no free id or a fault installing is reported as not
+  recorded, and stops no run. Loads run inside a callback, or begun before it was installed, are not
+  seen. The report also describes each ident running Python code that threading does not know, and
+  the interpreter's build. It costs about 7
+  microseconds an import and 1.2 a collection (measured, macOS), and no more on collecting the suite
+  than its noise (about 0.1 s of 5), so it runs in every test run.
+- **The probe's caveat**: an instrumented `_load_unlocked` does not run as the plain one does: its
+  calls leave the interpreter's specialised path, and the callbacks add points where threads switch
+  and garbage is collected. If the cause is an interpreter fault, or needs exact timing, the probe
+  may hide it. Failures that stop after it landed are NOT evidence of a fix: take it out (or wait
+  for the failure on a run without it) before drawing anything from their absence.
+- **How to read the next failure** (the section `recorded points of the failed import`; each is a
+  hint, with what it leaves open):
+  - "left between the store and the pop's line": removed while the module was executed, by the module, by
+    what it called, by a finalizer or by another thread; the pop did not miss a present entry. A
+    collection marked `THE ENTRY WENT DURING THIS COLLECTION` points at a finalizer (another thread
+    can run inside one). With none marked, a finalizer by reference count stays open. The other
+    threads' stacks and the thread counts say who was there, not who did it. `last seen present` and
+    `first seen absent from inside` narrow it to between two nested imports; the removals section's
+    event numbers say whether a recorded removal fell there.
+  - "between the start of the pop's line and the call": the same suspects, in a very short gap.
+  - "present when pop was called, and pop raised": perhaps an interpreter or dictionary fault. The
+    callback calls nothing after its reading, so no Python code should run on that thread between
+    the reading and the pop (read from the bytecode, not proven); C code stays open.
+  - "already absent at the first line after the store": a lost store, or a removal in that gap.
+  - "sys.modules was rebound during the load" or "renamed": no claim about an entry.
+  - "not recorded" or a count of faults that is not 0: nothing follows from the missing readings.
 - **The class, swept** (2026-11-20, again 2026-11-24; `git grep` for `sys.modules` changes in `tests/` and `src/`):
   - Whole-dict restores (uncovered: each one, when it ends, drops every module imported since it
     began, on any thread, and a thread importing at that moment fails as above). `mock.patch.dict`
@@ -142,4 +210,5 @@
 - **Files**: `tests/import_failure_threads.py`, `tests/test_import_failure_threads.py`,
   `tests/module_removals.py`, `tests/test_module_removals.py`,
   `tests/import_failure_state.py`, `tests/test_import_failure_state.py`,
+  `tests/import_load_probe.py`, `tests/test_import_load_probe.py`,
   `conftest.py`, `scripts/reproduce_import_keyerror.py`

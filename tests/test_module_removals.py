@@ -832,3 +832,32 @@ def test_a_replaced_method_is_left_alone(monkeypatch):
     )
 
     result.assert_outcomes(passed=2)
+
+
+def test_the_load_probe_comes_and_goes_with_the_recorder(mocker):
+    """The last release takes it away; a removal names the probe's events it fell between."""
+    own = module_removals.RemovalRecorder()
+    mocker.patch.object(module_removals, 'recorder_in_place', return_value=None)
+    mocker.patch.object(module_removals, 'RemovalRecorder', return_value=own)
+    mocker.patch.object(own, 'wrap_methods')
+    installed = module_removals.install()
+    mocker.stopall()
+
+    assert installed is own
+    assert own.load_probe.not_recorded is None
+    module_removals.release(own)
+    assert own.load_probe.not_recorded == 'the probe was uninstalled'
+
+
+def test_a_removal_is_placed_among_the_load_probes_events(recorder, mocker, stand_in):
+    """Before and after the call; while it runs, its end is not known."""
+    mocker.patch.object(recorder.load_probe, 'newest_order', 41)
+    begun = recorder.begin(made_by='a probe', whole_dictionary=False, caller=None)
+    running = module_removals.removals_report(recorder)
+    mocker.patch.object(recorder.load_probe, 'newest_order', 43)
+    recorder.complete(begun)
+    ended = module_removals.removals_report(recorder)
+    mocker.stopall()
+
+    assert "between the load probe's events: after #41, up to still running" in running
+    assert "between the load probe's events: after #41, up to #43" in ended
