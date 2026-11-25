@@ -4,7 +4,7 @@ An engine context is the state one running game owns, so several games can run i
 (the Arcade's demo tiles; design: `plans/2026-10-25-engine-context.md`). Ordinary games never
 create one: they run in the default context, exactly as before.
 
-What is per game today: the twenty-one slots below, and the engine's and the scene manager's own
+What is per game today: the twenty-two slots below, and the engine's and the scene manager's own
 attributes (an engine's `options`, `game`, `running_game`, `event_handlers` and its event
 bookkeeping; a scene manager's `engine_options`), which belong to the object, so two engines
 never share them. The old class-level names of that state (`GameEngine.OPTIONS`,
@@ -54,7 +54,7 @@ scratch context for building a file's waves (`src/glitchygames/audio/assets.py`)
 
 ## What belongs to a context today
 
-???+ note "The twenty-one slots, with their public functions"
+???+ note "The twenty-two slots, with their public functions"
 
     | Slot (its `ContextSlot` name) | Module | Public functions |
     |---|---|---|
@@ -79,6 +79,7 @@ scratch context for building a file's waves (`src/glitchygames/audio/assets.py`)
     | `'glitchygames.recording.private_event_queue'` | `src/glitchygames/recording.py` | `private_event_queue` (an inner context's own event queue: its posts go there and its replay doors drain it, never SDL's) |
     | `'glitchygames.audio.route.audio_route'` | `src/glitchygames/audio/route.py` | `is_audible`, `set_audible` (whether the context's sound is heard: the default context audible, a new inner game silent; `InnerGame.audible`, `InnerGame.set_audible`) |
     | `'glitchygames.audio.voices.inner_channels'` | `src/glitchygames/audio/voices.py` | `inner_context_partition`, `take_heard_set`, `give_back_heard_set`, `heard_set_start`, `release_inner_context_channels`, `plain_plays_followed`, `plain_play_channel_indices`, `stop_plain_plays_and_mute_the_live_pool`, `current_inner_context_channel_indices` (an inner context's channels: its partition, live pool, heard set while heard, and the plain plays it started while heard) |
+    | `'glitchygames.feature_flags.options'` | `src/glitchygames/feature_flags.py` | `flag_state`, `flag_state_lines`, `take_flag_options` (what the context's latest engine was asked of each feature flag) |
 
 `tests/test_engine_context.py` proves, for every slot, that two contexts in one process never
 see each other's values; a slot added without such a check fails the suite.

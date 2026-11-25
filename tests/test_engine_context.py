@@ -63,6 +63,7 @@ from glitchygames.engine_context import (
 )
 from glitchygames.events import HashableEvent, ResourceManager, unhandled_event
 from glitchygames.events.base import UNHANDLED_EVENT_TYPES_SLOT
+from glitchygames.feature_flags import FLAG_OPTIONS_SLOT, flag_state, take_flag_options
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
 from glitchygames.game_frames import game_frame_clock
@@ -1260,6 +1261,20 @@ def check_inner_channels(*, first: EngineContext, second: EngineContext) -> None
         release_inner_context_channels()
 
 
+def check_flag_options(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context answers as its own engine was asked; the default context was asked nothing."""
+    with first.active():
+        take_flag_options(options={'lucid_circuit': False})
+    with second.active():
+        take_flag_options(options={'lucid_circuit': True})
+
+    with first.active():
+        assert not flag_state(name='lucid-circuit').on
+    with second.active():
+        assert flag_state(name='lucid-circuit').on
+    assert default_context().value(slot=FLAG_OPTIONS_SLOT).asked == {}
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1284,6 +1299,7 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.recording.private_event_queue': check_private_event_queue,
     'glitchygames.audio.route.audio_route': check_audio_route,
     'glitchygames.audio.voices.inner_channels': check_inner_channels,
+    'glitchygames.feature_flags.options': check_flag_options,
 }
 
 

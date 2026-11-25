@@ -73,6 +73,12 @@ from glitchygames.events.sprite_spawn import SPRITE_SPAWN_EVENT, SpriteSpawn, ad
 from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
+from glitchygames.feature_flags import (
+    FEATURE_FLAG_GROUP_TITLE,
+    add_flag_arguments,
+    flag_state_lines,
+    take_flag_options,
+)
 from glitchygames.fonts import FontManager
 from glitchygames.host import GameHost, HostSources
 from glitchygames.input.device_listing import list_input_devices
@@ -1358,6 +1364,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             default=False,
         )
 
+        # Each feature flag's option, on and off, is made from its declaration, as
+        # glitchygames/feature_flags.py says
+        add_flag_arguments(parser=parser.add_argument_group(FEATURE_FLAG_GROUP_TITLE))
+
         event_managers = (
             AppEventManager,
             AudioEventManager,
@@ -1564,6 +1574,9 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # This engine's parsed command line (audit C8: its own; GameEngine.OPTIONS is a
         # read-only view of it), set before the engine is current below
         self.options: dict[str, Any] = options
+        # The context's feature flags are this command line's from here on, before anything
+        # reads one or a recording's options are put in place (glitchygames/feature_flags.py)
+        take_flag_options(options=options)
         # The current context's engine from here on (current_engine()): every piece of the
         # engine's own state is set above this line, so no view finds a half-made engine (if
         # the rest raises, _clear_a_half_made_engine clears it again)
@@ -3903,10 +3916,19 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         the recording's), not the option as given, which is None when the seed was rolled (the
         owner, 2026-10-28: "The seed should definitely be in the options"); rolled or given is
         on the INFO line (``_log_the_runs_seed``), hidden at the default WARNING.
+
+        Below the options, each feature flag's state and why it is off
+        (glitchygames/feature_flags.py): its option says only what was asked.
         """
         shown_options = {**self.options, 'random_seed': self.random_seed}
+        flag_lines = [f'{OPTIONS_BLOCK_INDENT}{line}' for line in flag_state_lines()]
         self.log.critical(
-            '%s', startup_options_block(game_name=self._game_name(), options=shown_options)
+            '%s',
+            '\n'.join([
+                startup_options_block(game_name=self._game_name(), options=shown_options),
+                'Feature flags:',
+                *flag_lines,
+            ]),
         )
 
     def _game_name(self: Self) -> str:

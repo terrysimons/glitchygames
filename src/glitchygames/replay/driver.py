@@ -257,6 +257,7 @@ from glitchygames import clock
 from glitchygames.checks import required
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
+from glitchygames.feature_flags import FEATURE_FLAGS, option_name
 from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import (
     DeviceDescriptor,
@@ -406,6 +407,9 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     # watched, never what the game does, so a recording replays under any cache mode
     'sound_cache',
     'sound_diagnostics',
+    # Every feature flag's option (--lucid-circuit): what this run wants and can have
+    # (glitchygames/feature_flags.py, rule 4)
+    *(option_name(flag_name=name) for name in FEATURE_FLAGS),
 })
 
 # How many frames before a sprite divergence its report lists (with the divergent frame itself)

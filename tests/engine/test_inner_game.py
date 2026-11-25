@@ -42,6 +42,7 @@ from glitchygames.audio.voices import (
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
+from glitchygames.feature_flags import flag_state
 from glitchygames.inner_game import (
     FLAG_VALUE_COUNTS,
     REFUSED_FLAGS,
@@ -2428,6 +2429,35 @@ class TestTheOuterGamesOptions:
 
         assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
         assert options['sound_cache'] == 'none'
+
+    @pytest.mark.parametrize(
+        'arguments_and_state',
+        [
+            ((), (), True),
+            (('--no-lucid-circuit',), (), False),
+            (('--no-lucid-circuit',), ('--lucid-circuit',), True),
+            ((), ('--no-lucid-circuit',), False),
+        ],
+    )
+    def test_an_inner_games_feature_flags_are_its_own_command_lines(
+        self,
+        stand_in: StandInGame,
+        recording: Path,
+        mocker: MockerFixture,
+        arguments_and_state: tuple[tuple[str, ...], tuple[str, ...], bool],
+    ):
+        """The outer game's flags reach it, its host's own win, and the outer game keeps its own."""
+        outer, own, on = arguments_and_state
+        build_a_host(mocker=mocker, arguments=(*outer, *QUIET))
+
+        inner_game = replay_stand_in(game=stand_in, path=recording, arguments=own)
+        with inner_game.context.active():
+            inner_state = flag_state(name='lucid-circuit')
+        outer_state = flag_state(name='lucid-circuit')
+        play_to_the_end(inner_game)
+
+        assert inner_state.on is on
+        assert outer_state.on is not bool(outer)
 
     def test_the_hosts_own_arguments_win_over_the_outer_games(
         self, stand_in: StandInGame, recording: Path, mocker: MockerFixture

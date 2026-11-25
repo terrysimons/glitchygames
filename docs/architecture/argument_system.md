@@ -25,7 +25,7 @@ sequenceDiagram
 
     INIT->>PARSER: ArgumentParser("Bitmappy version 1.0")
     INIT->>ENGINE: GameEngine.args(parser)
-    Note over ENGINE: Layer 1<br/>Graphics Options (20)<br/>Diagnostics Options (62, 3 hidden)
+    Note over ENGINE: Layer 1<br/>Graphics Options (20)<br/>Diagnostics Options (62, 3 hidden)<br/>Feature Flags (1)
     loop for each of the 12
         ENGINE->>MANAGERS: manager.args(parser)
     end
@@ -49,7 +49,7 @@ the order of the layers. The layers mirror the engine's architecture.
 %%{init: {"flowchart": {"wrappingWidth": 500}}}%%
 flowchart TB
     subgraph ENGINE_ARGUMENT_LAYERS["Engine"]
-        L1["<b>Layer 1: the engine</b> (GameEngine.args)<br/>Graphics Options, Diagnostics Options"]
+        L1["<b>Layer 1: the engine</b> (GameEngine.args)<br/>Graphics Options, Diagnostics Options, Feature Flags"]
         L2["<b>Layer 2: event managers and fonts</b> (each one's args)<br/>Controller Options, Font Options, Game Options,<br/>and 9 reserved groups with no options yet"]
     end
     subgraph GAME_ARGUMENT_LAYERS["Your game"]
@@ -59,7 +59,7 @@ flowchart TB
 ```
 
 In `--help` (Bitmappy's or Paddle Slap's) the groups hold 20 Graphics, 59 Diagnostics (3 more
-hidden), 2 Controller, 7 Font and 4 Game options, then the game's own; the nine empty groups
+hidden), 1 Feature Flags, 2 Controller, 7 Font and 4 Game options, then the game's own; the nine empty groups
 are left out. Most of the Diagnostics options are the recording, replay and measurement tools'
 ([Tool flags](#tool-flags)). The [Complete Flag Reference](#complete-flag-reference) lists them all.
 
@@ -198,6 +198,7 @@ nested mapping is indented below its name. Path options (the tools' and the engi
 recording's header stores) are shown relative to the project root when inside it and absolute
 otherwise. An option whose name holds key, token, secret, password or credential, in any case,
 shows `<redacted>`. The environment is never read. A replay's options are the recorded run's.
+Below the options the same record lists each feature flag's state, and why it is off.
 `random_seed` is the seed the run uses, rolled or given (the owner, 2026-10-28: "The seed should
 definitely be in the options"), never None, so `--random-seed` with it plays the run again.
 
@@ -300,6 +301,15 @@ read are `[tool.glitchygames]` in `pyproject.toml` (its `games`, `golden-globs`,
 `--ai` is the one engine flag not in the registry: two tool flags at once are refused, and `--ai`
 is on by default.
 
+#### Feature Flags
+
+Added by `add_flag_arguments()` in `src/glitchygames/feature_flags.py` (whose docstring is the
+contract), one per flag declared in `FEATURE_FLAGS`. `flag_state(name=...)` says whether a flag is
+on in the current engine context and, when it is off, why. Each is local to the run: a recording
+never sets one.
+
+- `--lucid-circuit, --no-lucid-circuit` (`bool`, default on): Lucid Circuit, the local AI: it needs the AI service installed, and is never used with --headless or in a replay. Nothing reads it yet: `--ai` still decides
+
 ### Layer 2: event managers and fonts
 
 #### Controller Options
@@ -383,8 +393,8 @@ The other games add their own options the same way:
 ## What `--help` Looks Like
 
 `uv run bitmappy --help` prints a usage line, the `options:` group (`-h, --help`), then each
-group in the order the layers add them: Graphics, Diagnostics, Controller, Font and Game
-Options, then `Bitmappy v1.0 Options`. argparse leaves out groups with no arguments (App, Sound
+group in the order the layers add them: Graphics and Diagnostics Options, Feature Flags,
+Controller, Font and Game Options, then `Bitmappy v1.0 Options`. argparse leaves out groups with no arguments (App, Sound
 Mixer and the other reserved groups). Every option it prints, with its help text, is listed in
 [Complete Flag Reference](#complete-flag-reference).
 
