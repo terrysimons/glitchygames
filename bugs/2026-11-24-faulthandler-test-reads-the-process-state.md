@@ -6,36 +6,37 @@
   its first assert, `assert faulthandler.is_enabled()` with `False` (line 165). Every other job of
   the run passed. #293's change (a `format-check` nox session, its CI step and its tests) does not
   touch faulthandler or the engine.
-- **Status**: Open. Not reproduced; the mechanism is a hypothesis.
+- **Second failure**: 2026-11-24, CircleCI's macOS job 5952, main's own run at `c72ec6d8`
+  (shuffled, seed 1009600162, worker `gw1`), the same assert.
+- **Status**: Fixed on `fix/faulthandler-left-off`. Reproduced: either of the leaking tests below,
+  then this test, on one worker fails every time. That the two CI failures were this is inferred:
+  in job 5952 all three leaking tests come before it in the report; their worker is not recorded.
 - **Priority**: Medium (a red required check on an unrelated PR; the split CI job cannot rerun one
   machine's failed tests).
-- **Root Cause**: Of the test: it asserts on process-wide state it does not own. It expects
-  faulthandler to be on because pytest's faulthandler plugin turns it on at configure, so any
-  earlier test on the same worker that leaves faulthandler off fails it. Its sibling
-  (`test_each_fatal_signal_goes_back_to_its_default_then_faulthandler_reports_it`) patches
-  `faulthandler.is_enabled` instead. Of the state: unverified. No test on main calls
-  `faulthandler.disable()` (`git grep` on `13b208fa`). A suspect is a test that runs pytest
-  in-process (`pytester.runpytest_inprocess`: `tests/test_ci_config.py`,
-  `tests/test_circleci_test_split.py`, `tests/replay/test_replay_plugin.py`): the inner session's
-  `_pytest.faulthandler.pytest_unconfigure` (pytest 9.1.1) calls `faulthandler.disable()` and turns
-  it back on only on the stderr descriptor it saved at configure, and only if faulthandler was on
-  then. On macOS, `tests/test_circleci_test_split.py` followed by the test on one worker passed
-  (86 passed); Windows was not tried. Why `--dist worksteal` (#291) would expose it: the tests a
-  worker runs before this one now change from run to run.
-- **Test gap**: Nothing checks that a test leaves faulthandler as it found it, so whichever test
-  turns it off goes unnamed, and the failure lands on an innocent test that reads the state.
-- **Solution**: Not chosen. Recommended: (1) the test patches `faulthandler.is_enabled` to `True`
-  as its sibling patches it to `False`, so it tests `report_fatal_signals_with_faulthandler`'s
-  branch, not the worker's history; (2) the invariant that catches the class: an autouse check in
-  `tests/harness.py` that faulthandler is still enabled after each test, failing the test that
-  turned it off. That check also finds the real culprit on its first Windows run.
-- **Known limits**: Seen once in the 44 Windows jobs of the last 60 pipelines; CircleCI's
-  flaky-test list does not hold it.
-- **Sweep**: Not done yet: other tests that assert on process-wide state set by pytest or a plugin
-  (signal handlers, `sys.stderr`, warnings filters, the logging root) without setting it themselves.
-- **Tests**: None yet.
+- **Root Cause**: Of the test: it asserted on process-wide state it does not own. Of the state:
+  three tests of `tests/test_frame_fingerprints.py` (an image request without the fingerprints
+  option, and an unreadable one, two cases) run pytest in process, ended by the usage error they
+  check. It is raised in our plugin's `pytest_configure`, before pytest's own faulthandler plugin
+  is configured (pytest 9.1.1), so that plugin has saved nothing; its `pytest_unconfigure` still
+  calls `faulthandler.disable()`. Found by checking faulthandler after each of 748 tests of the
+  files that run pytest inside a test: those three and no other left it off.
+- **Test gap**: Nothing checked that a test leaves faulthandler as it found it, so the failure
+  landed on an innocent test. Until something turned it on again, a crash on that worker printed
+  no traceback.
+- **Solution**: (1) those inner runs get `-p no:faulthandler` (the `inner_tests` fixture);
+  (2) an autouse check in `tests/harness.py` (`tests/faulthandler_guard.py`) fails a test that
+  leaves faulthandler off, by name, and turns it back on; (3) this test sets its own state.
+- **Known limits**: the check turns faulthandler back on on the process's stderr, as Python does
+  not say which stream it used. It sees faulthandler off, not on for another stream (an inner run
+  that ends normally leaves it on its own).
+- **Sweep**: the whole suite runs under the check. Not done: other process-wide state pytest or a
+  plugin sets (`sys.stderr`, warnings filters, the logging root) read by a test that does not set
+  it.
+- **Tests**: `tests/test_faulthandler_guard.py`. With the check and without (1), exactly those three
+  tests fail.
 - **Reporter**: The coordinator (Ledger), from #293's CI.
 - **Date Reported**: 2026-11-24
-- **Files**: `tests/engine/test_engine_fatal_signals.py`,
+- **Files**: `tests/faulthandler_guard.py`, `tests/test_frame_fingerprints.py`,
+  `tests/engine/test_engine_fatal_signals.py`,
   `src/glitchygames/engine/game_engine.py` (`report_fatal_signals_with_faulthandler`, lines
   292-330), `tests/harness.py`; pytest's `_pytest/faulthandler.py`.
