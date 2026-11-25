@@ -2360,3 +2360,10 @@ decided, for the day a live game runs inside another:
   `controller_count` answer any recorded integer, so a malformed recording (200,000) has the joystick
   manager ask about, and the registry warn of, each index. MIDI's count is bounded
   (`MAXIMUM_MIDI_PORT_COUNT`); do the same for these.
+- [ ] **A stand-in joystick registry is kinder than SDL.** Opening a missing index only warns and
+  records no failure, where a live open raises `pygame.error`; the stand-in MIDI ports fail as live
+  ones do. It predates MIDI and affects tests only.
+- [ ] **A game holds the live output port itself.** Inputs are handed out as a handle, outputs are
+  not: a write after a game's own `close()` raises live and is dropped in a replay, and
+  `ReplayMidiOutput` has no `abort()`, so a game calling it gets AttributeError in a replay or a
+  playback scope. Hand out an output handle: `abort` accepted, `close` closing nothing.
