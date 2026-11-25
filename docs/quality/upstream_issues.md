@@ -76,14 +76,10 @@ teardown (`test_a_golden_games_teardown_leaves_no_mixer_channel_busy`). Bug reco
 `bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md`. Remove the guard only after a fixed
 pygame-ce release ships.
 
-**Fix to propose upstream**: update both slots, then release the old Sound:
-
-```c
-PyObject *old_sound = channeldata[channel].sound;
-channeldata[channel].sound = channeldata[channel].queue;
-channeldata[channel].queue = NULL;
-Py_XDECREF(old_sound);
-```
+**Fix to propose upstream**: under re-verification (2026-11-24); nothing is to be posted from this
+entry until it is done. The first proposal, updating both slots before releasing the old Sound, is
+believed wrong: the nested callback can still release the queued Sound, and the outer one then plays
+its freed chunk.
 
 Three related defects in the same file. `chan_get_sound` and `chan_get_queue` index `channeldata`
 with no `MIXER_INIT_CHECK` and no bounds check. `chan_play` indexes `channeldata[channelnum]`
@@ -97,7 +93,8 @@ reads and plays only while the table has the channel (`_channel_in_the_table`,
 
 **Drafted issue text**: the title "`Channel.play()` over a playing Sound with a Sound queued frees
 the queued Sound while it is still referenced (re-entrant `endsound_callback`)", then the
-versions, the reproduction, the cause and the suggested fix above, and the three related defects.
+versions, the reproduction, the cause and the three related defects. The suggested fix waits for
+the re-verification above.
 
 ### `mkdocs serve` keeps every rebuild alive (griffe and mkdocstrings-python)
 

@@ -7,8 +7,8 @@
   second in the same process. The recording game's Mr. Muncher projector (a live voice) was never
   stopped, and the replay game's projector started on the same mixer channel while that channel
   still played one chunk with another queued.
-- **Status**: Fixed on `feature/mascot-demo` (2026-11-24). The pygame-ce defect itself is open
-  upstream (below).
+- **Status**: Fixed (2026-11-24, `fix/live-voices-keep-their-sounds`, the fix commit of
+  `feature/mascot-demo` on its own). The pygame-ce defect itself is open upstream (below).
 - **Priority**: High. Heap corruption in the engine's audio path: it crashed a golden test in up to
   half the group runs, and the corruption can also pass silently or hang.
 - **Root Cause**: pygame-ce 2.5.8's `endsound_callback` (`src_c/mixer.c`) runs
@@ -140,9 +140,11 @@
     leak errors its own test; the next one passes).
   - `tests/test_engine_context.py`: `check_live_streams`, the registry slot's isolation check.
   - The proof, the golden test alone 20 times: on origin/main, 8 of 20 crashed; on origin/main
-    with only the `live.py` fix, 0 of 20; with both fixes, 0 of 20; on this branch with both
-    fixes, 0 of 20. On this branch without them, 0 of 20 too, because the lighting step moved the
-    timing out of the window, as the triage predicted.
+    with only the `live.py` fix, 0 of 20; with both fixes, 0 of 20; on `feature/mascot-demo` with
+    both fixes, 0 of 20. There without them, 0 of 20 too, because its lighting step moved the
+    timing out of the window, as the triage predicted. Repeated by the coordinator on 2026-11-24
+    on macOS arm64: 12 of 20 crashed at `1a1c1f92` (main's engine source), 0 of 20 with this fix
+    alone on main `311e6743`.
 - **Checked, not affected**: `audio/voices.py`'s and `replay/silence.py`'s `get_sound()` and
   `get_queue()` reads each build a fresh `pygame.mixer.Channel(index)`, whose constructor checks
   init and range and raises. They never read through a stored `Channel`, so they cannot reach a
