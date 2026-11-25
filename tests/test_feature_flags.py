@@ -32,10 +32,12 @@ from glitchygames.feature_flags import (
     take_flag_options,
 )
 from glitchygames.replay.driver import REPLAY_LOCAL_OPTIONS, apply_recorded_options
+from glitchygames.replay.tools import command
 from glitchygames.replay.tools.golden_traces import GoldenTraceEngine, command_line
 from glitchygames.replay.tools.registry import add_game_flags
 from glitchygames.scenes import Scene
-from tests import demo_runs
+from tests import demo_runs, harness
+from tests.replay.replay_helpers import replay_through_engine, rewrite_recording
 
 LUCID_CIRCUIT = 'lucid-circuit'
 BROWSER = 'emscripten'
@@ -210,6 +212,13 @@ def test_off_by_default_says_how_to_turn_it_on():
     assert state('a-b', flags=flags).reason == 'off by default; --a-b turns it on'
 
 
+def test_a_default_off_flag_turned_off_on_the_command_line_says_so():
+    """Only what was typed is an answer: the same value by default has another reason."""
+    flags = declare_flags(flag('a-b', default=False))
+
+    assert state('a-b', '--no-a-b', flags=flags).reason == 'turned off by --no-a-b'
+
+
 def test_a_child_is_off_with_its_parent_whatever_was_asked_of_it():
     """The parent is named, with its own reason."""
     flags = declare_flags(flag('child', parent='parent'), flag('parent'))
@@ -286,6 +295,25 @@ def test_a_state_has_a_reason_exactly_when_it_is_off(on, reason):
         FlagState(on=on, reason=reason)
 
 
+@pytest.mark.parametrize('on', [1, 0, 'yes', 'false'])
+def test_a_states_on_is_a_bool_and_nothing_read_as_one(on):
+    """Strict: no number or text becomes a state, with or without a reason."""
+    for reason in (None, 'a reason'):
+        with pytest.raises(ValidationError, match='valid boolean'):
+            FlagState(on=on, reason=reason)
+
+
+@pytest.mark.parametrize(
+    ('field', 'value'), [('default', 1), ('default', 'off'), ('recorded', 0), ('name', b'a')]
+)
+def test_a_declarations_values_are_their_own_types(field, value):
+    """Strict: a value of another type is refused, never converted."""
+    declared: dict[str, Any] = {'name': 'a', 'summary': 'a', 'default': True}
+
+    with pytest.raises(ValidationError, match=field):
+        FeatureFlag.model_validate({**declared, field: value})
+
+
 def test_a_state_is_frozen():
     """A state read is never changed."""
     answer = FlagState(on=True)
@@ -324,15 +352,44 @@ def test_what_was_asked_is_kept_apart_from_the_options():
         assert not flag_state(name=LUCID_CIRCUIT).on
 
 
+def test_only_what_was_typed_is_asked_and_every_option_ends_a_plain_bool():
+    """The options are what a run logs and records: never None."""
+    flags = declare_flags(flag('a'), flag('b', default=False), flag('c'), flag('d', default=False))
+    options = parsed('--no-c', '--no-d', flags=flags)
+    with EngineContext(name='flags').active() as context:
+        take_flag_options(options=options, flags=flags)
+
+        assert context.value(slot=feature_flags.FLAG_OPTIONS_SLOT).asked == {'c': False, 'd': False}
+    assert options == {'a': True, 'b': False, 'c': False, 'd': False}
+
+
+def test_options_that_hold_no_flag_are_given_none():
+    """An old caller's options stay without an answer, so a feature's gate can fail closed."""
+    options = {'log_level': 'warning'}
+    with EngineContext(name='flags').active():
+        take_flag_options(options=options)
+
+    assert options == {'log_level': 'warning'}
+
+
 def test_a_recording_never_sets_a_flag():
     """Every unrecorded flag's option is the run's own (REPLAY_LOCAL_OPTIONS)."""
     assert {option_name(flag_name=name) for name in FEATURE_FLAGS} <= REPLAY_LOCAL_OPTIONS
-    assert 'ai' in REPLAY_LOCAL_OPTIONS
 
     for own, recorded in ((True, False), (False, True)):
         options = {'lucid_circuit': own}
         apply_recorded_options(options=options, recorded={'lucid_circuit': recorded})
         assert options == {'lucid_circuit': own}
+
+
+@pytest.mark.parametrize('recorded', [True, False])
+def test_the_removed_switch_of_an_old_recording_is_not_put_in_a_runs_options(recorded):
+    """14 committed recordings hold ``ai``, which no option is now."""
+    options = {'lucid_circuit': True}
+
+    apply_recorded_options(options=options, recorded={'ai': recorded})
+
+    assert options == {'lucid_circuit': True}
 
 
 # --- The command line ---
@@ -369,18 +426,34 @@ class ClashingGame(FlaggedGame):
 
 @pytest.mark.parametrize(
     ('arguments', 'expected'),
-    [((), True), (('--lucid-circuit',), True), (('--no-lucid-circuit',), False)],
+    [((), None), (('--lucid-circuit',), True), (('--no-lucid-circuit',), False)],
 )
 def test_the_engine_has_an_option_for_each_flag(arguments, expected):
-    """On unless told otherwise, as a game's command line is parsed."""
+    """As a game's command line is parsed: None until its engine takes it, when none was typed."""
     assert engine_options(*arguments)['lucid_circuit'] is expected
 
 
-def test_both_ai_and_lucid_circuit_are_options_until_the_link_moves_over():
-    """Task 1 of the plan: ``--ai`` still acts; Task 2 removes it, and this test with it."""
-    options = engine_options('--no-ai')
+@pytest.mark.parametrize('removed', ['--ai', '--no-ai', '--ai=1'])
+@pytest.mark.parametrize('others', [(), ('--verify',), ('--replay-trace', 'run.jsonl.gz')])
+def test_the_removed_switch_is_an_unknown_argument(capsys, removed, others):
+    """Of a plain run, a tool's and a replay's: no alias, and no prefix of another option."""
+    # The last keeps the run from starting, were the first to be known again
+    refused = [removed, '--no-such-flag']
+    with command_line([*others, *refused]), pytest.raises(SystemExit) as exit_information:
+        GoldenTraceEngine(game=FlaggedGame)
 
-    assert (options['ai'], options['lucid_circuit']) == (False, True)
+    assert exit_information.value.code == ExitCode.ARGUMENT_PARSER_ERROR
+    assert f'unrecognized arguments: {" ".join(refused)}' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('removed', ['--ai', '--no-ai'])
+def test_the_removed_switch_is_unknown_to_the_tools_command(capsys, removed):
+    """``glitchygames verify --ai``."""
+    with pytest.raises(SystemExit) as exit_information:
+        command.main(['verify', removed])
+
+    assert exit_information.value.code == ExitCode.ARGUMENT_PARSER_ERROR
+    assert f'unrecognized arguments: {removed}' in capsys.readouterr().err
 
 
 def test_the_help_lists_each_flag_in_its_group_with_its_summary_and_default():
@@ -478,6 +551,77 @@ def test_a_games_flags_are_its_command_lines():
     assert flag_state(name=LUCID_CIRCUIT).on
 
 
+@pytest.mark.usefixtures('engine_run_environment')
+@pytest.mark.parametrize(('earlier', 'failed'), [('--no-', '--'), ('--', '--no-')])
+def test_an_engine_that_fails_to_build_leaves_the_earlier_flags(tmp_path, earlier, failed):
+    """As it leaves no half-made engine current: no run of its own ever asked anything."""
+    with command_line([*ENGINE_ARGUMENTS, f'{earlier}lucid-circuit']):
+        GoldenTraceEngine(game=FlaggedGame)
+    before = flag_state(name=LUCID_CIRCUIT)
+
+    missing = tmp_path / 'missing.jsonl.gz'
+    with (
+        command_line([
+            *ENGINE_ARGUMENTS,
+            f'{failed}lucid-circuit',
+            '--replay-trace',
+            str(missing),
+        ]),
+        pytest.raises(SystemExit),
+    ):
+        GoldenTraceEngine(game=FlaggedGame)
+
+    assert flag_state(name=LUCID_CIRCUIT) == before
+    assert before.on is (earlier == '--')
+
+
+@pytest.mark.usefixtures('engine_run_environment')
+def test_a_first_engine_that_fails_to_build_leaves_nothing_asked(tmp_path):
+    """The context answers the default again."""
+    with (
+        command_line([
+            *ENGINE_ARGUMENTS,
+            '--no-lucid-circuit',
+            '--replay-trace',
+            str(tmp_path / 'missing.jsonl.gz'),
+        ]),
+        pytest.raises(SystemExit),
+    ):
+        GoldenTraceEngine(game=FlaggedGame)
+
+    assert flag_state(name=LUCID_CIRCUIT).on
+
+
+@pytest.mark.draws_frames
+@pytest.mark.usefixtures('engine_run_environment')
+@pytest.mark.parametrize('option', ['ai', 'lucid_circuit'])
+@pytest.mark.parametrize('recorded', [True, False])
+def test_a_replay_keeps_its_own_switch_whatever_the_recording_holds(
+    mocker, tmp_path, quick_game, option, recorded
+):
+    """On or off as its own command line asked, and the recording matches either way."""
+    recording = tmp_path / 'run.jsonl.gz'
+    with command_line([*ENGINE_ARGUMENTS, '--record-trace', str(recording)]):
+        GoldenTraceEngine(game=quick_game).start()
+    rewrite_recording(
+        recording_path=recording,
+        change=lambda trace: trace['options'].update({option: recorded}),
+    )
+    started = mocker.spy(GoldenTraceEngine, 'start')
+
+    for arguments, on in (((), True), (('--no-lucid-circuit',), False)):
+        replay = replay_through_engine(
+            mocker=mocker, scene_class=quick_game, path=recording, extra_arguments=arguments
+        )
+
+        engine = started.call_args.args[0]
+        assert replay.exit_status == ExitCode.SUCCESS
+        assert flag_state(name=LUCID_CIRCUIT).on is on
+        assert engine.options['lucid_circuit'] is on
+        assert 'ai' not in engine.options
+        assert engine.ai_link is None
+
+
 @pytest.mark.draws_frames
 @pytest.mark.usefixtures('engine_run_environment')
 def test_a_flag_stays_as_asked_after_the_run(quick_game):
@@ -501,6 +645,8 @@ def test_a_start_logs_each_flag_once_with_the_options_block(quick_game, caplog, 
     """One record: the options, then each state and why."""
     with command_line([*ENGINE_ARGUMENTS, *arguments]):
         engine = GoldenTraceEngine(game=quick_game)
+    # What its build said (ai_link's INFO line) shows at whatever level the process was left
+    caplog.clear()
     with caplog.at_level(logging.DEBUG):
         engine.start()
 
@@ -527,4 +673,9 @@ def test_the_state_lines_are_sorted_and_say_why():
 
 def test_no_flag_is_asked_in_a_context_left_alone():
     """The harness starts each test with nothing asked, as a fresh process would."""
+    current_context().value(slot=feature_flags.FLAG_OPTIONS_SLOT).asked = {'lucid_circuit': False}
+    assert not flag_state(name=LUCID_CIRCUIT).on
+
+    harness._reset_all_singleton_instances()
+
     assert dict(current_context().value(slot=feature_flags.FLAG_OPTIONS_SLOT).asked) == {}

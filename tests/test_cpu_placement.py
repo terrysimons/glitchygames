@@ -427,12 +427,12 @@ def test_only_a_connected_link_pins(pinning, state, installed_with_placement):
 @pytest.mark.parametrize(
     'run',
     [
-        (['--no-ai'], 'linux', True),
+        (['--no-lucid-circuit'], 'linux', True),
         (['--headless'], 'linux', True),
         ([], 'darwin', True),
         ([], 'linux', False),
     ],
-    ids=['no-ai', 'headless', 'mac', 'no-placement'],
+    ids=['no-lucid-circuit', 'headless', 'mac', 'no-placement'],
 )
 def test_no_pinning_without_ai_on_a_mac_or_without_a_placement(
     run, installed_with_placement, pinning, mocker

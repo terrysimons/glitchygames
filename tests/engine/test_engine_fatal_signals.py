@@ -86,7 +86,7 @@ A_GAME_THAT_CRASHES = (
 
 
         sys.argv = ['a-game-that-crashes', '--resolution', '320x240', '--log-level', 'error',
-                    '--target-fps', '0', '--no-ai']
+                    '--target-fps', '0', '--no-lucid-circuit']
         GoldenTraceEngine(game=StillScene)
         """
     )

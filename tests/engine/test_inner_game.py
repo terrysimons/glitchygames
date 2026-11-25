@@ -58,6 +58,7 @@ from glitchygames.inner_game import (
     inherited_arguments,
     is_refused_argument,
     is_refused_short_flag_cluster,
+    refused_arguments,
 )
 from glitchygames.render_target import render_target
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES
@@ -1477,6 +1478,19 @@ class TestAFailure:
         inner_game = replay_stand_in(
             game=stand_in, path=recording, arguments=(*QUIET, '--no-such-flag')
         )
+
+        assert inner_game.outcome.state is InnerGameState.FAILED
+        assert inner_game.outcome.error == 'the game exited with ARGUMENT_PARSER_ERROR (2)'
+        assert current_context() is default_context()
+
+    @pytest.mark.parametrize('removed', ['--ai', '--no-ai'])
+    def test_the_removed_ai_switch_fails_as_an_unknown_argument(
+        self, stand_in: StandInGame, recording: Path, removed: str
+    ):
+        """The refused-argument check names neither, so the game's own parser refuses it."""
+        assert refused_arguments(arguments=(removed,)) == []
+
+        inner_game = replay_stand_in(game=stand_in, path=recording, arguments=(*QUIET, removed))
 
         assert inner_game.outcome.state is InnerGameState.FAILED
         assert inner_game.outcome.error == 'the game exited with ARGUMENT_PARSER_ERROR (2)'

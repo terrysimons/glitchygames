@@ -14,7 +14,7 @@ import pygame
 import pytest
 from websockets.sync.server import serve
 
-from glitchygames import ai_link
+from glitchygames import ai_link, feature_flags
 from glitchygames.ai_console import AiConsole
 from glitchygames.ai_host import AiHostSources
 from glitchygames.ai_link import (
@@ -30,6 +30,7 @@ from glitchygames.replay.tools.golden_traces import command_line
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.testing.keys import qwerty_scancode
 from tests.ai_service_stand_in import install
+from tests.replay.replay_helpers import rewrite_recording
 from tests.test_ai_link import KEY_PRESS, FakeService
 
 # These runs can't be --headless, which turns AI off, so on the dummy driver SCALED asks for a
@@ -148,23 +149,49 @@ def test_ai_is_on_by_default_and_gets_the_ai_doors(scene):
 
 
 @pytest.mark.usefixtures('installed')
-def test_no_ai_flag_gets_the_plain_doors(scene):
-    """--no-ai never touches the service: the doors are exactly the host's own."""
-    with command_line([*ARGUMENTS, '--no-ai']):
+@pytest.mark.parametrize('arguments', [(), ('--lucid-circuit',)])
+def test_asking_for_lucid_circuit_is_its_default(scene, arguments):
+    """Typed or not, the options show a plain True and the run has its link."""
+    with command_line([*ARGUMENTS, *arguments]):
+        engine = GameEngine(game=scene)
+
+    assert engine.options['lucid_circuit'] is True
+    assert engine.ai_link is not None
+
+
+@pytest.mark.usefixtures('installed')
+def test_no_lucid_circuit_gets_the_plain_doors(scene):
+    """It never touches the service: the doors are exactly the host's own, with no console."""
+    with command_line([*ARGUMENTS, '--no-lucid-circuit']):
         engine = GameEngine(game=scene)
 
     assert type(engine.host.sources) is HostSources
     assert engine.ai_link is None
+    assert engine.ai_console is None
+
+
+@pytest.mark.usefixtures('installed')
+@pytest.mark.parametrize('arguments', [(), ('--lucid-circuit',)])
+def test_a_browser_gets_the_plain_doors(scene, mocker, arguments):
+    """The flag is unavailable there, whatever was asked, even with a service found."""
+    mocker.patch.object(feature_flags, 'sys', mocker.Mock(platform='emscripten'))
+    with command_line([*ARGUMENTS, *arguments]):
+        engine = GameEngine(game=scene)
+
+    assert type(engine.host.sources) is HostSources
+    assert engine.ai_link is None
+    assert engine.ai_console is None
 
 
 @pytest.mark.usefixtures('installed')
 def test_headless_gets_the_plain_doors(scene):
     """Scripted sessions, golden traces and tools run headless, so AI can't enter a golden."""
-    with command_line([*ARGUMENTS, '--headless']):
+    with command_line([*ARGUMENTS, '--headless', '--lucid-circuit']):
         engine = GameEngine(game=scene)
 
     assert type(engine.host.sources) is HostSources
     assert engine.ai_link is None
+    assert engine.ai_console is None
 
 
 def test_a_machine_without_the_service_gets_the_plain_doors(scene):
@@ -325,3 +352,31 @@ def test_the_debug_overlay_shows_the_consoles_status(scene):
 
     manager.game_engine = None
     assert manager._ai_status() == ()
+
+
+@pytest.mark.draws_frames
+@pytest.mark.parametrize('option', ['ai', 'lucid_circuit'])
+@pytest.mark.parametrize('recorded', [True, False])
+def test_a_recordings_switch_connects_nothing_and_blocks_nothing(
+    scene, installed, tmp_path, option, recorded
+):
+    """A watched replay never asks for a link, and a live run after it has its own answer."""
+    scene.maximum_frames = 2
+    recording = tmp_path / 'run.jsonl.gz'
+    with command_line([*ARGUMENTS, '--headless', '--record-trace', str(recording)]):
+        GameEngine(game=scene).start()
+    rewrite_recording(
+        recording_path=recording,
+        change=lambda trace: trace['options'].update({option: recorded}),
+    )
+
+    with command_line([*ARGUMENTS, '--replay-trace', str(recording)]):
+        replay = GameEngine(game=scene)
+    with command_line(ARGUMENTS):
+        live = GameEngine(game=scene)
+
+    assert replay.ai_link is None
+    assert replay.ai_console is None
+    assert replay.options['lucid_circuit'] is True
+    assert live.ai_link is not None
+    assert not installed.exists()

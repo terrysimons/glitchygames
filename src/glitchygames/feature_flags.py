@@ -11,24 +11,31 @@ plans/2026-11-24-feature-flags-and-lucid-circuit-switch.md is the design. Rules:
    was given, else as its default.
 3. A flag says whether a feature is wanted and possible, no more. Whether a run may use it now
    stays the feature's own decision (``ai_link.create_link``: never with ``--headless``, never
-   in a replay, only where the service is installed).
+   in a replay, only where the service is installed), which fails closed: options that hold no
+   answer for the flag turn nothing on there.
 4. A flag is local to the run: each engine keeps what its own command line asked
    (``take_flag_options``, before it reads a recording), and ``REPLAY_LOCAL_OPTIONS`` holds every
    flag's option, so a recording never sets one.
-5. What a context was asked:
+5. What a context was asked is only what was typed: a flag left at its default was not asked.
 
    - **Before any engine is made in it**, and with options that do not hold the flag (an older
      caller's, a test's), nothing was asked: the declared default answers, still subject to rule
      2's availability and parent. The default is the decision for a run nobody said anything
      about, and rule 3 keeps it from acting by itself.
+   - **Before its own engine**, a launcher and a game's ``args()`` run: they see the default, or
+     what an earlier engine in the context was asked. Read a flag there and it is not this run's.
    - **After a run** it stays as that run asked, until the next engine made in the context
      replaces it. The engine stops being current before its scenes clean up, and a clean-up must
      not find a feature on that the player turned off.
+   - **An engine that fails as it is made** never ran: what was asked before it is put back.
    - **An inner game** (glitchygames/inner_game.py) has a context of its own, and its engine reads
      its own command line, which holds the outer game's arguments, then its host's: so
      ``--no-lucid-circuit`` on the outer game reaches each inner one, and a host's own wins.
    - **A thread** sees the default context unless started with a copied one (rule 5 of
      glitchygames/engine_context.py).
+
+Every ``flags=`` parameter is for tests of declarations there are none of yet: production code
+never passes it.
 
 This module imports nothing of the engine but the context, so any module may import it.
 """
@@ -38,7 +45,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, MutableMapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Self
 
@@ -55,6 +62,7 @@ FlagDeclarations = Mapping[str, 'FeatureFlag']
 
 FEATURE_FLAG_GROUP_TITLE = 'Feature Flags'
 KEBAB_CASE_NAME = re.compile(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*')
+LUCID_CIRCUIT = 'lucid-circuit'
 # argparse.BooleanOptionalAction's prefix: a flag named with it would be another flag's "off"
 OFF_PREFIX = 'no-'
 
@@ -90,7 +98,7 @@ class FeatureFlag(BaseModel):
 
     """
 
-    model_config = ConfigDict(frozen=True, extra='forbid')
+    model_config = ConfigDict(frozen=True, extra='forbid', strict=True)
 
     name: str
     summary: str
@@ -109,7 +117,7 @@ class FlagState(BaseModel):
 
     """
 
-    model_config = ConfigDict(frozen=True, extra='forbid')
+    model_config = ConfigDict(frozen=True, extra='forbid', strict=True)
 
     on: bool
     reason: str | None = None
@@ -226,7 +234,7 @@ def lucid_circuit_availability() -> str | None:
 FEATURE_FLAGS: FlagDeclarations = MappingProxyType(
     declare_flags(
         FeatureFlag(
-            name='lucid-circuit',
+            name=LUCID_CIRCUIT,
             summary=(
                 'Lucid Circuit, the local AI: it needs the AI service installed, and is never '
                 'used with --headless or in a replay'
@@ -244,7 +252,7 @@ class FlagOptions:
     A plain class, not a frozen model: it is changed in place.
 
     Attributes:
-        asked: The flags' options; empty before any engine.
+        asked: The options typed; empty before any engine. Replaced, never changed in place.
 
     """
 
@@ -290,27 +298,36 @@ def add_flag_arguments(
             # argparse formats help with %
             help=f'{flag.summary} ({notes})'.replace('%', '%%'),
             action=argparse.BooleanOptionalAction,
-            default=flag.default,
+            # None: not typed. take_flag_options notes that, then puts the flag's default here
+            default=None,
         )
 
 
 def take_flag_options(
-    *, options: Mapping[str, Any], flags: FlagDeclarations = FEATURE_FLAGS
+    *, options: MutableMapping[str, Any], flags: FlagDeclarations = FEATURE_FLAGS
 ) -> None:
     """Make these options the current context's answer to what was asked (rule 5).
 
     Called by each engine as it is made, with its own command line. They replace an earlier
-    engine's whole: a flag they do not hold was not asked.
+    engine's whole: a flag they do not hold, or hold as None (not typed), was not asked. Each
+    they hold as None then becomes its default, so a run logs and records a plain true or false;
+    one they do not hold stays missing (rule 3 fails closed on it).
 
     Args:
-        options: The run's options.
+        options: The run's options, changed in place.
         flags: The declared flags.
 
     """
-    names = [option_name(flag_name=name) for name in flags]
-    current_context().value(slot=FLAG_OPTIONS_SLOT).asked = {
-        name: options[name] for name in names if name in options
-    }
+    asked: dict[str, bool] = {}
+    for flag in flags.values():
+        name = option_name(flag_name=flag.name)
+        if name not in options:
+            continue
+        if options[name] is None:
+            options[name] = flag.default
+        else:
+            asked[name] = options[name]
+    current_context().value(slot=FLAG_OPTIONS_SLOT).asked = asked
 
 
 def flag_state(*, name: str, flags: FlagDeclarations = FEATURE_FLAGS) -> FlagState:
@@ -339,9 +356,10 @@ def flag_state(*, name: str, flags: FlagDeclarations = FEATURE_FLAGS) -> FlagSta
         if not parent_state.on:
             return FlagState(on=False, reason=f'{flag.parent} is off: {parent_state.reason}')
     asked = current_context().value(slot=FLAG_OPTIONS_SLOT).asked
-    if asked.get(option_name(flag_name=name), flag.default):
+    typed = asked.get(option_name(flag_name=name))
+    if typed is True or (typed is None and flag.default):
         return FlagState(on=True)
-    if flag.default:
+    if typed is not None:
         return FlagState(on=False, reason=f'turned off by --{OFF_PREFIX}{name}')
     return FlagState(on=False, reason=f'off by default; --{name} turns it on')
 

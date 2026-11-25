@@ -372,6 +372,8 @@ LOG.addHandler(logging.NullHandler())
 # Options the recording never overrides: how this run is watched, logged, paced and recorded,
 # not what the game does
 REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
+    # The AI's switch until Lucid Circuit's flag replaced it: no option now, but 14 committed
+    # recordings hold it, and a recording never puts it in a run's options
     'ai',
     'replay_trace',
     'record_trace',

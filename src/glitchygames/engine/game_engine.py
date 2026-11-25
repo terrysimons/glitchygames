@@ -75,6 +75,7 @@ from glitchygames.events.window import WindowEventManager
 from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
 from glitchygames.feature_flags import (
     FEATURE_FLAG_GROUP_TITLE,
+    FLAG_OPTIONS_SLOT,
     add_flag_arguments,
     flag_state_lines,
     take_flag_options,
@@ -910,7 +911,8 @@ def _clear_a_half_made_engine[EngineT: GameEngine, **InitParameters](
     """Wrap ``GameEngine.__init__``: if it raises, the half-made engine stops being current.
 
     ``__init__`` makes the engine current part way through (once its own state is set); a
-    failure after that (SystemExit from a game flag tool included) must not leave it current.
+    failure after that (SystemExit from a game flag tool included) must not leave it current, or
+    leave its feature flags as the context's (rule 5 of glitchygames/feature_flags.py).
     A decorator, not a ``try`` in ``__init__``: basedpyright then still sees the instance
     variables the methods ``__init__`` calls set.
 
@@ -926,10 +928,13 @@ def _clear_a_half_made_engine[EngineT: GameEngine, **InitParameters](
     def initialize_or_clear(
         engine: EngineT, *args: InitParameters.args, **kwargs: InitParameters.kwargs
     ) -> None:
+        context = current_context()
+        flags_asked_before = context.value(slot=FLAG_OPTIONS_SLOT).asked
         try:
             initialize(engine, *args, **kwargs)
         except BaseException:
             _stop_being_the_current_engine(engine=engine)
+            context.value(slot=FLAG_OPTIONS_SLOT).asked = flags_asked_before
             raise
 
     return initialize_or_clear
@@ -1121,17 +1126,6 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             '-w',
             '--windowed',
             help='run in a window; --no-windowed runs fullscreen (default: windowed)',
-            action=argparse.BooleanOptionalAction,
-            default=True,
-        )
-        # Not a tool in the registry: two tool flags at once are refused, and this is on by default
-        group.add_argument(
-            '--ai',
-            help=(
-                'connect to the local AI service if it is installed, starting its models as '
-                'the game loads; --no-ai never touches it (default: on, but never with '
-                '--headless or in a replay)'
-            ),
             action=argparse.BooleanOptionalAction,
             default=True,
         )

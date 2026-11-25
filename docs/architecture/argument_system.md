@@ -298,9 +298,6 @@ read are `[tool.glitchygames]` in `pyproject.toml` (its `games`, `golden-globs`,
     uv run glitchygames verify --game paddleslap
     ```
 
-`--ai` is the one engine flag not in the registry: two tool flags at once are refused, and `--ai`
-is on by default.
-
 #### Feature Flags
 
 Added by `add_flag_arguments()` in `src/glitchygames/feature_flags.py` (whose docstring is the

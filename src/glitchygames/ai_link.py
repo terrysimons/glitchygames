@@ -9,9 +9,10 @@ The rules:
 1. The frame loop never waits. ``start`` returns at once, and ``take_messages`` only looks at a
    deque, costing one truth test on a frame with nothing waiting. Everything that can block
    (starting the service, connecting, reading the socket) happens on the link's thread.
-2. Nothing runs unless it's wanted: ``create_link`` returns None for ``--no-ai``, ``--headless``
-   (scripted sessions, golden traces, tools), a browser, and a machine without the service, so those
-   runs build plain ``HostSources`` and never import ``websockets``. A replay never asks.
+2. Nothing runs unless it's wanted: ``create_link`` returns None when Lucid Circuit's flag is off
+   (``--no-lucid-circuit``, a browser: ``glitchygames/feature_flags.py``), with ``--headless``
+   (scripted sessions, golden traces, tools), and on a machine without the service, so those runs
+   build plain ``HostSources`` and never import ``websockets``. A replay never asks.
 3. Starting the service is one attempt. Not enough free memory means no AI for this run: nothing is
    retried during play. A lost connection is retried slowly, as launchd restarts a crashed service.
 4. A service speaking another protocol version refuses the session, and the link stops. The game and
@@ -47,6 +48,7 @@ from typing import TYPE_CHECKING, Any, cast
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, process
+from glitchygames.feature_flags import LUCID_CIRCUIT, flag_state, option_name
 from glitchygames.state.paths import platform_data_home
 
 if TYPE_CHECKING:
@@ -387,17 +389,44 @@ class AiLink:
             self._inbox.append(message)
 
 
-def create_link(*, options: Mapping[str, Any]) -> AiLink | None:
-    """Create the link a run should have, if any (rule 2).
+def _reason_for_no_link(*, options: Mapping[str, Any]) -> str | None:
+    """Say why a run may have no link, wherever the service is (rule 2).
 
     Args:
         options: The run's options.
 
     Returns:
+        The reason (the flag's own, when the flag is off), or None for a run that may.
+
+    """
+    lucid_circuit = flag_state(name=LUCID_CIRCUIT)
+    if not lucid_circuit.on:
+        return lucid_circuit.reason
+    if not options.get(option_name(flag_name=LUCID_CIRCUIT)):
+        return 'the options given do not turn it on'
+    if options.get('headless'):
+        return 'never used with --headless'
+    return None
+
+
+def create_link(*, options: Mapping[str, Any]) -> AiLink | None:
+    """Create the link a run should have, if any (rule 2).
+
+    The engine context's flag decides, as for every other reader of it, so one run never has two
+    answers: the engine's options hold the same one (``take_flag_options`` set both), and no
+    recording changes either. Options must turn it on as well, so an old caller's, which hold no
+    answer, get no link: neither can turn on what the other did not.
+
+    Args:
+        options: The run's options, taken by its engine.
+
+    Returns:
         The link, not started, or None for a run with no AI.
 
     """
-    if not options.get('ai') or options.get('headless') or sys.platform == 'emscripten':
+    reason = _reason_for_no_link(options=options)
+    if reason is not None:
+        LOG.info('Lucid Circuit is off: %s', reason)
         return None
     locations = service_locations()
     if locations is None:
