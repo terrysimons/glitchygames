@@ -25,7 +25,9 @@ removed are the keys missing after the call, so another thread's changes meanwhi
 One recorder per process: ``install`` returns the one whose wrappers are in place, found on the
 wrapped methods themselves, so a second copy of this module (pytester runs the plugin again in the
 same process, and restoring ``sys.modules`` can drop this module) shares it. The last ``release``
-puts the original methods back. Tests: tests/test_module_removals.py.
+puts the original methods back. The recorder owns the load probe (tests/import_load_probe.py: the
+points of each import, which place a loss but name no culprit), installed and taken away with it;
+each removal says which of its events it fell between. Tests: tests/test_module_removals.py.
 """
 
 from __future__ import annotations
@@ -41,6 +43,8 @@ from unittest import mock
 
 import pytest
 from pydantic import BaseModel, ConfigDict
+
+from tests import import_load_probe
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -102,6 +106,9 @@ class Removal(BaseModel):
     # The names gone after the call (at most NAMES_KEPT) and how many; None while the call runs
     names_removed: tuple[str, ...] | None = None
     removed_count: int = 0
+    # The load probe's newest event as the call began, and as it ended (None while it runs)
+    load_event_before: int = 0
+    load_event_after: int | None = None
     # The loads in progress (before or after the call) that it may have overlapped: those whose
     # module it removed, and every one for a whole dictionary
     may_overlap: tuple[LoadInProgress, ...] = ()
@@ -175,6 +182,7 @@ class RemovalRecorder:
         self.installs = 0
         self.not_wrapped: list[str] = []
         self.startup_modules = sys.modules
+        self.load_probe = import_load_probe.LoadProbe(code=import_load_probe.load_code())
         self._orders = itertools.count(1)
         # A ring: removal N is in slot N % REMOVALS_KEPT. Each read and write of a slot is atomic
         # under the GIL, so no lock is needed (a finalizer recording on a thread that held one
@@ -243,6 +251,7 @@ class RemovalRecorder:
                 stack=stack,
                 loads_in_progress=loads,
                 may_overlap=loads if whole_dictionary else (),
+                load_event_before=self.load_probe.newest_order,
             )
             self._slots[order % REMOVALS_KEPT] = removal
             return removal, set(sys.modules)
@@ -261,6 +270,7 @@ class RemovalRecorder:
                 update={
                     'names_removed': tuple(sorted(removed)[:NAMES_KEPT]),
                     'removed_count': len(removed),
+                    'load_event_after': self.load_probe.newest_order,
                     'loads_after': after,
                     'may_overlap': tuple(
                         load
@@ -577,6 +587,7 @@ def install() -> RemovalRecorder:
     if recorder is None:
         recorder = RemovalRecorder()
         recorder.wrap_methods()
+        recorder.load_probe.install()
     recorder.installs += 1
     return recorder
 
@@ -585,6 +596,7 @@ def release(recorder: RemovalRecorder) -> None:
     """Undo one install; the last one puts the original methods back."""
     recorder.installs -= 1
     if recorder.installs == 0:
+        recorder.load_probe.uninstall()
         recorder.unwrap_methods()
 
 
@@ -620,6 +632,10 @@ def removal_report(removal: Removal) -> str:
         f'  {removed}',
         f'  thread: {removal.thread_name} ({main}), during: {removal.test_node_id}',
     ]
+    ended = 'still running' if removal.load_event_after is None else f'#{removal.load_event_after}'
+    lines.append(
+        f"  between the load probe's events: after #{removal.load_event_before}, up to {ended}"
+    )
     if removal.may_overlap:
         lines.append(f'  may overlap: {", ".join(map(load_report, removal.may_overlap))}')
     others = [
