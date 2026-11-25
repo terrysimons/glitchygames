@@ -3007,11 +3007,13 @@ def performance_test(session: nox.Session) -> None:
     """
     _install_from_lockfile(session)
 
-    # Override addopts to avoid conflict with --cov flags from pyproject.toml
+    # Override addopts to avoid conflict with --cov flags from pyproject.toml. Its import mode
+    # stays: pytest's default one changes sys.path as a tests package is entered
     session.run(
         'pytest',
         '-o',
         'addopts=',
+        '--import-mode=importlib',
         '-p',
         'no:xdist',
         '--benchmark-only',
@@ -3025,7 +3027,13 @@ def performance_test(session: nox.Session) -> None:
 
 
 def _bandit_scan(session: nox.Session) -> None:
-    """Run bandit security scan (exclude_dirs configured in pyproject.toml)."""
+    """Run bandit security scan (exclude_dirs configured in pyproject.toml).
+
+    Two runs: every check at medium severity and confidence and up, then B101 (assert_used)
+    alone at every level, since an assert outside tests is never allowed (``python -O`` strips
+    it) and B101 is low severity, which the first run's filter would hide. The severity filter is
+    these command-line options: bandit does not read severity or confidence from pyproject.toml.
+    """
     session.run(
         'bandit',
         '-c',
@@ -3038,6 +3046,15 @@ def _bandit_scan(session: nox.Session) -> None:
         'json',
         '-o',
         'bandit-report.json',
+    )
+    session.run(
+        'bandit',
+        '-c',
+        'pyproject.toml',
+        '-t',
+        'B101',
+        '-r',
+        *_SOURCE_PACKAGE_DIRS,
     )
 
 

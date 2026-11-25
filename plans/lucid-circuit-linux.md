@@ -254,7 +254,7 @@ uncapped while it catches up (Stage 4b). llama.cpp gets the rest.
   rule out for itself: a second copy of the rule would drift.
 - **The game pins itself, once its AI has started.** A game isn't a systemd unit (it starts from
   `uv run`, a menu or a terminal), so the engine sets its own affinity, on Linux only and only for
-  a live run that has AI (the run `create_link` gives a link): `--no-ai`, `--headless`, replays,
+  a live run that has AI (the run `create_link` gives a link): `--no-lucid-circuit`, `--headless`, replays,
   the browser and the pre-push measurements keep every core. It pins only once the link reports
   the service started (`CONNECTED`), on the main thread, the first frame it sees that: a start
   that `ai-service.sh` refuses (exit 3, not enough memory) or that fails never pins, since a game
@@ -755,7 +755,7 @@ In `tests/test_ansible_macos_ai_service.py`, renamed with the playbook to
   6.5 found), checked by rendering both.
 - A live run with AI on Linux sets the game's cores on every thread it has, once, on the first
   frame its link reports `CONNECTED`, and not before; a start refused for memory, one that fails,
-  a run with `--no-ai`, `--headless` or a replay, an inner game, a Mac, or a missing placement file
+  a run with `--no-lucid-circuit`, `--headless` or a replay, an inner game, a Mac, or a missing placement file
   sets nothing; a placement naming a core the machine lacks logs a warning and the run plays on
   unpinned.
 - The Linux llama.cpp options turn on runtime-loaded backends and every CPU variant, and turn off
@@ -896,7 +896,7 @@ under-voltage (`vcgencmd get_throttled` stays `0x0` through a full benchmark, an
 2. `THREADS=1,2,3,4` for raw speed per core count (done, 8.1); then the owner's placement: the
    models on cores 2-3 (`taskset -c 2,3`), a game on the real display on core 0, and an uncapped
    headless replay of a golden trace standing in for the mirror on core 1, recording the game's
-   p50/p95/p99 frame times and any audio underruns against `--no-ai` (the Stage 5 harness, once
+   p50/p95/p99 frame times and any audio underruns against `--no-lucid-circuit` (the Stage 5 harness, once
    it exists; a stopwatch comparison until then). Until the engine pins itself, `taskset -c 0`
    runs the game there.
 3. The measured memory replaces the provisional Linux reserved figures (6.4).
@@ -1097,7 +1097,7 @@ Resolved since (kept for the history):
   tried in 4 GB (the 16 GB Pi's spike build used two). The owner to watch the first install for the
   out-of-memory killer.
 - **The game beside the models, pinned** (game core 0, models 2-3): frame times through the
-  performance overlay (F3, F4) and audio underruns against `--no-ai`; whether one core is enough
+  performance overlay (F3, F4) and audio underruns against `--no-lucid-circuit`; whether one core is enough
   for the game's main loop, SDL's audio thread and the AI link's thread.
 - **Bitmappy idles at about 60% of one core** on the Pi: not explained (a full redraw each frame,
   or the frame timer's sleep spinning near its deadline, are guesses). It matters for the

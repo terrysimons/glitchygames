@@ -6,21 +6,47 @@ start, one chunk queued, fades, pause, underruns, the pool's owner rules, live p
 engine context.
 """
 
+import gc
+import logging
+import os
+import sys
+import weakref
+
 import numpy as np
 import pygame
 import pytest
 
+from glitchygames import clock
 from glitchygames.audio import live
 from glitchygames.audio.effects import Tremolo
 from glitchygames.audio.instrument import Filter, Instrument
-from glitchygames.audio.live import LiveAudio, LiveVoiceOptions, VoiceState
+from glitchygames.audio.live import (
+    ChannelState,
+    LiveAudio,
+    LiveStream,
+    LiveVoiceOptions,
+    VoiceState,
+    channel_state,
+)
 from glitchygames.audio.live_instrument import InstrumentVoice
 from glitchygames.audio.route import set_audible
-from glitchygames.audio.voices import inner_context_partition, reserve_inner_game_channels
+from glitchygames.audio.voices import (
+    constant_power_gains,
+    inner_context_partition,
+    reserve_inner_game_channels,
+)
 from glitchygames.engine_context import EngineContext
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.randomness import numpy_stream, reset_streams
-from tests.audio.library_support import stop_mixer
-from tests.audio.voice_support import start_reserved_mixer
+from tests.audio import live_pan_probe, live_restart_probe
+from tests.audio.channel_fade_analysis import RECORDING_TIMEOUT_SECONDS, REPOSITORY_ROOT
+from tests.audio.library_support import start_mixer, stop_mixer
+from tests.audio.pending_callback import (
+    gil_held,
+    spin_until,
+    until_idle_with_a_chunk_queued,
+)
+from tests.audio.voice_support import LIBRARY_CHANNELS, LIVE_POOL, start_reserved_mixer
 
 RATE = 44100
 LIVE_STREAM_TEST_SEED = 78
@@ -37,7 +63,7 @@ def rendered_chunks(mocker):
     """
     chunks = []
 
-    def fake_to_sound(samples, *, volume):
+    def fake_to_sound(samples, *, volume, side_gains):
         chunks.append(samples)
         return mocker.Mock(name=f'sound{len(chunks)}')
 
@@ -53,7 +79,7 @@ def channel(mocker):
         The mocked channel.
 
     """
-    mocked_channel = mocker.Mock()
+    mocked_channel = mocker.Mock(id=0)  # pygame.mixer.Channel.id: the stream reads its table
     mocked_channel.get_queue.return_value = None
     mocked_channel.get_busy.return_value = True
     return mocked_channel
@@ -143,6 +169,7 @@ class TestLiveVoiceStopping:
         channel.stop.assert_not_called()  # stop()/fadeout() would start the queued chunk
         assert stream.is_playing
         channel.get_busy.return_value = False
+        channel.get_sound.return_value = None  # its end callback has run
         assert not stream.is_playing
 
     def test_stop_now_silences_immediately(self, channel, rendered_chunks):
@@ -185,14 +212,16 @@ class TestLiveVoiceStopping:
         assert abs(rendered_chunks[-1][-1]) < 1e-9
 
     def test_underrun_recovers(self, channel, rendered_chunks, mocker):
-        """Review focus 5: a long hitch drains the channel; the voice restarts."""
+        """Review focus 5: a long hitch drains the channel; the same update restarts the voice."""
         debug = mocker.patch.object(live.log, 'debug')
         stream = _voice(channel).stream
         stream.start()
         channel.get_busy.return_value = False
+        channel.get_sound.return_value = None  # drained: the end callback has run
         stream.update()
         assert debug.called
-        assert channel.queue.call_count + channel.play.call_count >= 2
+        assert channel.play.call_count == 2
+        channel.queue.assert_not_called()
 
     def test_pause_and_resume(self, channel, rendered_chunks):
         stream = _voice(channel).stream
@@ -329,7 +358,9 @@ class TestLiveAudio:
         single.update(active_scene='scene', previous_scene=None, active_transitions=())
         assert stream.state is VoiceState.DRAINING
         drained_channel.get_busy.return_value = False
+        drained_channel.get_sound.return_value = None  # its end callback has run
         single.update(active_scene='scene', previous_scene=None, active_transitions=())
+        assert stream.state is VoiceState.STOPPED
         assert self._create(single, 'scene') is not None
 
     def test_releasing_a_voice_twice_is_idempotent(self, audio):
@@ -405,6 +436,8 @@ class TestLiveVoicesOnLivePools:
         assert busy == [partitioned_mixer.live[0], block.live[0]]
         assert tile_stream.is_playing
         assert default_stream.is_playing
+        tile_stream.stop_now()
+        default_stream.stop_now()
 
     def test_a_silent_contexts_chunks_play_at_volume_zero_and_a_heard_ones_at_full(
         self, partitioned_mixer
@@ -432,6 +465,7 @@ class TestLiveVoicesOnLivePools:
         assert silent_queued_volume == 0.0
         assert heard_volume == 1.0
         assert not pygame.mixer.Channel(partitioned_mixer.live[0]).get_busy()
+        tile_stream.stop_now()
 
     def test_releasing_every_voice_stops_them_and_frees_the_pool(self):
         """A finished tile's live voices: stopped, their channels idle and back in the pool."""
@@ -460,7 +494,7 @@ class TestLiveStreamControls:
         """
         volumes = []
 
-        def fake_to_sound(samples, *, volume):
+        def fake_to_sound(samples, *, volume, side_gains):
             volumes.append(volume)
             return mocker.Mock(name=f'sound{len(volumes)}')
 
@@ -491,35 +525,6 @@ class TestLiveStreamControls:
             stream.start()
 
         assert chunk_volumes == [0.0]
-
-    def test_every_voice_pans_its_channel_by_the_constant_power_law_centre_by_default(
-        self, channel, rendered_chunks
-    ):
-        """One law for every sound, live and baked: centre is 3 dB down on each side."""
-        from glitchygames.audio.voices import constant_power_gains
-
-        centred = _voice(channel).stream
-        centred.start()
-        channel.set_volume.assert_called_with(*constant_power_gains(pan=0.0, gain=1.0))
-
-        panned = _voice(channel, options=LiveVoiceOptions(pan=0.5)).stream
-        panned.start()
-        channel.set_volume.assert_called_with(*constant_power_gains(pan=0.5, gain=1.0))
-
-        panned.set_pan(-0.25)
-        channel.set_volume.assert_called_with(*constant_power_gains(pan=-0.25, gain=1.0))
-
-    def test_a_voice_never_inherits_the_pan_its_channel_had(self, channel, rendered_chunks):
-        """Each voice sets its channel's pan as it starts: the pool's channels are reused."""
-        from glitchygames.audio.voices import constant_power_gains
-
-        hard_left = _voice(channel, options=LiveVoiceOptions(pan=-1.0)).stream
-        hard_left.start()
-        hard_left.stop_now()
-
-        _voice(channel).stream.start()
-
-        channel.set_volume.assert_called_with(*constant_power_gains(pan=0.0, gain=1.0))
 
     def test_a_silent_voice_takes_a_pan_and_does_nothing_with_it(self, rendered_chunks):
         stream = _voice(None).stream
@@ -608,3 +613,1405 @@ class TestLiveStreamControls:
         equal = make(50)  # ties: the earliest made of the lowest (the first stealer) goes
         assert stealer.state is VoiceState.STOPPED
         assert equal.state is VoiceState.PLAYING
+
+
+# A long chunk, so the chunk playing is still playing when the test plays over it: the queued
+# chunk is freed by pygame's re-entrant callback only while the one before it still plays
+LONG_CHUNK = LiveVoiceOptions(chunk_seconds=0.5)
+
+
+def _channel_slots(channel):
+    """The Sounds pygame's channel table names for a channel: playing, then queued.
+
+    Returns:
+        The named Sounds, None left out.
+    """
+    return [sound for sound in (channel.get_sound(), channel.get_queue()) if sound is not None]
+
+
+def _assert_the_stream_holds_every_chunk_its_channel_names(stream):
+    """The invariant: the table never holds the last reference to a stream's chunk, bounded."""
+    held = stream.held_chunks
+    for named in _channel_slots(stream.channel):
+        assert any(named is chunk for chunk in held), 'a chunk on the channel is not held'
+    assert len(held) <= live.MAXIMUM_HELD_CHUNKS
+
+
+class TestLiveStreamKeepsItsChunks:
+    """A live voice holds every chunk it plays or queues until its channel has moved past it.
+
+    pygame-ce 2.5.8's mixer frees a queued Sound twice when ``Channel.play`` lands on a channel
+    still playing one chunk with another queued and pygame's table holds the only references
+    (bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md; docs/quality/upstream_issues.md).
+    Real mixer on the dummy driver: the bug is in pygame's C table, which no mock has.
+    """
+
+    @pytest.fixture(autouse=True)
+    def mixer(self):
+        """A partitioned stereo mixer on the dummy driver, stopped after.
+
+        Yields:
+            The partition.
+        """
+        yield start_reserved_mixer()
+        if pygame.mixer.get_init() is not None:
+            pygame.mixer.stop()
+        stop_mixer()
+
+    def test_a_voice_started_over_another_voices_queued_chunk_frees_no_chunk_too_soon(self):
+        """The golden test's hand-off: a second voice starts on a channel the first left playing.
+
+        The first voice's playing and queued chunks must still be alive after the second
+        voice's ``Channel.play``: before the fix pygame freed the queued one inside that call.
+        """
+        channel = pygame.mixer.Channel(0)
+        first = _voice(channel, options=LONG_CHUNK)
+        first.stream.start()
+        first.stream.update()
+        queued = channel.get_queue()
+        assert queued is not None, 'the first chunk must still be playing, one queued'
+        freed = []
+        watch = weakref.ref(queued, lambda _reference: freed.append(True))
+        del queued
+
+        second = _voice(channel, options=LONG_CHUNK)
+        second.stream.start()
+
+        assert freed == []
+        assert watch() is not None
+        assert first.stream.state is VoiceState.PLAYING
+        second.stream.stop_now()
+        first.stream.stop_now()
+
+    def test_every_chunk_on_the_channel_is_held_by_the_voice_at_each_step(self):
+        """Start, queue, the queue promoted, an underrun's restart, then stop_now: held, bounded."""
+        channel = pygame.mixer.Channel(0)
+        stream = _voice(channel, options=LONG_CHUNK).stream
+
+        stream.start()
+        _assert_the_stream_holds_every_chunk_its_channel_names(stream)
+        stream.update()  # one chunk queued
+        _assert_the_stream_holds_every_chunk_its_channel_names(stream)
+        channel.stop()  # the queued chunk starts (the module's channel facts)
+        stream.update()  # the one it moved past is let go, a new one queued
+        _assert_the_stream_holds_every_chunk_its_channel_names(stream)
+        assert len(stream.held_chunks) == 2
+        channel.stop()
+        channel.stop()  # idle: an underrun
+        stream.update()  # restarts on the idle channel
+        _assert_the_stream_holds_every_chunk_its_channel_names(stream)
+        assert len(stream.held_chunks) == 1
+        stream.stop_now()
+
+        assert stream.held_chunks == ()
+        assert _channel_slots(channel) == []
+
+    def test_a_draining_voice_lets_go_of_the_chunks_its_channel_has_finished(self):
+        """A drained voice's update keeps nothing the channel no longer names."""
+        channel = pygame.mixer.Channel(0)
+        stream = _voice(channel, options=LONG_CHUNK).stream
+        stream.start()
+        stream.stop(fade_out=0.01)
+        stream.update()  # the fade is rendered into the queued chunk: draining
+        assert stream.state is VoiceState.DRAINING
+        channel.stop()
+        channel.stop()
+
+        stream.update()
+
+        assert stream.held_chunks == ()
+
+    def test_a_voice_dropped_while_playing_stops_its_channel_before_letting_go(self, monkeypatch):
+        """No one stopped it: its chunks go only once its channel names none of them.
+
+        Its finalizer finishes without raising and reports the missing release through the log,
+        which the harness reads.
+        """
+        unraisable = []
+        monkeypatch.setattr(sys, 'unraisablehook', unraisable.append)
+        channel = pygame.mixer.Channel(0)
+        voice = _voice(channel, options=LONG_CHUNK)
+        voice.stream.start()
+        voice.stream.update()
+        queued = channel.get_queue()
+        assert queued is not None
+        slots_when_freed = []
+        watch = weakref.ref(
+            queued, lambda _reference: slots_when_freed.append(len(_channel_slots(channel)))
+        )
+        del queued
+
+        del voice
+        gc.collect()
+
+        assert watch() is None
+        assert slots_when_freed == [0]
+        assert not channel.get_busy()
+        assert unraisable == []
+        assert [
+            (report.stream_name, report.held_chunk_count)
+            for report in live.take_unreleased_live_stream_reports()
+        ] == [('str on channel 0', 2)]
+
+    def test_a_voice_dropped_after_the_mixer_quit_lets_go_without_the_mixer(self, monkeypatch):
+        """A quit mixer has no table left: the chunks simply go, and nothing raises."""
+        unraisable = []
+        monkeypatch.setattr(sys, 'unraisablehook', unraisable.append)
+        voice = _voice(pygame.mixer.Channel(0), options=LONG_CHUNK)
+        voice.stream.start()
+        held = weakref.ref(voice.stream.held_chunks[0])
+        pygame.mixer.stop()
+        stop_mixer()
+
+        del voice
+        gc.collect()
+
+        assert held() is None
+        assert unraisable == []
+        assert len(live.take_unreleased_live_stream_reports()) == 1
+
+    def test_a_voice_dropped_after_a_mixer_restart_lets_go_without_reading_the_table(
+        self, monkeypatch
+    ):
+        """A restarted mixer's table is 8 long: a pool channel past it is never read.
+
+        pygame reads its table unchecked, so the read would be past the table's end: a crash, or
+        garbage taken for a Sound, by luck. Nothing raises and the chunks go.
+        """
+        unraisable = []
+        monkeypatch.setattr(sys, 'unraisablehook', unraisable.append)
+        voice = _voice(pygame.mixer.Channel(LIVE_POOL + LIBRARY_CHANNELS), options=LONG_CHUNK)
+        voice.stream.start()
+        held = weakref.ref(voice.stream.held_chunks[0])
+        pygame.mixer.stop()
+        stop_mixer()
+        pygame.mixer.init(frequency=RATE, size=-16, channels=2, buffer=512)
+
+        del voice
+        gc.collect()
+
+        assert held() is None
+        assert unraisable == []
+        assert len(live.take_unreleased_live_stream_reports()) == 1
+
+    def test_the_registry_finds_a_stream_holding_chunks_even_once_its_dict_exists(self, mocker):
+        """Exact enumeration: patching a stream (which makes its ``__dict__``) hides nothing."""
+        voice = _voice(pygame.mixer.Channel(0), options=LONG_CHUNK)
+        voice.stream.start()
+        voice.stream.update()
+        mocker.patch.object(voice.stream, 'pause')
+
+        holding = live.live_streams_holding_chunks()
+
+        assert any(stream is voice.stream for stream in holding)
+        del holding
+        voice.stream.stop_now()
+        assert live.live_streams_holding_chunks() == ()
+
+    def test_a_finalizers_report_reaches_the_registry_whatever_the_logger_levels(self, caplog):
+        """A test's logger levels cannot hide a missing release: the report is not a log record."""
+        caplog.set_level(logging.ERROR, logger='game')
+        voice = _voice(pygame.mixer.Channel(0), options=LONG_CHUNK)
+        voice.stream.start()
+
+        del voice
+        gc.collect()
+
+        reports = live.take_unreleased_live_stream_reports()
+        assert [(report.stream_name, report.held_chunk_count) for report in reports] == [
+            ('str on channel 0', 1)
+        ]
+        assert live.take_unreleased_live_stream_reports() == ()
+
+    def test_a_voice_stopped_before_it_is_dropped_reports_nothing(self, monkeypatch):
+        """A released voice holds no chunk, so its finalizer has nothing to report."""
+        unraisable = []
+        monkeypatch.setattr(sys, 'unraisablehook', unraisable.append)
+        voice = _voice(pygame.mixer.Channel(0), options=LONG_CHUNK)
+        voice.stream.start()
+        voice.stream.update()
+        voice.stream.stop_now()
+
+        del voice
+        gc.collect()
+
+        assert unraisable == []
+        assert live.take_unreleased_live_stream_reports() == ()
+
+    @pytest.mark.parametrize('action', ['pause', 'resume', 'stop', 'stop_now', 'update'])
+    @pytest.mark.parametrize('paused_first', [False, True])
+    def test_a_voice_whose_mixer_quit_asks_its_channel_nothing(self, action, paused_first):
+        """The game goes on without sound: every mixer call on a quit mixer raises."""
+        stream = _voice(pygame.mixer.Channel(0), options=LONG_CHUNK).stream
+        stream.start()
+        if paused_first:
+            stream.pause()
+        stop_mixer()
+
+        getattr(stream, action)()
+        stream.stop_now()
+
+        assert stream.is_finished
+        assert stream.held_chunks == ()
+
+    def test_a_voice_on_a_channel_past_a_shrunk_pool_is_silent(self, mocker):
+        """A stale stream past ``get_num_channels()`` never reaches pygame's ``chan_play``.
+
+        pygame indexes its table with SDL's -1 when SDL refuses the channel: a write before the
+        table. The stream renders nothing and plays nothing there.
+        """
+        stale_index = pygame.mixer.get_num_channels() - 1
+        playing = _voice(pygame.mixer.Channel(stale_index), options=LONG_CHUNK).stream
+        playing.start()
+        never_started = _voice(pygame.mixer.Channel(stale_index), options=LONG_CHUNK).stream
+        rendered = mocker.patch.object(playing, '_next_chunk', wraps=playing._next_chunk)
+        rendered_unstarted = mocker.patch.object(
+            never_started, '_next_chunk', wraps=never_started._next_chunk
+        )
+        pygame.mixer.set_num_channels(stale_index)  # stops the shrunk-off channel: an underrun
+
+        playing.update()
+        never_started.start()
+        playing.pause()  # nothing is asked of the channel
+
+        assert playing.state is VoiceState.PAUSED
+        rendered.assert_not_called()
+        rendered_unstarted.assert_not_called()
+        assert playing.held_chunks == ()
+        assert never_started.held_chunks == ()
+
+
+class TestChunksTheChannelNames:
+    """Which Sounds a channel names, read only where pygame's unchecked table has the channel.
+
+    Only ``live.py`` stores ``Channel`` objects, so only its reads can outlive a mixer quit or
+    restart: a fresh ``pygame.mixer.Channel(index)`` checks init and range itself.
+    """
+
+    @staticmethod
+    def _channel_that_must_not_be_read(mocker, *, index):
+        """A channel whose table reads fail the test: pygame would read outside its table.
+
+        Returns:
+            The channel.
+        """
+        unread = AssertionError("read outside pygame's channel table")
+        return mocker.Mock(
+            id=index,
+            get_sound=mocker.Mock(side_effect=unread),
+            get_queue=mocker.Mock(side_effect=unread),
+        )
+
+    def test_a_quit_mixer_names_nothing_and_its_table_is_not_read(self, mocker):
+        if pygame.mixer.get_init() is not None:
+            stop_mixer()
+        channel = self._channel_that_must_not_be_read(mocker, index=0)
+
+        assert live._channel_table_slots(channel) == (None, None)
+
+    def test_a_channel_past_a_restarted_mixers_table_names_nothing_and_is_not_read(self, mocker):
+        start_reserved_mixer()
+        try:
+            pygame.mixer.set_reserved(0)
+            pygame.mixer.quit()
+            pygame.mixer.init(frequency=RATE, size=-16, channels=2, buffer=512)
+            channel = self._channel_that_must_not_be_read(
+                mocker, index=pygame.mixer.get_num_channels()
+            )
+
+            assert live._channel_table_slots(channel) == (None, None)
+        finally:
+            stop_mixer()
+
+    def test_a_channel_inside_the_table_names_what_plays_and_what_is_queued(self):
+        start_reserved_mixer()
+        try:
+            channel = pygame.mixer.Channel(0)
+            stream = _voice(channel, options=LONG_CHUNK).stream
+            stream.start()
+            stream.update()
+
+            assert live._channel_table_slots(channel) == stream.held_chunks
+            stream.stop_now()
+            assert live._channel_table_slots(channel) == (None, None)
+        finally:
+            stop_mixer()
+
+    def test_an_update_never_reads_the_table_past_its_end(self, mocker):
+        """A busy-looking channel past the table: update asks pygame's table nothing."""
+        channel = self._channel_that_must_not_be_read(mocker, index=pygame.mixer.get_num_channels())
+        channel.get_busy.return_value = True
+        stream = _voice(channel, options=LONG_CHUNK).stream
+        stream._state = VoiceState.PLAYING  # started before the pool shrank
+
+        stream.update()
+
+        channel.queue.assert_not_called()
+        channel.play.assert_not_called()
+
+
+class TableChunk:
+    """A chunk on a ``TableChannel``: only its identity counts."""
+
+    def __init__(self, number):
+        """Number a chunk in the order it was rendered."""
+        self.number = number
+        self.volume = 1.0
+
+    def set_volume(self, volume):
+        """Set its volume (``Sound.set_volume``)."""
+        self.volume = volume
+
+
+class TableChannel:
+    """A channel as pygame-ce 2.5.8 and SDL_mixer 2.8.2 keep one, its end callback a step.
+
+    The contract, by source line (pygame-ce 2.5.8's src_c/mixer.c; SDL_mixer 2.8.2's src/mixer.c):
+
+    - SDL marks a channel idle and calls the callback, under its lock: ``mix_channels``
+      (SDL 395-408), ``Mix_HaltChannel_locked`` (SDL 979-990). ``Mix_Playing``, so ``get_busy``,
+      takes no lock (SDL 1362-1385).
+    - ``endsound_callback`` (pygame 291-317) reads the queue slot *before* it has the GIL (298). A
+      queued Sound: with the GIL it becomes the playing one, then SDL plays it. None: with the GIL
+      the playing slot is cleared. So the callback is decided, and pending until Python gives the
+      GIL up.
+    - ``play`` (1103-1135) gives the GIL up around ``Mix_PlayChannelTimed``, which calls the
+      callback on a channel still playing (SDL 1121-1122) and un-pauses it (1132); the table then
+      names only the new Sound. ``queue`` (1148-1174) plays at once if the playing slot is empty,
+      and else only fills the queue slot, keeping the GIL. ``stop`` (1203-1213), ``unpause``
+      (1225-1235) and ``set_volume`` (1269-1318) give it up and take SDL's lock: a pending callback
+      runs first.
+    - ``pause`` (1215-1223) keeps the GIL and, like ``unpause``, changes only a channel SDL has
+      playing (``Mix_Pause``, ``Mix_Resume``: SDL 1429-1473). ``get_busy`` (1177), ``get_sound``
+      (1334) and ``get_queue`` (1348) keep it too.
+    """
+
+    def __init__(self):
+        """An empty channel."""
+        self.id = 0
+        self.sound = None
+        self.queued = None
+        self.sdl_chunk = None  # what SDL is playing
+        self.paused = False
+        self.pending = None  # the callback decided, waiting for the GIL
+        self.finished = []  # chunks heard to their end
+        self.cut = []  # chunks SDL was playing as something else took the channel
+        self.read_count = 0
+        self.runs_after_read = 0  # the read after which the callback runs (0: none)
+
+    def end_chunk(self):
+        """SDL plays the chunk out, if it is playing one; the callback is then pending."""
+        if self.sdl_chunk is None or self.paused:
+            return
+        self.finished.append(self.sdl_chunk)
+        self.sdl_chunk = None
+        self.pending = 'clear' if self.queued is None else 'promote'
+
+    def give_up_the_gil(self):
+        """A pending callback runs."""
+        pending, self.pending = self.pending, None
+        if pending is not None:
+            self._run(pending)
+
+    def _run(self, callback):
+        if callback == 'promote':
+            self.sound, self.queued = self.queued, None
+            self.sdl_chunk, self.paused = self.sound, False
+        else:
+            self.sound = None
+
+    def _halt(self):
+        if self.sdl_chunk is not None:
+            self.cut.append(self.sdl_chunk)
+            self.sdl_chunk = None
+            self._run('clear' if self.queued is None else 'promote')
+
+    def _read(self, value):
+        self.read_count += 1
+        if self.runs_after_read == self.read_count:
+            self.give_up_the_gil()
+        return value
+
+    def get_busy(self):
+        """Whether SDL plays a chunk (paused counts).
+
+        Returns:
+            True when it does.
+        """
+        return self.sdl_chunk is not None
+
+    def get_sound(self):
+        """The playing slot.
+
+        Returns:
+            Its chunk, or None.
+        """
+        return self._read(self.sound)
+
+    def get_queue(self):
+        """The queue slot.
+
+        Returns:
+            Its chunk, or None.
+        """
+        return self._read(self.queued)
+
+    def play(self, chunk):
+        """Play a chunk over whatever is there."""
+        self.give_up_the_gil()
+        if self.sdl_chunk is not None:
+            self._halt()
+            if self.sdl_chunk is not None:  # the queued one, started by the halt
+                self.cut.append(self.sdl_chunk)
+        self.sound, self.queued = chunk, None
+        self.sdl_chunk, self.paused = chunk, False
+
+    def queue(self, chunk):
+        """Queue a chunk, or play it if the playing slot is empty."""
+        if self.sound is None:
+            self.give_up_the_gil()
+            self.sound, self.sdl_chunk, self.paused = chunk, chunk, False
+        else:
+            self.queued = chunk
+
+    def stop(self):
+        """Halt the channel: its queued chunk starts."""
+        self.give_up_the_gil()
+        self._halt()
+
+    def pause(self):
+        """Pause what SDL plays."""
+        if self.sdl_chunk is not None:
+            self.paused = True
+
+    def unpause(self):
+        """Resume what SDL plays."""
+        self.give_up_the_gil()
+        if self.sdl_chunk is not None:
+            self.paused = False
+
+    def set_volume(self, *gains):
+        """Set its gains."""
+        self.give_up_the_gil()
+
+    @property
+    def named(self):
+        """The chunks the table names.
+
+        Returns:
+            The playing one, then the queued one.
+        """
+        return [chunk for chunk in (self.sound, self.queued) if chunk is not None]
+
+
+# Every state pygame and SDL can leave a channel in as Python reads it: (sound, queue, busy, the
+# pending callback). Busy with no playing slot is not one: the callback and chan_play fill the slot
+# with the GIL (TableChannel). Nor is a named Sound that SDL neither plays nor has a callback
+# pending for: SDL_mixer leaves some short finite loops so, and a stream's chunks never loop
+# (test_a_short_loop_sdl_never_reports_ended_reads_as_playing_after_a_bounded_wait).
+CHANNEL_CASES = {
+    'empty': (False, False, False, None),
+    'playing': (True, False, True, None),
+    'playing, one queued': (True, True, True, None),
+    'ended, callback pending': (True, False, False, 'clear'),
+    'ended, the queued one about to start': (True, True, False, 'promote'),
+    'ended, queued after the callback looked': (True, True, False, 'clear'),
+    'stranded': (False, True, False, None),
+}
+SETTLED_STATES = {
+    'empty': ChannelState.ENDED,
+    'playing': ChannelState.PLAYING,
+    'playing, one queued': ChannelState.QUEUED,
+    'ended, callback pending': ChannelState.ENDED,
+    'ended, the queued one about to start': ChannelState.PLAYING,
+    'ended, queued after the callback looked': ChannelState.STRANDED,
+    'stranded': ChannelState.STRANDED,
+}
+
+
+class TestChannelStateFromTheTable:
+    """A stream decides by pygame's table, whatever ``get_busy`` says (``TableChannel``)."""
+
+    @pytest.fixture(autouse=True)
+    def mixer(self):
+        """A mixer, so channel 0 is one of its channels, stopped after the streams let go.
+
+        Yields:
+            The partition.
+        """
+        self._streams = []
+        yield start_reserved_mixer()
+        for stream in self._streams:
+            stream._held_chunks.clear()  # nothing real plays: nothing to release
+        stop_mixer()
+
+    @pytest.fixture
+    def rendered(self, mocker):
+        """Render every chunk as a ``TableChunk``.
+
+        Returns:
+            The chunks, in the order they were rendered.
+        """
+        chunks = []
+
+        def numbered_chunk(samples, *, volume, side_gains):
+            chunks.append(TableChunk(len(chunks) + 1))
+            return chunks[-1]
+
+        mocker.patch.object(live, 'to_sound', side_effect=numbered_chunk)
+        return chunks
+
+    def _stream(self, channel):
+        stream = LiveStream(
+            channel=channel,
+            owner='scene',
+            render=np.zeros,
+            sample_rate=RATE,
+            options=LiveVoiceOptions(chunk_seconds=0.03),
+        )
+        self._streams.append(stream)
+        return stream
+
+    def _stream_in(self, case, *, state):
+        """A stream in a lifecycle state, its channel in one of ``CHANNEL_CASES``.
+
+        Returns:
+            The stream and its channel.
+        """
+        has_sound, has_queue, is_busy, pending = CHANNEL_CASES[case]
+        channel = TableChannel()
+        stream = self._stream(channel)
+        playing, queued = TableChunk('playing'), TableChunk('queued')
+        channel.sound = playing if has_sound else None
+        channel.queued = queued if has_queue else None
+        channel.sdl_chunk = playing if is_busy else None
+        channel.pending = pending
+        stream._held_chunks.extend(channel.named)
+        stream._state = state
+        stream._fade_total_samples = stream._fade_remaining_samples = RATE
+        channel.paused = state is VoiceState.PAUSED and is_busy
+        return stream, channel
+
+    @pytest.mark.parametrize('case', CHANNEL_CASES)
+    def test_a_channels_state_is_the_tables_once_the_pending_callback_has_run(self, case):
+        _, channel = self._stream_in(case, state=VoiceState.PLAYING)
+
+        assert channel_state(channel) is SETTLED_STATES[case]
+        assert channel.pending is None
+
+    @pytest.mark.parametrize('case', ['playing', 'playing, one queued'])
+    def test_reading_a_paused_channel_never_resumes_it(self, case):
+        _, channel = self._stream_in(case, state=VoiceState.PAUSED)
+
+        channel_state(channel)
+
+        assert channel.paused
+
+    def test_a_short_loop_sdl_never_reports_ended_reads_as_playing_after_a_bounded_wait(
+        self, mocker
+    ):
+        """Not a stream's chunk: a plain sound's finite loop, whose end SDL_mixer never reports."""
+        channel = TableChannel()
+        channel.sound = TableChunk('loop')
+        unpause = mocker.spy(channel, 'unpause')
+
+        assert channel_state(channel) is ChannelState.PLAYING
+        assert unpause.call_count == live.MAXIMUM_SETTLING_ATTEMPTS
+
+    def test_a_channel_that_never_settles_is_read_from_the_table_after_a_bounded_wait(self, mocker):
+        _, channel = self._stream_in('ended, callback pending', state=VoiceState.PLAYING)
+        unpause = mocker.patch.object(channel, 'unpause')
+
+        assert channel_state(channel) is ChannelState.PLAYING
+        assert unpause.call_count == live.MAXIMUM_SETTLING_ATTEMPTS
+
+    @pytest.mark.parametrize('case', CHANNEL_CASES)
+    @pytest.mark.parametrize(
+        'state', [state for state in VoiceState if state is not VoiceState.IDLE]
+    )
+    def test_an_update_never_cuts_a_chunk_and_leaves_the_channel_as_its_state_says(
+        self, rendered, case, state
+    ):
+        stream, channel = self._stream_in(case, state=state)
+        expected = channel_state(self._stream_in(case, state=state)[1])
+
+        stream.update()
+        channel.give_up_the_gil()
+
+        assert channel.cut == []
+        assert len(stream.held_chunks) <= live.MAXIMUM_HELD_CHUNKS
+        assert all(any(chunk is held for held in stream.held_chunks) for chunk in channel.named)
+        if state in {VoiceState.PLAYING, VoiceState.FADING}:
+            assert channel.sdl_chunk is not None  # an underrun restarts in the same update
+        if state is VoiceState.DRAINING and expected is not ChannelState.ENDED:
+            assert channel.sdl_chunk is not None  # what is left of the fade plays
+        if state in {VoiceState.PAUSED, VoiceState.DRAINING, VoiceState.STOPPED}:
+            assert rendered == []
+        if state is VoiceState.PAUSED:
+            assert channel.paused == channel.get_busy()
+        if expected is ChannelState.STRANDED and state in {
+            VoiceState.PLAYING,
+            VoiceState.FADING,
+            VoiceState.DRAINING,
+        }:
+            assert channel.sdl_chunk.number == 'queued'
+
+    @pytest.mark.parametrize('case', CHANNEL_CASES)
+    @pytest.mark.parametrize('state', VoiceState)
+    def test_a_draining_voice_is_finished_only_when_the_table_names_nothing(self, case, state):
+        stream, channel = self._stream_in(case, state=state)
+
+        finished = stream.is_finished
+
+        if state is VoiceState.DRAINING:
+            assert finished == (channel.named == [])
+            assert stream.is_playing == (not finished)
+        else:
+            assert finished == (state is VoiceState.STOPPED)
+
+    @pytest.mark.parametrize('case', CHANNEL_CASES)
+    def test_a_pause_holds_whatever_is_about_to_start(self, case):
+        stream, channel = self._stream_in(case, state=VoiceState.PLAYING)
+
+        stream.pause()
+        channel.give_up_the_gil()
+
+        assert stream.state is VoiceState.PAUSED
+        assert channel.paused == channel.get_busy()
+        assert channel.cut == []
+
+    @pytest.mark.parametrize('again', ['pause', 'update'])
+    def test_a_chunk_that_started_as_the_channel_was_paused_is_paused_next(self, again):
+        """SDL pauses without its lock: a chunk may end as it does, and the next starts unpaused."""
+        stream, channel = self._stream_in('playing, one queued', state=VoiceState.PLAYING)
+        stream.pause()
+        channel.paused = False
+        channel.end_chunk()
+        channel.give_up_the_gil()
+        assert channel.get_busy()
+
+        getattr(stream, again)()
+
+        assert channel.paused
+
+    @pytest.mark.parametrize('case', CHANNEL_CASES)
+    @pytest.mark.parametrize('state', [VoiceState.PLAYING, VoiceState.PAUSED, VoiceState.DRAINING])
+    def test_a_stopped_voice_leaves_nothing_on_its_channel_and_holds_nothing(self, case, state):
+        stream, channel = self._stream_in(case, state=state)
+
+        stream.stop_now()
+
+        assert channel.named == []
+        assert stream.held_chunks == ()
+        assert not channel.get_busy()
+
+    def test_a_stranded_chunk_is_muted_before_it_is_played_only_to_be_dropped(self):
+        stream, channel = self._stream_in('stranded', state=VoiceState.PLAYING)
+        stranded = channel.queued
+
+        stream.stop_now()
+
+        assert stranded.volume == 0.0
+
+    def test_a_dropped_stream_with_a_stranded_chunk_frees_its_channel(self):
+        stream, channel = self._stream_in('stranded', state=VoiceState.PLAYING)
+
+        self._streams.clear()
+        del stream
+        gc.collect()
+
+        assert channel.named == []
+        assert len(live.take_unreleased_live_stream_reports()) == 1
+
+    def test_another_streams_stranded_chunk_is_played_over(self, rendered):
+        stream, channel = self._stream_in('stranded', state=VoiceState.PLAYING)
+        stream._held_chunks.clear()
+
+        stream.update()
+
+        assert channel.sdl_chunk is rendered[0]
+
+    def test_a_chunk_that_starts_between_the_tables_two_reads_is_still_held(self):
+        """Never let go: pygame's table would hold its last reference (#313)."""
+        stream, channel = self._stream_in(
+            'ended, the queued one about to start', state=VoiceState.DRAINING
+        )
+        queued = channel.queued
+        channel.runs_after_read = 1
+
+        stream._let_go_of_chunks_played_out(channel)
+
+        assert channel.sound is queued
+        assert any(chunk is queued for chunk in stream.held_chunks)
+
+    def test_a_play_over_its_own_chunk_is_refused_and_logged_once(self, rendered, mocker):
+        """The invariant's last guard: no noise is drawn, and the player's game goes on."""
+        warning = mocker.patch.object(live.log, 'warning')
+        stream, channel = self._stream_in('playing, one queued', state=VoiceState.PLAYING)
+
+        stream._play(channel)
+        stream._play(channel)
+
+        assert channel.cut == []
+        assert rendered == []
+        warning.assert_called_once()
+
+    @pytest.mark.parametrize('seed', range(20))
+    def test_every_chunk_rendered_is_heard_whole_and_in_order_until_the_voice_stops(
+        self, rendered, seed
+    ):
+        """The invariant, over any order of chunk ends, callbacks, updates and pauses."""
+        chooser = np.random.default_rng(seed)
+        channel = TableChannel()
+        stream = self._stream(channel)
+        stream.start()
+        actions = [
+            channel.end_chunk,
+            channel.end_chunk,
+            channel.give_up_the_gil,
+            stream.update,
+            stream.update,
+            stream.pause,
+            stream.resume,
+        ]
+        for step in range(400):
+            if step == 300:
+                stream.resume()
+                stream.stop(fade_out=0.2)
+            actions[chooser.integers(len(actions))]()
+            assert channel.cut == []
+            assert len(stream.held_chunks) <= live.MAXIMUM_HELD_CHUNKS
+            assert all(any(chunk is held for held in stream.held_chunks) for chunk in channel.named)
+        for _ in range(50):
+            stream.update()
+            channel.end_chunk()
+
+        assert stream.is_finished
+        assert channel.named == []
+        assert [chunk.number for chunk in channel.finished] == [chunk.number for chunk in rendered]
+        assert len(rendered) > 20
+
+
+class WatchedChannel:
+    """A real channel that notes each play over a chunk pygame's table names as playing."""
+
+    def __init__(self, index):
+        """Watch a mixer channel."""
+        self._channel = pygame.mixer.Channel(index)
+        self.plays_over_a_chunk = 0
+
+    def __getattr__(self, name):
+        """Everything else is the channel's own.
+
+        Returns:
+            The channel's attribute.
+        """
+        return getattr(self._channel, name)
+
+    def play(self, sound):
+        """Play a chunk."""
+        self.plays_over_a_chunk += self._channel.get_sound() is not None
+        self._channel.play(sound)
+
+
+class TestPendingEndCallback:
+    """The real mixer, caught with pygame's end callback waiting for the GIL.
+
+    tests/audio/pending_callback.py: no assertion depends on how fast the mixer or machine runs.
+    """
+
+    @pytest.fixture(autouse=True)
+    def mixer(self):
+        """A stereo mixer on the dummy driver, stopped after.
+
+        Yields:
+            None.
+        """
+        start_mixer(channels=2)
+        yield
+        pygame.mixer.stop()
+        pygame.mixer.stop()
+        stop_mixer()
+
+    @staticmethod
+    def _started(*, chunk_seconds=0.5):
+        channel = WatchedChannel(0)
+        stream = LiveStream(
+            channel=channel,
+            owner='scene',
+            render=lambda count: np.full(count, 0.5),
+            sample_rate=RATE,
+            options=LiveVoiceOptions(chunk_seconds=chunk_seconds),
+        )
+        stream.start()
+        stream.update()
+        return stream, channel
+
+    def test_an_update_never_plays_over_the_chunk_about_to_start(self):
+        stream, channel = self._started()
+
+        for _ in range(3):
+            with gil_held():
+                until_idle_with_a_chunk_queued(channel, keep_queued=stream.update)
+                stream.update()
+
+        assert channel.plays_over_a_chunk == 0
+        stream.stop_now()
+
+    def test_a_releases_fade_is_not_finished_while_it_is_about_to_start(self):
+        stream, channel = self._started()
+        with gil_held():
+            until_idle_with_a_chunk_queued(channel, keep_queued=stream.update)
+            stream._state = VoiceState.DRAINING  # the queued chunk is the fade's last
+            finished, playing = stream.is_finished, stream.is_playing
+            named = _channel_slots(channel)
+
+        assert named == [] or not finished
+        assert playing or named == []
+        stream.stop_now()
+
+    def test_a_pause_stops_the_chunk_about_to_start(self):
+        """Nothing plays on while another channel is heard to play more than a chunk's length."""
+        stream, channel = self._started()
+        with gil_held():
+            until_idle_with_a_chunk_queued(channel, keep_queued=stream.update)
+            about_to_start = channel.get_queue()
+            stream.pause()
+        meter = pygame.mixer.Channel(1)
+        meter.play(live.to_sound(np.zeros(RATE), volume=1.0))  # a second, two chunks
+
+        _wait_until_idle(meter)
+
+        assert channel.get_sound() is about_to_start
+        assert channel.get_busy()
+        stream.stop_now()
+
+    def test_a_chunk_queued_after_the_callback_looked_is_played_not_skipped(self):
+        stream, channel = self._started()
+        stream.stop_now()
+        stream._state = VoiceState.PLAYING
+        stranded = self._strand(stream, channel)
+
+        with gil_held():
+            stream.update()
+            playing = channel.get_sound()
+
+        assert playing is stranded
+        stream.stop_now()
+
+    def test_a_stopped_voice_leaves_no_stranded_chunk_in_the_table(self):
+        stream, channel = self._started()
+        stream.stop_now()
+        stream._state = VoiceState.PLAYING
+        self._strand(stream, channel)
+
+        stream.stop_now()
+
+        assert _channel_slots(channel) == []
+        assert stream.held_chunks == ()
+
+    @staticmethod
+    def _strand(stream, channel):
+        """Queue a chunk on a channel whose end callback has found nothing queued.
+
+        Returns:
+            The chunk, stranded.
+        """
+        chunk = live.to_sound(np.full(RATE // 2, 0.5), volume=1.0)
+        ending = live.to_sound(np.zeros(RATE // 5), volume=1.0)
+
+        def _end_is_pending():
+            if channel.get_sound() is None:  # a stalled machine let it end and its callback run
+                channel._channel.play(ending)
+            return not channel.get_busy() and channel.get_sound() is not None
+
+        with gil_held():
+            spin_until(_end_is_pending)
+            stream._held_chunks.append(chunk)
+            channel.queue(chunk)
+        channel.unpause()  # the callback runs
+        assert _channel_slots(channel) == [chunk]
+        assert channel.get_sound() is None
+        return chunk
+
+
+def _wait_until_idle(channel):
+    deadline = clock.raw_counter_seconds() + RECORDING_TIMEOUT_SECONDS
+    while channel.get_busy():
+        assert clock.raw_counter_seconds() < deadline, 'the mixer is not playing'
+        clock.raw_sleep(0.01)
+
+
+class TestChunksHeardWhole:
+    """What the mixer plays of each chunk, recorded by tests/audio/live_restart_probe.py."""
+
+    def test_every_chunk_is_heard_from_its_first_sample_to_its_last(self, tmp_path):
+        path = tmp_path / 'restarts.raw'
+        result = run_command(
+            command=[sys.executable, '-m', live_restart_probe.__name__],
+            environment={
+                **os.environ,
+                'SDL_AUDIODRIVER': 'disk',
+                'SDL_DISKAUDIOFILE': str(path),
+                'SDL_VIDEODRIVER': 'dummy',
+            },
+            timeout_seconds=RECORDING_TIMEOUT_SECONDS,
+            capture_output=OutputCapture.TOGETHER,
+            working_directory=REPOSITORY_ROOT,
+        )
+        assert result.returncode == 0, result.stdout
+        heard = np.fromfile(path, dtype='<i2')[::2] / FULL_SCALE
+        numbers = np.rint(heard[heard > 0.0] / np.sqrt(0.5) / live_restart_probe.LEVEL_STEP)
+        order = numbers[np.insert(np.diff(numbers) != 0, 0, values=True)].astype(int).tolist()
+
+        assert order == list(range(1, len(order) + 1))  # none heard twice, skipped or split
+        assert len(order) >= live_restart_probe.UPDATE_COUNT
+        # stop_now() cuts the last one or two
+        for number in order[:-2]:
+            assert np.count_nonzero(numbers == number) == live_restart_probe.CHUNK_SAMPLES
+
+
+# Loud enough to clip: a chunk at its gains must hold whatever the samples are
+CLIPPING_LEVEL = 2.0
+FULL_SCALE = 32767
+# A straight ramp across the whole swing is 3 dB down half way; a chunk's loudest is never less
+MINIMUM_RAMP_LOUDNESS = 0.7
+MIXER_VOLUME_STEPS = 128
+
+
+class HeldChannel:
+    """A real channel that never plays on its own: paused whenever a chunk starts on it.
+
+    What is on the channel then changes only when the test says so (``stop`` starts the queued
+    chunk), however long the machine stalls between two lines of a test.
+    """
+
+    def __init__(self, index):
+        """Hold a mixer channel."""
+        self._channel = pygame.mixer.Channel(index)
+
+    def __getattr__(self, name):
+        """Everything else is the channel's own.
+
+        Returns:
+            The channel's attribute.
+        """
+        return getattr(self._channel, name)
+
+    def play(self, sound):
+        """Play a chunk, paused at once."""
+        self._channel.play(sound)
+        self._channel.pause()
+
+    def stop(self):
+        """Stop the chunk; the queued one starts, paused at once."""
+        self._channel.stop()
+        self._channel.pause()
+
+    def unpause(self):
+        """Stay paused: a resumed stream still plays only when the test says so."""
+
+
+def _constant_stream(*, level=0.5, chunk_seconds=0.5, **options):
+    """A stream of constant samples on channel 0, held: each chunk's level is its gain.
+
+    Returns:
+        The stream.
+    """
+    return LiveStream(
+        channel=HeldChannel(0),
+        owner='scene',
+        render=lambda count: np.full(count, level),
+        sample_rate=RATE,
+        options=LiveVoiceOptions(chunk_seconds=chunk_seconds, **options),
+    )
+
+
+def _frames(sound):
+    """A chunk's frames as heard: its samples at its volume, -1 to 1.
+
+    Returns:
+        (count, 2) on a stereo mixer, (count,) on a mono one.
+    """
+    return pygame.sndarray.array(sound) / FULL_SCALE * sound.get_volume()
+
+
+def _played_out(stream, *, chunk_count):
+    """Start a stream and play it out chunk by chunk.
+
+    ``Channel.stop()`` starts the queued chunk (the module's channel facts).
+
+    Returns:
+        Each chunk's frames, in the order they play.
+    """
+    stream.start()
+    chunks = []
+    for _ in range(chunk_count):
+        chunks.append(_frames(stream.channel.get_sound()))
+        stream.update()
+        stream.channel.stop()
+    stream.stop_now()
+    return chunks
+
+
+class TestLiveStreamGains:
+    """A live sound's gains are in its chunks, every one, and no chunk is louder than them.
+
+    SDL_mixer drops a channel's pan when a queued chunk starts
+    (bugs/2026-11-25-live-sounds-lose-their-pan.md), so nothing may depend on the channel's.
+    Real mixer on the dummy driver: what a chunk holds is what is heard, on a channel at full.
+    """
+
+    @pytest.fixture(autouse=True)
+    def mixer(self):
+        """A stereo mixer on the dummy driver, stopped after.
+
+        Yields:
+            None.
+        """
+        start_mixer(channels=2)
+        yield
+        pygame.mixer.stop()
+        stop_mixer()
+
+    @pytest.mark.parametrize('pan', [-1.0, -0.25, 0.0, 0.5, 1.0])
+    def test_every_chunk_is_at_its_gains_from_its_first_sample_to_its_last(self, pan):
+        """One law for every sound, live and baked: centre is 3 dB down on each side."""
+        gains = constant_power_gains(pan=pan, gain=0.5)
+
+        for chunk in _played_out(_constant_stream(pan=pan), chunk_count=4):
+            np.testing.assert_allclose(chunk, np.tile(gains, (len(chunk), 1)), atol=1e-4)
+
+    def test_a_pan_set_before_the_start_is_the_first_chunks_from_its_first_sample(self):
+        stream = _constant_stream()
+        stream.set_pan(1.0)
+
+        (chunk,) = _played_out(stream, chunk_count=1)
+
+        np.testing.assert_allclose(chunk, np.tile([0.0, 0.5], (len(chunk), 1)), atol=1e-4)
+
+    def test_a_pan_change_ramps_across_the_chunk_already_queued(self):
+        """Heard within one chunk, no step: from where the chunk playing ends to the new pan."""
+        stream = _constant_stream(pan=-1.0)
+        stream.start()
+        stream.update()
+        playing, queued = stream.channel.get_sound(), stream.channel.get_queue()
+        before = _frames(playing)
+
+        stream.set_pan(0.0)  # superseded before it is heard: it leaves no trace
+        stream.set_pan(1.0)
+
+        assert stream.channel.get_queue() is queued
+        np.testing.assert_array_equal(_frames(playing), before)
+        ramped = _frames(queued)
+        heard = np.concatenate([before, ramped])
+        largest_step = np.abs(np.diff(heard, axis=0)).max()
+        assert largest_step <= 0.5 / stream.chunk_samples + 2 / FULL_SCALE
+        np.testing.assert_allclose(ramped[-1], [0.0, 0.5], atol=1e-4)
+        stream.channel.stop()
+        stream.update()
+        following = _frames(stream.channel.get_queue())
+        np.testing.assert_allclose(following, np.tile([0.0, 0.5], (len(following), 1)), atol=1e-4)
+        stream.stop_now()
+
+    def test_a_chunk_that_starts_while_its_rewrite_is_made_is_left_as_it_was(self, mocker):
+        """Rewriting what plays would step: the next chunk ramps instead, from what is heard."""
+        stream = _constant_stream(pan=-1.0)
+        stream.start()
+        stream.update()
+        queued = stream.channel.get_queue()
+        before = _frames(queued)
+        real = live.panned_pcm16
+
+        def promoted_meanwhile(*arguments, **settings):
+            stream.channel.stop()  # the queued chunk starts
+            return real(*arguments, **settings)
+
+        patched = mocker.patch.object(live, 'panned_pcm16', side_effect=promoted_meanwhile)
+        stream.set_pan(1.0)
+        mocker.stop(patched)
+        stream.update()
+
+        assert stream.channel.get_sound() is queued
+        np.testing.assert_array_equal(_frames(queued), before)
+        following = _frames(stream.channel.get_queue())
+        np.testing.assert_allclose(following[0], [0.5, 0.0], atol=1e-3)
+        np.testing.assert_allclose(following[-1], [0.0, 0.5], atol=1e-4)
+        stream.stop_now()
+
+    def test_a_pan_set_to_what_it_is_rewrites_nothing(self, mocker):
+        stream = _constant_stream(pan=-1.0)
+        stream.start()
+        stream.update()
+        rewrite = mocker.patch.object(live, 'panned_pcm16')
+
+        stream.set_pan(-1.0)
+
+        rewrite.assert_not_called()
+        stream.stop_now()
+
+    def test_a_pan_change_with_nothing_queued_ramps_across_the_next_chunk(self):
+        stream = _constant_stream(pan=-1.0)
+        stream.start()
+
+        stream.set_pan(1.0)
+        stream.update()
+
+        ramped = _frames(stream.channel.get_queue())
+        np.testing.assert_allclose(ramped[0], [0.5, 0.0], atol=2e-3)
+        np.testing.assert_allclose(ramped[-1], [0.0, 0.5], atol=1e-4)
+        stream.stop_now()
+
+    def test_a_paused_sounds_pan_change_is_in_its_queued_chunk_when_it_resumes(self):
+        stream = _constant_stream(pan=-1.0)
+        stream.start()
+        stream.update()
+        stream.pause()
+
+        stream.set_pan(1.0)
+        stream.resume()
+
+        assert stream.state is VoiceState.PLAYING
+        np.testing.assert_allclose(_frames(stream.channel.get_queue())[-1], [0.0, 0.5], atol=1e-4)
+        stream.stop_now()
+
+    def test_a_pan_change_keeps_the_queued_chunks_stopping_fade(self):
+        stream = _constant_stream(pan=-1.0)
+        stream.start()
+        stream.stop(fade_out=0.5)
+        stream.update()
+
+        stream.set_pan(0.0)
+
+        faded = _frames(stream.channel.get_queue())
+        middle = len(faded) // 2
+        # Half way through a straight fade and a straight ramp from (1, 0) to (0.707, 0.707)
+        expected = 0.5 * 0.5 * np.array([(1.0 + np.sqrt(0.5)) / 2.0, np.sqrt(0.5) / 2.0])
+        np.testing.assert_allclose(faded[middle], expected, atol=1e-3)
+        np.testing.assert_allclose(faded[-1], [0.0, 0.0], atol=1e-4)
+        stream.stop_now()
+
+    def test_a_ducked_buss_chunks_are_at_its_gain_and_the_pan_changed_or_not(self):
+        stream = _constant_stream(pan=-1.0, gain_source=lambda: 0.25)
+        stream.start()
+        stream.update()
+        np.testing.assert_allclose(_frames(stream.channel.get_sound())[-1], [0.125, 0.0], atol=1e-4)
+
+        stream.set_pan(1.0)
+
+        np.testing.assert_allclose(_frames(stream.channel.get_queue())[-1], [0.0, 0.125], atol=1e-4)
+        stream.stop_now()
+
+    def test_a_pan_change_never_unmutes_an_inner_game_gone_silent(self):
+        """Going silent mutes the chunks under way; a pan change rewrites one, still muted."""
+        start_reserved_mixer()
+        reserve_inner_game_channels(games=1)
+        tile = EngineContext(name='tile')
+        with tile.active():
+            block = inner_context_partition(live_pool=4, library_channels=32)
+            audio = LiveAudio(channel_indices=block.live)
+            stream = audio.create_instrument_voice(
+                owner='scene', instrument=SINE, frequency=220.0, options=LONG_CHUNK
+            ).stream
+            stream._channel = HeldChannel(block.live[0])
+            stream.start()
+            stream.update()
+            queued = stream.channel.get_queue()
+            heard = _frames(queued)
+            set_audible(audible=False)
+
+            stream.set_pan(1.0)
+
+        assert np.abs(heard).max() > 0.5
+        assert queued.get_volume() == 0.0
+        assert pygame.sndarray.array(queued)[-1, 0] == 0  # rewritten, though unheard
+        stream.stop_now()
+
+    def test_a_pan_change_draws_no_noise_and_leaves_the_next_chunk_as_it_was(self):
+        """The rewrite renders nothing: the noise a pan change finds is the noise after it."""
+        noise = Instrument(noise='white', live=True)
+        mono = []
+        for pans in ((), (-1.0, 0.5)):
+            stream = _voice(
+                HeldChannel(0),
+                instrument=noise,
+                random_source=np.random.default_rng(5),
+                options=LONG_CHUNK,
+            ).stream
+            stream.start()
+            stream.update()
+            for pan in pans:
+                stream.set_pan(pan)
+            mono.append(stream._render(stream.chunk_samples))
+            stream.stop_now()
+
+        np.testing.assert_array_equal(mono[0], mono[1])
+
+    def test_a_stopped_streams_pan_change_leaves_another_voices_chunk_alone(self):
+        stopped = _constant_stream(pan=-1.0)
+        stopped.start()
+        stopped.stop_now()
+        other = _constant_stream(pan=0.0)
+        other.start()
+        other.update()
+        before = _frames(other.channel.get_queue())
+
+        stopped.set_pan(1.0)
+
+        np.testing.assert_array_equal(_frames(other.channel.get_queue()), before)
+        other.stop_now()
+
+    def test_an_overtaken_streams_pan_change_leaves_the_chunk_queued_over_its_own_alone(self):
+        overtaken = _constant_stream(pan=-1.0)
+        overtaken.start()
+        other = _constant_stream(pan=0.0)
+        other.start()
+        other.update()
+        before = _frames(other.channel.get_queue())
+
+        overtaken.set_pan(1.0)
+
+        np.testing.assert_array_equal(_frames(other.channel.get_queue()), before)
+        other.stop_now()
+        overtaken.stop_now()
+
+    def test_no_chunk_is_ever_louder_than_its_voices_gains(self):
+        """The invariant: whatever is done to a sound, its power stays within its gain's.
+
+        Constant power: left squared plus right squared is the gain squared, and a ramp between
+        two pans stays inside that circle. The samples clip, so nothing hides behind them.
+        """
+        chooser = np.random.default_rng(LIVE_STREAM_TEST_SEED)
+        gain = 1.0
+        stream = _constant_stream(level=CLIPPING_LEVEL, gain_source=lambda: gain)
+        stream.start()
+        rendered = [(stream.channel.get_sound(), gain)]  # each chunk, the gain it was rendered at
+        for _ in range(60):
+            action = chooser.integers(5)
+            if action == 0:
+                stream.set_pan(float(chooser.uniform(-1.0, 1.0)))
+            elif action == 1:
+                stream.pause()
+                stream.resume()
+            elif action == 2:
+                stream.channel.stop()  # the queued chunk starts
+            elif action == 3:
+                stream.channel.stop()
+                stream.channel.stop()  # idle: the next update restarts
+            else:
+                gain = float(chooser.uniform(0.0, 1.0))
+            stream.update()
+            for chunk in _channel_slots(stream.channel):
+                if not any(chunk is known for known, _ in rendered):
+                    rendered.append((chunk, gain))
+            for chunk, gain_in_force in rendered:
+                loudness = np.sqrt(np.square(_frames(chunk)).sum(axis=1)).max()
+                assert loudness <= gain_in_force + 1e-4
+                assert loudness >= gain_in_force * MINIMUM_RAMP_LOUDNESS - 2.0 / MIXER_VOLUME_STEPS
+        assert len(rendered) > 20
+        assert stream.state is VoiceState.PLAYING
+        stream.stop_now()
+
+    @pytest.mark.parametrize('pan', [-1.0, 0.0, 1.0])
+    def test_a_mono_mixer_plays_every_chunk_at_the_centre_gain_wherever_it_is_panned(self, pan):
+        """A mono mixer has no sides: both sides' mean power, the centred gain, pan or no pan."""
+        start_mixer(channels=1)
+        centre, _ = constant_power_gains(pan=0.0, gain=0.5)
+
+        for chunk in _played_out(_constant_stream(pan=pan), chunk_count=3):
+            np.testing.assert_allclose(chunk, np.full(len(chunk), centre), atol=1e-4)
+
+    def test_a_pan_change_on_a_mono_mixer_ends_at_the_same_gain(self):
+        start_mixer(channels=1)
+        centre, _ = constant_power_gains(pan=0.0, gain=0.5)
+        stream = _constant_stream(pan=-1.0)
+        stream.start()
+        stream.update()
+
+        stream.set_pan(1.0)
+
+        assert _frames(stream.channel.get_queue())[-1] == pytest.approx(centre, abs=1e-4)
+        stream.stop_now()
+
+
+class TestHeardPans:
+    """What the mixer plays, recorded on SDL's disk driver (tests/audio/live_pan_probe.py).
+
+    The channel's own gains show nowhere else. Only levels are asserted, never times.
+    """
+
+    LEVEL = live_pan_probe.LEVEL
+    TOLERANCE = 0.001
+
+    @pytest.fixture
+    def heard(self, tmp_path):
+        """Record a case.
+
+        Returns:
+            A function from a case to its sounding frames, (count, 2), -1 to 1.
+        """
+
+        def record(case):
+            path = tmp_path / f'{case}.raw'
+            result = run_command(
+                command=[sys.executable, '-m', live_pan_probe.__name__, case],
+                environment={
+                    **os.environ,
+                    'SDL_AUDIODRIVER': 'disk',
+                    'SDL_DISKAUDIOFILE': str(path),
+                    'SDL_VIDEODRIVER': 'dummy',
+                },
+                timeout_seconds=RECORDING_TIMEOUT_SECONDS,
+                capture_output=OutputCapture.TOGETHER,
+                working_directory=REPOSITORY_ROOT,
+            )
+            assert result.returncode == 0, result.stdout
+            raw = np.fromfile(path, dtype='<i2')
+            frames = raw[: raw.size - raw.size % 2].reshape(-1, 2) / FULL_SCALE
+            sounding = frames[np.abs(frames).max(axis=1) > 0.0]
+            # More than the chunk playing and the one queued: later chunks are heard too
+            assert len(sounding) > 2 * live_pan_probe.CHUNK_SECONDS * RATE
+            return sounding
+
+        return record
+
+    @pytest.mark.parametrize(
+        'case',
+        [
+            live_pan_probe.LEFT,
+            live_pan_probe.RESTARTED,
+            live_pan_probe.PAUSED,
+            live_pan_probe.RELEASED,
+        ],
+    )
+    def test_a_sound_on_the_left_is_never_heard_on_the_right(self, heard, case):
+        frames = heard(case)
+
+        assert np.abs(frames[:, 1]).max() == 0.0
+        assert frames[:, 0].max() == pytest.approx(self.LEVEL, abs=self.TOLERANCE)
+
+    def test_a_centred_sound_on_a_channel_left_panned_is_at_the_centre_gain_throughout(self, heard):
+        frames = heard(live_pan_probe.CENTRE_ON_A_PANNED_CHANNEL)
+
+        centre, _ = constant_power_gains(pan=0.0, gain=self.LEVEL)
+        np.testing.assert_allclose(frames, np.full_like(frames, centre), atol=self.TOLERANCE)
+
+    def test_a_stealer_is_heard_on_its_own_side_and_the_stolen_on_its_own(self, heard):
+        frames = heard(live_pan_probe.STOLEN)
+
+        assert np.minimum(np.abs(frames[:, 0]), np.abs(frames[:, 1])).max() == 0.0
+        assert frames[0, 0] == pytest.approx(self.LEVEL, abs=self.TOLERANCE)
+        assert frames[-1, 1] == pytest.approx(self.LEVEL, abs=self.TOLERANCE)
+
+    def test_a_sound_moved_to_the_right_ends_there_and_is_never_louder_than_its_gains(self, heard):
+        frames = heard(live_pan_probe.MOVED)
+
+        assert np.sqrt(np.square(frames).sum(axis=1)).max() <= self.LEVEL + self.TOLERANCE
+        np.testing.assert_allclose(frames[0], self.LEVEL * np.sqrt(0.5), atol=self.TOLERANCE)
+        np.testing.assert_allclose(frames[-1], [0.0, self.LEVEL], atol=self.TOLERANCE)
+
+    def test_the_channels_next_user_inherits_no_pan(self, heard):
+        """A guard, not a regression's proof: the mixer dropped the pan before the fix too."""
+        frames = heard(live_pan_probe.NEXT_USER)
+
+        np.testing.assert_allclose(frames[-1], live_pan_probe.NEXT_USER_LEVEL, atol=self.TOLERANCE)

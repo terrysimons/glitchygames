@@ -13,7 +13,10 @@ path both use:
    not do) and pauses the music. Without ``spares_playing_sounds`` every channel is stopped
    (``pygame.mixer.stop()``, the rebuild's way: nothing of the live game plays under it). With
    it, a channel still playing the sound noted at ``begin`` plays on; a channel that went idle
-   or plays another sound loses its note and is stopped. A live voice
+   or plays another sound loses its note and is stopped. A stop starts a channel's queued sound (a
+   live voice's next chunk), so each is made twice. Whether a channel is playing is asked of
+   ``live.channel_state``, never of ``Channel.get_busy`` alone: a channel reads idle for a moment
+   before its queued sound starts (bugs/2026-11-25-live-sounds-restart-mid-chunk.md). A live voice
    (glitchygames/audio/live.py) queues a new chunk every 100 ms, so its channel soon plays
    another sound and is stopped, as without sparing. Each stop is told to the context's audio
    engine (``AudioEngine.silenced``: one channel, or every channel after ``pygame.mixer.stop()``),
@@ -217,6 +220,25 @@ def _channel_indices_to_silence() -> Sequence[int]:
     return range(pygame.mixer.get_num_channels())
 
 
+def _is_playing(channel: pygame.mixer.Channel) -> bool:
+    """Return whether a sound is playing (or paused) on a channel, or about to start on it.
+
+    Returns:
+        True when ``live.channel_state`` finds one playing.
+
+    """
+    # Imported when a frame is silenced: importing the replay package never imports audio
+    from glitchygames.audio.live import ChannelState, channel_state
+
+    return channel_state(channel) in {ChannelState.PLAYING, ChannelState.QUEUED}
+
+
+def _stop_with_its_queue(channel: pygame.mixer.Channel) -> None:
+    """Stop a channel: the first stop starts its queued sound, the second stops that."""
+    channel.stop()
+    channel.stop()
+
+
 class FrameSilencer:
     """Keeps frames silent while they run unseen (see the module docstring)."""
 
@@ -284,6 +306,8 @@ class FrameSilencer:
         elif inner:
             self._stop_own_channels()
         else:
+            # Twice: the first starts each channel's queued sound
+            pygame.mixer.stop()
             pygame.mixer.stop()
             _tell_the_audio_engine(channel_index=None)
         if not inner and pygame.mixer.music.get_busy():
@@ -293,26 +317,26 @@ class FrameSilencer:
 
     @staticmethod
     def _stop_own_channels() -> None:
-        """Stop each busy channel of the inner context's own (never the host's or another's)."""
+        """Stop each playing channel of the inner context's own (never the host's or another's)."""
         for channel_index in _channel_indices_to_silence():
             channel = pygame.mixer.Channel(channel_index)
-            if channel.get_busy():
-                channel.stop()
+            if _is_playing(channel):
+                _stop_with_its_queue(channel)
                 _tell_the_audio_engine(channel_index=channel_index)
 
     def _stop_unspared_channels(self: Self) -> None:
-        """Stop each busy channel not still playing the sound it played at ``begin``.
+        """Stop each playing channel not still playing the sound it played at ``begin``.
 
         Only the inner context's own channels in an inner context (the module docstring).
         """
         for channel_index in _channel_indices_to_silence():
             channel = pygame.mixer.Channel(channel_index)
             spared_sound = self._spared_sounds.get(channel_index)
-            if not channel.get_busy():
+            if not _is_playing(channel):
                 self._spared_sounds.pop(channel_index, None)
             elif spared_sound is None or channel.get_sound() is not spared_sound:
                 self._spared_sounds.pop(channel_index, None)
-                channel.stop()
+                _stop_with_its_queue(channel)
                 _tell_the_audio_engine(channel_index=channel_index)
 
     def finish(self: Self) -> None:

@@ -247,11 +247,17 @@ The `fast` timer backend uses `time.perf_counter_ns()` with a sleep+spin hybrid 
 
 The other replay options (`--replay-fps`, `--audit`, `--compare-processing`, `--max-processing-slowdown`, `--replay-pause-at-frame`, `--rebaseline`, `--replay-digest`) are described in [Gameplay Recording and Replay](docs/architecture/gameplay_replay.md).
 
+### Feature Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--lucid-circuit`, `--no-lucid-circuit` | Lucid Circuit, the local AI: it needs the AI service installed, and is never used with `--headless`, in a replay or in the browser | on |
+
 ### Game Options
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-l`, `--log-level` | Logging level: `debug`, `info`, `warning`, `error`, `critical` | `info` |
+| `-l`, `--log-level` | Logging level: `debug`, `info`, `warning`, `error`, `critical` | `warning` |
 | `--no-unhandled-events` | Fail on unhandled events (used in testing) | `False` |
 | `-p`, `--profile` | Enable cProfile profiling | `False` |
 

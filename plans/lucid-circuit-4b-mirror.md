@@ -92,6 +92,99 @@ engine's game source revision, so a launch with unchanged code reuses it; read t
 the summaries, as a game's code doesn't fit in 8K. The research reports of 2026-11-07, which cite file and line, are
 a reference the tests check the model's mechanics against, catching invented rules.
 
+## No real stimulus (the owner, 2026-11-24)
+
+The doors this needs for the clipboard, files and the sound cache are planned in
+[a replay touches nothing real](2026-11-24-replays-touch-nothing-real.md).
+
+**"The mirror, as a reflection, does not get the real stimulus."** It receives what the live game
+received, and touches no real source or sink itself: no device, sound, file of the player's, clipboard,
+network, AI service or child process. The owner's decisions:
+
+- Every hardware layer starts in the mirror with a stand-in, by a fake start that looks the same to
+  the game: the same answers, counts and state the live game saw.
+- **A proxy on the real game caches each question and its answer, and brings that map to the mirror**
+  (below).
+- The mirror process's marker is `--lucid-circuit-mirror`, set by the live game, never typed. It is
+  separate from Lucid Circuit's switch
+  ([plan](2026-11-24-feature-flags-and-lucid-circuit-switch.md), on its own branch): the mirror runs
+  with its own AI link off.
+- A real open in the mirror is refused and names its caller, and a guard proves it.
+
+### The question-and-answer proxy
+
+The devices door is already a small one: the live door remembers each enumeration and open with its
+answer (`EnumerationAnswer`) and a replay answers from that list. The design extends the doors, one
+proxy per layer, so live play, recording, replay and the mirror share one mechanism.
+
+1. **Ordered, not only keyed.** The same question can have another answer later, so each answer holds
+   its frame and its place in it. Only an answer that cannot change in a run is kept once.
+2. **Failures are answers,** and fail the same way in the mirror.
+3. **A question with no answer is drift:** refused and named, never sent to the real thing.
+4. **Outputs go nowhere** and return what the live call returned.
+5. **Recordings hold the map too,** as optional fields, so old ones still load.
+6. **Cost and privacy:** large answers travel as hashes; whether the AI may see a layer's answers
+   (clipboard text, file contents) is decided layer by layer.
+
+### What a headless replay touches today
+
+Measured on 2026-11-24 on main `311e6743` (macOS arm64, dummy drivers, an audit hook and wrapped
+calls, seven replays and two inner games; all matched their recordings). Nothing was plugged in.
+
+| Layer | Today | In the mirror |
+|---|---|---|
+| Sound cache on disk | Reads, writes, locks, renames and deletes in the player's folder. With every lock held elsewhere (staged), a 3 s replay took 57 s, as the wait is on the main thread and up to 5 s a sound | `none`, or read-only and never waiting. The live game runs the same code, so a mirror could stall it (inferred) |
+| Bitmappy's AI worker | A real child process, with no check of the mode | Refused; its answers come from the map |
+| Clipboard | A replayed copy or paste reached `pyperclip` | `InProcessClipboard`; paste text from the map |
+| A dropped PNG | The replay wrote the converted TOML beside it | Refused; contents from the map |
+| SDL joysticks | `pygame.init()` starts the subsystem, which no one then asks | Off by SDL's hints before `pygame.init()` |
+| Child processes | `uname` and `file`, at every engine start (`platform.platform()`) | Refused, or the answer from the map |
+| Imports | hid, miniaudio, speech_recognition and PortMidi load with the engine | Loaded only on use |
+| Sockets, AI link, microphone, hid, MIDI starts, live polling, wall clock, save files | None seen | Kept so by the guard |
+| Rumble, lights | Stand-ins (read) | Return values from the map |
+
+### What the live game sees that no recording holds
+
+Each can make the mirror drift, and is the proxy's worklist, the likeliest first: clipboard text;
+contents of dropped or opened files; Bitmappy's AI answers; live voices' `is_playing`, `is_finished`,
+`cancel()` and `set_pan` results and a full live pool's choice, which read the real mixer's time
+(`release()` and `stop()` do not); a mixer missing live but present in the replay; a save that failed
+to write; the hash seed and environment; rumble and light return values, power level and system fonts.
+The window's size is not one: the engine's windows are SCALED, so the surface a game draws on keeps its
+size, and resize events are recorded. Each has its record in `bugs/` (2026-11-24), all but the hash
+seed, the environment and system fonts.
+
+### Enforcement
+
+Today `tests/test_engine_doors.py` covers pygame's input, events and time, and MIDI on its branch.
+Nothing covers files, the clipboard, sockets, child processes, threads, miniaudio, hid or the AI
+clients, and `--headless` covers only SDL's audio and video. In order:
+
+1. **One property on `EngineSources`,** whether this run may touch the real world, which the layers
+   above ask.
+2. **A runtime audit hook,** set before the engine is imported, that refuses opens, sockets and child
+   processes by Python code. It covers `subprocess` and `multiprocessing`
+   (`_posixsubprocess.fork_exec`, measured). It cannot see C code inside SDL, miniaudio or PortMidi.
+3. **SDL's joystick hints** before `pygame.init()`.
+4. **A wider source guard,** so a new subsystem cannot skip the property.
+5. **The proof:** every golden and demo replays as a mirror with each real entry point patched to raise.
+
+Stand-ins to reuse: `InProcessClipboard`, `MemorySaveManager`, `ReplayDeviceRegistry`,
+`src/glitchygames/input/stand_in_devices.py`, `tests/sdl_defaults.py`.
+
+### Beside the live game
+
+The mirror is another process, so no rule inside one process keeps it off a device the live game
+holds; what a second process's open does differs by platform and is untested. Shown: the cache-lock
+wait, the file write, the clipboard, the worker. Inferred: SDL in both processes opening one pad, Ctrl-C
+reaching both, races in the cache's sweep, a second AI client.
+
+**Not verified:** a pad, keyboard or headset plugged in; a mirror beside a real live game; Linux,
+Windows, the browser; anything C code does below Python.
+
+This section is step 2's first task: the pipe carries the map, and nothing may be built on a mirror that
+still touches the real world. The AI's disposable copies use the same mode.
+
 ## Hard problems, to be settled here and not assumed
 
 - **Object identity.** The clone's objects and the live game's are the same objects, in the sense that matters: the
@@ -228,7 +321,7 @@ a reference the tests check the model's mechanics against, catching invented rul
      prompt (system prompt and tools) is about 1,800 tokens; an answer used 2,900 to 4,700 tokens of context at the
      median across the games, and its generation 670 to 1,300 tokens (up to 5,400). Some answers in Brave Adventurer,
      Clockwork Keep and Mr. Muncher reached the whole 8,192.
-2. **The pipe.** A socket from the doors to a clone that starts with the game, a replay source that waits at the live
+2. **The pipe.** First, no real stimulus (above). A socket from the doors to a clone that starts with the game, a replay source that waits at the live
    edge, and supervision: start, restart, stop with the game. A frontier report: received, processed, age.
 3. **Read-only introspection.** A query socket on the clone. The console's `/ask` and `/inspect` read it through the
    tool calls above, with no cap, and the live-path `describe_scene` goes. The startup task works out the game's
@@ -266,7 +359,7 @@ a reference the tests check the model's mechanics against, catching invented rul
 
 ## Exit evidence
 
-- The live game's frame times with the clone running, against `--no-ai`, on a real display.
+- The live game's frame times with the clone running, against `--no-lucid-circuit`, on a real display.
 - The clone keeps under 5 seconds behind on the games measured, or the limit is stated for those that don't.
 - `/inspect` shows every sprite in Mr. Muncher's scene, including the player.
 - One event goes clone to live and back, and a recording of that run replays exactly with no AI.

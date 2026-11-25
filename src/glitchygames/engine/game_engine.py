@@ -37,7 +37,7 @@ import pygame
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, events
-from glitchygames.ai_link import AiLink, create_link
+from glitchygames.ai_link import REPLAY_OFF_REASON, AiLink, create_link, log_lucid_circuit_off
 from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -73,10 +73,17 @@ from glitchygames.events.sprite_spawn import SPRITE_SPAWN_EVENT, SpriteSpawn, ad
 from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
+from glitchygames.feature_flags import (
+    FEATURE_FLAG_GROUP_TITLE,
+    FLAG_OPTIONS_SLOT,
+    add_flag_arguments,
+    flag_state_lines,
+    take_flag_options,
+)
 from glitchygames.fonts import FontManager
 from glitchygames.host import GameHost, HostSources
 from glitchygames.input.device_listing import list_input_devices
-from glitchygames.input.devices import ReplayController
+from glitchygames.input.devices import LiveDeviceRegistry, ReplayController
 from glitchygames.input.input_devices import (
     InputDeviceChanges,
     InputDevices,
@@ -94,6 +101,7 @@ from glitchygames.recording import (
     CUSTOM_EVENT_TYPES_HEADER_FIELD,
     DEVICE_ENUMERATION_FIELD,
     DEVICES_HEADER_FIELD,
+    MIDI_PORTS_HEADER_FIELD,
     RECORDED_AT_HEADER_FIELD,
     SAVES_HEADER_FIELD,
     GameplayRecorder,
@@ -617,6 +625,7 @@ class LiveDevicesBehindScope:
             joystick mode).
         controllers: That controller manager's ``controllers`` as the scope began (None
             without one).
+        midi_ports: ``midi_manager.ports`` as the scope began.
         input_devices: ``GameEngine.input_devices`` as the scope began.
         scope_made_the_controller_manager: True when the scope made a controller manager of
             its own (the recording had one, the live game has none): released as it ends.
@@ -626,6 +635,7 @@ class LiveDevicesBehindScope:
     joysticks: dict[int, JoystickEventManager.JoystickEventProxy]
     controller_manager: ControllerEventManager | None
     controllers: dict[int, ControllerEventManager.ControllerEventProxy] | None
+    midi_ports: dict[tuple[str, int], MidiEventManager.MidiEventProxy]
     input_devices: InputDevices
     scope_made_the_controller_manager: bool
 
@@ -904,7 +914,8 @@ def _clear_a_half_made_engine[EngineT: GameEngine, **InitParameters](
     """Wrap ``GameEngine.__init__``: if it raises, the half-made engine stops being current.
 
     ``__init__`` makes the engine current part way through (once its own state is set); a
-    failure after that (SystemExit from a game flag tool included) must not leave it current.
+    failure after that (SystemExit from a game flag tool included) must not leave it current, or
+    leave its feature flags as the context's (rule 5 of glitchygames/feature_flags.py).
     A decorator, not a ``try`` in ``__init__``: basedpyright then still sees the instance
     variables the methods ``__init__`` calls set.
 
@@ -920,10 +931,13 @@ def _clear_a_half_made_engine[EngineT: GameEngine, **InitParameters](
     def initialize_or_clear(
         engine: EngineT, *args: InitParameters.args, **kwargs: InitParameters.kwargs
     ) -> None:
+        context = current_context()
+        flags_asked_before = context.value(slot=FLAG_OPTIONS_SLOT).asked
         try:
             initialize(engine, *args, **kwargs)
         except BaseException:
             _stop_being_the_current_engine(engine=engine)
+            context.value(slot=FLAG_OPTIONS_SLOT).asked = flags_asked_before
             raise
 
     return initialize_or_clear
@@ -1115,17 +1129,6 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             '-w',
             '--windowed',
             help='run in a window; --no-windowed runs fullscreen (default: windowed)',
-            action=argparse.BooleanOptionalAction,
-            default=True,
-        )
-        # Not a tool in the registry: two tool flags at once are refused, and this is on by default
-        group.add_argument(
-            '--ai',
-            help=(
-                'connect to the local AI service if it is installed, starting its models as '
-                'the game loads; --no-ai never touches it (default: on, but never with '
-                '--headless or in a replay)'
-            ),
             action=argparse.BooleanOptionalAction,
             default=True,
         )
@@ -1358,6 +1361,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             default=False,
         )
 
+        # Each feature flag's option, on and off, is made from its declaration, as
+        # glitchygames/feature_flags.py says
+        add_flag_arguments(parser=parser.add_argument_group(FEATURE_FLAG_GROUP_TITLE))
+
         event_managers = (
             AppEventManager,
             AudioEventManager,
@@ -1564,6 +1571,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # This engine's parsed command line (audit C8: its own; GameEngine.OPTIONS is a
         # read-only view of it), set before the engine is current below
         self.options: dict[str, Any] = options
+        # The context's feature flags are this command line's from here on, before anything
+        # reads one or a recording's options are put in place (glitchygames/feature_flags.py)
+        take_flag_options(options=options)
+        # Read now, as another engine made in this context takes it over before this one starts
+        self._flag_state_lines: list[str] = flag_state_lines()
         # The current context's engine from here on (current_engine()): every piece of the
         # engine's own state is set above this line, so no view finds a half-made engine (if
         # the rest raises, _clear_a_half_made_engine clears it again)
@@ -1711,6 +1723,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # A live run is hosted: the outer game (glitchygames/host.py) reads through the live
         # doors and drives the frames. A replay has no host (its viewer is its outer game)
         self.host: GameHost | None = None
+        # The live doors beneath the host (None in a replay): where MIDI ports close at the end
+        self.live_sources: LiveSources | None = None
         # The run's session with the local AI service, if it has one (glitchygames/ai_link.py)
         self.ai_link: AiLink | None = None
         if self.replay_sources is None:
@@ -1727,8 +1741,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 # Live play against OLD draws OLD over each presented frame
                 sources=self._host_sources(inner=live_sources, overlay=self.onion_skin)
             )
+            self.live_sources = live_sources
             install_sources(sources=self.host.sources)
         else:
+            log_lucid_circuit_off(reason=REPLAY_OFF_REASON)
             install_sources(sources=self.replay_sources)
 
         # We are fully initialized now; the scene (self.game, set at the top) starts once
@@ -2249,7 +2265,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         self.game_manager = GameEventManager(game=self.scene_manager)
         self.joystick_manager = JoystickEventManager(game=self.scene_manager)
         self.keyboard_manager = KeyboardEventManager(game=self.scene_manager)
-        self.midi_manager = MidiEventManager(game=self.scene_manager)
+        self.midi_manager = MidiEventManager(
+            game=self.scene_manager,
+            input_names=self.options.get('midi_input') or (),
+            output_names=self.options.get('midi_output') or (),
+        )
         self.mouse_manager = MouseEventManager(game=self.scene_manager)
         self.window_manager = WindowEventManager(game=self.scene_manager)
 
@@ -2310,12 +2330,15 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         devices are opened through the scope's devices door as the recorded engine opened them
         at startup (the same calls, so the answers it gave are taken in order); an instant
         replay's are adopted from its journal (``recorded.scene_start_devices``) asking the door
-        nothing, since its answers are the scene's own. The managers stay the same shared
-        instances; only the devices they hold change. No scene is told: the played scene is
-        rebuilt and reads ``input_devices`` as the recorded one did.
+        nothing, since its answers are the scene's own. MIDI ports go the same way: a recording
+        file's open by the names it recorded (none named asks the door nothing), an instant
+        replay's are adopted (``recorded.scene_start_midi_ports``). The managers stay the same
+        shared instances; only the devices they hold change. No scene is told: the played scene
+        is rebuilt and reads ``input_devices`` as the recorded one did.
 
         Args:
-            recorded: The recording's input mode and, for an instant replay, its devices.
+            recorded: The recording's input mode and MIDI port names or, for an instant
+                replay, its devices and MIDI ports.
             registry: The scope's devices door (the played recording's).
 
         Raises:
@@ -2333,6 +2356,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             controllers=(
                 None if live_controller_manager is None else live_controller_manager.controllers
             ),
+            midi_ports=self.midi_manager.ports,
             input_devices=self.input_devices,
             scope_made_the_controller_manager=(
                 live_controller_manager is None and input_mode is not InputMode.JOYSTICK
@@ -2366,6 +2390,16 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             if adopted is None
             else self.joystick_manager.adopt_joysticks(descriptors=adopted)
         )
+        adopted_midi_ports = recorded.scene_start_midi_ports
+        self.midi_manager.ports = (
+            self.midi_manager.open_connected_midi_ports(
+                input_names=recorded.midi_input_names, output_names=recorded.midi_output_names
+            )
+            if adopted_midi_ports is None
+            else self.midi_manager.adopt_midi_ports(
+                descriptors=adopted_midi_ports, registry=registry
+            )
+        )
         self.input_devices = InputDevices(input_mode=input_mode)
         # The journal says which of its devices are game controllers: the door is not asked
         self._follow_the_managers_devices(controllers_complete=adopted is not None)
@@ -2383,6 +2417,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             return
         self._live_devices_behind_scope = None
         self.joystick_manager.joysticks = live.joysticks
+        self.midi_manager.ports = live.midi_ports
         if live.scope_made_the_controller_manager:
             ControllerEventManager.release_shared_instance()
         self.controller_manager = live.controller_manager
@@ -2562,6 +2597,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 answer.to_json() for answer in registry.take_enumeration_answers()
             ],
         }
+        # Only when a port was opened: a recording of a game with no MIDI has no such field
+        midi_ports = [descriptor.to_json() for descriptor in registry.take_opened_midi_ports()]
+        if midi_ports:
+            header[MIDI_PORTS_HEADER_FIELD] = midi_ports
         recorder = GameplayRecorder(path=path, header=header)
         install_sources(sources=RecordingSources(inner=inner, recorder=recorder))
         self.trace_recorder = recorder
@@ -3640,6 +3679,12 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             self.ai_console.stop()
         if self.ai_link is not None:
             self.ai_link.stop()
+        # A failing close is logged and the teardown goes on; the exit code is unchanged (unlike
+        # the audio's below, whose failure propagates)
+        try:
+            self._close_midi_ports()
+        except Exception:
+            self.log.exception('Closing the MIDI ports failed')
         # Before pygame quits: the sound library's voices fade over 50 ms, waited for at most
         # 100 ms (sound engine impl spec 10.3), then the channel reservation is given back (SDL
         # would keep it for a mixer started again in this process). Even when closing the audio
@@ -3656,6 +3701,23 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 release_channels()
             finally:
                 self._finish_the_teardown()
+
+    def _close_midi_ports(self: Self) -> None:
+        """Close the MIDI ports this run opened and shut PortMidi down.
+
+        Where port lifetimes end. A replay opened none (its doors are stand-ins). Only a live run
+        has live doors, and only the outermost context runs live: an inner game (the Arcade's
+        tiles) is always a replay today (glitchygames/inner_game.py), so no live context's
+        teardown shuts PortMidi down under another's. A live inner context, should one be built,
+        needs the ownership question settled first: plans/future-work.md, "MIDI ports across
+        live engine contexts".
+        """
+        if self.live_sources is None:
+            return
+        devices = self.live_sources.devices()
+        # Stand-in devices (the tests', the golden-trace harness's) hold no PortMidi port
+        if isinstance(devices, LiveDeviceRegistry):
+            devices.close_midi_ports()
 
     def _finish_the_teardown(self: Self) -> None:
         """Print the end-of-run reports (unless the replay restarts) and shut down pygame."""
@@ -3903,10 +3965,22 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         the recording's), not the option as given, which is None when the seed was rolled (the
         owner, 2026-10-28: "The seed should definitely be in the options"); rolled or given is
         on the INFO line (``_log_the_runs_seed``), hidden at the default WARNING.
+
+        Below the options, each feature flag's state and why it is off
+        (glitchygames/feature_flags.py), as this engine was made: its option says only what was
+        asked. The state is whether the feature is wanted and possible, no more: a feature's own
+        gate (Lucid Circuit's for ``--headless`` or a replay: ``ai_link.log_lucid_circuit_off``)
+        logs its reason itself.
         """
         shown_options = {**self.options, 'random_seed': self.random_seed}
+        flag_lines = [f'{OPTIONS_BLOCK_INDENT}{line}' for line in self._flag_state_lines]
         self.log.critical(
-            '%s', startup_options_block(game_name=self._game_name(), options=shown_options)
+            '%s',
+            '\n'.join([
+                startup_options_block(game_name=self._game_name(), options=shown_options),
+                'Feature flags:',
+                *flag_lines,
+            ]),
         )
 
     def _game_name(self: Self) -> str:

@@ -30,6 +30,7 @@ from glitchygames.audio.engine import (
     existing_audio_engine,
     install_audio_engine,
 )
+from glitchygames.audio.live import live_streams_holding_chunks
 from glitchygames.audio.route import AUDIO_ROUTE_SLOT, is_audible, set_audible
 from glitchygames.audio.voices import (
     INNER_CHANNELS_SLOT,
@@ -63,6 +64,7 @@ from glitchygames.engine_context import (
 )
 from glitchygames.events import HashableEvent, ResourceManager, unhandled_event
 from glitchygames.events.base import UNHANDLED_EVENT_TYPES_SLOT
+from glitchygames.feature_flags import FLAG_OPTIONS_SLOT, flag_state, take_flag_options
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
 from glitchygames.game_frames import game_frame_clock
@@ -169,6 +171,7 @@ PROCESS_STATE_AUTOUSE_FIXTURES = {
     'restore_gil_switch_interval': 'the GIL switch interval is one per process',
     'ensure_pygame_graceful_quit': 'pygame, the display and the mixer are one per process',
     'inner_runs_keep_their_order': 'PYTEST_ADDOPTS is the process environment, read by inner runs',
+    'faulthandler_stays_on': 'faulthandler is one per process',
     'no_child_process_left_running': 'child processes belong to the process, never a context',
 }
 
@@ -1260,6 +1263,49 @@ def check_inner_channels(*, first: EngineContext, second: EngineContext) -> None
         release_inner_context_channels()
 
 
+def check_flag_options(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context answers as its own engine was asked; the default context was asked nothing."""
+    with first.active():
+        take_flag_options(options={'lucid_circuit': False})
+    with second.active():
+        take_flag_options(options={'lucid_circuit': True})
+
+    with first.active():
+        assert not flag_state(name='lucid-circuit').on
+    with second.active():
+        assert flag_state(name='lucid-circuit').on
+    assert default_context().value(slot=FLAG_OPTIONS_SLOT).asked == {}
+
+
+def check_live_streams(*, first: EngineContext, second: EngineContext) -> None:
+    """Each context's registry names only the live streams made in it, the default none."""
+    import pygame
+
+    from glitchygames.audio.instrument import Instrument
+    from glitchygames.audio.live_instrument import InstrumentVoice
+    from tests.audio.voice_support import start_reserved_mixer
+
+    start_reserved_mixer()
+    with first.active():
+        voice = InstrumentVoice(
+            channel=pygame.mixer.Channel(0),
+            owner='first game',
+            instrument=Instrument(wave='sine', live=True),
+            frequency=220.0,
+            volume=0.5,
+            sample_rate=44100,
+        )
+        voice.stream.start()
+        first_holding = live_streams_holding_chunks()
+    with second.active():
+        second_holding = live_streams_holding_chunks()
+
+    assert first_holding == (voice.stream,)
+    assert second_holding == ()
+    assert live_streams_holding_chunks() == ()
+    voice.stream.stop_now()
+
+
 # Every engine slot, with the check that proves its values never leak between contexts. Each
 # check takes keyword-only first= and second= contexts, which Callable[..., None] cannot spell
 ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
@@ -1284,6 +1330,8 @@ ISOLATION_CHECKS: dict[str, Callable[..., None]] = {
     'glitchygames.recording.private_event_queue': check_private_event_queue,
     'glitchygames.audio.route.audio_route': check_audio_route,
     'glitchygames.audio.voices.inner_channels': check_inner_channels,
+    'glitchygames.feature_flags.options': check_flag_options,
+    'glitchygames.audio.live.live_streams': check_live_streams,
 }
 
 

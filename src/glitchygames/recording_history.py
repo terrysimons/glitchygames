@@ -104,6 +104,7 @@ class FrameContent(BaseModel):
         input_changes: Its polled-input changes.
         control_events: Its control events.
         devices_opened: Devices opened in it.
+        midi_ports_opened: MIDI ports opened in it.
         saves_opened: Save namespaces first opened in it.
         device_enumeration: Enumeration answers given in it.
         scene_start: The start of a scene that began in it.
@@ -123,6 +124,7 @@ class FrameContent(BaseModel):
     input_changes: dict[str, Any] | None = None
     control_events: list[Any] | None = None
     devices_opened: list[Any] | None = None
+    midi_ports_opened: list[Any] | None = None
     saves_opened: dict[str, Any] | None = None
     device_enumeration: list[Any] | None = None
     scene_start: dict[str, Any] | None = None

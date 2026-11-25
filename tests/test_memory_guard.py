@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.leaked_state_guard import environment_holds
 from tests.memory_guard import (
     BYTES_PER_MEBIBYTE,
     CGROUP_SOURCE,
@@ -567,7 +568,7 @@ def test_a_run_a_test_started_makes_no_second_guard(pytester, monkeypatch, tmp_p
     the inner test. A pytest that configures while PYTEST_CURRENT_TEST is set was started by a
     test (the split plugin's and the draws_frames check's rule).
     """
-    assert os.environ.get('PYTEST_CURRENT_TEST')
+    assert not environment_holds(name='PYTEST_CURRENT_TEST', value=None)
     statm = tmp_path / 'statm'
     statm.write_text('5000 300 40 1 0 200 0\n', encoding='ascii')
     monkeypatch.setattr('tests.memory_guard.STATM_PATH', statm)

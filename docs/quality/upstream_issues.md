@@ -10,6 +10,92 @@ workaround and move the entry to the Fixed section.
 
 ## Open
 
+### pygame-ce's mixer frees a queued Sound while it is still referenced (re-entrant `endsound_callback`)
+
+Found 2026-11-24. The golden-traces test (`tests/world/test_golden_traces.py`, Mr. Muncher)
+segfaulted in about half the group runs once main's #269 changed the timing between its two
+games: heap corruption, detected later in `pymalloc` (the next `pygame.Rect` allocation; a Sound
+and a Rect share a size class).
+
+**Versions**: pygame-ce 2.5.8, SDL 2.32.10, SDL_mixer 2.8.2, CPython 3.15.1, macOS arm64;
+`SDL_AUDIODRIVER=dummy` is enough.
+
+**Cause**: `Channel.play(C)` on a channel still playing Sound A, with Sound B queued, when
+pygame's channel table holds the only reference to A. `Mix_PlayChannelTimed` ends A and calls
+`endsound_callback`, which runs `Py_XSETREF(channeldata[channel].sound,
+channeldata[channel].queue)` and only then clears `queue`. Releasing A runs `sound_dealloc` →
+`Mix_FreeChunk(A)`, and SDL_mixer halts every channel still playing A, calling
+`endsound_callback` again, nested, for the same channel. The nested call finds `sound == queue ==
+B` with one reference between them and releases B; the outer call and `chan_play` then release it
+again. All on the main thread (a C stack at the second free shows the nesting): re-entrancy, not
+a data race.
+
+**Measurements**: the code before #269, 0 of 15 single-test runs crashed; at #269, 11 of 20; the
+lighting branch's timing hid it (0 of 10). A probe caught the bad free in exactly the runs that
+crashed.
+
+**Reproduction** (deterministic, 5 of 5 runs; no glitchygames code):
+
+```python
+import weakref
+
+import numpy as np
+import pygame
+
+pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
+
+
+def one_second_sound():
+    return pygame.sndarray.make_sound(np.full((44100, 2), 500, dtype=np.int16))
+
+
+channel = pygame.mixer.Channel(0)
+channel.play(one_second_sound())  # A: referenced only by pygame's channel table
+sound_b = one_second_sound()  # B: this script keeps a reference for the whole run
+channel.queue(sound_b)
+freed = []
+watch = weakref.ref(sound_b, lambda _reference: freed.append(True))
+channel.play(one_second_sound())  # C, while A still plays
+print('BUG: Sound B was freed while still referenced' if freed else 'ok: Sound B is alive')
+```
+
+**Workaround here**: `LiveStream` (`src/glitchygames/audio/live.py`), the only engine code that
+queues Sounds, keeps its own reference to every chunk it plays or queues (`held_chunks`) and lets
+go of one only once its channel no longer names it, or after stopping the channel. A stream
+dropped unstopped stops its channel first (a `weakref.finalize`). So pygame's table never holds
+the last reference and `endsound_callback` never deallocates inside itself. `SceneManager.terminate`
+releases the live voices at every game end. A stream collected unreleased is reported by its
+finalizer, which never raises, to its engine context's registry of live streams and to the log.
+After every test, the harness asks that registry and fails a channel queue naming a Sound no live
+stream holds, and any stream still holding chunks or reported. The tests are
+`TestLiveStreamKeepsItsChunks` in `tests/audio/test_live.py`: the reproduction's pattern through
+two live voices on one channel (it segfaulted 5 of 5 runs before the fix), and the invariant that
+every Sound on a voice's channel is held by the voice, at most two. Complementing it, the
+golden-trace harness's `golden_game` releases the game's live voices and halts the mixer at
+teardown (`test_a_golden_games_teardown_leaves_no_mixer_channel_busy`). Bug record:
+`bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md`. Remove the guard only after a fixed
+pygame-ce release ships.
+
+**Fix to propose upstream**: under re-verification (2026-11-24); nothing is to be posted from this
+entry until it is done. The first proposal, updating both slots before releasing the old Sound, is
+believed wrong: the nested callback can still release the queued Sound, and the outer one then plays
+its freed chunk.
+
+Three related defects in the same file. `chan_get_sound` and `chan_get_queue` index `channeldata`
+with no `MIXER_INIT_CHECK` and no bounds check. `chan_play` indexes `channeldata[channelnum]`
+without checking for `-1` (`Mix_PlayChannelTimed`'s failure value, for a channel SDL refuses), and
+has no init check either. A freshly built `Channel(index)` is safe, since `_channel_init` checks init
+and range and raises. The hazard is a stored `Channel` outliving a mixer quit (a NULL table) or
+restart (a table of 8, below an inner game's live pool). Only `audio/live.py` stores Channels; it
+reads and plays only while the table has the channel (`_channel_in_the_table`,
+`_channel_table_slots`). Not triggered here: `chan_queue`'s first branch assigns
+`channeldata[n].sound` without releasing the previous value (a leaked reference).
+
+**Drafted issue text**: the title "`Channel.play()` over a playing Sound with a Sound queued frees
+the queued Sound while it is still referenced (re-entrant `endsound_callback`)", then the
+versions, the reproduction, the cause and the three related defects. The suggested fix waits for
+the re-verification above.
+
 ### `mkdocs serve` keeps every rebuild alive (griffe and mkdocstrings-python)
 
 Found 2026-10-24, BUGS.md #213. A local `mkdocs serve` (`nox -s docs-serve`) was at 14.5 GB.

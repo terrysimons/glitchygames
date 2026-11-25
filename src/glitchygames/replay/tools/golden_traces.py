@@ -227,7 +227,7 @@ class FrameObserver(Protocol):
 
 
 class RecordTraceHooks(TypedDict, total=False):
-    """Optional callbacks into a ``record_trace`` run, given to it by keyword.
+    """Optional callbacks into a ``record_trace`` run and its arguments, given to it by keyword.
 
     Attributes:
         frame_observer: Called after each frame is sampled, with the same scene and sprite ids
@@ -235,11 +235,13 @@ class RecordTraceHooks(TypedDict, total=False):
         before_recording: Called with the game scene after it is installed and before
             recording starts (and before the first frame), e.g. to write a save the
             recording's header must hold.
+        extra_arguments: More command-line arguments (``--no-lucid-circuit``).
 
     """
 
     frame_observer: FrameObserver | None
     before_recording: Callable[[Scene], None] | None
+    extra_arguments: list[str] | None
 
 
 def press(key: int) -> pygame.event.Event:
@@ -455,6 +457,22 @@ class GoldenTraceSceneManager(SceneManager):
         """Run one frame the way SceneManager.start() does, without pacing or timing."""
         self._run_frame()
 
+    def end_game_audio(self) -> None:
+        """Release the game's live voices and halt every mixer channel, as its game ends.
+
+        The harness steps frames itself and never calls ``terminate``, which releases them in a
+        real run, so a test that runs two games in one process (record, then replay) would have
+        the first game's audio play on into the second's: the second game's live voice would
+        start on a channel still playing a chunk with one queued
+        (bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md). Voices go first: halting a
+        channel with a chunk queued starts the queued chunk. Twice: a chunk queued outside the
+        live voices starts on the first.
+        """
+        self.release_live_voices()
+        if pygame.mixer.get_init() is not None:
+            pygame.mixer.stop()
+            pygame.mixer.stop()
+
 
 class GoldenTraceEngine(GameEngine):
     """The GameEngine, started without its frame loop so the recorder can step frames.
@@ -615,6 +633,10 @@ def golden_game(
 ) -> Generator[GoldenTraceSceneManager]:
     """Start a game in the harness with temporary saves; tear it all down afterwards.
 
+    The teardown ends the game's audio (``GoldenTraceSceneManager.end_game_audio``), so a test
+    that runs two games in one process never has the first game's audio play on into the
+    second's.
+
     Args:
         scene_class: The game's scene class.
         random_seed: The run's master seed (``--random-seed``), or None (``seed_arguments``).
@@ -637,6 +659,7 @@ def golden_game(
             engine = manager.game_engine
             if engine is not None:
                 engine.stop_trace_recording()
+            manager.end_game_audio()
             pygame.event.clear()
             GoldenTraceSceneManager.uninstall()
 
@@ -675,7 +698,8 @@ def record_trace(
             harness's own frames.
         random_seed: The run's master seed, passed as ``--random-seed``; None rolls one, as
             any run does (our golden traces pass ``RANDOM_SEED``).
-        **hooks: Optional callbacks into the run, by keyword (``RecordTraceHooks``).
+        **hooks: Optional callbacks into the run, and its extra command-line arguments, by keyword
+            (``RecordTraceHooks``).
 
     Returns:
         The trace: the game (the scene class's logical name,
@@ -686,12 +710,23 @@ def record_trace(
         sets ``game`` itself (our golden traces name theirs by game key:
         scripts/record_golden_traces.py).
 
+    Raises:
+        TypeError: If a hook is not one of ``RecordTraceHooks``.
+
     """
+    unknown_hooks = sorted(hooks.keys() - RecordTraceHooks.__optional_keys__)
+    if unknown_hooks:
+        message = f'record_trace has no hook named {", ".join(unknown_hooks)}'
+        raise TypeError(message)
     frame_observer = hooks.get('frame_observer')
     before_recording = hooks.get('before_recording')
     frames: list[dict[str, Any]] = []
     sprite_ids = StableSpriteIds()
-    with golden_game(scene_class=scene_class, random_seed=random_seed) as manager:
+    with golden_game(
+        scene_class=scene_class,
+        random_seed=random_seed,
+        extra_arguments=hooks.get('extra_arguments'),
+    ) as manager:
         engine = required(manager.game_engine, what="the golden game's engine")
         rolled_seed = (
             {} if random_seed is not None else {RANDOM_SEED_HEADER_FIELD: engine.random_seed}

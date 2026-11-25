@@ -2,27 +2,74 @@
 
 Every live voice is a live instrument's (``live_instrument.InstrumentVoice``, started by
 ``Sound.start()``). This module is the machinery under it: ``LiveStream`` (a voice's channel,
-chunks and lifecycle), ``FilterState`` (its low-pass or high-pass, crossfaded across a cutoff
-change) and ``LiveAudio`` (a context's live pool and its owner rules). The older
-``LiveVoice``, ``LiveAudio.create_voice`` and ``reserve_live_voice_pool`` were removed in sound
-migration step 7 (plans/2026-11-14-sound-migration.md).
+chunks and lifecycle), ``channel_state`` (what is on a channel), ``FilterState`` (its low-pass or
+high-pass, crossfaded across a cutoff change) and ``LiveAudio`` (a context's live pool and its
+owner rules). The older ``LiveVoice``, ``LiveAudio.create_voice`` and ``reserve_live_voice_pool``
+were removed in sound migration step 7 (plans/2026-11-14-sound-migration.md).
 
 pygame has no audio callback, so each voice renders short chunks from the game loop and keeps
 one chunk queued behind the one playing (pygame holds one queued Sound per channel). The safety
 margin is the rest of the playing chunk minus one device buffer: about 88 ms at 44100 Hz with a
-512-sample buffer and 100 ms chunks. A longer frame underruns; the voice restarts next update.
+512-sample buffer and 100 ms chunks. A longer frame underruns; the next update restarts the voice.
 
 Channel facts this module relies on (pygame-ce 2.5.8): Channel.stop() and Channel.fadeout()
 start the queued sound, so fades are rendered into the samples and stop_now() calls stop()
 twice; set_reserved(n) reserves channels 0..n-1; set_num_channels(smaller) stops sounds on the
-removed channels, so the pool is reserved once at startup and never resized.
+removed channels, so the pool is reserved once at startup and never resized. SDL_mixer
+keeps a channel's volume from one sound to the next, but a pan is an effect it removes when the
+channel's sound ends: ``set_volume(left, right)`` (a pan, at full volume) reaches only the first
+chunk. So a stream's gains are rendered into its chunks, side by side, and its channel is set to
+full on both sides before each play, as it may still have a volume or a pan another user left
+(bugs/2026-11-25-live-sounds-lose-their-pan.md).
+
+``Channel.get_busy()`` False is not an underrun. The mixer's thread marks a channel idle and then
+runs pygame's ``endsound_callback``, which waits for the GIL if Python holds it: until then the
+channel reads idle while a queued chunk is about to start. Only pygame's channel table says what is
+on a channel, and the callback changes it under the GIL. ``channel_state`` is the one reader: an
+idle channel that the table still names a playing Sound for is settled first by
+``Channel.unpause()``, a barrier that gives up the GIL and takes the mixer's lock, which the thread
+holds until the callback has run (SDL_mixer resumes only a channel that is playing, so on an idle
+one it changes nothing). The callback can also drop the playing chunk after a new one was queued
+behind it: that one is STRANDED (queued, nothing playing) and is played as it is.
+``Channel.pause()`` does nothing to a channel whose callback is pending, and takes no lock, so
+``pause`` settles the channel first and is made again at each update while paused
+(bugs/2026-11-25-live-sounds-restart-mid-chunk.md).
+
+A pan change is ramped across a chunk: the queued one, rewritten in place, so it starts within
+one chunk. The rewrite renders nothing again (no noise is drawn) and makes no mixer call that
+changes anything. Its samples are made first, and written only if the chunk is still queued;
+otherwise the next chunk rendered ramps. What is left is the copy itself: if the chunk starts
+between that check and the copy's end, the mixer plays the old version up to where it has got
+to, then the new one. Both start at the same gains, so the step is at most the change in gain
+times the part of the chunk played by then (one mixer buffer of a 0.1 s chunk: 0.116).
+
+A stream holds its own reference to every chunk it plays or queues until its channel has moved
+past it (``LiveStream.held_chunks``), so pygame's channel table never holds a chunk's last
+reference. pygame-ce 2.5.8's ``endsound_callback`` drops the playing chunk before it clears the
+queue slot; when that drop frees the chunk, ``Mix_FreeChunk`` halts the channel and re-enters the
+callback, which releases the queued chunk a second time: the heap is corrupted
+(bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md, docs/quality/upstream_issues.md).
+A stream is released when its game ends (``SceneManager.terminate`` releases the live voices),
+when the pool steals or ends it, or by ``stop_now``. A stream dropped while still holding chunks
+was never released: its finalizer stops the channel if the channel still names one, lets go, and
+reports it: to its context's registry (``LIVE_STREAMS_SLOT``, a list no logger level can
+filter) and as a logged warning. A finalizer must never raise (an exception in a weakref
+callback is only printed). Each context's registry also holds its live streams weakly, so the
+test harness can ask it, after every test, for each stream still holding chunks
+(``live_streams_holding_chunks``) and fail the test that leaked it (tests/harness.py).
+
+Only this module stores ``pygame.mixer.Channel`` objects, so only its table reads can outlive a
+mixer quit or restart (a fresh ``Channel(index)`` checks init and range itself). Every read goes
+through ``_channel_table_slots``, and a channel at or past ``get_num_channels()`` (a pool shrunk
+or restarted under a stale stream) is silent: nothing is played, queued, paused or stopped on it,
+since every such call raises on a quit mixer.
 
 An inner context's pool is the live pool its build took from the channels the host declared
 (``voices.inner_context_partition``; Arcade sub-plan 4, decision 4), never the default
 context's. A voice belongs to the context it is
 created in: while that context is silent (``glitchygames.audio.route``) its chunks still play on
-its own channel, at volume 0 (the voice's lifecycle reads its channel's busy and queue state, so
-it is the same heard or silent); each chunk takes the route as it is rendered, so a context
+its own channel, at volume 0 (the voice's lifecycle reads its channel's state, so it is the same
+heard or silent); each chunk takes the route as it is rendered, so a context
 switched audible is heard from its next chunk.
 """
 
@@ -31,6 +78,7 @@ from __future__ import annotations
 import enum
 import itertools
 import logging
+import weakref
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import numpy as np
@@ -49,11 +97,12 @@ from glitchygames.audio.synth import (
     apply_kernel,
     filter_kernel,
     mixer_sample_rate,
+    panned_pcm16,
     sample_count,
     to_sound,
 )
 from glitchygames.audio.voices import constant_power_gains
-from glitchygames.engine_context import current_context
+from glitchygames.engine_context import ContextSlot, current_context
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -70,6 +119,96 @@ DEFAULT_FADE_OUT = 0.1
 # A live voice's stealing priority when none is given (the baked plays' default)
 DEFAULT_LIVE_PRIORITY = 50
 PAN_RANGE = (-1.0, 1.0)
+# A live channel's gains: full on both sides, its chunks carry their own (the module docstring)
+FULL_CHANNEL_GAINS = (1.0, 1.0)
+# The most chunks a stream holds once it has let go of those its channel moved past: pygame's
+# table names one playing and one queued per channel
+MAXIMUM_HELD_CHUNKS = 2
+# How often ``channel_state`` lets a pending callback run. Once is enough for the one that made the
+# channel read idle; another chunk may end before Python has the GIL back
+MAXIMUM_SETTLING_ATTEMPTS = 8
+# Logged by a stream's finalizer when it was collected still holding chunks: nobody released it
+UNRELEASED_LIVE_STREAM_MESSAGE = (
+    'A live stream (%s) was never released: collected holding %d chunk(s) '
+    '(release_voice, release_every_voice or stop_now)'
+)
+
+
+class UnreleasedLiveStreamReport(BaseModel):
+    """A live stream collected while still holding chunks: nobody released it.
+
+    Attributes:
+        stream_name: Its owner's class and its channel (``LiveStream.diagnostic_name``).
+        stream_id: The stream's ``id``, for telling which stream a report is about.
+        held_chunk_count: How many chunks it still held.
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    stream_name: str
+    stream_id: int
+    held_chunk_count: int
+
+
+class LiveStreamRegistry:
+    """One context's live streams, held weakly, and the reports of those collected unreleased.
+
+    A diagnostic: nothing in a game reads it. The test harness asks it after every test.
+    """
+
+    def __init__(self) -> None:
+        """Start with no stream and no report."""
+        self._streams: weakref.WeakSet[LiveStream] = weakref.WeakSet()
+        self._unreleased_reports: list[UnreleasedLiveStreamReport] = []
+
+    def add(self, stream: LiveStream) -> None:
+        """Name a new stream (``LiveStream.__init__``)."""
+        self._streams.add(stream)
+
+    def streams_holding_chunks(self) -> tuple[LiveStream, ...]:
+        """Every stream of this context still alive and holding a chunk, whatever its channel.
+
+        Returns:
+            The streams.
+        """
+        return tuple(stream for stream in self._streams if stream.held_chunks)
+
+    def report_unreleased(self, report: UnreleasedLiveStreamReport) -> None:
+        """Keep a collected stream's report (its finalizer, ``_let_go_of_chunks``)."""
+        self._unreleased_reports.append(report)
+
+    def take_unreleased_reports(self) -> tuple[UnreleasedLiveStreamReport, ...]:
+        """Take the reports kept since they were last taken.
+
+        Returns:
+            The reports, oldest first; none are kept.
+        """
+        reports = tuple(self._unreleased_reports)
+        self._unreleased_reports.clear()
+        return reports
+
+
+LIVE_STREAMS_SLOT: ContextSlot[LiveStreamRegistry] = ContextSlot(
+    name='glitchygames.audio.live.live_streams', factory=LiveStreamRegistry
+)
+
+
+def live_streams_holding_chunks() -> tuple[LiveStream, ...]:
+    """The current context's live streams still holding chunks (a diagnostic).
+
+    Returns:
+        The streams.
+    """
+    return current_context().value(slot=LIVE_STREAMS_SLOT).streams_holding_chunks()
+
+
+def take_unreleased_live_stream_reports() -> tuple[UnreleasedLiveStreamReport, ...]:
+    """Take the current context's reports of live streams collected unreleased (a diagnostic).
+
+    Returns:
+        The reports, oldest first.
+    """
+    return current_context().value(slot=LIVE_STREAMS_SLOT).take_unreleased_reports()
 
 
 @runtime_checkable
@@ -118,6 +257,15 @@ class VoiceState(enum.Enum):
     STOPPED = 'stopped'
 
 
+class ChannelState(enum.Enum):
+    """What is on a mixer channel, by pygame's channel table (``channel_state``)."""
+
+    PLAYING = 'playing'  # a Sound is playing (or paused), none is queued
+    QUEUED = 'queued'  # a Sound is playing (or paused), and another is queued behind it
+    STRANDED = 'stranded'  # a Sound is queued and none is playing: nothing will start it
+    ENDED = 'ended'  # nothing is on it
+
+
 class LiveStream:
     """A live voice's channel and lifecycle: one chunk playing, one queued, fades rendered in.
 
@@ -127,10 +275,12 @@ class LiveStream:
     as each chunk is rendered. The pool (``LiveAudio``) applies the owner rules to streams. A
     stream without a channel (no mixer) does nothing.
 
-    Its channel pans by the constant-power law every sound pans by (the owner, 2026-11-15: one
-    law, so a live sound centred is as loud as a baked one, and its first pan never jumps); it
-    sets its channel's pan as it starts, so it never inherits the pan a pool channel had. A
-    pause made by ``hold`` holds until
+    Its chunks are panned by the constant-power law every sound pans by (the owner, 2026-11-15:
+    one law, so a live sound centred is as loud as a baked one, and its first pan never jumps),
+    each chunk from its first to its last sample; its channel is set to full on both sides before
+    each play, so a stream never inherits a pan its channel had and never leaves one. A pan
+    change is heard from the start of the next chunk, ramped across it (the module docstring).
+    A pause made by ``hold`` holds until
     ``release_hold``: the owner rules never resume it. ``persist`` and ``priority`` are the
     pool's to read (``LiveAudio.update``, ``LiveAudio.take_channel``).
     """
@@ -167,7 +317,31 @@ class LiveStream:
         self.made_order = 0  # set by the pool: earlier voices are stolen first among equals
         self._gain_source = options.gain_source
         self._pan = options.pan
+        # The newest chunk's samples, and the gains it starts and ends at (None: none rendered)
+        self._newest_samples: FloatArray | None = None
+        self._newest_starting_gains = self._pan_gains()
+        self._newest_ending_gains: tuple[float, float] | None = None
         self._held = False
+        # Every chunk played or queued that the channel may still name (the module docstring)
+        self._held_chunks: list[pygame.mixer.Sound] = []
+        self._refused_play_logged = False
+        # Read now: Channel.id raises once the mixer has quit
+        self._diagnostic_name = (
+            f'{type(owner).__qualname__} on channel {"none" if channel is None else channel.id}'
+        )
+        if channel is not None:
+            registry = current_context().value(slot=LIVE_STREAMS_SLOT)
+            registry.add(self)
+            weakref.finalize(
+                self,
+                _let_go_of_chunks,
+                channel,
+                self._held_chunks,
+                UnreleasedLiveStreamReport(
+                    stream_name=self._diagnostic_name, stream_id=id(self), held_chunk_count=0
+                ),
+                registry,
+            ).atexit = False
 
     @property
     def chunk_samples(self) -> int:
@@ -196,7 +370,7 @@ class LiveStream:
             return False
         if self._state in {VoiceState.PLAYING, VoiceState.PAUSED, VoiceState.FADING}:
             return True
-        return self._state is VoiceState.DRAINING and bool(self._channel.get_busy())
+        return self._state is VoiceState.DRAINING and not _has_ended(self._channel)
 
     @property
     def is_finished(self) -> bool:
@@ -206,8 +380,18 @@ class LiveStream:
         return (
             self._state is VoiceState.DRAINING
             and self._channel is not None
-            and not self._channel.get_busy()
+            and _has_ended(self._channel)
         )
+
+    @property
+    def diagnostic_name(self) -> str:
+        """Its owner's class and its channel, as reports name it."""
+        return self._diagnostic_name
+
+    @property
+    def held_chunks(self) -> tuple[pygame.mixer.Sound, ...]:
+        """The chunks it holds: every one its channel names, at most ``MAXIMUM_HELD_CHUNKS``."""
+        return tuple(self._held_chunks)
 
     @property
     def is_held(self) -> bool:
@@ -215,7 +399,11 @@ class LiveStream:
         return self._held
 
     def set_pan(self, pan: float) -> None:
-        """Pan its channel by the constant-power law.
+        """Pan by the constant-power law, ramped across the next chunk to start.
+
+        That is the chunk queued, rewritten in place, or the next one rendered when none is (or
+        when the queued one started meanwhile). The chunk playing plays on as it is: the change
+        starts within one chunk (what is left of the race: the module docstring).
 
         Raises:
             ValueError: For a pan outside -1 to 1.
@@ -224,8 +412,25 @@ class LiveStream:
             message = f'pan must be between -1 and 1, got {pan}'
             raise ValueError(message)
         self._pan = pan
-        if self._channel is not None:
-            self._channel.set_volume(*self._channel_gains())
+        if self._channel is None or self._newest_samples is None:
+            return  # the first chunk starts at the pan
+        ending_gains = self._pan_gains()
+        if ending_gains == self._newest_ending_gains:
+            return  # the newest chunk ends there already
+        _, queued = _channel_table_slots(self._channel)
+        if queued is None or not self._held_chunks or queued is not self._held_chunks[-1]:
+            return  # nothing of its own waits: the next chunk rendered ramps to the pan
+        frames = pygame.sndarray.samples(queued)
+        panned = panned_pcm16(
+            self._newest_samples,
+            side_gains=self._side_gains(starting=self._newest_starting_gains, ending=ending_gains),
+            channel_count=1 if frames.ndim == 1 else frames.shape[1],
+        )
+        _, still_queued = _channel_table_slots(self._channel)
+        if still_queued is not queued:
+            return  # it started meanwhile: the next chunk rendered ramps from what is heard
+        self._newest_ending_gains = ending_gains
+        frames[...] = panned
 
     def hold(self) -> bool:
         """Pause until ``release_hold``, whatever the owner rules say.
@@ -256,19 +461,36 @@ class LiveStream:
         if self._channel is None or self._state is not VoiceState.IDLE:
             return
         self._state = VoiceState.PLAYING
-        self._channel.set_volume(*self._channel_gains())
-        self._channel.play(self._next_chunk())
+        if not _channel_in_the_table(self._channel):
+            return  # a pool shrunk under it: silent (the module docstring)
+        self._play(self._channel)
 
     def update(self) -> None:
-        """Keep one chunk queued; call once per frame."""
-        if self._channel is None or self._state not in {VoiceState.PLAYING, VoiceState.FADING}:
+        """Keep one chunk queued, letting go of the chunks played out; call once per frame."""
+        if self._channel is None:
             return
-        if not self._channel.get_busy():
+        state = channel_state(self._channel)
+        self._let_go_of_chunks_played_out(self._channel)
+        if not _channel_in_the_table(self._channel):
+            return  # a pool shrunk under it: silent (the module docstring)
+        if self._state is VoiceState.PAUSED:
+            self._pause_channel(self._channel)
+            return
+        if self._state not in {VoiceState.PLAYING, VoiceState.FADING, VoiceState.DRAINING}:
+            return
+        if state is ChannelState.STRANDED and self._held_chunks:
+            self._play_chunk(self._channel, self._held_chunks[0])
+            return
+        if self._state is VoiceState.DRAINING:
+            return
+        if state in {ChannelState.ENDED, ChannelState.STRANDED}:
             log.debug('Live voice underrun; restarting')
-            self._channel.play(self._next_chunk())
-            return
-        if self._channel.get_queue() is None:
-            self._channel.queue(self._next_chunk())
+            self._play(self._channel)
+        elif state is ChannelState.PLAYING:
+            chunk = self._next_chunk()
+            self._held_chunks.append(chunk)
+            self._channel.queue(chunk)
+            self._let_go_of_chunks_played_out(self._channel)
 
     def stop(self, *, fade_out: float = DEFAULT_FADE_OUT) -> bool:
         """Fade to silence over fade_out seconds of rendered audio, then drain.
@@ -284,7 +506,7 @@ class LiveStream:
         """
         if self._channel is None or self._state not in {VoiceState.PLAYING, VoiceState.PAUSED}:
             return False
-        if self._state is VoiceState.PAUSED:
+        if self._state is VoiceState.PAUSED and _channel_in_the_table(self._channel):
             self._channel.unpause()
         self._fade_total_samples = max(1, sample_count(fade_out, self._sample_rate))
         self._fade_remaining_samples = self._fade_total_samples
@@ -292,27 +514,80 @@ class LiveStream:
         return True
 
     def stop_now(self) -> None:
-        """Silence immediately: the first stop() starts the queued chunk, the second stops it."""
+        """Silence immediately (``_stop_channel``)."""
         if self._channel is not None and self._state is not VoiceState.STOPPED:
-            self._channel.stop()
-            self._channel.stop()
+            if _channel_in_the_table(self._channel):
+                _stop_channel(self._channel, held_chunks=self._held_chunks)
+            self._let_go_of_chunks_played_out(self._channel)
         self._state = VoiceState.STOPPED
         self._held = False
 
     def pause(self) -> None:
-        """Pause; the queued chunk is kept."""
-        if self._channel is not None and self._state is VoiceState.PLAYING:
-            self._channel.pause()
-            self._state = VoiceState.PAUSED
+        """Pause; the queued chunk is kept. Paused already: the channel is paused again.
+
+        A chunk may end as the channel is paused, and the queued one then starts unpaused: each
+        later ``pause`` or ``update`` pauses that one too (the module docstring).
+        """
+        if self._channel is None or self._state not in {VoiceState.PLAYING, VoiceState.PAUSED}:
+            return
+        self._state = VoiceState.PAUSED
+        if _channel_in_the_table(self._channel):
+            self._pause_channel(self._channel)
 
     def resume(self) -> None:
         """Resume after pause()."""
         if self._channel is not None and self._state is VoiceState.PAUSED:
-            self._channel.unpause()
+            if _channel_in_the_table(self._channel):
+                self._channel.unpause()
             self._state = VoiceState.PLAYING
 
+    @staticmethod
+    def _pause_channel(channel: pygame.mixer.Channel) -> None:
+        """Pause the channel once a pending callback has run: on an idle one it would do nothing."""
+        channel_state(channel)
+        channel.pause()
+
+    def _play(self, channel: pygame.mixer.Channel) -> None:
+        """Render the next chunk and play it, unless that would cut one of its own playing.
+
+        Refused and logged, once a stream, before anything is rendered: an exception would end
+        the player's game over a click that the refusal already prevents, and the next update
+        decides again. ``start`` may play over another stream's chunk (a channel handed over).
+        """
+        playing, _ = _channel_table_slots(channel)
+        if any(chunk is playing for chunk in self._held_chunks):
+            if not self._refused_play_logged:
+                self._refused_play_logged = True
+                log.warning('%s: refused to play over its own chunk', self._diagnostic_name)
+            return
+        chunk = self._next_chunk()
+        self._held_chunks.append(chunk)
+        self._play_chunk(channel, chunk)
+
+    def _play_chunk(self, channel: pygame.mixer.Channel, chunk: pygame.mixer.Sound) -> None:
+        """Play a chunk it holds, holding every chunk the channel named before the play.
+
+        The channel's gains go to full first: its chunks carry theirs (the module docstring).
+        The chunks the channel played before are let go only after ``Channel.play`` has
+        replaced them in pygame's table, never inside it (the module docstring). ``start`` and
+        ``update``, where every play begins, have checked the channel is in the table: pygame's
+        ``chan_play`` indexes it with SDL's -1 for a channel SDL refuses.
+        """
+        channel.set_volume(*FULL_CHANNEL_GAINS)
+        channel.play(chunk)
+        self._let_go_of_chunks_played_out(channel)
+
+    def _let_go_of_chunks_played_out(self, channel: pygame.mixer.Channel) -> None:
+        """Keep only the held chunks the channel still names, playing or queued."""
+        named = _channel_table_slots(channel)
+        self._held_chunks[:] = [
+            chunk for chunk in self._held_chunks if any(chunk is sound for sound in named)
+        ]
+
     def _next_chunk(self) -> pygame.mixer.Sound:
-        """Render the next chunk, faded while stopping, at the route's volume.
+        """Render the next chunk, faded while stopping, at its pan and the route's volume.
+
+        It starts at the gains the chunk before it ended at and ramps to the pan's.
 
         Returns:
             The chunk as a mixer sound.
@@ -320,17 +595,38 @@ class LiveStream:
         samples = self._render(self._chunk_samples)
         if self._state is VoiceState.FADING:
             samples *= self._fade_gains(self._chunk_samples)
+        target = self._pan_gains()
+        self._newest_samples = samples
+        self._newest_starting_gains = self._newest_ending_gains or target
+        self._newest_ending_gains = target
+        side_gains = self._side_gains(starting=self._newest_starting_gains, ending=target)
         if not self._audio_route.audible:
-            return to_sound(samples, volume=0.0)
-        return to_sound(samples, volume=1.0 if self._gain_source is None else self._gain_source())
+            return to_sound(samples, volume=0.0, side_gains=side_gains)
+        return to_sound(
+            samples,
+            volume=1.0 if self._gain_source is None else self._gain_source(),
+            side_gains=side_gains,
+        )
 
-    def _channel_gains(self) -> tuple[float, float]:
-        """Its channel's left and right gains, by the constant-power law.
+    def _pan_gains(self) -> tuple[float, float]:
+        """The pan's left and right gains, by the constant-power law.
 
         Returns:
             The gains.
         """
         return constant_power_gains(pan=self._pan, gain=1.0)
+
+    def _side_gains(
+        self, *, starting: tuple[float, float], ending: tuple[float, float]
+    ) -> FloatArray:
+        """Each sample's left and right gain in a chunk: a straight line between its ends.
+
+        Returns:
+            (sample count, 2): the first sample has left the starting gains, the last is at the
+            ending ones.
+        """
+        ramp = np.arange(1, self._chunk_samples + 1)[:, np.newaxis] / self._chunk_samples
+        return np.array(starting) + (np.array(ending) - np.array(starting)) * ramp
 
     def _fade_gains(self, count: int) -> FloatArray:
         positions = self._fade_remaining_samples - np.arange(1, count + 1)
@@ -339,6 +635,115 @@ class LiveStream:
         if self._fade_remaining_samples <= 0:
             self._state = VoiceState.DRAINING
         return gains
+
+
+def _channel_in_the_table(channel: pygame.mixer.Channel) -> bool:
+    """Whether pygame's channel table has this stored channel: the mixer runs, the pool holds it.
+
+    Returns:
+        False on a quit mixer, or for a channel at or past ``get_num_channels()``.
+    """
+    return pygame.mixer.get_init() is not None and channel.id < pygame.mixer.get_num_channels()
+
+
+def channel_state(channel: pygame.mixer.Channel) -> ChannelState:
+    """What is on a channel, by pygame's table, once a pending callback has run.
+
+    The one reader of a channel's state (the module docstring): never ``get_busy`` alone. A paused
+    channel is busy, so it is never resumed here. For any channel, a library voice's too
+    (glitchygames/replay/silence.py).
+
+    A short finite loop (a few hundred samples, ``loops`` above 0; never a stream's chunk) may end
+    in SDL_mixer without its callback, ever: pygame names it until the channel's next play. It reads
+    as PLAYING, after every attempt.
+
+    Returns:
+        The state; ENDED for a channel pygame's table does not have.
+    """
+    for _ in range(MAXIMUM_SETTLING_ATTEMPTS):
+        playing, _queued = _channel_table_slots(channel)
+        if playing is None or channel.get_busy():
+            break
+        # The barrier: the callback runs before it returns. Only ever on an idle channel: on a busy
+        # one it would resume a paused sound and extend one played with a maxtime (Mix_Resume)
+        channel.unpause()
+    playing, queued = _channel_table_slots(channel)
+    if playing is None:
+        return ChannelState.ENDED if queued is None else ChannelState.STRANDED
+    return ChannelState.PLAYING if queued is None else ChannelState.QUEUED
+
+
+def _has_ended(channel: pygame.mixer.Channel) -> bool:
+    return channel_state(channel) is ChannelState.ENDED
+
+
+def _stop_channel(
+    channel: pygame.mixer.Channel, *, held_chunks: Sequence[pygame.mixer.Sound]
+) -> None:
+    """Stop a channel and empty its slots in pygame's table.
+
+    The first ``stop()`` starts the queued chunk, the second stops it. One of ``held_chunks``
+    left stranded by the first (its end callback ran after it was queued) is played, muted, for
+    the last ``stop()`` to end: only a play empties the queue slot.
+    """
+    channel.stop()
+    channel.stop()
+    _, stranded = _channel_table_slots(channel)
+    if stranded is not None and any(chunk is stranded for chunk in held_chunks):
+        stranded.set_volume(0.0)
+        channel.play(stranded)
+        channel.stop()
+
+
+def _channel_table_slots(
+    channel: pygame.mixer.Channel,
+) -> tuple[pygame.mixer.Sound | None, pygame.mixer.Sound | None]:
+    """The Sounds pygame's channel table names for a stored channel: playing, then queued.
+
+    pygame-ce 2.5.8's ``Channel.get_sound`` and ``get_queue`` index its table with no check that
+    the mixer is running or the channel exists. Only a stored ``Channel`` (this module's) can
+    outlive its mixer: on a quit mixer the table is gone (a NULL read), and on a restarted one it
+    has 8 entries (a read past its end). Neither names a chunk played before. The table never
+    shrinks, so a channel below ``get_num_channels()`` is inside it; one at or past it (the pool
+    shrank or the mixer restarted) is not read, and (None, None) is returned.
+
+    Returns:
+        The playing and the queued Sound, each None when there is none or it was not read.
+    """
+    if not _channel_in_the_table(channel):
+        return (None, None)
+    # The queue first: a chunk ending between the two reads moves the queued one to playing, which
+    # the second read then finds (read the other way, it would be in neither)
+    queued = channel.get_queue()
+    return (channel.get_sound(), queued)
+
+
+def _let_go_of_chunks(
+    channel: pygame.mixer.Channel,
+    held_chunks: list[pygame.mixer.Sound],
+    report: UnreleasedLiveStreamReport,
+    registry: LiveStreamRegistry,
+) -> None:
+    """Let go of a dropped stream's chunks, stopping its channel first if it still names one.
+
+    A stream's finalizer (``LiveStream.__init__``): it holds the channel, the chunk list, the
+    stream's report made at construction (its name: ``Channel.id`` raises on a quit mixer) and
+    its context's registry, not the stream. Stopped twice (the module's channel facts),
+    pygame's table names none of them, so none is freed inside pygame's callback. A quit or
+    restarted mixer names none of them: they simply go, and nothing asks the mixer anything.
+    Holding any chunk at all means nobody released the stream, which is reported once it has
+    let go: kept in the registry and logged (``UNRELEASED_LIVE_STREAM_MESSAGE``). It never
+    raises.
+    """
+    if not held_chunks:
+        return
+    named = _channel_table_slots(channel)
+    if any(chunk is sound for chunk in held_chunks for sound in named):
+        _stop_channel(channel, held_chunks=held_chunks)
+    held_count = len(held_chunks)
+    held_chunks.clear()
+    registry.report_unreleased(report.model_copy(update={'held_chunk_count': held_count}))
+    log.warning(UNRELEASED_LIVE_STREAM_MESSAGE, report.stream_name, held_count)
 
 
 class FilterState:

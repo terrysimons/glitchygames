@@ -45,6 +45,7 @@ import statistics
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pygame
 import pytest
 
 from glitchygames import clock
@@ -114,6 +115,21 @@ def tiles_declared(benchmarks_only: None) -> None:
     """
     default_channel_partition()
     reserve_inner_game_channels(games=TILE_COUNT)
+
+
+@pytest.fixture
+def left_out_demos_key_repeat_restored(console_script: str, recording: Path) -> Generator[None]:
+    """Put SDL's key repeat back after the demo left out of the tiles, which changes it.
+
+    Only after that one (plans/2026-11-20-window-owner-events.md is the engine's fix): any other
+    demo that changes it fails the leaked-state guard.
+    """
+    delay, interval = pygame.key.get_repeat()
+    try:
+        yield
+    finally:
+        if (console_script, recording.name) == LEFT_OUT_OF_THE_TILES:
+            pygame.key.set_repeat(delay, interval)
 
 
 @pytest.fixture
@@ -221,6 +237,7 @@ def test_the_documented_ten_player_frame_fits_the_budget():
     assert costs[0] / MILLISECONDS_PER_SECOND <= INNER_FRAME_BUDGET_SECONDS
 
 
+@pytest.mark.usefixtures('left_out_demos_key_repeat_restored')
 @pytest.mark.parametrize(
     ('console_script', 'recording'),
     [

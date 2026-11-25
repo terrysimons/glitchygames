@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, override
 import pygame
 import pytest
 
+from glitchygames.audio import Instrument
 from glitchygames.checks import MissingValueError
 from glitchygames.engine import GameEngine
 from glitchygames.exit_codes import ExitCode
@@ -29,6 +30,7 @@ from glitchygames.randomness import random_stream
 from glitchygames.replay.driver import LENGTH_DIVERGENCE, RANDOM_SEED_HEADER_FIELD
 from glitchygames.replay.tools import command
 from glitchygames.replay.tools.golden_traces import (
+    FRAME_SECONDS,
     GOLDEN_TRACE_SOURCE,
     RANDOM_SEED,
     GameSceneClasses,
@@ -331,6 +333,37 @@ def test_a_trace_names_its_game_by_the_scenes_logical_name():
 
 
 @pytest.mark.draws_frames
+@pytest.mark.parametrize(
+    ('hooks', 'lucid_circuit'),
+    [({}, True), ({'extra_arguments': ['--no-lucid-circuit']}, False)],
+)
+def test_a_trace_is_recorded_with_its_extra_arguments(hooks, lucid_circuit):
+    """``extra_arguments`` are on the recorded run's own command line."""
+    options: list[bool] = []
+
+    def read_the_options(scene):
+        options.append(scene.scene_manager.game_engine.options['lucid_circuit'])
+
+    record_trace(
+        scene_class=SeededWanderScene,
+        script=InputScript(),
+        frame_count=1,
+        before_recording=read_the_options,
+        **hooks,
+    )
+
+    assert options == [lucid_circuit]
+
+
+def test_an_unknown_hook_is_refused_by_name():
+    """A misspelt keyword would otherwise be ignored, and its hook never called."""
+    misspelt = {'frame_observers': None, 'extra_argument': ['--no-lucid-circuit']}
+
+    with pytest.raises(TypeError, match='extra_argument, frame_observers'):
+        record_trace(scene_class=SeededWanderScene, script=InputScript(), frame_count=1, **misspelt)
+
+
+@pytest.mark.draws_frames
 def test_golden_harness_stopped_early_reports_a_length_divergence(tmp_path):
     """A harness replay stopped before the recording's last frame reports a length divergence."""
     recording_path = tmp_path / 'tower.jsonl.gz'
@@ -422,6 +455,42 @@ def test_a_run_whose_scene_ends_mid_recording_names_the_frame():
             frame_count=GOLDEN_FRAME_COUNT,
             frame_observer=end_the_scene,
         )
+
+
+@pytest.mark.draws_frames
+def test_a_golden_games_teardown_leaves_no_mixer_channel_busy():
+    """Its live voices are released and its channels halted before the next game starts.
+
+    A test that runs two games in one process (record, then replay) must not let the first
+    game's live voice play on into the second's: the second's voice would start on a channel
+    still playing a chunk with one queued, the hand-off that made pygame-ce 2.5.8's mixer free a
+    queued Sound twice (bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md).
+    """
+    with golden_game(scene_class=NudgedScene, random_seed=RANDOM_SEED) as manager:
+        scene = manager.active_scene
+        live_sine = Instrument(wave='sine', live=True)
+        voice = manager.audio.sound(live_sine, pitch=220.0).start(owner=scene)
+        manager.dt = FRAME_SECONDS
+        manager.run_frame()  # the frame queues its next chunk: one playing, one queued
+        assert voice.is_playing
+        assert any(
+            pygame.mixer.Channel(index).get_queue() is not None
+            for index in range(pygame.mixer.get_num_channels())
+        )
+
+    assert not pygame.mixer.get_busy()
+    assert not voice.is_playing
+
+
+def test_a_golden_game_whose_mixer_is_gone_still_tears_down(mocker):
+    """A game that quit the mixer is torn down without asking a mixer to stop anything."""
+    uninstall = mocker.spy(GoldenTraceSceneManager, 'uninstall')
+    with golden_game(scene_class=NudgedScene, random_seed=RANDOM_SEED):
+        pygame.mixer.set_reserved(0)  # SDL_mixer keeps a reservation across a restart
+        pygame.mixer.quit()
+
+    assert pygame.mixer.get_init() is None
+    uninstall.assert_called_once_with()
 
 
 def test_an_engine_that_installs_another_scene_manager_raises_a_named_error(mocker):

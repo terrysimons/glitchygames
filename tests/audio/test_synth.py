@@ -319,6 +319,26 @@ class TestToSound:
         assert frames.shape == ((10,) if channels == 1 else (10, channels))
         make_sound.return_value.set_volume.assert_called_once_with(0.3)
 
+    @pytest.mark.parametrize(
+        ('channels', 'expected'),
+        [
+            (1, [23170, 11585]),  # both sides' mean power: 0.707 of each sample's gain
+            (2, [[32767, 0], [8192, 14189]]),
+            (4, [[32767, 0, 32767, 0], [8192, 14189, 8192, 14189]]),
+        ],
+    )
+    def test_each_side_takes_its_gain_after_the_samples_clip(self, mocker, channels, expected):
+        """Clipped first, as to_pcm16 clips: a side is never louder than its gain."""
+        mocker.patch('pygame.mixer.get_init', return_value=(44100, -16, channels))
+        make_sound = mocker.patch('pygame.sndarray.make_sound')
+        side_gains = np.array([[1.0, 0.0], [0.5, np.sqrt(0.75)]])
+
+        synth.to_sound(np.array([3.0, 0.5]), side_gains=side_gains)
+
+        frames = make_sound.call_args.args[0]
+        np.testing.assert_array_equal(frames, np.array(expected, dtype=np.int16))
+        assert frames.flags['C_CONTIGUOUS']
+
 
 class TestToSoundRealMixer:
     """Tests for Sound conversion with a real dummy-driver mixer."""

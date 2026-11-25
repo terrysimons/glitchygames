@@ -9,7 +9,10 @@
     golden worker crash.
   Neither change touches the probe, the reproducer or process stopping. #301's next run, on the
   same code merged with main (`d34c5d70`), passed.
-- **Status**: Open. Not reproduced; cause unknown.
+- **Third failure**: 2026-11-24, a local pre-push gate on macOS (`feature/midi-devices` at `dd6391fb`,
+  shuffled, seed 1971020982, worker `gw10`), again `TimeoutExpired` after 60 s.
+- **Status**: Fixed on `fix/process-probe-signal-race`. The mechanism is reproduced; that the three
+  failures above were it is inferred from the fingerprint (none recorded the child's state).
 - **Priority**: Medium (it fails the macOS job, CI's bottleneck, and costs a full run).
 - **What the test runs**: `probed_run` starts `sys.executable -c PARENT_TERMINATING_ITS_CHILD`
   with `PYTHONPATH` set to the probe's folder (`scripts/process_stop_probe/`) and no
@@ -21,21 +24,33 @@
   waiting just past 60 s, which matches. A parent that never sees `ready` would spin until the
   timeout too. A slow machine alone would not land this close to 60 s twice. Unverified: which
   process was still alive is not recorded.
-- **Root Cause**: Unknown. Suspects to check, none measured: the SIGTERM lost or not acted on in
-  the child under load; the parent's spin starving the child on a loaded runner; interpreter
-  start-up under coverage in the `.nox` environment.
-- **Test gap**: the timeout equals the child's sleep, so a lost signal and a slow start fail the
-  same way, and the failure says nothing about the state at the timeout (whether `ready` existed,
-  whether the child was alive, which signal it got).
-- **Solution**: Not chosen. Next steps: (1) make the failure report whether `ready` existed and
-  the child's state when the timeout hit; (2) give the child a sleep well past the timeout, so a
-  lost signal and slowness tell apart; (3) reproduce under a load window agreed with the owner
-  (no CPU burners while other sessions test).
-- **Sweep**: Not done yet: other tests whose child sleeps as long as their own timeout.
-- **Tests**: None yet.
+- **Root Cause**: Python runs a signal's handler between bytecodes or when a system call is
+  interrupted. A SIGTERM that lands after the last check and before `time.sleep` enters its system
+  call interrupts nothing, so the child acts on it only when its 60 s sleep ends, as the test's own
+  60 s timeout expires. Measured on this Mac: with the signal sent 0 to 600 microseconds after
+  `ready`, 10 of 3,000 children slept their whole 1 s sleep first. A signal lost while `ready` is
+  being written was tested and not seen (0 of 200). The rate in the real test was not measured.
+- **Test gap**: the timeout equalled the child's sleep, and no test sent a signal that interrupts
+  no sleep.
+- **Solution**: A child that handles a signal waits in 0.05 s sleeps
+  (`tests/stoppable_children.py`), so such a signal is acted on at the next step: the worst of
+  1,500 was 55 ms, where one long sleep took 1,005 ms.
+- **Known limits**: a signal in the gap is acted on up to 0.05 s late. Not chosen: a longer timeout
+  (it passes but costs 60 s), and `signal.set_wakeup_fd` (it removes the gap; more machinery than
+  a test child needs).
+- **Sweep**: the children that install a Python handler and then sleep were this one and two in
+  `tests/test_process.py` (`child_reporting_its_signal`, `CHILD_THAT_SAYS_IT_WAS_TERMINATED`); all
+  three are changed. A child that ignores a signal or keeps its default action has no handler to
+  delay. Not covered: children that end through SIGINT's `KeyboardInterrupt` (a nested pytest run
+  sleeping in a test), which is a Python handler too; `stop_command` escalates past it.
+- **Tests**: `test_a_child_acts_on_a_signal_that_interrupts_no_sleep` (three cases) and
+  `test_the_probed_child_acts_on_a_signal_that_interrupts_no_sleep`. Another thread takes the
+  signal, so the main thread's sleep is never interrupted: the gap, every time. All four fail with
+  one long sleep.
 - **Reporter**: The coordinator (Ledger), from CircleCI jobs 5603 and 5687.
 - **Date Reported**: 2026-11-24
-- **Files**: `tests/test_reproduce_process_stop_under_load.py` (`probed_run`,
+- **Files**: `tests/stoppable_children.py`, `tests/test_process.py`,
+  `tests/test_reproduce_process_stop_under_load.py` (`probed_run`,
   `PARENT_TERMINATING_ITS_CHILD`), `scripts/reproduce_process_stop_under_load.py`,
   `scripts/process_stop_probe/sitecustomize.py`. Related:
   `bugs/2026-11-20-process-stop-tests-failed-under-load.md`.

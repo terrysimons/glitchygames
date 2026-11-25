@@ -8,6 +8,7 @@ from the wrapped text, so they follow the font's metrics.
 
 import numpy as np
 import pygame
+import pytest
 
 from glitchygames.fonts import FontManager
 from glitchygames.ui import MultiLineTextBox
@@ -21,6 +22,14 @@ LONG_TEXT = (
     'This is a very long line that will definitely be wrapped to '
     'multiple lines because it is much longer than the text box width'
 )
+
+
+@pytest.fixture(autouse=True)
+def restore_key_repeat():
+    """A click activates the text box, which calls pygame.key.set_repeat; put the setting back."""
+    delay, interval = pygame.key.get_repeat()
+    yield
+    pygame.key.set_repeat(delay, interval)
 
 
 def _make_textbox(*, width=150, height=120):

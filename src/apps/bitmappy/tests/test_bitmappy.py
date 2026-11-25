@@ -856,6 +856,7 @@ class TestAiWorkerShutdown:
         shutdown_steps.process.terminate.assert_called_once_with()
         shutdown_steps.process.kill.assert_not_called()
 
+    @pytest.mark.usefixtures('live_run_with_the_ai_on')
     def test_shut_down_running_ai_workers_cleans_up_each_started_worker_once(self, mocker):
         """Started managers are shut down by the signal path; a second call does nothing."""
         from bitmappy import ai_manager

@@ -30,6 +30,8 @@ def _create_random_balls(num_balls):
         List of BallSprite instances.
 
     """
+    # Its own generator: the global one would move, and the balls differ, with the test order
+    draws = random.Random(42)
     balls = []
     for _ball_index in range(num_balls):
         ball = BallSprite(
@@ -37,10 +39,10 @@ def _create_random_balls(num_balls):
             bounce_left_right=True,
         )
         assert ball.rect is not None
-        ball.rect.x = random.randint(100, 700)
-        ball.rect.y = random.randint(100, 500)
-        ball.speed.x = random.uniform(-150, 150)
-        ball.speed.y = random.uniform(-150, 150)
+        ball.rect.x = draws.randint(100, 700)
+        ball.rect.y = draws.randint(100, 500)
+        ball.speed.x = draws.uniform(-150, 150)
+        ball.speed.y = draws.uniform(-150, 150)
         balls.append(ball)
     return balls
 
@@ -121,7 +123,6 @@ def test_multi_ball_ball_collision_clip():
     - Speed magnitudes remain perfectly stable (no physics response on clip)
     - Each crossing event is counted exactly once
     """
-    random.seed(42)
     pygame.init()
     set_display_mode(size=(800, 600))
 

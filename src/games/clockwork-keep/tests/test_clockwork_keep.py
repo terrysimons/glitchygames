@@ -78,14 +78,21 @@ WORLD_SPRITE_CLASSES = (Tinker, Platform, Elevator, MovingGear, CogCollectible)
 
 @pytest.fixture
 def clockwork_scene(mocker):
-    """A floor-0 scene with transition_to recorded instead of performed."""
+    """A floor-0 scene, transition_to recorded instead of performed; its live voices released after.
+
+    Yields:
+        The scene.
+    """
     if not pygame.get_init():
         pygame.init()
     if pygame.display.get_surface() is None:
         set_display_mode(size=(800, 480))
     scene = ClockworkKeepScene(options={'input_mode': 'joystick'})
     mocker.patch.object(scene, 'transition_to')
-    return scene
+    yield scene
+    # The game never ends here (SceneManager.terminate releases them in a real run), so the
+    # elevator's live rumble a test started is released, as the test harness requires
+    scene.scene_manager.release_live_voices()
 
 
 def _stand_on_first_elevator(scene):

@@ -8,6 +8,7 @@ the very last character of a line - it's always 1 character short.
 """
 
 import pygame
+import pytest
 
 from glitchygames.fonts import FontManager
 from glitchygames.input.state import InputSnapshot, set_current_input
@@ -28,6 +29,14 @@ TEST_REPEATED_CHARS = 'aaaaaaaaaa'
 TEST_LONG_TEXT = 'This is a very long line of text that will definitely wrap to multiple lines'
 TEST_MULTILINE_TEXT = 'Line 1\nLine 2\nLine 3'
 TEST_EMPTY_LINES_TEXT = 'Line 1\n\n\nLine 4'
+
+
+@pytest.fixture(autouse=True)
+def restore_key_repeat():
+    """A click activates the text box, which calls pygame.key.set_repeat; put the setting back."""
+    delay, interval = pygame.key.get_repeat()
+    yield
+    pygame.key.set_repeat(delay, interval)
 
 
 def _key_down_event(key, unicode_char=''):

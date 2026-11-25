@@ -98,8 +98,8 @@ class BallSpawnMode:
     ON_SCORE = 1 << 3
 
     # Spawn conditions
-    SPEED_CHECK_ENABLED = 1 << 4  # Only spawn if ball speed is reasonable
-    COOLDOWN_ENABLED = 1 << 5  # Respect cooldown between spawns
+    WITH_SPEED_LIMIT = 1 << 4  # Only spawn if ball speed is reasonable
+    WITH_COOLDOWN = 1 << 5  # Respect cooldown between spawns
     RANDOM_POSITION = 1 << 6  # Spawn at random position vs fixed
     RANDOM_SPEED = 1 << 7  # Random initial speed vs fixed
     RANDOM_COLOR = 1 << 8  # Random color vs default
@@ -112,8 +112,8 @@ class BallSpawnMode:
     # Convenience combinations
     PADDLE_ONLY = (
         ON_PADDLE_COLLISION
-        | SPEED_CHECK_ENABLED
-        | COOLDOWN_ENABLED
+        | WITH_SPEED_LIMIT
+        | WITH_COOLDOWN
         | RANDOM_POSITION
         | RANDOM_SPEED
         | RANDOM_COLOR
@@ -121,8 +121,8 @@ class BallSpawnMode:
     )
     WALL_ONLY = (
         ON_WALL_BOUNCE
-        | SPEED_CHECK_ENABLED
-        | COOLDOWN_ENABLED
+        | WITH_SPEED_LIMIT
+        | WITH_COOLDOWN
         | RANDOM_POSITION
         | RANDOM_SPEED
         | RANDOM_COLOR
@@ -130,8 +130,8 @@ class BallSpawnMode:
     )
     BALL_ONLY = (
         ON_BALL_COLLISION
-        | SPEED_CHECK_ENABLED
-        | COOLDOWN_ENABLED
+        | WITH_SPEED_LIMIT
+        | WITH_COOLDOWN
         | RANDOM_POSITION
         | RANDOM_SPEED
         | RANDOM_COLOR
@@ -140,8 +140,8 @@ class BallSpawnMode:
     ALL_TRIGGERS = ON_PADDLE_COLLISION | ON_WALL_BOUNCE | ON_BALL_COLLISION | ON_SCORE
     FREQUENT_SPAWNING = (
         ALL_TRIGGERS
-        | SPEED_CHECK_ENABLED
-        | COOLDOWN_ENABLED
+        | WITH_SPEED_LIMIT
+        | WITH_COOLDOWN
         | RANDOM_POSITION
         | RANDOM_SPEED
         | RANDOM_COLOR

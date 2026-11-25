@@ -257,10 +257,12 @@ from glitchygames import clock
 from glitchygames.checks import required
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
+from glitchygames.feature_flags import FEATURE_FLAGS, option_name
 from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import (
     DeviceDescriptor,
     EnumerationAnswer,
+    MidiPortDescriptor,
     ReplayDeviceRegistry,
     ReplayJoystick,
 )
@@ -283,6 +285,8 @@ from glitchygames.recording import (
     GAME_HEADER_FIELD,
     INPUT_CHANGES_FIELD,
     INTERNAL_ORIGIN,
+    MIDI_PORTS_HEADER_FIELD,
+    MIDI_PORTS_OPENED_FIELD,
     PLAYBACK_ANSWERS_FIELD,
     RECORDED_AT_HEADER_FIELD,
     REDELIVERED_EVENTS_FIELD,
@@ -294,18 +298,19 @@ from glitchygames.recording import (
     RecordingSources,
     UnrepresentableValue,
     custom_event_type_remap,
+    decoded_options,
     event_from_record,
     event_to_record,
     forget_pending_posts,
     is_input_post,
     pending_internal_posts,
     private_event_queue,
+    recorded_port_names,
     recorded_start_time,
     remapped_event_records,
     start_tracking_internal_posts,
     stop_tracking_internal_posts,
     take_matching_post,
-    value_from_json,
 )
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -371,6 +376,8 @@ LOG.addHandler(logging.NullHandler())
 # Options the recording never overrides: how this run is watched, logged, paced and recorded,
 # not what the game does
 REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
+    # The AI's switch until Lucid Circuit's flag replaced it: no option now, but 14 committed
+    # recordings hold it, and a recording never puts it in a run's options
     'ai',
     'replay_trace',
     'record_trace',
@@ -406,6 +413,9 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     # watched, never what the game does, so a recording replays under any cache mode
     'sound_cache',
     'sound_diagnostics',
+    # Every feature flag's option (--lucid-circuit): what this run wants and can have
+    # (glitchygames/feature_flags.py, rule 4)
+    *(option_name(flag_name=name) for name in FEATURE_FLAGS),
 })
 
 # How many frames before a sprite divergence its report lists (with the divergent frame itself)
@@ -472,7 +482,12 @@ END_OF_RECORDING_BANNER = 'End of recording'
 TRUNCATED_RECORDING_BANNER = 'End of recording (the file is truncated)'
 
 # The frame fields a recording made over a replay copies from it (recorded_frame_fields)
-REBASELINE_FRAME_FIELDS = (SAVES_OPENED_FIELD, DEVICES_OPENED_FIELD, DEVICE_ENUMERATION_FIELD)
+REBASELINE_FRAME_FIELDS = (
+    SAVES_OPENED_FIELD,
+    DEVICES_OPENED_FIELD,
+    MIDI_PORTS_OPENED_FIELD,
+    DEVICE_ENUMERATION_FIELD,
+)
 
 # Bookmarks (rule 16): the control event each bookmark adds to the saved copy, and the copy's name
 # (x.jsonl.gz -> x.bookmarked.jsonl.gz)
@@ -702,7 +717,8 @@ class RecordedFrames:
             frame_index: The recording's frame index.
 
         Returns:
-            Whichever of ``saves_opened``, ``devices_opened`` and ``device_enumeration`` the
+            Whichever of ``saves_opened``, ``devices_opened``, ``midi_ports_opened`` and
+            ``device_enumeration`` the
             frame has; none past the end of the recording (a frame the recording does not have
             took nothing in from it).
 
@@ -1510,6 +1526,10 @@ class ReplaySources:
             enumeration_answers=[
                 EnumerationAnswer.from_json(record)
                 for record in header.get(DEVICE_ENUMERATION_FIELD, [])
+            ],
+            midi_ports=[
+                MidiPortDescriptor.from_json(record)
+                for record in header.get(MIDI_PORTS_HEADER_FIELD, [])
             ],
         )
         # Namespace -> the recorded snapshot a store opened for it starts from
@@ -2461,6 +2481,12 @@ class ReplaySources:
                 DeviceDescriptor.from_json(record) for record in frame.get(DEVICES_OPENED_FIELD, [])
             ]
         )
+        self._devices.add_midi_ports(
+            descriptors=[
+                MidiPortDescriptor.from_json(record)
+                for record in frame.get(MIDI_PORTS_OPENED_FIELD, [])
+            ]
+        )
         for namespace, snapshot in frame.get(SAVES_OPENED_FIELD, {}).items():
             self._save_snapshots.setdefault(namespace, snapshot)
         self._snapshot = apply_snapshot_changes(
@@ -2712,11 +2738,12 @@ def decoded_replay_sources(
         The sources.
 
     Raises:
-        TraceFormatError: If the header has no seed or start time, its custom event types are
-            malformed, or what the sources decode is malformed.
+        TraceFormatError: If the header has no seed or start time, its custom event types or its
+            MIDI port names are malformed, or what the sources decode is malformed.
 
     """
     frames = remapped_event_records(frames=frames, remap=custom_event_type_remap(header=header))
+    recorded_port_names(options=header.get(OPTIONS_HEADER_FIELD, {}))
     try:
         return ReplaySources(
             header=header,
@@ -3068,14 +3095,27 @@ def check_recorded_game(
 def apply_recorded_options(*, options: dict[str, Any], recorded: dict[str, Any]) -> None:
     """Put every recorded option except ``REPLAY_LOCAL_OPTIONS`` into ``options``.
 
+    The MIDI port names (``recording.RECORDED_PORT_NAME_OPTIONS``) a recording does not hold become
+    empty. Malformed ones raise TraceFormatError (``recorded_port_names``), no option changed.
+
     Args:
         options: The run's options (the engine's ``options``), changed in place.
-        recorded: The header's ``options`` (JSON-safe; read back with ``value_from_json``).
+        recorded: The header's ``options`` (JSON-safe; read back with ``decoded_options``).
 
     """
-    for name, value in recorded.items():
-        if name not in REPLAY_LOCAL_OPTIONS:
-            options[name] = value_from_json(value)
+    port_names = recorded_port_names(options=recorded)
+    options.update(
+        decoded_options(
+            recorded={
+                name: value for name, value in recorded.items() if name not in REPLAY_LOCAL_OPTIONS
+            }
+        )
+    )
+    # A recording that predates an option names none of it: the replay's own command line or the
+    # game's default must not (an old recording holds no MIDI answers to open a port with)
+    for name, names in port_names.items():
+        if name in options:
+            options[name] = list(names)
 
 
 def apply_recorded_screen_size(

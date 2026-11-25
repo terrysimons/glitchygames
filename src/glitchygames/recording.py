@@ -24,7 +24,9 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   ``LiveSources.first_open_save_snapshots``); ``devices``, the descriptors of devices opened
   so far (``kind``,
   ``device_index``, ``instance_id``, ``name``, ``guid`` and the axis, button, hat and ball
-  counts; glitchygames/input/devices.py); and ``device_enumeration``, the enumeration and
+  counts; glitchygames/input/devices.py); ``midi_ports`` (only when a MIDI port was opened),
+  the MIDI ports opened so far (``kind``, ``port_id``, ``name``, ``interface``); and
+  ``device_enumeration``, the enumeration and
   open answers given so far (``call``, ``device_index``, ``value``, ``error``), in order.
   And ``measurement_runs``: each run's provenance, newest first (``MeasurementRun``: machine,
   whether it paced its frames, versions, ``measured_at``, ``rebaselined_from``, the hash
@@ -54,7 +56,8 @@ built by the same functions (``event_batch_records``, ``recorded_frame``).
   keymap); ``control_events``, the
   supervisor actions recorded in the frame, in order (``ControlEvent.to_json``:
   ``{"kind": ..., **data}``; glitchygames/supervision.py); ``devices_opened``, descriptors of
-  devices opened in the frame; ``saves_opened``, a snapshot of each save namespace first
+  devices opened in the frame; ``midi_ports_opened``, descriptors of MIDI ports opened in the
+  frame; ``saves_opened``, a snapshot of each save namespace first
   opened in the frame, taken before the game could write to it;
   ``device_enumeration``, the enumeration and open answers given in the frame (failures
   included, with their ``error``); and ``scene_start``, the start of the scene that began in
@@ -249,7 +252,7 @@ import logging
 import math
 import numbers
 import weakref
-from collections.abc import Sized
+from collections.abc import Mapping, Sized
 from datetime import UTC, datetime, timedelta
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, cast
@@ -277,7 +280,7 @@ from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.tracing import StableSpriteIds, TraceFormatError, TraceWriter, sample_scene_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Sequence
     from pathlib import Path
     from types import TracebackType
 
@@ -304,6 +307,9 @@ EVENT_BATCHES_FIELD = 'event_batches'
 INPUT_CHANGES_FIELD = 'input_changes'
 CONTROL_EVENTS_FIELD = 'control_events'
 DEVICES_OPENED_FIELD = 'devices_opened'
+# MIDI ports opened in the frame (MidiPortDescriptor.to_json; glitchygames/input/devices.py), a
+# field of their own so recordings made before MIDI ports existed load unchanged
+MIDI_PORTS_OPENED_FIELD = 'midi_ports_opened'
 SAVES_OPENED_FIELD = 'saves_opened'
 # A scene's start (glitchygames/scene_start.py), on its first logic frame
 SCENE_START_FIELD = 'scene_start'
@@ -324,6 +330,7 @@ RECORDING_FORMAT_THREE_FIELDS = (
     INPUT_CHANGES_FIELD,
     CONTROL_EVENTS_FIELD,
     DEVICES_OPENED_FIELD,
+    MIDI_PORTS_OPENED_FIELD,
     SAVES_OPENED_FIELD,
     DEVICE_ENUMERATION_FIELD,
     SCENE_START_FIELD,
@@ -338,6 +345,8 @@ SAVES_HEADER_FIELD = 'saves'
 # which scenes must not import (BUGS.md #224 item 16)
 GAME_HEADER_FIELD = 'game'
 DEVICES_HEADER_FIELD = 'devices'
+# The MIDI ports opened before the first frame (MidiPortDescriptor.to_json), absent when none were
+MIDI_PORTS_HEADER_FIELD = 'midi_ports'
 # An instant-replay journal's live devices as its scene started: {'input_mode': ..., 'devices':
 # [descriptor, ...]}, which its playback scope adopts (glitchygames/instant_replay.py, rule 10;
 # BUGS.md #184.3). A recording file has none: its scope opens the header's devices as the
@@ -950,6 +959,74 @@ def value_from_json(encoded: object) -> object:
     return encoded
 
 
+def decoded_options(*, recorded: Mapping[str, Any]) -> dict[str, object]:
+    """Return a recording's options as the run had them (its header holds them JSON-safe).
+
+    Every reader of a header's option values goes through here: a list, say, is stored tagged
+    (``json_safe_value``).
+
+    Args:
+        recorded: The header's ``options``, or some of them.
+
+    Returns:
+        The options by name, each read back with ``value_from_json``.
+
+    """
+    return {name: value_from_json(value) for name, value in recorded.items()}
+
+
+# Options naming the MIDI ports a run opens: a replay and a playback scope open the recorded ones
+# through the recorded answers (MidiEventManager.args; absent from a recording that predates them)
+RECORDED_PORT_NAME_OPTIONS: tuple[str, ...] = ('midi_input', 'midi_output')
+
+
+def recorded_port_names(*, options: object) -> dict[str, tuple[str, ...]]:
+    """Return the MIDI port names a recording's options hold, refusing malformed ones.
+
+    The one check of them, for a replay and a playback scope alike
+    (``replay.driver.decoded_replay_sources`` makes it before either begins). Malformed ones are
+    refused, as every other malformed part of a header is (a seed, a screen size, a tagged value
+    of an unknown form): naming no port instead would play a run that had a port without it, and
+    report the recording's divergence, not its damage.
+
+    Args:
+        options: The header's ``options``, as the header holds them.
+
+    Returns:
+        The names by option (``RECORDED_PORT_NAME_OPTIONS``): none for an option the recording
+        does not hold (it predates it) or holds as null.
+
+    Raises:
+        TraceFormatError: If the options are no mapping, or an option is not a list of names.
+
+    """
+    if not isinstance(options, Mapping):
+        message = f'The recording header options is not a mapping: {options!r}'
+        raise TraceFormatError(message)
+    held_options = cast('Mapping[str, Any]', options)
+    decoded = decoded_options(
+        recorded={
+            name: held_options[name] for name in RECORDED_PORT_NAME_OPTIONS if name in held_options
+        }
+    )
+    return {
+        name: _port_names(option=name, decoded=decoded.get(name))
+        for name in RECORDED_PORT_NAME_OPTIONS
+    }
+
+
+def _port_names(*, option: str, decoded: object) -> tuple[str, ...]:
+    if decoded is None:
+        return ()
+    if isinstance(decoded, (list, tuple)):
+        names = cast('Sequence[object]', decoded)
+        texts = tuple(name for name in names if isinstance(name, str))
+        if len(texts) == len(names):
+            return texts
+    message = f'The recording header option {option} is not a list of port names: {decoded!r}'
+    raise TraceFormatError(message)
+
+
 def event_to_record(*, event: pygame.event.Event, origin: str) -> dict[str, Any]:
     """Describe a pygame event as a JSON-safe record, with every attribute.
 
@@ -1259,6 +1336,7 @@ class RecordedFrameFields(TypedDict, total=False):
         input_changes: The frame's polled-input changes (``snapshot_changes``).
         control_events: The frame's control events (``ControlEvent.to_json``), in order.
         devices_opened: Descriptors of devices opened in the frame (``to_json``).
+        midi_ports_opened: Descriptors of MIDI ports opened in the frame (``to_json``).
         saves_opened: Save namespaces first opened in the frame, each snapshotted.
         device_enumeration: Enumeration answers given in the frame (``to_json``).
         scene_start: The start of the scene that began in the frame (``SceneStart.to_json``).
@@ -1274,6 +1352,7 @@ class RecordedFrameFields(TypedDict, total=False):
     input_changes: dict[str, Any] | None
     control_events: list[dict[str, Any]] | None
     devices_opened: list[dict[str, Any]] | None
+    midi_ports_opened: list[dict[str, Any]] | None
     saves_opened: dict[str, Any] | None
     device_enumeration: list[dict[str, Any]] | None
     scene_start: dict[str, Any] | None
@@ -1771,6 +1850,9 @@ class RecordingSources:
                 devices_opened = [
                     descriptor.to_json() for descriptor in registry.take_opened_descriptors()
                 ]
+                midi_ports_opened = [
+                    descriptor.to_json() for descriptor in registry.take_opened_midi_ports()
+                ]
                 device_enumeration = [
                     answer.to_json() for answer in registry.take_enumeration_answers()
                 ]
@@ -1781,6 +1863,7 @@ class RecordingSources:
                     frame_index=self._recorder.frame_count
                 )
                 devices_opened = recorded_fields.get(DEVICES_OPENED_FIELD, [])
+                midi_ports_opened = recorded_fields.get(MIDI_PORTS_OPENED_FIELD, [])
                 device_enumeration = recorded_fields.get(DEVICE_ENUMERATION_FIELD, [])
                 saves_opened = recorded_fields.get(SAVES_OPENED_FIELD, {})
             scene_start = self._unrecorded_scene_start(scene=scene)
@@ -1796,6 +1879,7 @@ class RecordingSources:
                 input_changes=input_changes,
                 control_events=[control_event.to_json() for control_event in control_events],
                 devices_opened=devices_opened,
+                midi_ports_opened=midi_ports_opened,
                 saves_opened=saves_opened,
                 device_enumeration=device_enumeration,
                 scene_start=None if scene_start is None else scene_start.to_json(),

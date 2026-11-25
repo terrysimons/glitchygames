@@ -27,18 +27,30 @@ Task 1).
 
 from __future__ import annotations
 
+import collections
 from typing import TYPE_CHECKING, Any, Self, override
+
+import pygame
 
 from glitchygames.input.devices import (
     CONTROLLER_COUNT_CALL,
     CONTROLLER_KIND,
+    DEFAULT_MIDI_INPUT_CALL,
+    DEFAULT_MIDI_OUTPUT_CALL,
     IS_CONTROLLER_CALL,
     JOYSTICK_COUNT_CALL,
+    MIDI_PORT_COUNT_CALL,
+    MIDI_PORT_INFO_CALL,
     NAME_FOR_INDEX_CALL,
     DeviceDescriptor,
     EnumerationAnswer,
     EnumerationValue,
+    MidiInputReader,
+    MidiPortDescriptor,
+    MidiPortInfo,
     ReplayDeviceRegistry,
+    import_midi_module,
+    openable_midi_port,
 )
 from glitchygames.live_sources import LiveSources
 from glitchygames.sources import install_sources
@@ -53,6 +65,122 @@ if TYPE_CHECKING:
 # The master seed of the doors ``install_stand_in_devices`` installs (a test's doors: nothing
 # it runs draws from them unless the test says so)
 STAND_IN_DOORS_RANDOM_SEED = 1
+# What a failing stand-in MIDI port says (PortMidi's own text for a vanished device)
+FAILING_PORT_MESSAGE = 'Host error'
+# How many messages a stand-in MIDI input queues, as PortMidi does (pygame's default), and what a
+# read of one that overflowed raises (bytes, pygame-ce 2.5.8)
+STAND_IN_MIDI_QUEUE_CAPACITY = 4096
+OVERFLOWED_PORT_MESSAGE = b'PortMidi: Buffer overflow'
+
+
+class StandInPortMidiError(Exception):
+    """What a failing port raises, as PortMidi's own ``Poll``, ``Read`` and ``Close`` do.
+
+    PortMidi (pypm.pyx) raises a plain ``Exception``, which is neither a ``pygame.error`` nor a
+    ``pygame.midi.MidiException``; this is as plain as a named class can be.
+    """
+
+
+class StandInMidiQueue:
+    """What waits on a stand-in MIDI input, kept as PortMidi keeps it (seen on a virtual port).
+
+    A full queue refuses the message that overflows it and all later ones; what it holds is still
+    read, and then one read raises the overflow (losing what that read had taken): after it the
+    port works again.
+
+    Attributes:
+        is_failing: True once every call on the port raises (a vanished device).
+
+    """
+
+    def __init__(self: Self) -> None:
+        """Start empty."""
+        self._messages: collections.deque[tuple[list[int], int]] = collections.deque()
+        self._has_overflowed = False
+        self.is_failing = False
+
+    @property
+    def has_messages(self: Self) -> bool:
+        """Whether messages wait (False for an overflow that no read has met yet)."""
+        return bool(self._messages)
+
+    def send(self: Self, *, messages: Sequence[tuple[list[int], int]]) -> None:
+        """Queue messages, until one overflows the queue.
+
+        Args:
+            messages: PortMidi's messages: ``([status, data1, data2, data3], timestamp)``.
+
+        """
+        for message in messages:
+            if self._has_overflowed or len(self._messages) >= STAND_IN_MIDI_QUEUE_CAPACITY:
+                self._has_overflowed = True
+                return
+            self._messages.append(message)
+
+    def take(self: Self, *, count: int) -> list[tuple[list[int], int]]:
+        """Take up to ``count`` messages, oldest first.
+
+        Args:
+            count: The most to take.
+
+        Returns:
+            The messages.
+
+        Raises:
+            StandInPortMidiError: If the queue ran out and had overflowed (once).
+
+        """
+        taken = [self._messages.popleft() for _ in range(min(count, len(self._messages)))]
+        if self._has_overflowed and len(taken) < count:
+            self._has_overflowed = False
+            raise StandInPortMidiError(OVERFLOWED_PORT_MESSAGE)
+        return taken
+
+
+class StandInMidiInput:
+    """A stand-in's raw MIDI input port, which hands out the messages a test queued for it.
+
+    The frame reads it (``StandInDeviceRegistry.read_midi_input``); a game holds a handle with
+    nothing to read, as live (``MidiInputHandle``). Its ``poll`` and ``read`` behave as
+    ``pygame.midi.Input``'s do: ``read`` returns up to ``num_events`` messages, ``[[status, data1,
+    data2, data3], timestamp]``, oldest first.
+    """
+
+    def __init__(self: Self, *, queue: StandInMidiQueue) -> None:
+        """Hold the queue the registry keeps for this port.
+
+        Args:
+            queue: What waits on the port (shared with the registry, which fills it).
+
+        """
+        self._queue = queue
+
+    def poll(self: Self) -> bool:
+        """Say whether messages are waiting.
+
+        A port made to fail (``fail_midi_input``) raises ``StandInPortMidiError`` here (a plain
+        ``Exception``, as PortMidi's ``Poll`` does).
+
+        Returns:
+            True when a message is queued.
+
+        """
+        self._raise_when_failing()
+        return self._queue.has_messages
+
+    def read(self: Self, num_events: int) -> list[Any]:
+        """Return up to ``num_events`` queued messages, oldest first.
+
+        Returns:
+            The messages.
+
+        """
+        self._raise_when_failing()
+        return self._queue.take(count=num_events)
+
+    def _raise_when_failing(self: Self) -> None:
+        if self._queue.is_failing:
+            raise StandInPortMidiError(FAILING_PORT_MESSAGE)
 
 
 class StandInDeviceRegistry(ReplayDeviceRegistry):
@@ -68,17 +196,27 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         *,
         descriptors: list[DeviceDescriptor],
         enumeration_answers: list[EnumerationAnswer],
+        midi_ports: Sequence[MidiPortInfo] = (),
     ) -> None:
         """Index the stand-ins and queue their answers, with nothing given yet.
 
         Args:
             descriptors: The stand-in devices.
             enumeration_answers: The answers SDL would give for them.
+            midi_ports: The MIDI ports PortMidi would list, a port's id being its position. The
+                MIDI answers come from them (the first input and the first output port are the
+                defaults), unless ``enumeration_answers`` records others.
 
         """
         super().__init__(descriptors=descriptors, enumeration_answers=enumeration_answers)
+        # What the replay registry's MIDI calls answer when nothing is recorded for them
+        self._midi_ports = tuple(midi_ports)
         self._given_answers: list[EnumerationAnswer] = []
         self._opened_descriptors: list[DeviceDescriptor] = []
+        self._opened_midi_ports: list[MidiPortDescriptor] = []
+        # What waits on each MIDI input, by port id
+        self._midi_queues: dict[int, StandInMidiQueue] = {}
+        self._midi_input_reader = MidiInputReader()
 
     @override
     def joystick_count(self: Self) -> int:
@@ -135,6 +273,61 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         return name
 
     @override
+    def midi_port_count(self: Self) -> int:
+        """Answer with the stand-in ports' count, and keep the answer for the recorder.
+
+        Returns:
+            The count.
+
+        """
+        count = super().midi_port_count()
+        self._keep_answer(call=MIDI_PORT_COUNT_CALL, device_index=None, value=count)
+        return count
+
+    @override
+    def midi_port_info(self: Self, *, port_id: int) -> MidiPortInfo | None:
+        """Answer with the stand-in port ``port_id``, and keep the answer for the recorder.
+
+        Args:
+            port_id: The port's position in ``midi_ports``.
+
+        Returns:
+            The port, or None when there is no such port.
+
+        """
+        info = super().midi_port_info(port_id=port_id)
+        self._keep_answer(
+            call=MIDI_PORT_INFO_CALL,
+            device_index=port_id,
+            value=None if info is None else info.to_answer_value(),
+        )
+        return info
+
+    @override
+    def default_midi_input_id(self: Self) -> int:
+        """Answer with the first stand-in input port, and keep the answer for the recorder.
+
+        Returns:
+            The port id, -1 when no stand-in port is an input.
+
+        """
+        port_id = super().default_midi_input_id()
+        self._keep_answer(call=DEFAULT_MIDI_INPUT_CALL, device_index=None, value=port_id)
+        return port_id
+
+    @override
+    def default_midi_output_id(self: Self) -> int:
+        """Answer with the first stand-in output port, and keep the answer for the recorder.
+
+        Returns:
+            The port id, -1 when no stand-in port is an output.
+
+        """
+        port_id = super().default_midi_output_id()
+        self._keep_answer(call=DEFAULT_MIDI_OUTPUT_CALL, device_index=None, value=port_id)
+        return port_id
+
+    @override
     def _descriptor_to_open(
         self: Self, *, call: str, device_index: int, kind: str
     ) -> DeviceDescriptor:
@@ -157,6 +350,107 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         self._opened_descriptors.append(descriptor)
         self._keep_answer(call=call, device_index=device_index, value=descriptor.instance_id)
         return descriptor
+
+    @override
+    def _midi_port_to_open(self: Self, *, call: str, kind: str, port_id: int) -> MidiPortDescriptor:
+        """Pick the stand-in port an open gets, as the replay registry does, and keep it.
+
+        Both opens (``open_midi_input``, ``open_midi_output``) learn their port here, so this is
+        the one place a stand-in port opened is kept for the recorder, with the open's answer
+        (its port id) or its failure, as ``LiveDeviceRegistry`` keeps a real port's.
+
+        Args:
+            call: ``OPEN_MIDI_INPUT_CALL`` or ``OPEN_MIDI_OUTPUT_CALL``.
+            kind: ``MIDI_INPUT_KIND`` or ``MIDI_OUTPUT_KIND``.
+            port_id: The port's position in ``midi_ports``.
+
+        Returns:
+            The descriptor.
+
+        Raises:
+            pygame.error: If the port is not there, goes the other way, or was made to fail.
+
+        """
+        try:
+            descriptor = super()._midi_port_to_open(call=call, kind=kind, port_id=port_id)
+        except pygame.error as error:
+            self._keep_answer(call=call, device_index=port_id, value=None, error=str(error))
+            raise
+        self._opened_midi_ports.append(descriptor)
+        self._keep_answer(call=call, device_index=port_id, value=port_id)
+        return descriptor
+
+    @override
+    def _unrecorded_midi_port(self: Self, *, kind: str, port_id: int) -> MidiPortDescriptor:
+        """Describe the stand-in port at that position, refusing what live refuses.
+
+        A port that is not there or goes the other way raises ``pygame.error``
+        (``openable_midi_port``).
+
+        Returns:
+            The descriptor.
+
+        """
+        known = 0 <= port_id < len(self._midi_ports)
+        return openable_midi_port(
+            info=self._midi_ports[port_id] if known else None, kind=kind, port_id=port_id
+        )
+
+    def _midi_queue(self: Self, *, port_id: int) -> StandInMidiQueue:
+        return self._midi_queues.setdefault(port_id, StandInMidiQueue())
+
+    def queue_midi_input(
+        self: Self, *, port_id: int, messages: Sequence[tuple[list[int], int]]
+    ) -> None:
+        """Queue MIDI messages a port will hand the frame once it is opened and read.
+
+        Args:
+            port_id: The port's position in ``midi_ports``.
+            messages: PortMidi's messages: ``([status, data1, data2, data3], timestamp)``.
+
+        """
+        self._midi_queue(port_id=port_id).send(messages=messages)
+
+    def fail_midi_input(self: Self, *, port_id: int) -> None:
+        """Make a port raise a plain ``Exception`` whenever it is read.
+
+        Args:
+            port_id: The port's position in ``midi_ports``.
+
+        """
+        self._midi_queue(port_id=port_id).is_failing = True
+
+    def read_midi_input(self: Self) -> list[pygame.event.Event]:
+        """Return the MIDIIN events the opened stand-in input ports hold, as the live registry does.
+
+        Returns:
+            The events (``vice_id`` is the port id).
+
+        """
+        midi_module = import_midi_module(log_unavailable=False)
+        if midi_module is None:  # pragma: no cover - a pygame build without PortMidi
+            return []
+        return self._midi_input_reader.read(
+            midi_module=midi_module,
+            inputs={
+                port_id: StandInMidiInput(queue=self._midi_queue(port_id=port_id))
+                for port_id in self._midi_inputs
+            },
+            port_names={
+                port_id: port.descriptor.name for port_id, port in self._midi_inputs.items()
+            },
+        )
+
+    @override
+    def take_opened_midi_ports(self: Self) -> list[MidiPortDescriptor]:
+        """Return the stand-in MIDI ports opened since the last call (the recorder's).
+
+        Returns:
+            The descriptors, in opening order.
+
+        """
+        descriptors, self._opened_midi_ports = self._opened_midi_ports, []
+        return descriptors
 
     @override
     def take_opened_descriptors(self: Self) -> list[DeviceDescriptor]:
@@ -188,12 +482,18 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         """
         self._given_answers.clear()
         self._opened_descriptors.clear()
+        self._opened_midi_ports.clear()
 
     def _keep_answer(
-        self: Self, *, call: str, device_index: int | None, value: EnumerationValue
+        self: Self,
+        *,
+        call: str,
+        device_index: int | None,
+        value: EnumerationValue,
+        error: str | None = None,
     ) -> None:
         self._given_answers.append(
-            EnumerationAnswer(call=call, device_index=device_index, value=value)
+            EnumerationAnswer(call=call, device_index=device_index, value=value, error=error)
         )
 
 
@@ -249,13 +549,17 @@ class StandInDeviceSources(LiveSources):
 
 
 def stand_in_registry(
-    *, descriptors: Sequence[DeviceDescriptor], plugged_in_at_start: bool = True
+    *,
+    descriptors: Sequence[DeviceDescriptor],
+    plugged_in_at_start: bool = True,
+    midi_ports: Sequence[MidiPortInfo] = (),
 ) -> StandInDeviceRegistry:
     """Return a registry of stand-in devices, answering enumeration as SDL would for them.
 
     Args:
         descriptors: The devices; a CONTROLLER_KIND one is a mapped game controller.
         plugged_in_at_start: False counts no devices (they are to be hot-plugged).
+        midi_ports: The MIDI ports PortMidi would list (a port's id is its position).
 
     Returns:
         The registry.
@@ -274,23 +578,31 @@ def stand_in_registry(
         )
         for descriptor in descriptors
     )
-    return StandInDeviceRegistry(descriptors=list(descriptors), enumeration_answers=answers)
+    return StandInDeviceRegistry(
+        descriptors=list(descriptors), enumeration_answers=answers, midi_ports=midi_ports
+    )
 
 
 def install_stand_in_devices(
-    *, descriptors: Sequence[DeviceDescriptor], plugged_in_at_start: bool = True
+    *,
+    descriptors: Sequence[DeviceDescriptor],
+    plugged_in_at_start: bool = True,
+    midi_ports: Sequence[MidiPortInfo] = (),
 ) -> StandInDeviceRegistry:
     """Install doors whose devices are stand-ins (see ``stand_in_registry``).
 
     Args:
         descriptors: The devices; a CONTROLLER_KIND one is a mapped game controller.
         plugged_in_at_start: False counts no devices (they are to be hot-plugged).
+        midi_ports: The MIDI ports PortMidi would list (a port's id is its position).
 
     Returns:
         The installed registry.
 
     """
-    registry = stand_in_registry(descriptors=descriptors, plugged_in_at_start=plugged_in_at_start)
+    registry = stand_in_registry(
+        descriptors=descriptors, plugged_in_at_start=plugged_in_at_start, midi_ports=midi_ports
+    )
     install_sources(
         sources=StandInDeviceSources(registry=registry, random_seed=STAND_IN_DOORS_RANDOM_SEED)
     )

@@ -7,6 +7,7 @@ engine. Everything else is real: the registry, the devices, the frame's input sn
 
 from __future__ import annotations
 
+import json
 from typing import Self
 
 import pygame
@@ -16,8 +17,10 @@ from glitchygames.input.devices import (
     CONTROLLER_KIND,
     IS_CONTROLLER_CALL,
     JOYSTICK_KIND,
+    MIDI_INPUT_KIND,
     DeviceDescriptor,
     EnumerationAnswer,
+    MidiPortDescriptor,
     ReplayController,
     ReplayDeviceRegistry,
     ReplayJoystick,
@@ -37,7 +40,9 @@ from glitchygames.input.input_devices import (
 )
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.recording import json_safe_value
 from glitchygames.sources import install_sources
+from glitchygames.tracing import TraceFormatError
 
 # An unmapped joystick: device index 0, instance id 5
 STICK = DeviceDescriptor(
@@ -63,6 +68,9 @@ PAD = DeviceDescriptor(
     hat_count=1,
     ball_count=0,
 )
+
+# A MIDI keyboard: PortMidi port 2
+KEYS_INPUT = MidiPortDescriptor(kind=MIDI_INPUT_KIND, port_id=2, name='Keys', interface='CoreMIDI')
 
 
 class ReplayDeviceSources(LiveSources):
@@ -410,8 +418,47 @@ class TestRecordedDevices:
         )
 
         assert recorded == RecordedDevices(
-            input_mode=InputMode.JOYSTICK, scene_start_devices=(STICK,)
+            input_mode=InputMode.JOYSTICK,
+            scene_start_devices=(STICK,),
+            # A journal without MIDI ports (an older one too) adopts none
+            scene_start_midi_ports=(),
         )
+
+    def test_a_journals_midi_ports_are_adopted_and_its_options_names_ignored(self):
+        recorded = recorded_devices(
+            options={'midi_input': json_safe_value(['Keys'])},
+            scene_start_devices={
+                'input_mode': 'auto',
+                'devices': [],
+                'midi_ports': [KEYS_INPUT.to_json()],
+            },
+        )
+
+        assert recorded == RecordedDevices(
+            input_mode=InputMode.AUTO, scene_start_devices=(), scene_start_midi_ports=(KEYS_INPUT,)
+        )
+
+    def test_a_recording_files_midi_port_names_come_from_its_options(self):
+        recorded = recorded_devices(
+            # As a header holds them (a list is tagged)
+            options={
+                'midi_input': json_safe_value(['Keys', 'Pads']),
+                'midi_output': json_safe_value(['Synth']),
+            },
+            scene_start_devices=None,
+        )
+
+        assert recorded == RecordedDevices(
+            input_mode=InputMode.AUTO,
+            scene_start_devices=None,
+            midi_input_names=('Keys', 'Pads'),
+            midi_output_names=('Synth',),
+        )
+
+    @pytest.mark.parametrize('option', ['midi_input', 'midi_output'])
+    def test_malformed_port_names_are_refused_as_a_replay_refuses_them(self, option):
+        with pytest.raises(TraceFormatError, match=option):
+            recorded_devices(options={option: 5}, scene_start_devices=None)
 
     def test_a_recording_files_mode_comes_from_its_options(self):
         recorded = recorded_devices(options={'input_mode': 'joystick'}, scene_start_devices=None)
@@ -444,8 +491,22 @@ class TestRecordedDevices:
         record = scene_start_devices_record(input_devices=live)
 
         assert recorded_devices(options=None, scene_start_devices=record) == RecordedDevices(
-            input_mode=InputMode.AUTO, scene_start_devices=(PAD, STICK)
+            input_mode=InputMode.AUTO,
+            scene_start_devices=(PAD, STICK),
+            scene_start_midi_ports=(),
         )
+        # A game with no MIDI port writes nothing about MIDI
+        assert 'midi_ports' not in record
+
+    def test_the_journals_midi_ports_read_back(self):
+        record = scene_start_devices_record(
+            input_devices=InputDevices(input_mode=InputMode.AUTO), midi_ports=[KEYS_INPUT]
+        )
+
+        assert json.loads(json.dumps(record)) == record
+        assert recorded_devices(
+            options=None, scene_start_devices=record
+        ).scene_start_midi_ports == (KEYS_INPUT,)
 
 
 class TestDispatch:
@@ -552,3 +613,19 @@ class TestRumble:
 def test_an_input_event_without_an_instance_id_is_dropped():
     """An input event naming no device reaches no handler."""
     assert InputDevices().dispatches(event_type=pygame.JOYBUTTONDOWN, instance_id=None) is False
+
+
+def test_doors_whose_devices_read_no_midi_pump_the_event_queue_alone(mocker):
+    """A replay registry has no MIDI to read: the pump gives SDL's batch and asks PortMidi none."""
+    portmidi = mocker.patch('glitchygames.input.devices.import_midi_module')
+    sources = ReplayDeviceSources(
+        registry=ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+    )
+    pygame.event.clear()
+    posted = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a', scancode=4)
+    assert pygame.event.post(posted)
+
+    batch = sources.pump_events()
+
+    assert [event for event in batch if event.type == pygame.KEYDOWN] == [posted]
+    portmidi.assert_not_called()

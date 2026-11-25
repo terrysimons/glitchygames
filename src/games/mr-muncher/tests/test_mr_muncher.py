@@ -117,9 +117,18 @@ def save_directory(tmp_path, mocker):
 
 @pytest.fixture
 def scene(save_directory):
-    """A new game's first level, its random streams seeded."""
+    """A new game's first level, its random streams seeded; its live voices released after.
+
+    Yields:
+        The scene.
+    """
     reset_streams(seed=TEST_SEED)
-    return MrMuncherScene(options={'input_mode': 'joystick'})
+    level = MrMuncherScene(options={'input_mode': 'joystick'})
+    yield level
+    # The game never ends here (SceneManager.terminate releases them in a real run), so the
+    # projector a test started, or stopped with a fade no frame finishes, is released, as the
+    # test harness requires
+    level.scene_manager.release_live_voices()
 
 
 @pytest.fixture
@@ -1128,13 +1137,13 @@ def test_the_projector_is_a_live_instrument_the_game_declares():
     }
 
 
-def test_the_projector_is_heard_at_its_old_volume_when_centred():
-    """0.05 on each side, as before live sounds took a pan: raised for the centred 3 dB."""
+def test_the_projector_is_heard_at_its_chosen_volume_when_centred():
+    """0.10 on each side, chosen by ear (the owner, 2026-11-25): raised for the centred 3 dB."""
     from glitchygames.audio.voices import constant_power_gains
 
     left, right = constant_power_gains(pan=0.0, gain=1.0)
 
-    assert mr_muncher_game.PROJECTOR_VOLUME * left == pytest.approx(0.05)
+    assert mr_muncher_game.PROJECTOR_VOLUME * left == pytest.approx(0.10)
     assert right == pytest.approx(left)
 
 

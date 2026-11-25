@@ -5,10 +5,13 @@ Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 """
 
 import contextlib
+import functools
+import gc
 import logging
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from hypothesis import settings
@@ -38,6 +41,10 @@ from glitchygames import engine_context, pixel_snap, process, randomness, source
 from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
 from glitchygames.audio.instruments import registry as instruments_registry
 from glitchygames.audio.library import ENGINE_SOUND_CACHE
+from glitchygames.audio.live import (
+    live_streams_holding_chunks,
+    take_unreleased_live_stream_reports,
+)
 from glitchygames.audio.voices import release_channels
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -51,6 +58,7 @@ from glitchygames.engine.game_engine import (
 )
 from glitchygames.engine_context import current_context, default_context
 from glitchygames.events.base import SHARED_INSTANCES_SLOT, UNHANDLED_EVENT_TYPES_SLOT
+from glitchygames.feature_flags import FLAG_OPTIONS_SLOT
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
 from glitchygames.input.state import reset_current_input
@@ -74,6 +82,8 @@ from tests.display_canvas import (
     show_canvas_on_new_display,
 )
 from tests.engine_source import ENGINE_DIRECTORY
+from tests.engine_written_state import engine_written_state_for_run, reset_engine_written_state
+from tests.faulthandler_guard import faulthandler_left_on
 from tests.garbage_collection import (
     process_memory_release,
     release_raised_parameters,
@@ -81,6 +91,10 @@ from tests.garbage_collection import (
 )
 from tests.git_environment import clear_git_repository_variables
 from tests.hidden_test_windows import hide_test_windows
+from tests.leaked_state_guard import (
+    leak_message,
+    watch_process_state,
+)
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import (
     SdlDriverState,
@@ -88,6 +102,11 @@ from tests.sdl_driver_isolation import (
     restore_run_sdl_drivers,
 )
 from tests.signal_handlers import preserved_signal_handlers
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from tests.leaked_state_guard import LeakCheck
 
 # A crash on a thread without the GIL (SDL's audio thread on the native driver) fails its test
 # with a traceback instead of hanging the worker forever in pygame's parachute (installed by the
@@ -399,6 +418,8 @@ def _reset_all_singleton_instances():
     release_channels()
     # No engine is current until a test makes one (glitchygames.engine.game_engine)
     default_context().reset_value(slot=CURRENT_ENGINE_SLOT)
+    # ...and no feature flag has been asked for (glitchygames.feature_flags)
+    default_context().reset_value(slot=FLAG_OPTIONS_SLOT)
     # A fresh performance manager each test (glitchygames.performance.adaptive_clamping)
     default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
 
@@ -476,6 +497,13 @@ def restore_signal_handlers():
     exit_on_signal installed for the rest of the worker's tests.
     """
     with preserved_signal_handlers():
+        yield
+
+
+@pytest.fixture(autouse=True)
+def faulthandler_stays_on():
+    """Fail a test that leaves faulthandler off (tests/faulthandler_guard.py)."""
+    with faulthandler_left_on():
         yield
 
 
@@ -604,8 +632,19 @@ def empty_engine_sprite_cache():
 
 
 @pytest.fixture(autouse=True)
-def restore_game_engine_class_state(mocker):
+def restore_game_engine_class_state(monkeypatch, mocker):
     """Restore the GameEngine class attributes that engine code writes, after each test.
+
+    The first of every test's fixtures to ask for ``mocker``, it asks for ``monkeypatch`` first,
+    so ``mocker`` is always undone first. Undone the other way round, a
+    ``mocker.patch.dict(os.environ)`` made after a ``monkeypatch`` change put back its snapshot,
+    which held the change, after ``monkeypatch`` had undone it: 55 tests left PYTHONPATH naming a
+    temporary folder, or GIT_EDITOR removed (tests/test_leaked_state_guard.py).
+
+    The limit of this order: a test that patches a target with ``mocker`` and then the same one
+    with ``monkeypatch`` leaves ``mocker``'s patch in place for every later test, as
+    ``monkeypatch``, undone last, puts back what it found. Use one of the two for a target; a scan
+    of the tests' source looks for both (tests/test_leaked_state_guard.py).
 
     GameEngine.initialize_icon stores the icon in the class attribute `icon` (each engine keeps
     its own game: `GameEngine.game` is a read-only view). A test that runs
@@ -811,25 +850,105 @@ def _start_pygame_and_the_test_display() -> None:
             pygame.display.set_mode(TEST_DISPLAY_SIZE)
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_runtest_setup(item: pytest.Item) -> None:
-    """Start an item that is not a test function on the canvas, as every test function starts.
+# The check of the process state watched since an item's setup began (tests/leaked_state_guard.py)
+PROCESS_STATE_CHECK_KEY: pytest.StashKey[LeakCheck] = pytest.StashKey()
 
-    The canvas comes from ``ensure_pygame_graceful_quit``, an autouse fixture, and autouse
-    fixtures reach only test functions: an item a collector makes (the golden replays'
-    ``ReplayItem``, glitchygames/testing/replays.py) started on whatever the previous test
-    left. A golden replay draws nothing on the display, so on a shuffled Windows CI worker it
-    ended on the previous test's picture and the draws_frames check failed it as drawing
-    unmarked (#283, job 5039; tests/test_harness_every_item_starts_on_the_canvas.py).
+
+def random_is_reseeded_for_each_test(*, config: pytest.Config) -> bool:
+    """Return whether pytest-randomly seeds the global random states around each test.
+
+    Args:
+        config: The run's configuration.
+
+    Returns:
+        True in a shuffled run (``nox -s test-random``).
+
+    """
+    return bool(config.getoption('randomly_reset_seed', default=False))
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> Generator[None, object, object]:
+    """Watch the process's state, and start every item on the canvas.
+
+    The watch is checked in pytest_runtest_teardown, for every item. The state an engine run
+    changes is first read here, before the first item's setup.
+
+    An item that is not a test function starts on the canvas, as every test function does. The
+    canvas comes from ``ensure_pygame_graceful_quit``, an autouse fixture, and autouse fixtures
+    reach only test functions: an item a collector makes (the golden replays' ``ReplayItem``,
+    glitchygames/testing/replays.py) started on whatever the previous test left. A golden replay
+    draws nothing on the display, so on a shuffled Windows CI worker it ended on the previous
+    test's picture and the draws_frames check failed it as drawing unmarked (#283, job 5039;
+    tests/test_harness_every_item_starts_on_the_canvas.py).
 
     Args:
         item: The test about to be set up.
 
+    Returns:
+        object: The wrapped hook's result.
+
     """
-    if isinstance(item, pytest.Function):
-        return
-    _start_pygame_and_the_test_display()
-    show_canvas()
+    if engine_written_state_for_run.cache_info().currsize == 0:
+        _start_pygame_and_the_test_display()
+        engine_written_state_for_run()
+    if not isinstance(item, pytest.Function):
+        _start_pygame_and_the_test_display()
+        show_canvas()
+    item.stash[PROCESS_STATE_CHECK_KEY] = watch_process_state(
+        random_reseeded_for_each_test=random_is_reseeded_for_each_test(config=item.config),
+        reset=functools.partial(
+            reset_engine_written_state, run_state=engine_written_state_for_run()
+        ),
+    )
+    return (yield)
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_teardown(item: pytest.Item) -> Generator[None, object, object]:
+    """Reset what running an engine changes, then fail a test that left other state changed.
+
+    After every fixture's teardown, the wider ones' too (a wrapper that runs first ends last), so
+    nothing that puts state back, or wrongly puts it back, is still to come. A teardown that fails
+    keeps its own error, with what was left changed added to it.
+
+    Args:
+        item: The test being torn down.
+
+    Returns:
+        object: The wrapped hook's result.
+
+    """
+    try:
+        result = yield
+    except BaseException as error:
+        leaks = end_of_item_leaks(item=item)
+        if leaks:
+            error.add_note(leak_message(test=item.nodeid, leaks=leaks))
+        raise
+    leaks = end_of_item_leaks(item=item)
+    if leaks:
+        pytest.fail(leak_message(test=item.nodeid, leaks=leaks), pytrace=False)
+    return result
+
+
+def end_of_item_leaks(*, item: pytest.Item) -> list[str]:
+    """Check the state watched since setup, with what running an engine changes reset.
+
+    Args:
+        item: The test that has been torn down.
+
+    Returns:
+        What the test left changed (now put back, but for a thread); nothing for an item whose
+        setup ended before its watch began.
+
+    """
+    check_process_state = item.stash.get(PROCESS_STATE_CHECK_KEY, None)
+    if check_process_state is None:
+        return []
+    # pytest keeps every item for the whole run, and the check holds a copy of the state
+    del item.stash[PROCESS_STATE_CHECK_KEY]
+    return check_process_state()
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -884,6 +1003,108 @@ def busy_mixer_channels() -> list[int]:
     ]
 
 
+def queued_sounds_no_live_stream_holds() -> list[str]:
+    """Name each channel with a queue whose playing or queued Sound no live stream holds.
+
+    pygame-ce 2.5.8 frees a queued Sound twice when a play lands on a channel playing one Sound
+    with another queued and its table holds the only references
+    (bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md). Live streams hold their own
+    (glitchygames/audio/live.py), so a queue only they make is safe: this finds any other
+    queuer, anywhere in the suite. The holders are the current engine context's live streams,
+    enumerated exactly (``LiveStreamRegistry``), so a stream of an inner context a test made and
+    left queuing is named here too, as unheld. Read before the channels are silenced.
+
+    Returns:
+        One description per such channel; empty when there is none or no mixer.
+    """
+    if pygame.mixer.get_init() is None:
+        return []
+    held_chunk_ids = {
+        id(chunk) for stream in live_streams_holding_chunks() for chunk in stream.held_chunks
+    }
+    found = []
+    for index in range(pygame.mixer.get_num_channels()):
+        channel = pygame.mixer.Channel(index)
+        queued = channel.get_queue()
+        if queued is None:
+            continue
+        unheld = [
+            slot
+            for slot, sound in (('playing', channel.get_sound()), ('queued', queued))
+            if sound is not None and id(sound) not in held_chunk_ids
+        ]
+        if unheld:
+            found.append(
+                f'Sounds no live stream holds on channel {index} with a queue: {unheld} '
+                '(only a live stream may queue: glitchygames/audio/live.py)'
+            )
+    return found
+
+
+def check_every_queued_sound_is_held_by_a_live_stream() -> None:
+    """Fail at once when a channel with a queue names a Sound no live stream holds."""
+    found = queued_sounds_no_live_stream_holds()
+    if found:
+        pytest.fail('\n'.join(found))
+
+
+# What each kind of unreleased stream is told to do
+RELEASE_ADVICE = '(release_voice, release_every_voice, stop_now or SceneManager.terminate)'
+
+
+def unreleased_live_stream_problems() -> list[str]:
+    """Name every live stream of the current context that was never released, after a test.
+
+    Releasing a stream stops its channel and lets go of every chunk, so a stream still holding
+    one was never released, whatever its channel's state. The context's registry enumerates
+    them exactly (``live_streams_holding_chunks``). A stream already dropped sits in a reference
+    cycle with its voice, so the garbage is collected, only when the registry found something
+    (a full collection costs about 44 ms), and its finalizer's report lands on this test. A
+    report of a stream the registry did not find here came from a stream an earlier test on
+    the worker leaked, collected only now; it is worded so.
+
+    Returns:
+        One description per unreleased stream; empty when there is none.
+    """
+    found_ids = {id(stream) for stream in live_streams_holding_chunks()}
+    if found_ids:
+        gc.collect()
+    problems = [
+        f'A live stream was never released ({stream.diagnostic_name}): it still holds '
+        f'{len(stream.held_chunks)} chunk(s) {RELEASE_ADVICE}'
+        for stream in live_streams_holding_chunks()
+    ]
+    for report in take_unreleased_live_stream_reports():
+        if report.stream_id in found_ids:
+            problems.append(
+                f'A live stream was never released ({report.stream_name}): collected holding '
+                f'{report.held_chunk_count} chunk(s) {RELEASE_ADVICE}'
+            )
+        else:
+            problems.append(
+                'A live stream was collected during this test; leaked by an earlier test on '
+                f'this worker ({report.stream_name}): it held {report.held_chunk_count} chunk(s)'
+            )
+    return problems
+
+
+def end_of_test_sound_problems() -> list[str]:
+    """Check a test's sound as it ends, then silence the mixer; return every problem found.
+
+    The queues are read before the channels are silenced (silencing empties them), and a
+    silencing failure is added to the rest rather than raised, so no report is lost.
+
+    Returns:
+        Each problem's description; empty when the test left its sound clean.
+    """
+    problems = queued_sounds_no_live_stream_holds() + unreleased_live_stream_problems()
+    try:
+        silence_every_channel()
+    except pytest.fail.Exception as failure:
+        problems.append(str(failure))
+    return problems
+
+
 def silence_every_channel() -> None:
     """Stop every mixer channel after a test, so no sound plays on into the next one.
 
@@ -934,7 +1155,9 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
 
     yield
 
-    silence_every_channel()
+    # Every sound problem is gathered first, silencing included (end_of_test_sound_problems), and
+    # reported after the rest of the teardown, so a failing check never leaves drivers behind
+    sound_problems = end_of_test_sound_problems()
     restore_run_sdl_drivers(
         run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
         run_state=run_sdl_driver_state,
@@ -947,6 +1170,8 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
             # driver it would stay black (under the last scene's caption) while the worker waits
             # for its next test, or for the run to end
             show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+    if sound_problems:
+        pytest.fail('\n'.join(sound_problems))
 
 
 @pytest.fixture

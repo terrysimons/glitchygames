@@ -739,7 +739,7 @@ benchmark:
   record speeds, answers, memory and the variant (`armv8.2_2`).
 - [ ] The owner's placement: the models on cores 2-3, a game on the real display on core 0, an
   uncapped headless golden replay standing in for the mirror on core 1; the game's p50/p95/p99
-  frame times and audio underruns against `--no-ai`.
+  frame times and audio underruns against `--no-lucid-circuit`.
 - [ ] On the installed service: `systemctl --user show <model unit> -p CPUAffinity -p CPUWeight`
   gives `2 3` and `20`, the API unit `2 3`; `taskset -cp <llama-server pid>` gives `2,3`; with a
   game running, `taskset -cp` on each of its threads (`/proc/<pid>/task`) gives `0`.

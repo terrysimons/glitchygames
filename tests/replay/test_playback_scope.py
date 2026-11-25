@@ -10,16 +10,27 @@ import dataclasses
 import gc
 import logging
 import random
+import sys
 from typing import TYPE_CHECKING, Any, Protocol, Self, override
 
+import numpy as np
 import pygame
 import pytest
 
 from glitchygames import logical_names
 from glitchygames.audio.instrument import Instrument
+from glitchygames.audio.live import take_unreleased_live_stream_reports
+from glitchygames.audio.synth import mixer_sample_rate
+from glitchygames.checks import required
 from glitchygames.events import FPSEVENT, GAMEEVENT
 from glitchygames.exit_codes import BUG_REPORT_HINT
-from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
+from glitchygames.input.devices import (
+    JOYSTICK_COUNT_CALL,
+    MIDI_INPUT_KIND,
+    MidiPortInfo,
+    ReplayDeviceRegistry,
+    ReplayMidiInput,
+)
 from glitchygames.input.input_devices import InputMode
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.live_sources import LiveSources
@@ -50,6 +61,7 @@ from glitchygames.sources import (
     active_sources,
     has_scoped_sources,
     install_sources,
+    redeliver_events,
     take_redelivered_events,
 )
 from glitchygames.state import open_saves
@@ -60,6 +72,7 @@ from tests.replay.playback_fixtures import (
     COUNTING_SAVE_NAMESPACE,
     COUNTING_SAVE_SLOT,
     COUNTING_STREAM_NAME,
+    MALFORMED_PORT_NAMES,
     MARKER_TRAVEL,
     SAVING_TICK,
     SWITCHING_TICK,
@@ -76,7 +89,9 @@ from tests.replay.playback_fixtures import (
     record_counting_scene,
     step_finishing,
     tamper_sprite_in_frame,
+    use_stand_in_midi_ports,
 )
+from tests.replay.replay_helpers import rewrite_recording
 from tests.world.test_frame_integration import (
     TEST_FADE_SECONDS,
     CameraFreeScene,
@@ -95,6 +110,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from pytest_mock import MockerFixture
+
+    from glitchygames.events.base import HashableEvent
 
 RECORDED_FRAMES = 10
 SHORT_RECORDED_FRAMES = 6
@@ -1004,6 +1021,393 @@ class TestPolledInputInAPlayback:
             assert live_scene.mouse_positions[-1] == SCRIPTED_MOUSE_POSITION
 
 
+def midi_message(
+    *, status: int, data1: int = 60, data2: int = 0, vice_id: int = 0
+) -> pygame.event.Event:
+    """Return a MIDIIN event as ``pygame.midi.midis2events`` builds it.
+
+    Returns:
+        The event.
+
+    """
+    return pygame.event.Event(
+        pygame.MIDIIN,
+        status=status,
+        data1=data1,
+        data2=data2,
+        data3=0,
+        timestamp=7,
+        vice_id=vice_id,
+    )
+
+
+# (status, velocity) of what lets a note go: note-offs, on two channels, and a note-on at velocity
+# 0, which is one (the MIDI 1.0 specification)
+MIDI_NOTE_RELEASES = [(0x80, 64), (0x8F, 0), (0x90, 0)]
+# (controller, value) of the control changes that let something go: a switch pedal off (64-69,
+# below 64) and the channel mode messages that silence a channel or reset its controllers
+MIDI_CONTROL_RELEASES = [(64, 0), (69, 63), (120, 0), (121, 0), (123, 0), (127, 0)]
+# (status, data1, data2) of where a continuous control was left: the live game gets the latest
+MIDI_CONTROLS = [
+    (0xB0, 1, 30),  # The modulation wheel
+    (0xB0, 64, 64),  # The sustain pedal, pressed and held
+    (0xB0, 0, 5),
+    (0xB0, 119, 0),
+    (0xA0, 60, 20),  # Polyphonic pressure
+    (0xD0, 20, 0),  # Channel pressure
+    (0xE0, 0, 64),  # Pitch bend
+]
+# (status, data1, data2) of what is no press, release or control: it reaches nothing
+MIDI_MOTION = [
+    (0xB0, 122, 0),  # Local control
+    # Registered and other parameters: data entry and their numbers
+    *((0xB0, control, 1) for control in (6, 38, 96, 97, 98, 99, 100, 101)),
+    (0xC0, 5, 0),  # A program change
+    (0xF0, 0, 0),  # A system-exclusive message
+    (0xF8, 0, 0),  # The MIDI clock
+    (0xFF, 0, 0),  # A system reset
+]
+
+
+class MidiMarkerScene(CountingScene):
+    """Keeps the MIDI messages it hears; each moves its marker by its values."""
+
+    def __init__(
+        self: Self,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
+    ) -> None:
+        """Start with nothing heard.
+
+        Args:
+            options: The game's options.
+            groups: The sprite group.
+
+        """
+        super().__init__(options=options, groups=groups)
+        self.messages: list[tuple[int, int, int]] = []
+
+    @override
+    def on_midi_in_event(self: Self, event: HashableEvent) -> None:
+        """Keep the message and move the marker (a lost or extra one diverges)."""
+        self.messages.append((event.status, event.data1, event.data2))
+        self.marker.rect.y += 1 + event.data2
+
+
+# (messages pumped during a scope, one frame each; what the live game hears after it)
+MIDI_CONTROL_SEQUENCES = {
+    'a wheel that springs back': (
+        [(0xE0, 0, 90), (0xE0, 0, 100), (0xE0, 0, 64)],
+        [(0xE0, 0, 64)],
+    ),
+    'each in the order of its latest message': (
+        [(0xE0, 0, 90), (0x80, 60, 0), (0xB0, 1, 9), (0xE0, 0, 64), (0x80, 61, 0)],
+        [(0x80, 60, 0), (0xB0, 1, 9), (0xE0, 0, 64), (0x80, 61, 0)],
+    ),
+    'channels and controls apart': (
+        [(0xE0, 0, 1), (0xE1, 0, 2), (0xB0, 1, 3), (0xB0, 2, 4), (0xA0, 60, 5), (0xA0, 61, 6)],
+        [(0xE0, 0, 1), (0xE1, 0, 2), (0xB0, 1, 3), (0xB0, 2, 4), (0xA0, 60, 5), (0xA0, 61, 6)],
+    ),
+    'the first and last controllers': (
+        [(0xB0, 0, 1), (0xB0, 119, 2), (0xB0, 119, 3)],
+        [(0xB0, 0, 1), (0xB0, 119, 3)],
+    ),
+    'the last pedal let go and pressed': (
+        [(0xB0, 69, 0), (0xB0, 69, 127)],
+        [(0xB0, 69, 0), (0xB0, 69, 127)],
+    ),
+    'past the last pedal only the latest': (
+        [(0xB0, 70, 0), (0xB0, 70, 127), (0xB0, 63, 0), (0xB0, 63, 127)],
+        [(0xB0, 70, 127), (0xB0, 63, 127)],
+    ),
+    'a pedal pressed and held': (
+        [(0xB0, 64, 127)],
+        [(0xB0, 64, 127)],
+    ),
+    'a pedal let go': (
+        [(0xB0, 64, 127), (0xB0, 64, 0)],
+        [(0xB0, 64, 0)],
+    ),
+    'a pedal let go and pressed again keeps both': (
+        [(0xB0, 64, 0), (0xB0, 64, 100), (0xB0, 64, 127)],
+        [(0xB0, 64, 0), (0xB0, 64, 127)],
+    ),
+    'a pedal pumped': (
+        [(0xB0, 64, 0), (0xB0, 64, 127), (0xB0, 64, 10), (0xB0, 64, 127)],
+        [(0xB0, 64, 10), (0xB0, 64, 127)],
+    ),
+    'a pedal pressed further keeps its place before a note-off': (
+        [(0xB0, 64, 70), (0x80, 60, 0), (0xB0, 64, 127)],
+        [(0xB0, 64, 127), (0x80, 60, 0)],
+    ),
+    'a pedal pressed again after a release goes after it': (
+        [(0xB0, 64, 70), (0xB0, 64, 0), (0x80, 60, 0), (0xB0, 64, 80), (0xB0, 64, 90)],
+        [(0xB0, 64, 0), (0x80, 60, 0), (0xB0, 64, 90)],
+    ),
+    'the controllers beside the parameter numbers and data': (
+        [(0xB0, control, 1) for control in (5, 7, 37, 39, 95, 102)],
+        [(0xB0, control, 1) for control in (5, 7, 37, 39, 95, 102)],
+    ),
+    'two pedals pressed': (
+        [(0xB0, 64, 70), (0xB0, 66, 80)],
+        [(0xB0, 64, 70), (0xB0, 66, 80)],
+    ),
+    'a reset then a move': (
+        [(0xB0, 1, 9), (0xB0, 121, 0), (0xB0, 2, 4)],
+        [(0xB0, 1, 9), (0xB0, 121, 0), (0xB0, 2, 4)],
+    ),
+    'pressure let up': (
+        [(0xD0, 90, 0), (0xD0, 0, 0)],
+        [(0xD0, 0, 0)],
+    ),
+}
+
+
+class TestContinuousMidiControlsDuringAScope:
+    """MIDI has no polled state: the live game gets where each control was left (Ruling J)."""
+
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize(
+        ('messages', 'heard'),
+        MIDI_CONTROL_SEQUENCES.values(),
+        ids=MIDI_CONTROL_SEQUENCES.keys(),
+    )
+    def test_the_latest_of_each_control_reaches_the_live_game_after_the_scope(
+        self, tmp_path, messages, heard
+    ):
+        frames = len(messages) + 2
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=frames)
+        with running_scene(MidiMarkerScene) as manager:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, MidiMarkerScene)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager)
+            for status, data1, data2 in messages:
+                step(manager, midi_message(status=status, data1=data1, data2=data2))
+            step(manager)
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert live_scene.messages == []
+            step(manager, frames=2)
+            assert live_scene.messages == heard
+
+    @pytest.mark.draws_frames
+    def test_ports_are_kept_apart(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(MidiMarkerScene) as manager:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, MidiMarkerScene)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager)
+            step(
+                manager,
+                midi_message(status=0xE0, data1=0, data2=1, vice_id=0),
+                midi_message(status=0xE0, data1=0, data2=2, vice_id=3),
+            )
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert [data2 for _status, _data1, data2 in live_scene.messages] == [1, 2]
+
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize(
+        ('status', 'control'), [(0xE0, 0), (0xB0, 64)], ids=['wheel', 'pedal pressed']
+    )
+    def test_the_live_games_own_post_is_never_taken_for_the_players(
+        self, tmp_path, status: int, control: int
+    ):
+        """A MIDIIN the live game posted before the scope stays held beside a later one."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(MidiMarkerScene) as manager:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, MidiMarkerScene)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            post_event(midi_message(status=status, data1=control, data2=101))
+            step(manager)
+            step(manager, midi_message(status=status, data1=control, data2=102))
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert [data2 for _status, _data1, data2 in live_scene.messages] == [101, 102]
+
+    @pytest.mark.draws_frames
+    def test_a_session_recorded_across_a_scope_with_a_wheel_replays_exactly(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+
+        def play_in_the_session(manager: Any, *, is_live: bool) -> None:
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, MidiMarkerScene)
+
+            def step_with(*events: pygame.event.Event) -> None:
+                step(manager, *(events if is_live else ()))
+
+            step(manager, frames=LIVE_FRAMES_BEFORE)
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            step_with(midi_message(status=0xE0, data1=0, data2=100))
+            step_with(
+                midi_message(status=0x80),
+                midi_message(status=0xE0, data1=0, data2=64),
+                midi_message(status=0xF8),
+            )
+            step(manager, frames=SHORT_RECORDED_FRAMES - 2)
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert live_scene.messages == []
+            step(manager, frames=LIVE_FRAMES_AFTER)
+            assert live_scene.messages == [(0x80, 60, 0), (0xE0, 0, 64)]
+
+        session_path = record_a_session_then_replay_it(
+            tmp_path=tmp_path,
+            play_in_the_session=play_in_the_session,
+            scene_class=MidiMarkerScene,
+        )
+        _header, frames = recorded_trace(path=session_path)
+        (redelivered,) = [
+            frame[REDELIVERED_EVENTS_FIELD] for frame in frames if REDELIVERED_EVENTS_FIELD in frame
+        ]
+        assert [
+            (record[EVENT_TYPE_FIELD], record[EVENT_ORIGIN_FIELD]) for record in redelivered
+        ] == [(pygame.MIDIIN, 'external')] * 2
+
+
+class TestMidiPortsOfAPlayedFile:
+    """A recording file's scope opens the ports its run named, read from its real header."""
+
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize('malformed', MALFORMED_PORT_NAMES)
+    def test_a_file_with_malformed_port_names_is_refused(self, tmp_path, caplog, malformed):
+        """As a replay refuses it (tests/replay/test_midi_port_replays.py): no scope begins."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        rewrite_recording(
+            recording_path=recording_path,
+            change=lambda trace: trace['options'].update(midi_input=malformed),
+        )
+        with running_scene(CountingScene) as manager:
+            assert not start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager)
+            assert manager.playback_session is None
+        assert 'cannot be replayed' in caplog.text
+
+    PORTS = (
+        MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False),
+        MidiPortInfo(interface='CoreMIDI', name='Pads', is_input=True, is_output=False),
+    )
+
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize('recorded_name', ['Pads', None])
+    def test_the_scope_holds_the_recorded_runs_ports(
+        self, tmp_path, mocker: MockerFixture, caplog, recorded_name: str | None
+    ):
+        """Pads recorded, Keys live; or none recorded: then its door is asked nothing of MIDI."""
+        use_stand_in_midi_ports(mocker=mocker, midi_ports=self.PORTS)
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path,
+            frames=SHORT_RECORDED_FRAMES,
+            extra_arguments=[] if recorded_name is None else ['--midi-input', recorded_name],
+        )
+        use_stand_in_midi_ports(mocker=mocker, midi_ports=self.PORTS)
+        with running_scene(CountingScene, extra_arguments=['--midi-input', 'Keys']) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            live_ports = engine.midi_manager.ports
+            caplog.clear()
+            asked = [
+                mocker.spy(ReplayDeviceRegistry, name)
+                for name in ('midi_port_count', 'midi_port_info', 'open_midi_input')
+            ]
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager)
+            assert manager.playback_session is not None
+            assert [proxy.descriptor.name for proxy in engine.midi_manager.ports.values()] == (
+                [] if recorded_name is None else [recorded_name]
+            )
+            assert all(
+                type(proxy.port) is ReplayMidiInput for proxy in engine.midi_manager.ports.values()
+            )
+            assert [spy.call_count > 0 for spy in asked] == [recorded_name is not None] * 3
+            step(manager, frames=SHORT_RECORDED_FRAMES)
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert engine.midi_manager.ports is live_ports
+            assert list(live_ports) == [(MIDI_INPUT_KIND, 0)]
+        assert [
+            record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING
+        ] == []
+
+
+class TestLiveMidiInputDuringAScope:
+    """MIDI input is the player's, as a joystick's: presses end a demo, motion reaches nothing."""
+
+    @pytest.mark.draws_frames
+    def test_a_note_ends_a_demo_as_a_button_press_does(self, tmp_path):
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            assert start_playback_from_recording(
+                manager=manager,
+                path=recording_path,
+                then=active_counting_scene(manager),
+                options=PlaybackOptions(exit_on_input=True),
+            )
+            step(manager)
+            # A pedal or another control, motion and releases are not a press
+            step(
+                manager,
+                *(
+                    midi_message(status=status, data1=data1, data2=data2)
+                    for status, data1, data2 in [*MIDI_CONTROLS, *MIDI_MOTION]
+                ),
+            )
+            step(manager, midi_message(status=0x80))
+            assert manager.playback_session is not None
+            step(manager, midi_message(status=0x9F, data2=1))
+            assert outcome_reason(manager) == 'exit_input'
+
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize('message', [(0x90, 60, 100), *MIDI_MOTION])
+    def test_presses_and_motion_reach_nothing(
+        self, tmp_path, mocker: MockerFixture, message: tuple[int, int, int]
+    ):
+        """Not the played scene (no divergence), and not the live game afterwards."""
+        status, data1, data2 = message
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            handled = mocker.spy(engine.midi_manager, 'on_midi_in_event')
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager)
+            step(manager, midi_message(status=status, data1=data1, data2=data2))
+            step(manager, frames=SHORT_RECORDED_FRAMES - 2)
+            assert outcome_reason(manager) == 'end_of_recording'
+            step(manager, frames=2)
+            handled.assert_not_called()
+            # The live game hears the port again, so the silence above is measured
+            step(manager, midi_message(status=0x90, data2=100))
+            handled.assert_called_once()
+
+    @pytest.mark.draws_frames
+    def test_a_midi_event_with_no_message_is_motion(self, tmp_path):
+        """A tool's input post may hold no status: neither a press nor a release."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            assert start_playback_from_recording(
+                manager=manager,
+                path=recording_path,
+                then=active_counting_scene(manager),
+                options=PlaybackOptions(exit_on_input=True),
+            )
+            step(manager)
+            step(manager, pygame.event.Event(pygame.MIDIIN, {}))
+            session = manager.playback_session
+            assert session is not None
+            assert session.sources.held_live_events == []
+
+
 class TestLiveEventsKeptThroughAPlayback:
     """The live game's events that arrive during a scope reach it after the scope."""
 
@@ -1014,8 +1418,19 @@ class TestLiveEventsKeptThroughAPlayback:
             pygame.event.Event(pygame.KEYUP, key=pygame.K_SPACE, mod=0, unicode='', scancode=0),
             pygame.event.Event(pygame.AUDIODEVICEADDED, which=0, iscapture=0),
             pygame.event.Event(pygame.WINDOWRESIZED, x=640, y=480),
+            *(midi_message(status=status, data2=data2) for status, data2 in MIDI_NOTE_RELEASES),
+            *(
+                midi_message(status=0xB0, data1=control, data2=value)
+                for control, value in MIDI_CONTROL_RELEASES
+            ),
         ],
-        ids=['release', 'device', 'window'],
+        ids=[
+            'release',
+            'device',
+            'window',
+            *(f'midi-note-{status:x}-{data2}' for status, data2 in MIDI_NOTE_RELEASES),
+            *(f'midi-control-{control}-{value}' for control, value in MIDI_CONTROL_RELEASES),
+        ],
     )
     def test_held_external_events_are_delivered_after_the_scope(
         self, tmp_path, mocker: MockerFixture, held_event
@@ -1478,8 +1893,11 @@ def record_a_session_then_replay_it(
         engine = manager.game_engine
         assert engine is not None
         engine.start_trace_recording(path=session_path)
-        play_in_the_session(manager, is_live=True)
-        engine.stop_trace_recording()
+        try:
+            play_in_the_session(manager, is_live=True)
+        finally:
+            # A failing session's open file would be blamed on a later test
+            engine.stop_trace_recording()
     _header, session_frames = recorded_trace(path=session_path)
     with running_scene(
         scene_class,
@@ -1938,6 +2356,49 @@ class TestLiveVoicesThroughAPlayback:
             # Paused behind the scope, then played on: never released (which stops for good)
             assert voice.is_playing
 
+    @pytest.mark.draws_frames
+    def test_a_stream_collected_inside_a_scope_is_let_go_without_raising(
+        self, tmp_path, monkeypatch
+    ):
+        """The finalizer of a stream dropped unreleased while a playback runs never raises.
+
+        It stops the channel, lets go of the chunks and reports through the log
+        (glitchygames/audio/live.py's ``_let_go_of_chunks``), with the scope's sources
+        installed.
+        """
+        from glitchygames.audio.live_instrument import InstrumentVoice
+
+        unraisable = []
+        monkeypatch.setattr(sys, 'unraisablehook', unraisable.append)
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager)
+            assert manager.playback_session is not None
+            engine = required(manager.game_engine, what="the running scene's engine")
+            channel = pygame.mixer.Channel(engine.live_voice_channels[0])
+            voice = InstrumentVoice(
+                channel=channel,
+                owner=live_scene,
+                instrument=Instrument(wave='saw', live=True),
+                frequency=220.0,
+                volume=0.1,
+                sample_rate=mixer_sample_rate(),
+                random_source=np.random.default_rng(3),
+            )
+            voice.stream.start()
+            voice.stream.update()
+
+            del voice
+            gc.collect()
+
+            assert unraisable == []
+            assert not channel.get_busy()
+            assert len(take_unreleased_live_stream_reports()) == 1  # its context's registry
+
 
 class PulsingScene(CountingScene):
     """Pulses the controllers' rumble on its second tick (a hit), as a game does."""
@@ -2078,6 +2539,49 @@ class TestDevicesInAPlayback:
             entered.assert_not_called()
             exited.assert_not_called()
             assert engine.input_devices is live_devices
+
+
+class TestErrorsOpeningTheScopesDevices:
+    """An error as the scope's devices are opened ends it; nothing of the live game is lost."""
+
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize('failing', ['open_connected_joysticks', 'open_connected_midi_ports'])
+    def test_error_opening_the_scopes_devices_restores_the_live_game(
+        self, tmp_path, mocker: MockerFixture, caplog, failing: str
+    ):
+        """The live game goes on: its ports, joysticks, rumble and events waiting to arrive."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=RECORDED_FRAMES)
+        with running_scene(KeyReleaseCountingScene) as manager:
+            engine = manager.game_engine
+            assert engine is not None
+            live_scene = active_counting_scene(manager)
+            live_ports = engine.midi_manager.ports
+            live_joysticks = engine.joystick_manager.joysticks
+            live_devices = engine.input_devices
+            live_rumble = manager.rumble
+            start_playback_from_recording(manager=manager, path=recording_path, then=live_scene)
+            # Held by an earlier scope, not delivered yet as this one begins
+            redeliver_events(events=[(KEY_RELEASE, 'external')])
+            mocker.patch.object(
+                engine.joystick_manager if 'joysticks' in failing else engine.midi_manager,
+                failing,
+                side_effect=RuntimeError('no devices'),
+            )
+            marker_y = live_scene.marker.rect.y
+
+            step(manager, frames=2)
+
+            assert 'no devices' in caplog.text
+            assert outcome_reason(manager) == 'error'
+            assert manager.playback_session is None
+            assert manager.active_scene is live_scene
+            assert not has_scoped_sources()
+            assert live_scene.frames_ticked == 2
+            assert live_scene.marker.rect.y == marker_y + 1
+            assert engine.midi_manager.ports is live_ports
+            assert engine.joystick_manager.joysticks is live_joysticks
+            assert engine.input_devices is live_devices
+            assert manager.rumble is live_rumble
 
 
 class TestOnlyScopedErrorsAreContained:

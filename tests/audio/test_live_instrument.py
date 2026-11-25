@@ -45,7 +45,7 @@ def rendered_chunks(mocker):
     """
     chunks = []
 
-    def fake_to_sound(samples, *, volume):
+    def fake_to_sound(samples, *, volume, side_gains):
         chunks.append(samples.copy())
         return mocker.Mock(name=f'sound{len(chunks)}')
 
@@ -60,7 +60,7 @@ def channel(mocker):
     Returns:
         The mocked channel.
     """
-    mocked_channel = mocker.Mock()
+    mocked_channel = mocker.Mock(id=0)  # pygame.mixer.Channel.id: the stream reads its table
     mocked_channel.get_queue.return_value = None
     mocked_channel.get_busy.return_value = True
     return mocked_channel
@@ -464,6 +464,7 @@ class TestOnTheLivePool:
             voice.stream.start()
 
         assert pygame.mixer.Channel(block.live[0]).get_sound().get_volume() == 0.0
+        voice.stream.stop_now()
 
     def test_without_a_mixer_it_is_silent(self, mocker):
         mocker.patch.object(pygame.mixer, 'get_init', return_value=None)
@@ -510,12 +511,14 @@ class TestStartingALiveSound:
 
     @pytest.fixture
     def pool(self, partitioned_mixer):
-        """The live pool the audio engine starts live sounds on.
+        """The live pool the audio engine starts live sounds on; its voices released after.
 
-        Returns:
+        Yields:
             The pool.
         """
-        return LiveAudio(channel_indices=partitioned_mixer.live)
+        live_pool = LiveAudio(channel_indices=partitioned_mixer.live)
+        yield live_pool
+        live_pool.release_every_voice()
 
     def _engine(self, pool, *, scene='scene'):
         from glitchygames.audio.engine import AudioEngine
@@ -715,13 +718,18 @@ class TestTheHandlesControls:
         assert not handle.is_paused
         assert not handle.resume()
 
-    def test_set_pan_takes_the_constant_power_law(self, channel, rendered_chunks):
+    def test_set_pan_takes_the_constant_power_law(self, channel, mocker):
+        """The next chunk ends at the new pan's gains."""
         from glitchygames.audio.voices import constant_power_gains
 
+        to_sound = mocker.patch.object(live, 'to_sound')
         handle = self._handle(channel)
 
         assert handle.set_pan(-0.5)
-        channel.set_volume.assert_called_with(*constant_power_gains(pan=-0.5, gain=1.0))
+        handle._voice.stream.update()
+
+        side_gains = to_sound.call_args.kwargs['side_gains']
+        np.testing.assert_allclose(side_gains[-1], constant_power_gains(pan=-0.5, gain=1.0))
 
     def test_every_control_on_a_stopped_or_silent_handle_answers_false(self, channel):
         from glitchygames.audio.live_instrument import LiveSoundHandle
@@ -949,6 +957,7 @@ class TestAnAudioEngineOutsideAGame:
         assert drone.is_playing
         assert pygame.mixer.Channel(partitioned_mixer.live[0]).get_queue() is not None
         assert drone.stop()
+        pool.release_every_voice()
 
     def test_the_engines_update_applies_the_live_owner_rules(self, partitioned_mixer):
         """When its owner is no longer active, a live sound is released by the next update."""

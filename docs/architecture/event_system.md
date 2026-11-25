@@ -604,7 +604,7 @@ the joystick and controller managers, the game):
 | `DropEventManager` | `[self.game]` | No pygame subsystem (events only) |
 | `GameEventManager` | `[self.game]` | No pygame subsystem (events only) |
 | `AppEventManager` | `[self.game]` | No pygame subsystem (events only) |
-| `MidiEventManager` | `[self.game, pygame.midi]` (`[self.game]` when this pygame build has no PortMidi) | `get_count()`, `get_device_info()`, etc. |
+| `MidiEventManager` | `[self.game]`; each named MIDI port (`--midi-input`, `--midi-output`) has a proxy in `ports`, whose `proxies` are `[self.game, port]` | an output port's own methods (`write_short()`, `note_on()`, ...) and the proxy's `get_device_info()`, answered from the port's descriptor |
 
 Managers without a pygame subsystem in their proxy list (like `DropEventManager`)
 only forward events — `__getattr__` falls through to the game object.
@@ -2250,13 +2250,96 @@ which hands them to the active scene's handlers below (`Scene`'s log them); text
 
 `GameEngine.process_midi_event` hands `MIDIIN` to `midi_manager.on_midi_in_event` and `MIDIOUT`
 to `on_midi_out_event`. The engine builds that `MidiEventManager` with the scene manager as its
-game, so its proxy forwards each event to the scene manager, which passes any `on_*_event` call
+game, and it gives each event to the scene manager itself (not through a port's proxy: a joystick's
+proxy keeps its device's state from its events, and a port's has none to keep), which passes any `on_*_event` call
 to the active scene. `Scene` has the stubs, so a scene without its own handler gets
 `unhandled_event`, which raises under `--no-unhandled-events`
 (bugs/2026-11-22-midi-events-skip-the-midi-manager.md: before #300 both types went to
-`SceneManager.handle_event()`, which ignores them). Nothing in the repository posts MIDI events
-yet. The `vice_id` field below is pygame's own spelling: `pygame.midi.midis2events` builds the
-events with `vice_id=device_id`.
+`SceneManager.handle_event()`, which ignores them). The `vice_id` field below is pygame's own
+spelling: `pygame.midi.midis2events` builds the events with `vice_id=device_id`, so a message's
+`vice_id` is the port id it came in on.
+
+#### MIDI ports
+
+MIDI is off until a port is named, and is wired through the devices door like a joystick
+(`src/glitchygames/input/devices.py`, whose module docstring is the contract).
+
+**Naming ports.** `--midi-input NAME` and `--midi-output NAME` (repeatable; see
+[Midi Options](argument_system.md#midi-options)) name ports by the name PortMidi lists. The first
+port with that name whose direction fits is opened; a name that matches nothing, or a port that
+fails to open, is logged (naming it) and skipped, and the run goes on. With no port named,
+PortMidi is never initialized and a run is recorded exactly as before.
+
+**What a game receives.** Each opened input port is read once per frame, during the event pump,
+and its messages join that frame's batch after SDL's events as `MIDIIN` events (`status`,
+`data1`-`data3`, `timestamp` in PortMidi's milliseconds, `vice_id` the port id). A scene gets them
+in `on_midi_in_event(event)`, in the frame they were read, in arrival order. A burst larger than
+one read arrives whole, up to a cap per port per frame (`MIDI_MESSAGES_PER_PORT_PER_FRAME`, 5120);
+the rest comes the next frame.
+
+**What a game sends.** The manager holds a proxy per opened port in `ports`, keyed `(kind, port
+id)` (`MIDI_INPUT_KIND` or `MIDI_OUTPUT_KIND`, from `glitchygames.input.devices`), with the port's
+`descriptor`. Reach it through `current_engine().midi_manager.ports`, and call an output's own
+methods through the proxy (`note_on()`, `note_off()`, `write_short()`, `write()`,
+`set_instrument()`, `pitch_bend()`, `write_sys_ex()`). An input has nothing for a game to call: its
+port is read by the door alone, for the frame's events, and a game holds a handle whose `poll()`
+is False, whose `read()` is empty and whose `close()` closes nothing, live as in a replay (a
+message a game read would be missing from its recording). `get_device_info()` is the proxy's own and answers from the
+descriptor the port was opened with. A write posts no event (`MIDIOUT` has no producer) and is not
+recorded. In a replay, a playback scope or an instant replay the port is a stand-in that accepts
+every write and drops it.
+
+**A test with stand-in ports.** Tests have no MIDI hardware: install stand-in doors with the
+ports PortMidi would list, queue messages, and run the frame (as
+`tests/engine/test_engine_event_system.py` does):
+
+```py
+from glitchygames.input.devices import MidiPortInfo
+from tests.input.stand_in_devices import install_stand_in_devices
+
+keys = MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False)
+devices = install_stand_in_devices(descriptors=[], midi_ports=[keys])  # port id = position
+devices.open_midi_input(port_id=0)
+devices.queue_midi_input(port_id=0, messages=[([0x90, 60, 100, 0], 1234)])  # (message, timestamp)
+# the next frame's pump delivers one MIDIIN event, status 0x90, data1 60, vice_id 0
+```
+
+`devices.fail_midi_input(port_id=0)` makes a port fail as PortMidi's does, and opening a port that
+is not there, or that goes the other way, raises `pygame.error` as live does. The stand-in input
+follows PortMidi's observed behaviour (its buffer holds 4096 messages; a full one refuses input
+until a read reports the overflow, once), so a test of a burst sees what hardware does.
+
+**What is recorded.** The run's options (`midi_input`, `midi_output`: in every new recording, empty
+when no port was named), every enumeration and open
+answer (failures included), a descriptor of each opened port (`midi_ports` in the header,
+`midi_ports_opened` on a frame) and the `MIDIIN` events as ordinary pumped events with their
+PortMidi timestamps. See [Recording](gameplay_replay.md#recording-record-trace-path). A replay
+takes the recording's port names, never its own command line's, answers from the recording and
+never touches MIDI hardware; its input ports have nothing to read, and the recorded events are
+served by the event door.
+
+**Limitations.**
+
+- Ports are the ones present at start: PortMidi lists them once and pygame posts no MIDI device
+  events, so there is no hot-plugging, and on macOS an unplugged port raises nothing, it just
+  falls silent.
+- A port is opened once per registry (one engine context's live doors), not once per process.
+  Two live contexts naming one port is not supported; an inner game is always a replay today.
+- A full PortMidi buffer loses input (the messages that did not fit, and up to 63 the overflowing
+  read had already taken): the overflow is logged once per burst and the port goes on. A port
+  whose read fails any other way is dropped for the rest of the run.
+- pygame-ce 2.5.8's `close()` does not close a PortMidi port, so ports end at the engine's
+  teardown, which closes them and quits PortMidi.
+- MIDI output is not in an output record (none exists yet), and a note still sounding when a
+  playback scope starts keeps sounding until the live game lets it go.
+- No browser MIDI: pygame's WebAssembly builds have no PortMidi, so the door answers "no
+  ports".
+- During an in-game playback scope the player's MIDI input is sorted by its message: a note
+  played is a press, which ends the scope only where that scope exits on input; releases and each control's latest message are held and handed to the live
+  game after the scope; parameter data (controllers 6, 38, 96-101) set during it is lost
+  ([In-game playback](gameplay_replay.md#in-game-playback)).
+
+Plans: `plans/2026-11-24-midi-devices.md`; what is deferred is in `plans/future-work.md`.
 
 ??? note "Its 2 handlers: each diagram, then the handler's signature"
     ```mermaid

@@ -512,7 +512,6 @@ ignore = [
   "D203",    # Incorrect blank line before class (conflicts with D211)
   "D213",    # Multi-line summary second line (conflicts with D212)
   "PLC0415", # import-outside-top-level (intentional: circular imports, optional deps, platform-specific)
-  "S101",    # assert is used intentionally for type narrowing and runtime invariant checks
   "PLR6301", # Method could be a function/staticmethod
   # --- Added with ruff 0.17 ---
   # Preview rule (name only, no code). The suite uses autouse fixtures deliberately,
@@ -826,11 +825,10 @@ error-on-warning = false
 
 [tool.bandit]
 exclude_dirs = ["tests", "src/glitchygames/tests"]
-# Filter to Medium+ severity and confidence to reduce noise.
-# B101 (assert_used) is Low severity and gets filtered out by this.
-# TODO: Replace remaining assert usage with explicit raises, then tighten to low/low
-severity = "medium"
-confidence = "medium"
+# bandit reads no severity or confidence filter from here (the severity = "medium" and
+# confidence = "medium" keys that were here did nothing): noxfile.py's security-scan passes
+# -ll -ii for every check, then runs B101 (assert_used) alone at every level, so an assert
+# outside tests fails it
 
 [tool.deptry]
 # Not this package's code: the pygame-ce submodule (its own project), browser/, which runs

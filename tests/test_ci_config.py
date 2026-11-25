@@ -3108,6 +3108,26 @@ def test_the_performance_session_collects_only_the_benchmark_paths():
     assert pytest_command[-len(noxfile._BENCHMARK_PATHS) :] == tuple(noxfile._BENCHMARK_PATHS)
 
 
+def test_the_performance_session_imports_tests_as_the_suite_does():
+    """The session clears ``addopts`` but keeps its import mode.
+
+    In pytest's default mode, entering a tests package puts its root at the front of sys.path: the
+    first benchmark to run in one was failed for it (CircleCI job 6146).
+    """
+    import noxfile
+
+    addopts = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))['tool'][
+        'pytest'
+    ]['ini_options']['addopts']
+    import_modes = [option for option in addopts.split() if option.startswith('--import-mode=')]
+    session = RecordingSession(posargs=[])
+    noxfile.performance_test(session)
+
+    pytest_command = next(command for command in session.commands if command[0] == 'pytest')
+    assert len(import_modes) == 1
+    assert import_modes[0] in pytest_command
+
+
 def test_the_performance_session_saves_no_run_into_the_repository():
     """No benchmark run is saved: ``.benchmarks/`` is tracked, and nothing reads it.
 
@@ -3726,6 +3746,8 @@ def tools_on_path(*, mocker, present: set[str]) -> None:
     )
 
 
+# security-scan's bandit runs: every check at medium and up, then B101 (assert_used) alone
+BANDIT_RUNS = 2
 SECURITY_SCAN_COMMANDS = [
     (
         'python',
@@ -3750,7 +3772,7 @@ SECURITY_SCAN_COMMANDS = [
 
 
 def test_the_security_scan_runs_bandit_then_the_sbom_grype_and_licenses(mocker, monkeypatch):
-    """bandit, then the SBOM from uv.lock, grype on it, its license check."""
+    """Bandit (medium and up, then B101 alone), the SBOM from uv.lock, grype on it, its licenses."""
     import noxfile
 
     tools_on_path(mocker=mocker, present={'syft', 'grype'})
@@ -3761,8 +3783,13 @@ def test_the_security_scan_runs_bandit_then_the_sbom_grype_and_licenses(mocker, 
     noxfile.security_scan(session)
 
     commands = [command for command in session.commands if command[0] != 'uv']
-    assert commands[0][0] == 'bandit'
-    assert commands[1:] == SECURITY_SCAN_COMMANDS
+    medium_and_up, asserts_only = commands[:BANDIT_RUNS]
+    assert medium_and_up[:5] == ('bandit', '-c', 'pyproject.toml', '-ll', '-ii')
+    # An assert outside tests fails at any severity (B101 is low, which -ll would hide)
+    assert asserts_only[:5] == ('bandit', '-c', 'pyproject.toml', '-t', 'B101')
+    assert '-ll' not in asserts_only
+    assert asserts_only[asserts_only.index('-r') + 1 :] == tuple(noxfile._SOURCE_PACKAGE_DIRS)
+    assert commands[BANDIT_RUNS:] == SECURITY_SCAN_COMMANDS
     assert session.warnings == []
 
 
@@ -3778,7 +3805,7 @@ def test_sbom_drift_fails_the_scan_after_grype_and_the_license_check(mocker, mon
     with pytest.raises(AssertionError, match='differs from the committed one'):
         noxfile.security_scan(session)
 
-    assert [command for command in session.commands if command[0] != 'uv'][1:] == (
+    assert [command for command in session.commands if command[0] != 'uv'][BANDIT_RUNS:] == (
         SECURITY_SCAN_COMMANDS
     )
     assert session.warnings == ['SBOM drift: M docs/sbom.cyclonedx.json']
@@ -3795,7 +3822,9 @@ def test_missing_syft_or_grype_is_skipped_locally(mocker, monkeypatch):
 
     noxfile.security_scan(session)
 
-    assert [command[0] for command in session.commands if command[0] != 'uv'] == ['bandit']
+    assert [command[0] for command in session.commands if command[0] != 'uv'] == [
+        'bandit'
+    ] * BANDIT_RUNS
     assert len(session.warnings) == 1
     assert session.warnings[0].startswith('grype not found on PATH')
 

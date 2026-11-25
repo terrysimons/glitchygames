@@ -74,12 +74,21 @@ from glitchygames.input.devices import (
     CONTROLLER_COUNT_CALL,
     IS_CONTROLLER_CALL,
     JOYSTICK_COUNT_CALL,
+    MIDI_INPUT_KIND,
+    MIDI_OUTPUT_KIND,
+    MIDI_PORT_COUNT_CALL,
+    MIDI_PORT_INFO_CALL,
     EnumerationAnswer,
+    MidiPortDescriptor,
+    MidiPortInfo,
     ReplayDeviceRegistry,
+    ReplayMidiInput,
+    ReplayMidiOutput,
 )
-from glitchygames.input.input_devices import InputMode, RecordedDevices
+from glitchygames.input.input_devices import InputMode, RecordedDevices, recorded_devices
 from glitchygames.live_sources import LiveSources
 from glitchygames.performance import AdaptiveClamping
+from glitchygames.recording import json_safe_value
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
     active_sources,
@@ -93,6 +102,7 @@ from tests.input.stand_in_devices import (
     STAND_IN_STICK,
     install_stand_in_devices,
 )
+from tests.leaked_state_guard import environment_holds
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.slow_window_manager import SlowWindowManager, install_window_manager
 from tests.world.test_gameplay_replay import (
@@ -2441,6 +2451,62 @@ def _playback_door(mocker, *, descriptors, answers):
     return registry
 
 
+# What an instant replay's journal holds of a scene that started with a keyboard and a synth
+RECORDED_MIDI_JOURNAL = RecordedDevices(
+    input_mode=InputMode.AUTO,
+    scene_start_devices=(),
+    scene_start_midi_ports=(
+        MidiPortDescriptor(kind=MIDI_INPUT_KIND, port_id=0, name='Keys', interface='CoreMIDI'),
+        MidiPortDescriptor(kind=MIDI_OUTPUT_KIND, port_id=1, name='Synth', interface='CoreMIDI'),
+    ),
+)
+
+
+def _engine_with_live_midi_ports(mocker):
+    """Build the engine's managers on the live door, PortMidi's hardware a mock.
+
+    The run named Keys (port 0, an input) and Synth (port 1, an output); both open.
+
+    Returns:
+        The engine and the mocked ``pygame.midi``.
+
+    """
+    midi_module = mocker.Mock()
+    midi_module.get_count.return_value = 2
+    midi_module.get_device_info.side_effect = [
+        (b'CoreMIDI', b'Keys', 1, 0, 0),
+        (b'CoreMIDI', b'Synth', 0, 1, 0),
+    ].__getitem__
+    mocker.patch('glitchygames.input.devices.import_midi_module', return_value=midi_module)
+    engine = _make_engine(mocker, '--midi-input', 'Keys', '--midi-output', 'Synth')
+    engine.scene_manager.game_engine = engine
+    install_sources(sources=LiveSources(random_seed=1))
+    engine._initialize_event_managers()
+    # Reaching the live ports is what the tests look for, from here on
+    midi_module.Output.return_value.reset_mock()
+    return engine, midi_module
+
+
+def _spied_midi_calls(mocker, *, registry):
+    """Spy every MIDI question and open of a door.
+
+    Returns:
+        The spies.
+
+    """
+    return [
+        mocker.spy(registry, name)
+        for name in (
+            'midi_port_count',
+            'midi_port_info',
+            'default_midi_input_id',
+            'default_midi_output_id',
+            'open_midi_input',
+            'open_midi_output',
+        )
+    ]
+
+
 @pytest.mark.usefixtures('event_blocking_restored')
 class TestPlaybackDevices:
     """A playback scope sees its recording's devices; the live ones wait (BUGS.md #184.3)."""
@@ -2571,6 +2637,162 @@ class TestPlaybackDevices:
         assert registry.joystick_for_instance(instance_id=RECORDED_PAD.instance_id) is not None
         for spy in asked:
             spy.assert_not_called()
+
+    def test_an_instant_replay_adopts_stand_in_midi_ports_and_restores_the_live_ones(self, mocker):
+        """The journal's ports are stand-ins in the scope; the live proxies come back, the same."""
+        engine, _midi_module = _engine_with_live_midi_ports(mocker)
+        live_ports = engine.midi_manager.ports
+        live_proxies = dict(live_ports)
+        assert list(live_proxies) == [(MIDI_INPUT_KIND, 0), (MIDI_OUTPUT_KIND, 1)]
+        registry = _playback_door(mocker, descriptors=[], answers=[])
+        asked = _spied_midi_calls(mocker, registry=registry)
+
+        engine.enter_playback_devices(recorded=RECORDED_MIDI_JOURNAL, registry=registry)
+
+        scope_ports = engine.midi_manager.ports
+        assert list(scope_ports) == [(MIDI_INPUT_KIND, 0), (MIDI_OUTPUT_KIND, 1)]
+        assert isinstance(scope_ports[MIDI_INPUT_KIND, 0].port, ReplayMidiInput)
+        assert isinstance(scope_ports[MIDI_OUTPUT_KIND, 1].port, ReplayMidiOutput)
+        # The played scene asking the door for the port it holds gets the very stand-in
+        assert registry.midi_output_for_port(port_id=1) is scope_ports[MIDI_OUTPUT_KIND, 1].port
+        for spy in asked:
+            spy.assert_not_called()
+
+        engine.exit_playback_devices()
+
+        assert engine.midi_manager.ports is live_ports
+        assert dict(engine.midi_manager.ports) == live_proxies
+
+    def test_a_write_during_an_instant_replay_reaches_no_live_port(self, mocker):
+        """The scope's output drops what the played scene writes; the live one plays after it."""
+        engine, midi_module = _engine_with_live_midi_ports(mocker)
+        live_output = midi_module.Output.return_value
+        registry = _playback_door(mocker, descriptors=[], answers=[])
+        engine.enter_playback_devices(recorded=RECORDED_MIDI_JOURNAL, registry=registry)
+
+        scope_proxy = engine.midi_manager.ports[MIDI_OUTPUT_KIND, 1]
+        scope_proxy.note_on(60, 100)
+        scope_proxy.write_short(0x90, 60, 100)
+        assert live_output.mock_calls == []
+
+        engine.exit_playback_devices()
+        engine.midi_manager.ports[MIDI_OUTPUT_KIND, 1].note_on(61, 90)
+        live_output.note_on.assert_called_once_with(61, 90)
+
+    def test_a_journal_without_midi_ports_adopts_none(self, mocker, caplog):
+        """A journal with no MIDI field: no port in the scope, nothing asked, no warning."""
+        engine, _midi_module = _engine_with_live_midi_ports(mocker)
+        live_ports = engine.midi_manager.ports
+        registry = _playback_door(mocker, descriptors=[], answers=[])
+        asked = _spied_midi_calls(mocker, registry=registry)
+
+        with caplog.at_level('WARNING'):
+            engine.enter_playback_devices(
+                recorded=recorded_devices(
+                    # The journal decides, whatever options stand beside it
+                    options={'midi_input': json_safe_value(['Keys'])},
+                    scene_start_devices={'input_mode': 'auto', 'devices': []},
+                ),
+                registry=registry,
+            )
+
+        assert engine.midi_manager.ports == {}
+        for spy in asked:
+            spy.assert_not_called()
+        assert [
+            record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING
+        ] == []
+        engine.exit_playback_devices()
+        assert engine.midi_manager.ports is live_ports
+
+    def test_a_recording_files_midi_ports_open_through_the_scopes_door_by_recorded_names(
+        self, mocker, caplog
+    ):
+        """The file's own names open (Pads), not the live command line's (Keys, Synth)."""
+        engine, midi_module = _engine_with_live_midi_ports(mocker)
+        live_ports = engine.midi_manager.ports
+        live_opens = midi_module.Input.call_count
+        pads = MidiPortInfo(interface='ALSA', name='Pads', is_input=True, is_output=False)
+        registry = ReplayDeviceRegistry(
+            descriptors=[],
+            enumeration_answers=[
+                EnumerationAnswer(call=CONTROLLER_COUNT_CALL, device_index=None, value=0),
+                EnumerationAnswer(call=JOYSTICK_COUNT_CALL, device_index=None, value=0),
+                EnumerationAnswer(call=MIDI_PORT_COUNT_CALL, device_index=None, value=1),
+                EnumerationAnswer(
+                    call=MIDI_PORT_INFO_CALL, device_index=0, value=pads.to_answer_value()
+                ),
+            ],
+            midi_ports=[
+                MidiPortDescriptor(kind=MIDI_INPUT_KIND, port_id=0, name='Pads', interface='ALSA')
+            ],
+        )
+        mocker.patch.object(active_sources(), 'devices', return_value=registry)
+
+        with caplog.at_level('WARNING'):
+            engine.enter_playback_devices(
+                recorded=recorded_devices(
+                    options={
+                        'midi_input': json_safe_value(['Pads']),
+                        'midi_output': json_safe_value([]),
+                    },
+                    scene_start_devices=None,
+                ),
+                registry=registry,
+            )
+
+        (proxy,) = engine.midi_manager.ports.values()
+        assert proxy.descriptor.name == 'Pads'
+        assert proxy.port is registry.midi_input_for_port(port_id=0)
+        assert [
+            record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING
+        ] == []
+        engine.exit_playback_devices()
+        assert engine.midi_manager.ports is live_ports
+        assert midi_module.Input.call_count == live_opens
+
+    @pytest.mark.parametrize(
+        'options',
+        [
+            None,
+            {},
+            # As a header holds them (a list is tagged)
+            {'midi_input': json_safe_value([]), 'midi_output': json_safe_value([])},
+        ],
+    )
+    def test_a_recording_file_naming_no_midi_port_asks_the_scopes_door_nothing(
+        self, mocker, options
+    ):
+        """Whatever the live run named: an old recording's door holds no MIDI answer."""
+        engine, _midi_module = _engine_with_live_midi_ports(mocker)
+        registry = _playback_door(mocker, descriptors=[], answers=[])
+        asked = _spied_midi_calls(mocker, registry=registry)
+
+        engine.enter_playback_devices(
+            recorded=recorded_devices(options=options, scene_start_devices=None),
+            registry=registry,
+        )
+
+        assert engine.midi_manager.ports == {}
+        for spy in asked:
+            spy.assert_not_called()
+
+    @pytest.mark.parametrize('failing', ['adopt_device', 'adopt_midi_port'])
+    def test_live_midi_ports_come_back_when_entering_fails_part_way(self, mocker, failing):
+        """An error while the scope's devices are made: ending the scope still restores all."""
+        engine, _midi_module = _engine_with_live_midi_ports(mocker)
+        live_ports = engine.midi_manager.ports
+        live_joysticks = engine.joystick_manager.joysticks
+        registry = _playback_door(mocker, descriptors=[], answers=[])
+        mocker.patch.object(registry, failing, side_effect=RuntimeError('cannot adopt'))
+        recorded = dataclasses.replace(RECORDED_MIDI_JOURNAL, scene_start_devices=(RECORDED_PAD,))
+
+        with pytest.raises(RuntimeError, match='cannot adopt'):
+            engine.enter_playback_devices(recorded=recorded, registry=registry)
+        engine.exit_playback_devices()
+
+        assert engine.midi_manager.ports is live_ports
+        assert engine.joystick_manager.joysticks is live_joysticks
 
     def test_entering_twice_is_refused(self, mocker):
         engine, _scene = _engine_with_devices(mocker)
@@ -2790,7 +3012,7 @@ class TestVideoDriverApplied:
         engine = _make_engine(mocker, '--video-driver', 'dummy')
         engine._restore_sdl_driver_variables()
 
-        assert 'SDL_VIDEODRIVER' not in os.environ
+        assert environment_holds(name='SDL_VIDEODRIVER', value=None)
 
     def test_a_display_on_another_driver_is_restarted(self, mocker):
         mocker.patch.dict(os.environ)
