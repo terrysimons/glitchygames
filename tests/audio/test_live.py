@@ -917,16 +917,52 @@ class TestChunksTheChannelNames:
 # Loud enough to clip: a chunk at its gains must hold whatever the samples are
 CLIPPING_LEVEL = 2.0
 FULL_SCALE = 32767
+# A straight ramp across the whole swing is 3 dB down half way; a chunk's loudest is never less
+MINIMUM_RAMP_LOUDNESS = 0.7
+MIXER_VOLUME_STEPS = 128
+
+
+class HeldChannel:
+    """A real channel that never plays on its own: paused whenever a chunk starts on it.
+
+    What is on the channel then changes only when the test says so (``stop`` starts the queued
+    chunk), however long the machine stalls between two lines of a test.
+    """
+
+    def __init__(self, index):
+        """Hold a mixer channel."""
+        self._channel = pygame.mixer.Channel(index)
+
+    def __getattr__(self, name):
+        """Everything else is the channel's own.
+
+        Returns:
+            The channel's attribute.
+        """
+        return getattr(self._channel, name)
+
+    def play(self, sound):
+        """Play a chunk, paused at once."""
+        self._channel.play(sound)
+        self._channel.pause()
+
+    def stop(self):
+        """Stop the chunk; the queued one starts, paused at once."""
+        self._channel.stop()
+        self._channel.pause()
+
+    def unpause(self):
+        """Stay paused: a resumed stream still plays only when the test says so."""
 
 
 def _constant_stream(*, level=0.5, chunk_seconds=0.5, **options):
-    """A stream of constant samples on channel 0: each chunk's level is its gain.
+    """A stream of constant samples on channel 0, held: each chunk's level is its gain.
 
     Returns:
         The stream.
     """
     return LiveStream(
-        channel=pygame.mixer.Channel(0),
+        channel=HeldChannel(0),
         owner='scene',
         render=lambda count: np.full(count, level),
         sample_rate=RATE,
@@ -1021,6 +1057,42 @@ class TestLiveStreamGains:
         np.testing.assert_allclose(following, np.tile([0.0, 0.5], (len(following), 1)), atol=1e-4)
         stream.stop_now()
 
+    def test_a_chunk_that_starts_while_its_rewrite_is_made_is_left_as_it_was(self, mocker):
+        """Rewriting what plays would step: the next chunk ramps instead, from what is heard."""
+        stream = _constant_stream(pan=-1.0)
+        stream.start()
+        stream.update()
+        queued = stream.channel.get_queue()
+        before = _frames(queued)
+        real = live.panned_pcm16
+
+        def promoted_meanwhile(*arguments, **settings):
+            stream.channel.stop()  # the queued chunk starts
+            return real(*arguments, **settings)
+
+        patched = mocker.patch.object(live, 'panned_pcm16', side_effect=promoted_meanwhile)
+        stream.set_pan(1.0)
+        mocker.stop(patched)
+        stream.update()
+
+        assert stream.channel.get_sound() is queued
+        np.testing.assert_array_equal(_frames(queued), before)
+        following = _frames(stream.channel.get_queue())
+        np.testing.assert_allclose(following[0], [0.5, 0.0], atol=1e-3)
+        np.testing.assert_allclose(following[-1], [0.0, 0.5], atol=1e-4)
+        stream.stop_now()
+
+    def test_a_pan_set_to_what_it_is_rewrites_nothing(self, mocker):
+        stream = _constant_stream(pan=-1.0)
+        stream.start()
+        stream.update()
+        rewrite = mocker.patch.object(live, 'panned_pcm16')
+
+        stream.set_pan(-1.0)
+
+        rewrite.assert_not_called()
+        stream.stop_now()
+
     def test_a_pan_change_with_nothing_queued_ramps_across_the_next_chunk(self):
         stream = _constant_stream(pan=-1.0)
         stream.start()
@@ -1084,6 +1156,7 @@ class TestLiveStreamGains:
             stream = audio.create_instrument_voice(
                 owner='scene', instrument=SINE, frequency=220.0, options=LONG_CHUNK
             ).stream
+            stream._channel = HeldChannel(block.live[0])
             stream.start()
             stream.update()
             queued = stream.channel.get_queue()
@@ -1103,7 +1176,7 @@ class TestLiveStreamGains:
         mono = []
         for pans in ((), (-1.0, 0.5)):
             stream = _voice(
-                pygame.mixer.Channel(0),
+                HeldChannel(0),
                 instrument=noise,
                 random_source=np.random.default_rng(5),
                 options=LONG_CHUNK,
@@ -1155,6 +1228,7 @@ class TestLiveStreamGains:
         gain = 1.0
         stream = _constant_stream(level=CLIPPING_LEVEL, gain_source=lambda: gain)
         stream.start()
+        rendered = [(stream.channel.get_sound(), gain)]  # each chunk, the gain it was rendered at
         for _ in range(60):
             action = chooser.integers(5)
             if action == 0:
@@ -1171,8 +1245,13 @@ class TestLiveStreamGains:
                 gain = float(chooser.uniform(0.0, 1.0))
             stream.update()
             for chunk in _channel_slots(stream.channel):
-                power = np.square(pygame.sndarray.array(chunk) / FULL_SCALE).sum(axis=1)
-                assert power.max() <= 1.0 + 1e-4
+                if not any(chunk is known for known, _ in rendered):
+                    rendered.append((chunk, gain))
+            for chunk, gain_in_force in rendered:
+                loudness = np.sqrt(np.square(_frames(chunk)).sum(axis=1)).max()
+                assert loudness <= gain_in_force + 1e-4
+                assert loudness >= gain_in_force * MINIMUM_RAMP_LOUDNESS - 2.0 / MIXER_VOLUME_STEPS
+        assert len(rendered) > 20
         assert stream.state is VoiceState.PLAYING
         stream.stop_now()
 
@@ -1251,7 +1330,7 @@ class TestHeardPans:
     def test_a_sound_on_the_left_is_never_heard_on_the_right(self, heard, case):
         frames = heard(case)
 
-        assert frames[:, 1].max() == 0.0
+        assert np.abs(frames[:, 1]).max() == 0.0
         assert frames[:, 0].max() == pytest.approx(self.LEVEL, abs=self.TOLERANCE)
 
     def test_a_centred_sound_on_a_channel_left_panned_is_at_the_centre_gain_throughout(self, heard):
@@ -1263,7 +1342,7 @@ class TestHeardPans:
     def test_a_stealer_is_heard_on_its_own_side_and_the_stolen_on_its_own(self, heard):
         frames = heard(live_pan_probe.STOLEN)
 
-        assert np.minimum(frames[:, 0], frames[:, 1]).max() == 0.0
+        assert np.minimum(np.abs(frames[:, 0]), np.abs(frames[:, 1])).max() == 0.0
         assert frames[0, 0] == pytest.approx(self.LEVEL, abs=self.TOLERANCE)
         assert frames[-1, 1] == pytest.approx(self.LEVEL, abs=self.TOLERANCE)
 
@@ -1275,6 +1354,7 @@ class TestHeardPans:
         np.testing.assert_allclose(frames[-1], [0.0, self.LEVEL], atol=self.TOLERANCE)
 
     def test_the_channels_next_user_inherits_no_pan(self, heard):
+        """A guard, not a regression's proof: the mixer dropped the pan before the fix too."""
         frames = heard(live_pan_probe.NEXT_USER)
 
         np.testing.assert_allclose(frames[-1], live_pan_probe.NEXT_USER_LEVEL, atol=self.TOLERANCE)

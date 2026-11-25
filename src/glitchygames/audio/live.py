@@ -15,14 +15,20 @@ margin is the rest of the playing chunk minus one device buffer: about 88 ms at 
 Channel facts this module relies on (pygame-ce 2.5.8): Channel.stop() and Channel.fadeout()
 start the queued sound, so fades are rendered into the samples and stop_now() calls stop()
 twice; set_reserved(n) reserves channels 0..n-1; set_num_channels(smaller) stops sounds on the
-removed channels, so the pool is reserved once at startup and never resized. SDL_mixer keeps
-volume and pan on the channel and drops them when a queued chunk starts (and ``Channel.play``
-gives full volume again), so a channel's gains reach only the first chunk: a stream's gains are
-rendered into its chunks, side by side, and its channel stays at full on both
-(bugs/2026-11-25-live-sounds-lose-their-pan.md). A pan change is ramped across a chunk: the one
-queued, rewritten in place, so it starts within one chunk and never steps. The rewrite renders
-nothing again (no noise is drawn) and makes no mixer call: should the queued chunk start while
-it is rewritten, both versions start at the same gains, so there is no step to hear.
+removed channels, so the pool is reserved once at startup and never resized. SDL_mixer
+keeps a channel's volume from one sound to the next, but a pan is an effect it removes when the
+channel's sound ends: ``set_volume(left, right)`` (a pan, at full volume) reaches only the first
+chunk. So a stream's gains are rendered into its chunks, side by side, and its channel is set to
+full on both sides before each play, as it may still have a volume or a pan another user left
+(bugs/2026-11-25-live-sounds-lose-their-pan.md).
+
+A pan change is ramped across a chunk: the queued one, rewritten in place, so it starts within
+one chunk. The rewrite renders nothing again (no noise is drawn) and makes no mixer call that
+changes anything. Its samples are made first, and written only if the chunk is still queued;
+otherwise the next chunk rendered ramps. What is left is the copy itself: if the chunk starts
+between that check and the copy's end, the mixer plays the old version up to where it has got
+to, then the new one. Both start at the same gains, so the step is at most the change in gain
+times the part of the chunk played by then (one mixer buffer of a 0.1 s chunk: 0.116).
 
 A stream holds its own reference to every chunk it plays or queues until its channel has moved
 past it (``LiveStream.held_chunks``), so pygame's channel table never holds a chunk's last
@@ -368,8 +374,9 @@ class LiveStream:
     def set_pan(self, pan: float) -> None:
         """Pan by the constant-power law, ramped across the next chunk to start.
 
-        That is the chunk queued, rewritten in place, or the next one rendered when none is. The
-        chunk playing plays on as it is: the change starts within one chunk.
+        That is the chunk queued, rewritten in place, or the next one rendered when none is (or
+        when the queued one started meanwhile). The chunk playing plays on as it is: the change
+        starts within one chunk (what is left of the race: the module docstring).
 
         Raises:
             ValueError: For a pan outside -1 to 1.
@@ -380,16 +387,23 @@ class LiveStream:
         self._pan = pan
         if self._channel is None or self._newest_samples is None:
             return  # the first chunk starts at the pan
+        ending_gains = self._pan_gains()
+        if ending_gains == self._newest_ending_gains:
+            return  # the newest chunk ends there already
         _, queued = _channel_table_slots(self._channel)
         if queued is None or not self._held_chunks or queued is not self._held_chunks[-1]:
             return  # nothing of its own waits: the next chunk rendered ramps to the pan
-        self._newest_ending_gains = self._pan_gains()
         frames = pygame.sndarray.samples(queued)
-        frames[...] = panned_pcm16(
+        panned = panned_pcm16(
             self._newest_samples,
-            side_gains=self._newest_side_gains(),
+            side_gains=self._side_gains(starting=self._newest_starting_gains, ending=ending_gains),
             channel_count=1 if frames.ndim == 1 else frames.shape[1],
         )
+        _, still_queued = _channel_table_slots(self._channel)
+        if still_queued is not queued:
+            return  # it started meanwhile: the next chunk rendered ramps from what is heard
+        self._newest_ending_gains = ending_gains
+        frames[...] = panned
 
     def hold(self) -> bool:
         """Pause until ``release_hold``, whatever the owner rules say.
@@ -523,7 +537,7 @@ class LiveStream:
         self._newest_samples = samples
         self._newest_starting_gains = self._newest_ending_gains or target
         self._newest_ending_gains = target
-        side_gains = self._newest_side_gains()
+        side_gains = self._side_gains(starting=self._newest_starting_gains, ending=target)
         if not self._audio_route.audible:
             return to_sound(samples, volume=0.0, side_gains=side_gains)
         return to_sound(
@@ -540,17 +554,17 @@ class LiveStream:
         """
         return constant_power_gains(pan=self._pan, gain=1.0)
 
-    def _newest_side_gains(self) -> FloatArray:
-        """Each sample's left and right gain in the newest chunk: a straight line between its ends.
+    def _side_gains(
+        self, *, starting: tuple[float, float], ending: tuple[float, float]
+    ) -> FloatArray:
+        """Each sample's left and right gain in a chunk: a straight line between its ends.
 
         Returns:
-            (sample count, 2): the first sample has left its starting gains, the last is at its
+            (sample count, 2): the first sample has left the starting gains, the last is at the
             ending ones.
         """
-        starting = np.array(self._newest_starting_gains)
-        ending = np.array(self._newest_ending_gains)
         ramp = np.arange(1, self._chunk_samples + 1)[:, np.newaxis] / self._chunk_samples
-        return starting + (ending - starting) * ramp
+        return np.array(starting) + (np.array(ending) - np.array(starting)) * ramp
 
     def _fade_gains(self, count: int) -> FloatArray:
         positions = self._fade_remaining_samples - np.arange(1, count + 1)

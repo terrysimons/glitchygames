@@ -6,7 +6,9 @@ tests/audio/channel_fade_probe.py). Only the mixer's output shows what a channel
 SDL_mixer drops a channel's pan when a queued chunk starts, and no call reads a pan back.
 
 Every live sound here is a constant, so its level is its gain and a chunk cut short is no step.
-Nothing the test asserts depends on when the mixer thread runs.
+Each case goes on until enough chunks have been rendered, which a slow device only makes longer
+(``WAIT_LIMIT_SECONDS`` bounds it, and passing it fails the probe); the restart waits until the
+channel has drained. No level the test asserts depends on how fast the mixer thread runs.
 """
 
 from __future__ import annotations
@@ -22,6 +24,8 @@ from glitchygames.audio.diagnostics import DEFAULT_BUFFER_SAMPLES, DEFAULT_SAMPL
 from glitchygames.audio.live import LiveStream, LiveVoiceOptions
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from glitchygames.audio.synth import FloatArray
 
 LEFT = 'left'
@@ -47,15 +51,38 @@ LEVEL = 0.5
 NEXT_USER_LEVEL = 0.25
 CHUNK_SECONDS = 0.1
 FRAME_SECONDS = 1.0 / 60.0
-# Long enough for several chunks to play out
-PLAY_SECONDS = 0.45
-# Longer than a playing and a queued chunk: the channel drains
-STALL_SECONDS = 0.4
+# Chunks rendered per stretch: all but the last two have played (a chunk cut short by a restart
+# over a queued one, the bug record's open sibling, leaves plenty)
+CHUNKS_PER_STRETCH = 8
+# No stretch takes this long, however slow the device
+WAIT_LIMIT_SECONDS = 50.0
+PAUSE_SECONDS = 0.1
 INT16_FULL_SCALE = 32767
 
 
+_rendered_chunk_counts: list[int] = []
+
+
 def _constant(count: int) -> FloatArray:
+    _rendered_chunk_counts.append(count)
     return np.full(count, LEVEL)
+
+
+def _wait_until(condition: Callable[[], bool], *, stream: LiveStream | None = None) -> None:
+    """Wait for a condition, updating a stream each frame as ``LiveAudio.update`` does.
+
+    Raises:
+        TimeoutError: After ``WAIT_LIMIT_SECONDS``.
+    """
+    waited = 0.0
+    while not condition():
+        if waited > WAIT_LIMIT_SECONDS:
+            message = 'the mixer played too slowly: the recording would prove nothing'
+            raise TimeoutError(message)
+        clock.raw_sleep(FRAME_SECONDS)
+        waited += FRAME_SECONDS
+        if stream is not None:
+            stream.update()
 
 
 def _started(channel: pygame.mixer.Channel, *, pan: float) -> LiveStream:
@@ -76,10 +103,9 @@ def _started(channel: pygame.mixer.Channel, *, pan: float) -> LiveStream:
 
 
 def _play_on(stream: LiveStream) -> None:
-    """Update a stream each frame, as ``LiveAudio.update`` does."""
-    for _ in range(round(PLAY_SECONDS / FRAME_SECONDS)):
-        clock.raw_sleep(FRAME_SECONDS)
-        stream.update()
+    """Play a stretch of chunks."""
+    target = len(_rendered_chunk_counts) + CHUNKS_PER_STRETCH
+    _wait_until(lambda: len(_rendered_chunk_counts) >= target, stream=stream)
 
 
 def play(case: str) -> None:
@@ -90,11 +116,11 @@ def play(case: str) -> None:
     stream = _started(channel, pan=0.0 if case in {CENTRE_ON_A_PANNED_CHANNEL, MOVED} else -1.0)
     _play_on(stream)
     if case == RESTARTED:
-        clock.raw_sleep(STALL_SECONDS)
+        _wait_until(lambda: not channel.get_busy() and channel.get_sound() is None)
         _play_on(stream)
     elif case == PAUSED:
         stream.pause()
-        clock.raw_sleep(STALL_SECONDS)
+        clock.raw_sleep(PAUSE_SECONDS)
         stream.resume()
         _play_on(stream)
     elif case == STOLEN:
@@ -103,7 +129,7 @@ def play(case: str) -> None:
         _play_on(stream)
     elif case == RELEASED:
         stream.stop(fade_out=CHUNK_SECONDS)
-        _play_on(stream)
+        _wait_until(lambda: stream.is_finished, stream=stream)
     elif case == MOVED:
         stream.set_pan(1.0)
         _play_on(stream)
@@ -111,7 +137,7 @@ def play(case: str) -> None:
     if case == NEXT_USER:
         frames = np.full((DEFAULT_SAMPLE_RATE // 4, 2), NEXT_USER_LEVEL * INT16_FULL_SCALE)
         channel.play(pygame.sndarray.make_sound(frames.astype(np.int16)))
-        clock.raw_sleep(STALL_SECONDS)
+        _wait_until(lambda: not channel.get_busy())
 
 
 def main(argv: list[str]) -> int:
