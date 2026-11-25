@@ -1106,8 +1106,8 @@ class TableChannel:
 
 # Every state pygame and SDL can leave a channel in as Python reads it: (sound, queue, busy, the
 # pending callback). Busy with no playing slot is not one: the callback and chan_play fill the slot
-# with the GIL (TableChannel). Nor is a named Sound that SDL neither plays nor has a callback pending
-# for: SDL_mixer leaves some short finite loops so, and a stream's chunks never loop
+# with the GIL (TableChannel). Nor is a named Sound that SDL neither plays nor has a callback
+# pending for: SDL_mixer leaves some short finite loops so, and a stream's chunks never loop
 # (test_a_short_loop_sdl_never_reports_ended_reads_as_playing_after_a_bounded_wait).
 CHANNEL_CASES = {
     'empty': (False, False, False, None),
