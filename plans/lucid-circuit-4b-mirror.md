@@ -143,10 +143,13 @@ calls, seven replays and two inner games; all matched their recordings). Nothing
 ### What the live game sees that no recording holds
 
 Each can make the mirror drift, and is the proxy's worklist, the likeliest first: clipboard text;
-contents of dropped or opened files; Bitmappy's AI answers; live voices' `is_playing`, `release()` and
-`stop()` results, which read the real mixer's time; a mixer missing live but present in the replay; a
-save that failed to write; the window's size changed mid-run; the hash seed and environment; rumble and
-light return values, power level and system fonts.
+contents of dropped or opened files; Bitmappy's AI answers; live voices' `is_playing`, `is_finished`,
+`cancel()` and `set_pan` results and a full live pool's choice, which read the real mixer's time
+(`release()` and `stop()` do not); a mixer missing live but present in the replay; a save that failed
+to write; the hash seed and environment; rumble and light return values, power level and system fonts.
+The window's size is not one: the engine's windows are SCALED, so the surface a game draws on keeps its
+size, and resize events are recorded. Each has its record in `bugs/` (2026-11-24), all but the hash
+seed, the environment and system fonts.
 
 ### Enforcement
 
