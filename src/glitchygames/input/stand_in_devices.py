@@ -67,6 +67,10 @@ if TYPE_CHECKING:
 STAND_IN_DOORS_RANDOM_SEED = 1
 # What a failing stand-in MIDI port says (PortMidi's own text for a vanished device)
 FAILING_PORT_MESSAGE = 'Host error'
+# How many messages a stand-in MIDI input queues, as PortMidi does (pygame's default), and what a
+# read of one that overflowed raises (bytes, pygame-ce 2.5.8)
+STAND_IN_MIDI_QUEUE_CAPACITY = 4096
+OVERFLOWED_PORT_MESSAGE = b'PortMidi: Buffer overflow'
 
 
 class StandInPortMidiError(Exception):
@@ -75,6 +79,62 @@ class StandInPortMidiError(Exception):
     PortMidi (pypm.pyx) raises a plain ``Exception``, which is neither a ``pygame.error`` nor a
     ``pygame.midi.MidiException``; this is as plain as a named class can be.
     """
+
+
+class StandInMidiQueue:
+    """What waits on a stand-in MIDI input, kept as PortMidi keeps it (seen on a virtual port).
+
+    A full queue refuses the message that overflows it and all later ones; what it holds is still
+    read, and then one read raises the overflow (losing what that read had taken): after it the
+    port works again.
+
+    Attributes:
+        is_failing: True once every call on the port raises (a vanished device).
+
+    """
+
+    def __init__(self: Self) -> None:
+        """Start empty."""
+        self._messages: collections.deque[tuple[list[int], int]] = collections.deque()
+        self._has_overflowed = False
+        self.is_failing = False
+
+    @property
+    def has_messages(self: Self) -> bool:
+        """Whether messages wait (False for an overflow that no read has met yet)."""
+        return bool(self._messages)
+
+    def send(self: Self, *, messages: Sequence[tuple[list[int], int]]) -> None:
+        """Queue messages, until one overflows the queue.
+
+        Args:
+            messages: PortMidi's messages: ``([status, data1, data2, data3], timestamp)``.
+
+        """
+        for message in messages:
+            if self._has_overflowed or len(self._messages) >= STAND_IN_MIDI_QUEUE_CAPACITY:
+                self._has_overflowed = True
+                return
+            self._messages.append(message)
+
+    def take(self: Self, *, count: int) -> list[tuple[list[int], int]]:
+        """Take up to ``count`` messages, oldest first.
+
+        Args:
+            count: The most to take.
+
+        Returns:
+            The messages.
+
+        Raises:
+            StandInPortMidiError: If the queue ran out and had overflowed (once).
+
+        """
+        taken = [self._messages.popleft() for _ in range(min(count, len(self._messages)))]
+        if self._has_overflowed and len(taken) < count:
+            self._has_overflowed = False
+            raise StandInPortMidiError(OVERFLOWED_PORT_MESSAGE)
+        return taken
 
 
 class StandInMidiInput(ReplayMidiInput):
@@ -88,20 +148,17 @@ class StandInMidiInput(ReplayMidiInput):
         self: Self,
         *,
         descriptor: MidiPortDescriptor,
-        pending: collections.deque[tuple[list[int], int]],
-        failing_port_ids: set[int],
+        queue: StandInMidiQueue,
     ) -> None:
         """Hold the queue the registry keeps for this port.
 
         Args:
             descriptor: The port.
-            pending: The queued messages (shared with the registry, which fills it).
-            failing_port_ids: The ports whose reads raise (shared with the registry).
+            queue: What waits on the port (shared with the registry, which fills it).
 
         """
         super().__init__(descriptor=descriptor)
-        self._pending = pending
-        self._failing_port_ids = failing_port_ids
+        self._queue = queue
 
     @override
     def poll(self: Self) -> bool:
@@ -115,7 +172,7 @@ class StandInMidiInput(ReplayMidiInput):
 
         """
         self._raise_when_failing()
-        return bool(self._pending)
+        return self._queue.has_messages
 
     @override
     def read(self: Self, num_events: int) -> list[Any]:
@@ -126,11 +183,10 @@ class StandInMidiInput(ReplayMidiInput):
 
         """
         self._raise_when_failing()
-        count = min(num_events, len(self._pending))
-        return [self._pending.popleft() for _ in range(count)]
+        return self._queue.take(count=num_events)
 
     def _raise_when_failing(self: Self) -> None:
-        if self.descriptor.port_id in self._failing_port_ids:
+        if self._queue.is_failing:
             raise StandInPortMidiError(FAILING_PORT_MESSAGE)
 
 
@@ -165,9 +221,8 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         self._given_answers: list[EnumerationAnswer] = []
         self._opened_descriptors: list[DeviceDescriptor] = []
         self._opened_midi_ports: list[MidiPortDescriptor] = []
-        # MIDI messages queued per port id, and the ports that fail when read
-        self._pending_midi_messages: dict[int, collections.deque[tuple[list[int], int]]] = {}
-        self._failing_midi_port_ids: set[int] = set()
+        # What waits on each MIDI input, by port id
+        self._midi_queues: dict[int, StandInMidiQueue] = {}
         self._midi_input_reader = MidiInputReader()
 
     @override
@@ -334,13 +389,11 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
 
         """
         return StandInMidiInput(
-            descriptor=descriptor,
-            pending=self._pending_for(port_id=descriptor.port_id),
-            failing_port_ids=self._failing_midi_port_ids,
+            descriptor=descriptor, queue=self._midi_queue(port_id=descriptor.port_id)
         )
 
-    def _pending_for(self: Self, *, port_id: int) -> collections.deque[tuple[list[int], int]]:
-        return self._pending_midi_messages.setdefault(port_id, collections.deque())
+    def _midi_queue(self: Self, *, port_id: int) -> StandInMidiQueue:
+        return self._midi_queues.setdefault(port_id, StandInMidiQueue())
 
     def queue_midi_input(
         self: Self, *, port_id: int, messages: Sequence[tuple[list[int], int]]
@@ -352,7 +405,7 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
             messages: PortMidi's messages: ``([status, data1, data2, data3], timestamp)``.
 
         """
-        self._pending_for(port_id=port_id).extend(messages)
+        self._midi_queue(port_id=port_id).send(messages=messages)
 
     def fail_midi_input(self: Self, *, port_id: int) -> None:
         """Make a port raise a plain ``Exception`` whenever it is read.
@@ -361,7 +414,7 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
             port_id: The port's position in ``midi_ports``.
 
         """
-        self._failing_midi_port_ids.add(port_id)
+        self._midi_queue(port_id=port_id).is_failing = True
 
     def read_midi_input(self: Self) -> list[pygame.event.Event]:
         """Return the MIDIIN events the opened stand-in input ports hold, as the live registry does.

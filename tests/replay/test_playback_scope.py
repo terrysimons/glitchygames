@@ -1053,6 +1053,8 @@ MIDI_CONTROLS = [
 # (status, data1, data2) of what is no press, release or control: it reaches nothing
 MIDI_MOTION = [
     (0xB0, 122, 0),  # Local control
+    # Registered and other parameters: data entry and their numbers
+    *((0xB0, control, 1) for control in (6, 38, 96, 97, 98, 99, 100, 101)),
     (0xC0, 5, 0),  # A program change
     (0xF0, 0, 0),  # A system-exclusive message
     (0xF8, 0, 0),  # The MIDI clock
@@ -1127,6 +1129,22 @@ MIDI_CONTROL_SEQUENCES = {
         [(0xB0, 64, 0), (0xB0, 64, 127), (0xB0, 64, 10), (0xB0, 64, 127)],
         [(0xB0, 64, 10), (0xB0, 64, 127)],
     ),
+    'a pedal pressed further keeps its place before a note-off': (
+        [(0xB0, 64, 70), (0x80, 60, 0), (0xB0, 64, 127)],
+        [(0xB0, 64, 127), (0x80, 60, 0)],
+    ),
+    'a pedal pressed again after a release goes after it': (
+        [(0xB0, 64, 70), (0xB0, 64, 0), (0x80, 60, 0), (0xB0, 64, 80), (0xB0, 64, 90)],
+        [(0xB0, 64, 0), (0x80, 60, 0), (0xB0, 64, 90)],
+    ),
+    'the controllers beside the parameter numbers and data': (
+        [(0xB0, control, 1) for control in (5, 7, 37, 39, 95, 102)],
+        [(0xB0, control, 1) for control in (5, 7, 37, 39, 95, 102)],
+    ),
+    'two pedals pressed': (
+        [(0xB0, 64, 70), (0xB0, 66, 80)],
+        [(0xB0, 64, 70), (0xB0, 66, 80)],
+    ),
     'a reset then a move': (
         [(0xB0, 1, 9), (0xB0, 121, 0), (0xB0, 2, 4)],
         [(0xB0, 1, 9), (0xB0, 121, 0), (0xB0, 2, 4)],
@@ -1186,7 +1204,12 @@ class TestContinuousMidiControlsDuringAScope:
             assert [data2 for _status, _data1, data2 in live_scene.messages] == [1, 2]
 
     @pytest.mark.draws_frames
-    def test_the_live_games_own_post_is_never_taken_for_the_players(self, tmp_path):
+    @pytest.mark.parametrize(
+        ('status', 'control'), [(0xE0, 0), (0xB0, 64)], ids=['wheel', 'pedal pressed']
+    )
+    def test_the_live_games_own_post_is_never_taken_for_the_players(
+        self, tmp_path, status: int, control: int
+    ):
         """A MIDIIN the live game posted before the scope stays held beside a later one."""
         recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
         with running_scene(MidiMarkerScene) as manager:
@@ -1195,11 +1218,11 @@ class TestContinuousMidiControlsDuringAScope:
             assert start_playback_from_recording(
                 manager=manager, path=recording_path, then=live_scene
             )
-            post_event(midi_message(status=0xE0, data1=0, data2=1))
+            post_event(midi_message(status=status, data1=control, data2=101))
             step(manager)
-            step(manager, midi_message(status=0xE0, data1=0, data2=2))
+            step(manager, midi_message(status=status, data1=control, data2=102))
             step(manager, frames=SHORT_RECORDED_FRAMES)
-            assert [data2 for _status, _data1, data2 in live_scene.messages] == [1, 2]
+            assert [data2 for _status, _data1, data2 in live_scene.messages] == [101, 102]
 
     @pytest.mark.draws_frames
     def test_a_session_recorded_across_a_scope_with_a_wheel_replays_exactly(self, tmp_path):
@@ -1846,8 +1869,11 @@ def record_a_session_then_replay_it(
         engine = manager.game_engine
         assert engine is not None
         engine.start_trace_recording(path=session_path)
-        play_in_the_session(manager, is_live=True)
-        engine.stop_trace_recording()
+        try:
+            play_in_the_session(manager, is_live=True)
+        finally:
+            # A failing session's open file would be blamed on a later test
+            engine.stop_trace_recording()
     _header, session_frames = recorded_trace(path=session_path)
     with running_scene(
         scene_class,

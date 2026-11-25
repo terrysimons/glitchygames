@@ -140,9 +140,14 @@ OPEN_MIDI_OUTPUT_CALL = 'open_midi_output'
 MIDI_UNAVAILABLE_MESSAGE = 'pygame.midi is unavailable in this pygame build'
 # What PortMidi answers for "no default port"
 NO_MIDI_PORT_ID = -1
-# How many messages one read of a MIDI input asks for (a bigger burst takes several reads)
+# How many messages one read of a MIDI input asks for (a bigger burst takes several reads). It
+# divides PortMidi's buffer (4096, pygame's default): a read that meets an overflow part way loses
+# what it had taken, and a full buffer read in these batches ends on a batch
 MIDI_READ_BATCH = 64
-# How many of an input's reads (one per frame) without an overflow end a burst of them
+# The most messages taken from one port in one frame (a whole buffer, its overflow and some of what
+# came after it); the rest waits for the next frame, in order
+MIDI_MESSAGES_PER_PORT_PER_FRAME = 80 * MIDI_READ_BATCH
+# How many frames an input is read without an overflow before a burst of them ends
 MIDI_OVERFLOW_QUIET_READS = 60
 # What PortMidi calls a full input buffer (_is_midi_buffer_overflow)
 MIDI_BUFFER_OVERFLOW_TEXT = 'Buffer overflow'
@@ -669,10 +674,6 @@ def _notify_midi_port_handed_back(*, call: str, descriptor: MidiPortDescriptor) 
 class MidiPortReadable(Protocol):
     """What the frame reads of an opened MIDI input (pygame.midi.Input, ReplayMidiInput)."""
 
-    def poll(self: Self) -> bool:
-        """Say whether messages are waiting."""
-        ...
-
     def read(self: Self, num_events: int) -> list[Any]:
         """Return up to ``num_events`` waiting messages, ``[[status, data1, data2, data3], t]``."""
         ...
@@ -730,12 +731,16 @@ class MidiInputReader:
     """Reads opened MIDI input ports into MIDIIN events, dropping a port that fails.
 
     One reader per registry, so the live and the stand-in registries share this one code path.
-    A port whose buffer overflowed (``_is_midi_buffer_overflow``: the game fell behind) lost
-    input and is read on: at once, and, if it overflowed again, in the next frame. The loss is
-    logged once per port per burst, a burst ending after ``MIDI_OVERFLOW_QUIET_READS`` of the
-    port's reads without one, so a port logs at most once in that many frames.
+    A port is read until a read returns nothing, never asked whether messages wait: a full PortMidi
+    buffer (seen on a virtual port: PortMidi 2.0.7, pygame-ce 2.5.8) hands over what it holds, then
+    ``poll`` is False and all further input is refused until a ``read`` raises the overflow, once
+    (``_is_midi_buffer_overflow``: the game fell behind and input was lost); after that the port
+    works. The port is read on in the same frame, but a second overflow ends its frame, as
+    ``MIDI_MESSAGES_PER_PORT_PER_FRAME`` messages do. The loss is logged once per port per burst,
+    a burst ending after ``MIDI_OVERFLOW_QUIET_READS`` frames of the port's without one, so a port
+    logs at most once in that many frames.
 
-    A port whose ``poll`` or ``read`` raises anything else (PortMidi raises a plain
+    A port whose ``read`` raises anything else (PortMidi raises a plain
     ``Exception``) is dropped for the rest of the run: logged once with its port id and name, and
     never read again. It is not closed: a port that failed mid-run is a device that went away, and
     PortMidi's own close on it can raise too; it stays in the registry's opened ports, so the
@@ -755,7 +760,7 @@ class MidiInputReader:
         inputs: Mapping[int, MidiPortReadable],
         port_names: Mapping[int, str],
     ) -> list[pygame.event.Event]:
-        """Read every opened input, in port-id order, until each has nothing left waiting.
+        """Read every opened input, in port-id order, until each has nothing left (or its cap).
 
         Args:
             midi_module: ``pygame.midi`` (for ``midis2events``).
@@ -782,7 +787,7 @@ class MidiInputReader:
     def _waiting_messages(
         self: Self, *, port_id: int, port: MidiPortReadable, port_name: str
     ) -> list[Any]:
-        """Take everything waiting on a port; what it gave before it failed is kept.
+        """Take what waits on a port, up to the frame's cap; what it gave before failing is kept.
 
         Returns:
             PortMidi's messages, oldest first.
@@ -804,20 +809,20 @@ class MidiInputReader:
     def _read_until_failure(
         self: Self, *, port_id: int, port: MidiPortReadable, port_name: str, messages: list[Any]
     ) -> bool:
-        """Add what waits on a port to ``messages``, until nothing does or a call fails.
+        """Add what waits on a port to ``messages``, until nothing does, the cap or a failure.
 
         Returns:
             True when its buffer overflowed. Any other failure drops the port.
 
         """
         try:
-            while port.poll():
+            while len(messages) < MIDI_MESSAGES_PER_PORT_PER_FRAME:
                 batch = port.read(MIDI_READ_BATCH)
                 if not batch:
                     break
                 messages.extend(batch)
         except Exception as error:
-            # PortMidi's Poll and Read raise a plain Exception (pypm.pyx), not MidiException
+            # PortMidi's Read raises a plain Exception (pypm.pyx), not MidiException
             if _is_midi_buffer_overflow(error=error):
                 return True
             self._dropped_port_ids.add(port_id)
@@ -1132,8 +1137,10 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         """Return the MIDIIN events every opened input port received since the last call.
 
         Ports are read in port-id order, each until nothing is waiting, so a burst larger than
-        ``MIDI_READ_BATCH`` arrives whole, in one frame. Only opened ports are read. A port that
-        raises is dropped for the rest of the run (``MidiInputReader``).
+        ``MIDI_READ_BATCH`` arrives whole, in one frame, up to
+        ``MIDI_MESSAGES_PER_PORT_PER_FRAME`` (the rest the next frame). Only opened ports are
+        read. A port that raises is dropped for the rest of the run, unless its buffer only
+        overflowed (``MidiInputReader``).
 
         Returns:
             The events (``vice_id`` is the port id; timestamps are PortMidi's).

@@ -9,6 +9,7 @@ import pytest
 
 from glitchygames.input.devices import (
     MIDI_INPUT_KIND,
+    MIDI_MESSAGES_PER_PORT_PER_FRAME,
     MIDI_OUTPUT_KIND,
     MIDI_OVERFLOW_QUIET_READS,
     MIDI_READ_BATCH,
@@ -28,7 +29,10 @@ from glitchygames.input.devices import (
     find_midi_port,
     sdl_controller_module,
 )
-from glitchygames.input.stand_in_devices import StandInPortMidiError
+from glitchygames.input.stand_in_devices import (
+    STAND_IN_MIDI_QUEUE_CAPACITY,
+    StandInPortMidiError,
+)
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.sources import (
@@ -1317,29 +1321,60 @@ TWO_INPUT_PORTS = [(b'CoreMIDI', b'Keys', 1, 0, 0), (b'CoreMIDI', b'Pads', 1, 0,
 
 
 class FakePortMidiInput:
-    """A PortMidi input as the hardware gives it: queued messages, read in batches."""
+    """A PortMidi input as the hardware gives it (seen on a virtual port; pygame-ce 2.5.8).
 
-    def __init__(self, *, messages, fails=False, fails_after_reads=None):
-        """Queue the messages; it raises a plain Exception on every poll once ``fails``.
+    It queues up to ``capacity`` messages. One more overflows it: that and all later input is
+    refused, ``poll`` is False once the queue is read, and the next ``read`` raises once (losing
+    what that read had taken); then the port works again.
+    """
 
-        ``fails_after_reads`` makes it fail from the poll after that many reads.
+    def __init__(
+        self,
+        *,
+        messages=(),
+        fails=False,
+        fails_after_reads=None,
+        capacity=4096,
+        overflow_message=b'PortMidi: Buffer overflow',
+    ):
+        """Queue the messages; every call raises a plain Exception once ``fails``.
+
+        ``fails_after_reads`` makes it fail from the call after that many reads.
         """
-        self.messages = list(messages)
+        self.messages = []
         self.fails = fails
         self.fails_after_reads = fails_after_reads
+        self.capacity = capacity
+        self.overflow_message = overflow_message
+        self.overflowed = False
         self.read_sizes = []
+        self.send(messages)
 
-    def poll(self):
+    def send(self, messages):
+        for message in messages:
+            if self.overflowed or len(self.messages) >= self.capacity:
+                self.overflowed = True
+            else:
+                self.messages.append(message)
+
+    def _raise_when_failing(self):
         after_reads = self.fails_after_reads
         if self.fails or (after_reads is not None and len(self.read_sizes) >= after_reads):
-            # PortMidi's Poll raises a plain Exception (pypm.pyx)
+            # PortMidi's Poll and Read raise a plain Exception (pypm.pyx)
             message = 'Host error'
             raise StandInPortMidiError(message)
+
+    def poll(self):
+        self._raise_when_failing()
         return bool(self.messages)
 
     def read(self, num_events):
+        self._raise_when_failing()
         self.read_sizes.append(num_events)
         batch, self.messages = self.messages[:num_events], self.messages[num_events:]
+        if self.overflowed and len(batch) < num_events:
+            self.overflowed = False
+            raise StandInPortMidiError(self.overflow_message)
         return batch
 
 
@@ -1375,7 +1410,8 @@ def test_a_live_burst_larger_than_one_read_is_read_whole_in_port_order(mocker):
 
     assert [event.vice_id for event in events] == [0] * len(burst) + [1]
     assert _timestamps(events[: len(burst)]) == list(range(len(burst)))
-    assert keys.read_sizes == [MIDI_READ_BATCH] * 3
+    # The last read, past the short batch, finds nothing
+    assert keys.read_sizes == [MIDI_READ_BATCH] * 4
     assert all(event.type == pygame.MIDIIN for event in events)
     assert registry.read_midi_input() == []
 
@@ -1441,7 +1477,7 @@ def test_stand_in_midi_input_is_read_only_from_opened_ports_and_only_once():
 
 
 def test_a_live_port_that_says_waiting_but_reads_nothing_does_not_loop_forever(mocker):
-    """A port whose poll stays true while its read returns nothing ends the frame's read."""
+    """A port whose read returns nothing ends the frame's read, whatever its poll says."""
     keys = mocker.Mock(**{'poll.return_value': True, 'read.return_value': []})
     _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
     registry = LiveDeviceRegistry()
@@ -1672,7 +1708,7 @@ def test_an_adopted_midi_port_is_the_one_an_open_hands_back(device_answers):
 
 
 def test_a_defect_in_our_conversion_surfaces_and_drops_no_port(mocker):
-    """Only the port's own poll and read are contained: a bug of ours is not a failing port."""
+    """Only the port's own read is contained: a bug of ours is not a failing port."""
     keys = FakePortMidiInput(messages=[([0x90, 60, 100, 0], 1)])
     midi_module = _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
     registry = LiveDeviceRegistry()
@@ -1690,28 +1726,6 @@ def test_a_defect_in_our_conversion_surfaces_and_drops_no_port(mocker):
 # What PortMidi's read raises when its buffer overflowed (pygame-ce 2.5.8, seen on a virtual port):
 # bytes today, and pygame-ce plans text
 OVERFLOW_MESSAGES = [b'PortMidi: Buffer overflow', 'PortMidi: Buffer overflow']
-NOTE = ([0x90, 60, 100, 0], 1)
-
-
-def _overflowing_port(mocker, *, reads):
-    """Return a PortMidi input whose reads give, in turn, a batch or the failure given.
-
-    It says messages wait while any read is left; a failure is raised, a batch returned.
-    """
-    remaining = list(reads)
-
-    def read(num_events):
-        del num_events
-        outcome = remaining.pop(0)
-        if isinstance(outcome, Exception):
-            raise outcome
-        return outcome
-
-    return mocker.Mock(**{
-        'poll.side_effect': lambda: bool(remaining),
-        'read.side_effect': read,
-        'queue': remaining,
-    })
 
 
 def _overflow_warnings(caplog):
@@ -1722,43 +1736,137 @@ def _overflow_warnings(caplog):
     ]
 
 
+def _numbered(*, count, first=0):
+    """Return that many messages, each with its number as its timestamp."""
+    return [([0x90, 60, 100, 0], number) for number in range(first, first + count)]
+
+
 @pytest.mark.parametrize('message', OVERFLOW_MESSAGES, ids=['bytes', 'text'])
-def test_an_overflowed_port_loses_input_but_is_still_read(mocker, caplog, message):
-    """A full buffer is lost input, not a dead port: what came before and after it arrives."""
-    keys = _overflowing_port(mocker, reads=[[NOTE], Exception(message), [([0x80, 60, 0, 0], 2)]])
+def test_an_overflowed_port_is_told_from_the_read_and_read_on(mocker, caplog, message):
+    """Full, then refused: everything queued arrives, the loss is logged, later input arrives.
+
+    Once the queue is read, poll is False for good: only a read raises the overflow and frees it.
+    """
+    keys = FakePortMidiInput(
+        messages=_numbered(count=MIDI_READ_BATCH + 1),
+        capacity=MIDI_READ_BATCH,
+        overflow_message=message,
+    )
     _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
     registry = LiveDeviceRegistry()
     registry.open_midi_input(port_id=0)
+    assert keys.poll() is True
 
     with caplog.at_level('WARNING', logger='game.input.devices'):
-        assert _timestamps(registry.read_midi_input()) == [1, 2]
-        keys.queue.append([([0x90, 61, 100, 0], 3)])
-        assert _timestamps(registry.read_midi_input()) == [3]
+        assert _timestamps(registry.read_midi_input()) == list(range(MIDI_READ_BATCH))
+        keys.send(_numbered(count=1, first=500))
+        assert _timestamps(registry.read_midi_input()) == [500]
 
     (warning,) = _overflow_warnings(caplog)
     assert 'port 0 (Keys)' in warning
     assert [record.levelname for record in caplog.records] == ['WARNING']
 
 
-def test_a_port_that_only_overflows_does_not_hold_the_frame(mocker):
-    """Two overflows in a row end the port's read for this frame; the next frame reads again."""
-    keys = _overflowing_port(
-        mocker, reads=[Exception(OVERFLOW_MESSAGES[0]), Exception(OVERFLOW_MESSAGES[0]), [NOTE]]
-    )
+def test_what_arrives_after_the_overflow_is_read_in_the_same_frame(mocker):
+    """Reading goes on after the overflow is met."""
+    keys = FakePortMidiInput(messages=_numbered(count=MIDI_READ_BATCH), capacity=MIDI_READ_BATCH)
+    real_read = keys.read
+
+    def read(num_events):
+        if not keys.messages and not keys.overflowed and len(keys.read_sizes) == 1:
+            # More arrives as the queue is read: full again, and refused
+            keys.send(_numbered(count=MIDI_READ_BATCH + 1, first=100))
+        try:
+            return real_read(num_events)
+        except StandInPortMidiError:
+            keys.send(_numbered(count=2, first=500))
+            raise
+
+    keys.read = read
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+
+    assert _timestamps(registry.read_midi_input()) == [
+        *range(MIDI_READ_BATCH),
+        *range(100, 100 + MIDI_READ_BATCH),
+        500,
+        501,
+    ]
+
+
+class FloodingPort(FakePortMidiInput):
+    """A port that fills again at every read: it never has nothing to give."""
+
+    def __init__(self, *, overflows):
+        """Flood with messages, or, when ``overflows``, with nothing but overflows."""
+        super().__init__()
+        self.overflows = overflows
+        self.sent = 0
+
+    def read(self, num_events):
+        self.read_sizes.append(num_events)
+        if self.overflows:
+            raise StandInPortMidiError(OVERFLOW_MESSAGES[0])
+        self.sent += num_events
+        return _numbered(count=num_events, first=self.sent - num_events)
+
+
+def test_a_flood_is_capped_per_port_per_frame_and_goes_on_in_order(mocker):
+    """A port that never runs dry cannot hold the frame, nor keep the other ports waiting."""
+    keys = FloodingPort(overflows=False)
     pads = FakePortMidiInput(messages=[([0x99, 36, 90, 0], 2)])
     _patch_portmidi_inputs(mocker, inputs_by_port={0: keys, 1: pads})
     registry = LiveDeviceRegistry()
     registry.open_midi_input(port_id=0)
     registry.open_midi_input(port_id=1)
 
-    assert _timestamps(registry.read_midi_input()) == [2]
-    assert _timestamps(registry.read_midi_input()) == [1]
+    cap = MIDI_MESSAGES_PER_PORT_PER_FRAME
+    assert _timestamps(registry.read_midi_input()) == [*range(cap), 2]
+    assert _timestamps(registry.read_midi_input()) == list(range(cap, 2 * cap))
+
+
+def test_a_queue_longer_than_the_cap_arrives_whole_over_frames(mocker):
+    """What the cap leaves waits for the next frame, in order."""
+    cap = MIDI_MESSAGES_PER_PORT_PER_FRAME
+    keys = FakePortMidiInput(messages=_numbered(count=cap + 3), capacity=2 * cap)
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+
+    assert len(registry.read_midi_input()) == cap
+    assert _timestamps(registry.read_midi_input()) == [cap, cap + 1, cap + 2]
+
+
+def test_the_cap_takes_a_whole_portmidi_buffer_and_its_overflow_in_one_frame():
+    """PortMidi queues 4096 (pygame's default): the overflow is met as the queue is read."""
+    assert MIDI_MESSAGES_PER_PORT_PER_FRAME > 4096
+    # A read cut short by the overflow loses what it had taken: a full queue divides into batches
+    assert 4096 % MIDI_READ_BATCH == 0
+    assert MIDI_MESSAGES_PER_PORT_PER_FRAME % MIDI_READ_BATCH == 0
+
+
+def test_a_port_that_only_overflows_does_not_hold_the_frame(mocker, caplog):
+    """Two overflows end the port's read for this frame: it is not dropped, and is read again."""
+    keys = FloodingPort(overflows=True)
+    pads = FakePortMidiInput(messages=[([0x99, 36, 90, 0], 2)])
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys, 1: pads})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+    registry.open_midi_input(port_id=1)
+
+    with caplog.at_level('WARNING', logger='game.input.devices'):
+        assert _timestamps(registry.read_midi_input()) == [2]
+        keys.overflows = False
+        assert len(registry.read_midi_input()) == MIDI_MESSAGES_PER_PORT_PER_FRAME
+
+    assert len(_overflow_warnings(caplog)) == 1
 
 
 def test_a_burst_of_overflows_is_logged_once_and_the_next_burst_again(mocker, caplog):
     """Per port; a burst ends after MIDI_OVERFLOW_QUIET_READS reads without an overflow."""
-    keys = _overflowing_port(mocker, reads=[])
-    pads = _overflowing_port(mocker, reads=[])
+    keys = FakePortMidiInput(capacity=MIDI_READ_BATCH)
+    pads = FakePortMidiInput(capacity=MIDI_READ_BATCH)
     _patch_portmidi_inputs(mocker, inputs_by_port={0: keys, 1: pads})
     registry = LiveDeviceRegistry()
     registry.open_midi_input(port_id=0)
@@ -1767,7 +1875,7 @@ def test_a_burst_of_overflows_is_logged_once_and_the_next_burst_again(mocker, ca
     def read_frames(*, frames, overflowing):
         for _ in range(frames):
             for port in overflowing:
-                port.queue.append(Exception(OVERFLOW_MESSAGES[0]))
+                port.send(_numbered(count=MIDI_READ_BATCH + 1))
             registry.read_midi_input()
 
     with caplog.at_level('WARNING', logger='game.input.devices'):
@@ -1787,16 +1895,57 @@ def test_a_burst_of_overflows_is_logged_once_and_the_next_burst_again(mocker, ca
 @pytest.mark.parametrize('message', [b'PortMidi: Host error', 'PortMidi: Host error'])
 def test_any_other_failure_still_drops_the_port(mocker, caplog, message):
     """A port failing otherwise is a device that went away: dropped, as before."""
-    keys = _overflowing_port(mocker, reads=[Exception(message), [NOTE]])
+    keys = FakePortMidiInput(
+        messages=_numbered(count=MIDI_READ_BATCH + 1),
+        capacity=MIDI_READ_BATCH,
+        overflow_message=message,
+    )
     _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
     registry = LiveDeviceRegistry()
     registry.open_midi_input(port_id=0)
 
     with caplog.at_level('WARNING', logger='game.input.devices'):
-        assert registry.read_midi_input() == []
+        assert len(registry.read_midi_input()) == MIDI_READ_BATCH
+        keys.send(_numbered(count=1))
         assert registry.read_midi_input() == []
 
     assert [record.levelname for record in caplog.records] == ['ERROR']
+
+
+def test_the_stand_in_port_overflows_as_portmidi_does(caplog):
+    """Full at 4096: more is refused, what was queued arrives, a read raises once, then it works."""
+    registry = stand_in_registry(descriptors=[], midi_ports=[KEYS_PORT])
+    midi_input = registry.open_midi_input(port_id=0)
+    registry.queue_midi_input(port_id=0, messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
+    registry.queue_midi_input(port_id=0, messages=_numbered(count=1, first=9000))
+    with caplog.at_level('WARNING', logger='game.input.devices'):
+        assert _timestamps(registry.read_midi_input()) == list(range(STAND_IN_MIDI_QUEUE_CAPACITY))
+        registry.queue_midi_input(port_id=0, messages=_numbered(count=1, first=9001))
+        assert _timestamps(registry.read_midi_input()) == [9001]
+    assert len(_overflow_warnings(caplog)) == 1
+
+    # Read part way, the overflow not met: still refused
+    registry.queue_midi_input(port_id=0, messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
+    assert len(midi_input.read(10)) == 10
+    registry.queue_midi_input(port_id=0, messages=_numbered(count=1, first=9002))
+    rest = STAND_IN_MIDI_QUEUE_CAPACITY - 10
+    assert len(midi_input.read(rest)) == rest
+    assert midi_input.poll() is False
+    with pytest.raises(StandInPortMidiError):
+        midi_input.read(1)
+
+    # Read by hand: poll says nothing waits, the read raises once and loses what it had taken
+    registry.queue_midi_input(port_id=0, messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
+    assert len(midi_input.read(STAND_IN_MIDI_QUEUE_CAPACITY)) == STAND_IN_MIDI_QUEUE_CAPACITY
+    assert midi_input.poll() is False
+    with pytest.raises(StandInPortMidiError) as overflow:
+        midi_input.read(1)
+    assert overflow.value.args == (OVERFLOW_MESSAGES[0],)
+    assert midi_input.read(1) == []
+    registry.queue_midi_input(port_id=0, messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
+    with pytest.raises(StandInPortMidiError):
+        midi_input.read(STAND_IN_MIDI_QUEUE_CAPACITY + 1)
+    assert midi_input.read(1) == []
 
 
 @pytest.mark.parametrize(

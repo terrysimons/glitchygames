@@ -136,12 +136,13 @@ Demos and instant replays run inside a playback scope, not a new engine run
      held. A control moved (pitch bend, channel or polyphonic pressure, a controller below 120,
      pedals included) is held too, as MIDI has no polled state to read again: only the latest
      message of each port, channel and control, at its own place among the held events, so they
-     all arrive in the order they were pumped, external; but a pedal pressed keeps the release
-     held before it, which lets go the notes it sustained. The rest is motion and is dropped:
-     program changes, local control, and the system and real-time messages (the clock,
-     system-exclusive, a reset). Held to one value each, registered parameters
-     (controllers 6, 38 and 96-101) set one after another in a scope keep only the last. The
-     batch is the
+     all arrive in the order they were pumped, external. Pedals differ in two ways: a press keeps
+     the release held before it, which lets go the notes it sustained, and a pedal pressed further
+     keeps its press's place, so the notes let go since stay sustained. The rest is motion and is
+     dropped: program changes, local control, the parameter numbers and their data (controllers
+     6, 38 and 96-101: they mean something only in sequence, and a lone data entry can change
+     the wrong parameter, so a parameter set during a scope is lost), and the system and
+     real-time messages (the clock, system-exclusive, a reset). The batch is the
      replay's (recorded external events, matched internal ones) without any QUIT (a QUIT in
      it ends the scope: ``recording_quit``), then the kept QUIT.
    - ``input_snapshot``: the installed doors' snapshot is read (a recording of the session
@@ -351,6 +352,9 @@ MIDI_PITCH_BEND: Final = 0xE0
 _MIDI_KIND_MASK: Final = 0xF0
 # Controllers 0-119; 120-127 are channel mode messages (the MIDI 1.0 specification, control changes)
 MIDI_CONTROLLER_COUNT: Final = 120
+# Data entry (6, 38), increment and decrement (96, 97) and the parameter numbers (98-101): they
+# mean something only in sequence, so the latest of each alone could change another parameter
+MIDI_PARAMETER_CONTROLLERS: Final = frozenset({6, 38, *range(96, 102)})
 # Switch pedals (sustain, portamento, sostenuto, soft, legato, hold 2): on from 64 up
 MIDI_SWITCH_PEDAL_CONTROLLERS: Final = frozenset(range(64, 70))
 MIDI_SWITCH_ON_VALUE: Final = 64
@@ -444,8 +448,9 @@ def _midi_control(*, event: pygame.event.Event) -> tuple[int, int, int | None] |
     """Return which continuous control a MIDI message moves: its port, channel and control.
 
     Pitch bend, channel pressure, polyphonic pressure (per note) and the controllers (pedals
-    included). MIDI has no polled state, so the live game can learn where one was left only from
-    its latest message.
+    included), but not the parameter numbers and their data (``MIDI_PARAMETER_CONTROLLERS``).
+    MIDI has no polled state, so the live game can learn where one was left only from its latest
+    message.
 
     Returns:
         The port id, the status byte (its kind and channel) and the note or controller number
@@ -460,7 +465,9 @@ def _midi_control(*, event: pygame.event.Event) -> tuple[int, int, int | None] |
     if kind in {MIDI_PITCH_BEND, MIDI_CHANNEL_PRESSURE}:
         return event.dict.get('vice_id', 0), status, None
     if kind == MIDI_POLYPHONIC_PRESSURE or (
-        kind == MIDI_CONTROL_CHANGE and number < MIDI_CONTROLLER_COUNT
+        kind == MIDI_CONTROL_CHANGE
+        and number < MIDI_CONTROLLER_COUNT
+        and number not in MIDI_PARAMETER_CONTROLLERS
     ):
         return event.dict.get('vice_id', 0), status, number
     return None
@@ -485,9 +492,10 @@ def _hold_latest_midi_control(
 ) -> bool:
     """Hold a continuous control's message for the live game, if ``event`` is one (rule 5).
 
-    It takes the place of the control's earlier held message and goes last, so each control is
-    held once, in the order of its latest message among the held events. A pedal press keeps the
-    release held before it (which lets go the notes it sustained); a release replaces both.
+    It replaces the control's earlier held message and goes last, so each control is held once, in
+    the order of its latest message among the held events. A pedal press keeps the release held
+    before it (which lets go the notes it sustained); a release replaces both. A pedal pressed
+    further takes its press's place instead, so a note let go since stays sustained.
 
     Args:
         event: The player's event.
@@ -501,13 +509,23 @@ def _hold_latest_midi_control(
     if control is None:
         return False
     is_pedal_press = _is_midi_pedal_press(event=event)
+    if is_pedal_press:
+        for index, (held_event, origin) in enumerate(held_events):
+            if (
+                origin == EXTERNAL_ORIGIN
+                and _midi_control(event=held_event) == control
+                and _is_midi_pedal_press(event=held_event)
+            ):
+                held_events[index] = (event, EXTERNAL_ORIGIN)
+                return True
     held_events[:] = [
         (held_event, origin)
         for held_event, origin in held_events
         # The live game's own posts (internal) are not the player's
         if origin != EXTERNAL_ORIGIN
         or _midi_control(event=held_event) != control
-        or (is_pedal_press and not _is_midi_pedal_press(event=held_event))
+        # No press of it is held here: what is held is its release
+        or is_pedal_press
     ]
     held_events.append((event, EXTERNAL_ORIGIN))
     return True
