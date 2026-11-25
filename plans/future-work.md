@@ -2332,6 +2332,11 @@ decided, for the day a live game runs inside another:
 - [ ] **Two live contexts opening one port.** PortMidi refuses a second `Input` on an open port,
   and each context's registry opens its own: the second open fails (a logged, skipped port). The
   door may need a process-wide owner, or the Arcade must open ports once and share them.
+- [ ] **Two processes, the mirror game's case.** The mirror (plans/lucid-circuit-4b-mirror.md) runs in
+  its own process, so no rule inside one process keeps it off the live game's port; what a second
+  process's open does differs by platform and is untested. The mirror must never open one: it is a
+  reflection and gets no real stimulus (the owner, 2026-11-24). Its replay door already hands out
+  stand-in ports; enforcing that belongs to the mirror's plan.
 - [ ] **Who reads a shared input.** A message is read once; with two contexts holding one input,
   one context's frame takes what the other would have seen. Decide whether the foreground game
   reads, or the host fans messages out through recorded events.
