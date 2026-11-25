@@ -6,6 +6,7 @@ the models is real. The install points at a real control script, never the machi
 
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 from typing import Any, ClassVar, Self, override
@@ -355,12 +356,13 @@ def test_the_debug_overlay_shows_the_consoles_status(scene):
 
 
 @pytest.mark.draws_frames
+@pytest.mark.usefixtures('installed')
 @pytest.mark.parametrize('option', ['ai', 'lucid_circuit'])
 @pytest.mark.parametrize('recorded', [True, False])
-def test_a_recordings_switch_connects_nothing_and_blocks_nothing(
-    scene, installed, tmp_path, option, recorded
+def test_a_watched_replay_has_no_link_and_says_why_whatever_its_recording_holds(
+    scene, tmp_path, caplog, option, recorded
 ):
-    """A watched replay never asks for a link, and a live run after it has its own answer."""
+    """With the service installed and the flag on: only its being a replay stops it."""
     scene.maximum_frames = 2
     recording = tmp_path / 'run.jsonl.gz'
     with command_line([*ARGUMENTS, '--headless', '--record-trace', str(recording)]):
@@ -370,13 +372,15 @@ def test_a_recordings_switch_connects_nothing_and_blocks_nothing(
         change=lambda trace: trace['options'].update({option: recorded}),
     )
 
-    with command_line([*ARGUMENTS, '--replay-trace', str(recording)]):
+    caplog.clear()
+    with (
+        caplog.at_level(logging.INFO, logger=ai_link.LOG.name),
+        command_line([*ARGUMENTS, '--replay-trace', str(recording)]),
+    ):
         replay = GameEngine(game=scene)
-    with command_line(ARGUMENTS):
-        live = GameEngine(game=scene)
 
     assert replay.ai_link is None
     assert replay.ai_console is None
     assert replay.options['lucid_circuit'] is True
-    assert live.ai_link is not None
-    assert not installed.exists()
+    said = [message for message in caplog.messages if message.startswith('Lucid Circuit')]
+    assert said == ['Lucid Circuit is off: never used in a replay']

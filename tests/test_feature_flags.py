@@ -22,6 +22,7 @@ from glitchygames.feature_flags import (
     FEATURE_FLAGS,
     FeatureFlag,
     FeatureFlagDeclarationError,
+    FlagOptionError,
     FlagState,
     UndeclaredFeatureFlagError,
     add_flag_arguments,
@@ -372,6 +373,21 @@ def test_options_that_hold_no_flag_are_given_none():
     assert options == {'log_level': 'warning'}
 
 
+@pytest.mark.parametrize('answer', ['off', 0, 1, '', [False]])
+def test_an_answer_that_is_not_a_bool_is_refused_and_changes_nothing(answer):
+    """Not read as on or off, and what was asked before it stays."""
+    flags = declare_flags(flag('a'), flag('b'))
+    options = {'a': None, 'b': answer}
+    with EngineContext(name='flags').active():
+        take_flag_options(options={'a': False}, flags=flags)
+
+        with pytest.raises(FlagOptionError, match=r'--b: expected True, False or None, not '):
+            take_flag_options(options=options, flags=flags)
+
+        assert not flag_state(name='a', flags=flags).on
+    assert options == {'a': None, 'b': answer}
+
+
 def test_a_recording_never_sets_a_flag():
     """Every unrecorded flag's option is the run's own (REPLAY_LOCAL_OPTIONS)."""
     assert {option_name(flag_name=name) for name in FEATURE_FLAGS} <= REPLAY_LOCAL_OPTIONS
@@ -658,6 +674,24 @@ def test_a_start_logs_each_flag_once_with_the_options_block(quick_game, caplog, 
     assert lines[-2:] == ['Feature flags:', line]
     (option_line,) = [text for text in lines if text.startswith('lucid_circuit ')]
     assert option_line.endswith(f'= {not arguments}')
+
+
+@pytest.mark.draws_frames
+@pytest.mark.usefixtures('engine_run_environment')
+def test_a_start_logs_its_own_engines_flags_not_a_later_ones(quick_game, caplog):
+    """Two engines made in one context, the first started after the second was made."""
+    with command_line([*ENGINE_ARGUMENTS, '--no-lucid-circuit']):
+        first = GoldenTraceEngine(game=quick_game)
+    with command_line([*ENGINE_ARGUMENTS]):
+        GoldenTraceEngine(game=FlaggedGame)
+    caplog.clear()
+    with caplog.at_level(logging.CRITICAL):
+        first.start()
+
+    (block,) = [text for text in caplog.messages if text.startswith('Options for')]
+    assert block.splitlines()[-1].strip() == (
+        'lucid-circuit = off: turned off by --no-lucid-circuit'
+    )
 
 
 def test_the_state_lines_are_sorted_and_say_why():

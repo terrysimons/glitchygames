@@ -37,7 +37,7 @@ import pygame
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, events
-from glitchygames.ai_link import AiLink, create_link
+from glitchygames.ai_link import AiLink, create_link, log_no_link
 from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -1571,6 +1571,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # The context's feature flags are this command line's from here on, before anything
         # reads one or a recording's options are put in place (glitchygames/feature_flags.py)
         take_flag_options(options=options)
+        # Read now, as another engine made in this context takes it over before this one starts
+        self._flag_state_lines: list[str] = flag_state_lines()
         # The current context's engine from here on (current_engine()): every piece of the
         # engine's own state is set above this line, so no view finds a half-made engine (if
         # the rest raises, _clear_a_half_made_engine clears it again)
@@ -1736,6 +1738,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             )
             install_sources(sources=self.host.sources)
         else:
+            log_no_link(reason='never used in a replay')
             install_sources(sources=self.replay_sources)
 
         # We are fully initialized now; the scene (self.game, set at the top) starts once
@@ -3912,10 +3915,13 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         on the INFO line (``_log_the_runs_seed``), hidden at the default WARNING.
 
         Below the options, each feature flag's state and why it is off
-        (glitchygames/feature_flags.py): its option says only what was asked.
+        (glitchygames/feature_flags.py), as this engine was made: its option says only what was
+        asked. The state is whether the feature is wanted and possible, no more: a feature's own
+        gate (Lucid Circuit's for ``--headless`` or a replay: ``ai_link.log_no_link``) logs its
+        reason itself.
         """
         shown_options = {**self.options, 'random_seed': self.random_seed}
-        flag_lines = [f'{OPTIONS_BLOCK_INDENT}{line}' for line in flag_state_lines()]
+        flag_lines = [f'{OPTIONS_BLOCK_INDENT}{line}' for line in self._flag_state_lines]
         self.log.critical(
             '%s',
             '\n'.join([

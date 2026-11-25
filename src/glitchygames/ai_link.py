@@ -12,7 +12,8 @@ The rules:
 2. Nothing runs unless it's wanted: ``create_link`` returns None when Lucid Circuit's flag is off
    (``--no-lucid-circuit``, a browser: ``glitchygames/feature_flags.py``), with ``--headless``
    (scripted sessions, golden traces, tools), and on a machine without the service, so those runs
-   build plain ``HostSources`` and never import ``websockets``. A replay never asks.
+   build plain ``HostSources`` and never import ``websockets``. A replay never asks. Each says why
+   (``log_no_link``).
 3. Starting the service is one attempt. Not enough free memory means no AI for this run: nothing is
    retried during play. A lost connection is retried slowly, as launchd restarts a crashed service.
 4. A service speaking another protocol version refuses the session, and the link stops. The game and
@@ -389,6 +390,17 @@ class AiLink:
             self._inbox.append(message)
 
 
+def log_no_link(*, reason: str, level: int = logging.INFO) -> None:
+    """Say why a run has no link, in the same words for every reason (rule 2).
+
+    Args:
+        reason: The reason.
+        level: The logging level.
+
+    """
+    LOG.log(level, 'Lucid Circuit is off: %s', reason)
+
+
 def _reason_for_no_link(*, options: Mapping[str, Any]) -> str | None:
     """Say why a run may have no link, wherever the service is (rule 2).
 
@@ -414,8 +426,9 @@ def create_link(*, options: Mapping[str, Any]) -> AiLink | None:
 
     The engine context's flag decides, as for every other reader of it, so one run never has two
     answers: the engine's options hold the same one (``take_flag_options`` set both), and no
-    recording changes either. Options must turn it on as well, so an old caller's, which hold no
-    answer, get no link: neither can turn on what the other did not.
+    recording changes either. Options must turn it on as well: an old caller's, which hold no
+    answer, get no link, and an explicit False vetoes one though the context's flag is on.
+    Neither can turn on what the other did not.
 
     Args:
         options: The run's options, taken by its engine.
@@ -426,16 +439,18 @@ def create_link(*, options: Mapping[str, Any]) -> AiLink | None:
     """
     reason = _reason_for_no_link(options=options)
     if reason is not None:
-        LOG.info('Lucid Circuit is off: %s', reason)
+        log_no_link(reason=reason)
         return None
     locations = service_locations()
     if locations is None:
-        LOG.debug('No local AI service on the platform %s', sys.platform)
+        log_no_link(reason=f'no AI service on the platform {sys.platform}')
         return None
     if not locations.control_script.is_file():
-        LOG.debug('The local AI service is not installed at %s', locations.program_root)
+        log_no_link(reason=f'the AI service is not installed at {locations.program_root}')
         return None
     if not locations.key_file.is_file():
-        LOG.warning('The local AI service at %s has no key', locations.user_root)
+        log_no_link(
+            reason=f'the AI service at {locations.user_root} has no key', level=logging.WARNING
+        )
         return None
     return AiLink(locations=locations)

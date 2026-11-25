@@ -496,16 +496,68 @@ def test_options_and_context_must_both_turn_it_on(context_says, tmp_path, monkey
     assert create_link(options={'lucid_circuit': not context_says}) is None
 
 
-def test_a_run_with_lucid_circuit_off_says_why(tmp_path, monkeypatch, caplog):
-    """The flag's own reason."""
+@pytest.mark.parametrize(
+    'run',
+    [
+        (False, {'lucid_circuit': False}, 'turned off by --no-lucid-circuit'),
+        (True, {'lucid_circuit': True, 'headless': True}, 'never used with --headless'),
+        (True, {}, 'the options given do not turn it on'),
+        (True, {'lucid_circuit': False}, 'the options given do not turn it on'),
+    ],
+    ids=['off', 'headless', 'no-answer', 'vetoed'],
+)
+def test_a_run_with_lucid_circuit_off_says_why(run, tmp_path, monkeypatch, caplog):
+    """The flag's own reason, or the gate's, with the service installed.
+
+    Each run is what the context was asked, the options given and the reason.
+    """
+    lucid_circuit, options, reason = run
     install(root=tmp_path)
     monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
-    options = asked(lucid_circuit=False)
+    asked(lucid_circuit=lucid_circuit)
 
     with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
         create_link(options=options)
 
-    assert 'Lucid Circuit is off: turned off by --no-lucid-circuit' in caplog.messages
+    assert caplog.messages == [f'Lucid Circuit is off: {reason}']
+
+
+def test_a_machine_without_the_service_says_so(caplog):
+    """The same words begin it."""
+    with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+        create_link(options=asked(lucid_circuit=True))
+
+    (record,) = caplog.records
+    locations = service_locations()
+    assert locations is not None
+    assert record.levelno == logging.INFO
+    assert record.getMessage() == (
+        f'Lucid Circuit is off: the AI service is not installed at {locations.program_root}'
+    )
+
+
+def test_a_platform_without_the_service_says_so(mocker, no_location_variables, caplog):
+    """Windows, by the platform's name."""
+    mocker.patch.object(ai_link.sys, 'platform', 'win32')
+
+    with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+        create_link(options=asked(lucid_circuit=True))
+
+    assert caplog.messages == ['Lucid Circuit is off: no AI service on the platform win32']
+
+
+def test_an_install_without_a_key_says_so(tmp_path, monkeypatch, caplog):
+    """A damaged install is a warning."""
+    install(root=tmp_path)
+    (tmp_path / 'config' / 'service-api-key').unlink()
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
+
+    with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+        create_link(options=asked(lucid_circuit=True))
+
+    (record,) = caplog.records
+    assert record.levelno == logging.WARNING
+    assert record.getMessage() == f'Lucid Circuit is off: the AI service at {tmp_path} has no key'
 
 
 def test_a_browser_gets_no_link(tmp_path, monkeypatch, caplog):

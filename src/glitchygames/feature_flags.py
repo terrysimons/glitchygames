@@ -75,6 +75,10 @@ class UndeclaredFeatureFlagError(LookupError):
     """A flag nobody declared was asked for."""
 
 
+class FlagOptionError(TypeError):
+    """A run's options hold an answer for a flag that is not True, False or None."""
+
+
 def available_everywhere() -> str | None:
     """Say that a feature can be on wherever the engine runs.
 
@@ -317,7 +321,15 @@ def take_flag_options(
         options: The run's options, changed in place.
         flags: The declared flags.
 
+    Raises:
+        FlagOptionError: If an answer is neither a bool nor None; nothing is then changed.
+
     """
+    for flag in flags.values():
+        answer = options.get(option_name(flag_name=flag.name))
+        if answer is not None and not isinstance(answer, bool):
+            message = f'--{flag.name}: expected True, False or None, not {answer!r}'
+            raise FlagOptionError(message)
     asked: dict[str, bool] = {}
     for flag in flags.values():
         name = option_name(flag_name=flag.name)
