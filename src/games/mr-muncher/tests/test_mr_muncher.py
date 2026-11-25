@@ -1137,13 +1137,13 @@ def test_the_projector_is_a_live_instrument_the_game_declares():
     }
 
 
-def test_the_projector_is_heard_at_its_old_volume_when_centred():
-    """0.05 on each side, as before live sounds took a pan: raised for the centred 3 dB."""
+def test_the_projector_is_heard_at_its_chosen_volume_when_centred():
+    """0.10 on each side, chosen by ear (the owner, 2026-11-25): raised for the centred 3 dB."""
     from glitchygames.audio.voices import constant_power_gains
 
     left, right = constant_power_gains(pan=0.0, gain=1.0)
 
-    assert mr_muncher_game.PROJECTOR_VOLUME * left == pytest.approx(0.05)
+    assert mr_muncher_game.PROJECTOR_VOLUME * left == pytest.approx(0.10)
     assert right == pytest.approx(left)
 
 

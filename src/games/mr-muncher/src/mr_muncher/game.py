@@ -150,9 +150,10 @@ CAUGHT_SHAKE = Shake(
 # The projector behind play (its sound is sounds.PROJECTOR): it runs faster and brighter as
 # sprockets run out, wobbles slow and low while the munchers are frightened, and races while
 # eyes are going home. Every value here is inside the instrument's parameter ranges.
-# 0.05 as heard: a live sound plays centred, 3 dB down on each side by the constant-power pan
-# law every sound pans by, so its volume is raised by the same (the owner, 2026-11-15)
-PROJECTOR_VOLUME = 0.05 * math.sqrt(2.0)
+# 0.10 as heard, chosen by ear against the game's effects (the owner, 2026-11-25; 0.05 could not be
+# heard): a live sound plays centred, 3 dB down on each side by the constant-power pan law every
+# sound pans by, so its volume is raised by the same (the owner, 2026-11-15)
+PROJECTOR_VOLUME = 0.10 * math.sqrt(2.0)
 PROJECTOR_CUTOFF_HZ = 500.0
 PROJECTOR_CUTOFF_CLIMB_HZ = 700.0  # Added at the last sprocket
 PROJECTOR_FLUTTER_HZ = 20.0

@@ -236,10 +236,18 @@ motor.release()                                # fades it out over 100 ms
   still have a volume another user left). `set_pan` ramps across the queued chunk, rewritten in
   place if it is still queued, else across the next one: it starts within one chunk (0-100 ms by
   default) and ends a chunk later, without a step, but for a chunk that starts during the copy
-  itself (a step of at most the gain change times the part of the chunk played by then) and for
-  the open click of a restart over a queued chunk. On a mono mixer a live sound plays at the
-  centre gain whatever its pan: 3 dB below what it played at before
-  (`bugs/2026-11-25-live-sounds-lose-their-pan.md`).
+  itself (a step of at most the gain change times the part of the chunk played by then). On a
+  mono mixer a live sound plays at the centre gain whatever its pan: 3 dB below what it played at
+  before (`bugs/2026-11-25-live-sounds-lose-their-pan.md`).
+- **What is on its channel is pygame's table's to say** (`live.channel_state`: playing, queued,
+  stranded or ended), never `Channel.get_busy()` alone: between a chunk's end and the start of the
+  queued one, pygame's end callback waits for the GIL and the channel reads idle. Such a channel is
+  settled first with `Channel.unpause()`, a barrier that lets the callback run, so an update
+  restarts a voice only when nothing is on its channel, a voice is finished only once its whole
+  fade has played, and a pause, or a silenced replay frame, also takes the chunk about to start. A
+  chunk queued just as the last one ended is stranded (queued, nothing playing) and is played as it
+  is
+  (`bugs/2026-11-25-live-sounds-restart-mid-chunk.md`).
 - **A game's end releases its live voices**, persisting ones included: `SceneManager.terminate`
   releases them, since nothing updates them once the game has ended. A voice dropped without
   being released is stopped by its stream's finalizer and reported, in the log and in its
