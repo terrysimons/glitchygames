@@ -1,7 +1,7 @@
 # A replay touches nothing real
 
-- **Status:** the owner's decisions of 2026-11-25 are in the text (section 7 lists them; question 2 is
-  still open). Nothing is built.
+- **Status:** the owner's decisions of 2026-11-25 are in the text (section 7 lists them). Nothing
+  is built.
 - **Read at:** origin/main `023f120b9`. Every `file:line` is there; `G/` is `src/glitchygames/`, `B/` is
   `src/apps/bitmappy/src/bitmappy/`. "(inference)" marks what was reasoned, not read or run.
 - **Closes:** four High records of 2026-11-24 in `bugs/`: `replayed-png-drop-writes-and-reads-real-files`,
@@ -232,21 +232,20 @@ parallel, 4 on 2, 5 on 1 and 4. Guard entries land with each PR; 7 is the sweep 
 | Local `refactor/engine-hud-labels` | No source overlap; it re-records Brave and Clockwork recordings | Either order: recordings without the new fields stay valid. If it records after PR 4 its recordings carry `outside_layers`, else not |
 | `feature/mascot-demo` | Large: `sprites/animated.py` (705 changed lines), `sprites/bitmappy_sprite.py` (including a `read_text` line), `ui/dialogs.py`, `ui/text_widgets.py`, `ai_console.py`, `replay/driver.py`, `scenes/scene.py`, `workspace_expectations.py`, much of Bitmappy | Textual conflicts in PR 1 (save/load lines) and 2 (imports). Keep those edits to one line each; whichever lands second merges |
 
-## 7. Decided by the owner (2026-11-25), and what is open
+## 7. Decided by the owner (2026-11-25)
 
 1. **A recording may hold what was pasted and the files opened,** by default for `--record-trace`, with the
    end-of-run line, the committed-recordings test and `--no-outside-contents` from the start (decision 9).
-2. **Open: an old personal recording that drops a PNG.** Recommended: refuse, as decision 5 says. See below.
+2. **An old personal recording that reads a file is refused** (decision 5), never given today's file.
 3. **The sound cache is read-only in a replay** (decision 8), for now: Arcade tiles compile their sounds each
    launch until that game is played live. The Arcade's own plan may fill it, its host being live. The
    compile cost per tile was not measured.
 4. **A replay compares what it would have saved** and diverges, naming the file. An intended change of a
    save format needs the recordings that save rebaselined (none today).
 
-Question 2 in an example. In October Pat recorded Bitmappy and dropped `tower.png`. That recording holds the
-file's name, not its picture. Today a replay opens whatever `tower.png` is now. Refused, the replay says the
-recording has no such file and probably diverges there; allowed, it draws today's picture and may diverge
-anyway. No committed recording is affected.
+Decision 2 in an example. In October Pat recorded Bitmappy and dropped `tower.png`. That recording holds the
+file's name, not its picture. Its replay says the recording has no such file, and diverges there. No
+committed recording is affected.
 
 ## 8. Not verified
 
