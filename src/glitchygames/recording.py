@@ -252,7 +252,7 @@ import logging
 import math
 import numbers
 import weakref
-from collections.abc import Sized
+from collections.abc import Mapping, Sized
 from datetime import UTC, datetime, timedelta
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Protocol, Self, TypedDict, Unpack, cast
@@ -280,7 +280,7 @@ from glitchygames.state.sandbox import save_namespace_snapshot
 from glitchygames.tracing import StableSpriteIds, TraceFormatError, TraceWriter, sample_scene_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Sequence
     from pathlib import Path
     from types import TracebackType
 
@@ -973,6 +973,58 @@ def decoded_options(*, recorded: Mapping[str, Any]) -> dict[str, object]:
 
     """
     return {name: value_from_json(value) for name, value in recorded.items()}
+
+
+# Options naming the MIDI ports a run opens: a replay and a playback scope open the recorded ones
+# through the recorded answers (MidiEventManager.args; absent from a recording that predates them)
+RECORDED_PORT_NAME_OPTIONS: tuple[str, ...] = ('midi_input', 'midi_output')
+
+
+def recorded_port_names(*, options: object) -> dict[str, tuple[str, ...]]:
+    """Return the MIDI port names a recording's options hold, refusing malformed ones.
+
+    The one check of them, for a replay and a playback scope alike
+    (``replay.driver.decoded_replay_sources`` makes it before either begins). Malformed ones are
+    refused, as every other malformed part of a header is (a seed, a screen size, a tagged value
+    of an unknown form): naming no port instead would play a run that had a port without it, and
+    report the recording's divergence, not its damage.
+
+    Args:
+        options: The header's ``options``, as the header holds them.
+
+    Returns:
+        The names by option (``RECORDED_PORT_NAME_OPTIONS``): none for an option the recording
+        does not hold (it predates it) or holds as null.
+
+    Raises:
+        TraceFormatError: If the options are no mapping, or an option is not a list of names.
+
+    """
+    if not isinstance(options, Mapping):
+        message = f'The recording header options is not a mapping: {options!r}'
+        raise TraceFormatError(message)
+    held_options = cast('Mapping[str, Any]', options)
+    decoded = decoded_options(
+        recorded={
+            name: held_options[name] for name in RECORDED_PORT_NAME_OPTIONS if name in held_options
+        }
+    )
+    return {
+        name: _port_names(option=name, decoded=decoded.get(name))
+        for name in RECORDED_PORT_NAME_OPTIONS
+    }
+
+
+def _port_names(*, option: str, decoded: object) -> tuple[str, ...]:
+    if decoded is None:
+        return ()
+    if isinstance(decoded, (list, tuple)):
+        names = cast('Sequence[object]', decoded)
+        texts = tuple(name for name in names if isinstance(name, str))
+        if len(texts) == len(names):
+            return texts
+    message = f'The recording header option {option} is not a list of port names: {decoded!r}'
+    raise TraceFormatError(message)
 
 
 def event_to_record(*, event: pygame.event.Event, origin: str) -> dict[str, Any]:

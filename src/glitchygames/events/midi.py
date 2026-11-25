@@ -4,8 +4,8 @@
 MIDI starts only when a port is named (``--midi-input NAME``, ``--midi-output NAME``, each
 repeatable): the manager opens each named port through the devices door
 (``glitchygames/input/devices.py``) and holds one proxy per opened port, as the joystick manager
-does (``ports``). With no port named the manager asks the door nothing about MIDI, PortMidi is
-never initialized and a recording holds no MIDI answers.
+does (``ports``); it gives MIDI events to the game itself. With no port named the manager asks the
+door nothing about MIDI, PortMidi is never initialized and a recording holds no MIDI answers.
 
 A named port that is not present, or that fails to open, is logged once (naming it) and skipped:
 the run goes on without it. The answers are the door's, so they are recorded and a replay gives
@@ -22,14 +22,12 @@ there the door answers "no ports", so a named port is simply absent.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, ClassVar, Self, override
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import pygame
 
 from glitchygames.events import (
     MIDI_EVENTS,
-    MidiEvent,
-    MidiEvents,
     ResourceManager,
     set_event_types_allowed,
 )
@@ -59,12 +57,18 @@ log.addHandler(logging.NullHandler())
 class MidiEventManager(ResourceManager):
     """Manage midi events."""
 
-    class MidiEventProxy(MidiEvents, ResourceManager):
-        """Proxy for one opened MIDI port: forwards its events to the game, exposes the port.
+    class MidiEventProxy(ResourceManager):
+        """Proxy for one opened MIDI port: names the port and exposes its methods.
 
-        ``proxies`` lists the game and then the port, so a game calls the port's own methods
-        (``poll``, ``read``, ``write_short``, ``note_on``, ...) through the proxy. The raw
+        ``proxies`` lists the game and then the port, so a game calls an output's own methods
+        (``write_short``, ``note_on``, ...) through the proxy. An input is a handle with nothing
+        to read (``MidiInputHandle``): its messages reach the game as events. The raw
         ``pygame.midi`` module is not among them: a port is opened through the devices door only.
+
+        Events do not pass through a proxy, unlike a joystick's: ``JoystickEventManager`` hands an
+        event to its device's proxy, which keeps that device's state from it. A port's proxy
+        keeps no state, and an event names its port (``vice_id``), so the manager gives each one
+        to the game itself.
         """
 
         # A proxy belongs to its manager: each construction is a new one (ResourceManager)
@@ -81,7 +85,8 @@ class MidiEventManager(ResourceManager):
 
             Args:
                 game: The game object.
-                port: The opened port (pygame's, or a replay's stand-in).
+                port: The opened port: an input's handle, or an output (pygame's, or a
+                    replay's stand-in).
                 descriptor: What the port is (kind, id, name, interface).
 
             """
@@ -109,18 +114,6 @@ class MidiEventManager(ResourceManager):
                 int(not is_input),
                 1,
             )
-
-        @override
-        def on_midi_in_event(self: Self, event: MidiEvent) -> None:
-            """Forward MIDI input events to the game object."""
-            if hasattr(self.game, 'on_midi_in_event'):
-                self.game.on_midi_in_event(event)
-
-        @override
-        def on_midi_out_event(self: Self, event: MidiEvent) -> None:
-            """Forward MIDI output events to the game object."""
-            if hasattr(self.game, 'on_midi_out_event'):
-                self.game.on_midi_out_event(event)
 
     def __init__(
         self: Self,

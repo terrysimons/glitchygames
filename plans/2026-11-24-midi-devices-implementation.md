@@ -132,9 +132,10 @@ decisions that departed from the first draft are in "Decisions record" at the en
   `midi_input_for_port(*, port_id: int) -> OpenedMidiInput | None`,
   `midi_output_for_port(*, port_id: int) -> OpenedMidiOutput | None`,
   `take_opened_midi_ports() -> list[MidiPortDescriptor]`.
-- Produces: `OpenedMidiInput` / `OpenedMidiOutput` type aliases (live `pygame.midi.Input` /
-  `Output`, or `ReplayMidiInput` / `ReplayMidiOutput`); `ReplayMidiInput.poll() -> False`,
-  `.read(n) -> []`; `ReplayMidiOutput` accepts `write_short`, `write`, `note_on`, `note_off`,
+- Produces: `OpenedMidiInput` / `OpenedMidiOutput` type aliases (an input is a `MidiInputHandle`, live
+  as in a replay, whose `ReplayMidiInput` is one: the live registry alone holds the raw
+  `pygame.midi.Input`; an output is `pygame.midi.Output` or `ReplayMidiOutput`);
+  `MidiInputHandle.poll() -> False`, `.read(n) -> []`; `ReplayMidiOutput` accepts `write_short`, `write`, `note_on`, `note_off`,
   `set_instrument`, `pitch_bend`, `write_sys_ex` and returns None without effect.
 - Produces: recording fields `MIDI_PORTS_HEADER_FIELD = 'midi_ports'` (ports opened before the
   first frame) and the frame field `midi_ports_opened`, both absent when no port opened.
@@ -222,7 +223,8 @@ decisions that departed from the first draft are in "Decisions record" at the en
   `MidiEventManager.open_connected_midi_ports(*, input_names: Sequence[str], output_names:
   Sequence[str]) -> dict[tuple[str, int], MidiEventProxy]`.
 - The manager no longer lists the `pygame.midi` module among any proxies.
-- `on_midi_in_event` / `on_midi_out_event` forward to the game, as today.
+- The manager's `on_midi_in_event` / `on_midi_out_event` forward to the game, as today; a proxy has
+  none of its own.
 
 - [ ] **Step 1: Write the failing tests**
   - `test_no_named_port_means_portmidi_is_never_initialized`: an engine started with default

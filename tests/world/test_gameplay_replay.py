@@ -54,6 +54,7 @@ from glitchygames.recording import (
     RecordingSources,
     UnrepresentableValue,
     event_to_record,
+    json_safe_value,
     pending_internal_posts,
     post_event,
     post_input_event,
@@ -134,6 +135,7 @@ from glitchygames.state.sandbox import open_saves
 from glitchygames.timing import DEFAULT_SLEEP_GRANULARITY_NS, FastTimer, PacingTimer, SleepModel
 from glitchygames.tracing import (
     GZIP_WINDOW_BITS,
+    TraceFormatError,
     read_trace,
     read_trace_result,
     write_trace,
@@ -1317,11 +1319,20 @@ class TestReplayDoors:
     def test_a_replay_opens_the_ports_its_recording_named(self):
         """--midi-input and --midi-output are the recording's, not the replay command's."""
         options = {'midi_input': ['Other'], 'midi_output': []}
-        apply_recorded_options(
-            options=options, recorded={'midi_input': ['Keys'], 'midi_output': ['Synth']}
-        )
-        assert options == {'midi_input': ('Keys',), 'midi_output': ('Synth',)}
+        # As a header holds them: argparse's lists, tagged
+        recorded = {'midi_input': json_safe_value(['Keys']), 'midi_output': json_safe_value([])}
+        assert recorded['midi_input'] == {'__list__': ['Keys']}
+        apply_recorded_options(options=options, recorded=json.loads(json.dumps(recorded)))
+        assert options == {'midi_input': ['Keys'], 'midi_output': []}
         assert not {'midi_input', 'midi_output'} & REPLAY_LOCAL_OPTIONS
+
+    def test_malformed_recorded_port_names_are_refused_and_change_no_option(self):
+        options = {'midi_input': ['Other'], 'resolution': '640x480'}
+        with pytest.raises(TraceFormatError, match='midi_input'):
+            apply_recorded_options(
+                options=options, recorded={'resolution': '320x240', 'midi_input': 5}
+            )
+        assert options == {'midi_input': ['Other'], 'resolution': '640x480'}
 
     def test_debug_events_stays_local(self):
         """debug_events follows this run's --debug-events, never the recording's."""
@@ -6063,7 +6074,6 @@ class TestRebaselinedHeader:
         """The header's field is checked like the rest of it: a format error, not a crash."""
         from glitchygames.recording import CUSTOM_EVENT_TYPES_HEADER_FIELD
         from glitchygames.replay import driver
-        from glitchygames.tracing import TraceFormatError
 
         with pytest.raises(TraceFormatError, match='custom_event_types must map'):
             driver.decoded_replay_sources(

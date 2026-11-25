@@ -2333,3 +2333,19 @@ decided, for the day a live game runs inside another:
 - [ ] **`InnerGame.finish()` never closes ports.** It does not call the registry's
   `close_midi_ports()`, and a live inner context's PortMidi must not be shut down under the outer
   one (the engine's `_close_midi_ports` shuts it down unconditionally today).
+
+## MIDI devices: what can wait (2026-11-24, the whole-branch review of plans/2026-11-24-midi-devices.md)
+
+- [ ] **A failed import or start is tried again on every MIDI call.** Without PortMidi,
+  `LiveDeviceRegistry._started_midi_module` imports `pygame.midi` again each time (only its log line
+  is said once), and an `init()` that failed is called again by the next call. A game that asks every
+  frame pays an import attempt every frame. Remember the failure per registry.
+- [ ] **A game's default port cannot be un-named.** `--midi-input` and `--midi-output` append, so a
+  game that gives its own default names can be given more ports on the command line, never fewer. Add
+  a way to name none (an empty name, or `--no-midi-input`).
+- [ ] **Two ports sharing a name.** A name opens the first port of that name that fits; the second
+  of two identical keyboards cannot be named. A suffix or the port's interface could tell them apart.
+- [ ] **An absurd recorded joystick count.** `ReplayDeviceRegistry.joystick_count` and
+  `controller_count` answer any recorded integer, so a malformed recording (200,000) has the joystick
+  manager ask about, and the registry warn of, each index. MIDI's count is bounded
+  (`MAXIMUM_MIDI_PORT_COUNT`); do the same for these.

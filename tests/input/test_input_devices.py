@@ -42,6 +42,7 @@ from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.recording import json_safe_value
 from glitchygames.sources import install_sources
+from glitchygames.tracing import TraceFormatError
 
 # An unmapped joystick: device index 0, instance id 5
 STICK = DeviceDescriptor(
@@ -453,6 +454,11 @@ class TestRecordedDevices:
             midi_input_names=('Keys', 'Pads'),
             midi_output_names=('Synth',),
         )
+
+    @pytest.mark.parametrize('option', ['midi_input', 'midi_output'])
+    def test_malformed_port_names_are_refused_as_a_replay_refuses_them(self, option):
+        with pytest.raises(TraceFormatError, match=option):
+            recorded_devices(options={option: 5}, scene_start_devices=None)
 
     def test_a_recording_files_mode_comes_from_its_options(self):
         recorded = recorded_devices(options={'input_mode': 'joystick'}, scene_start_devices=None)

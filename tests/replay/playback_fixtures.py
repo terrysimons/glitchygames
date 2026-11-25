@@ -266,6 +266,18 @@ def record_counting_scene(
     return recording_path
 
 
+# A header's midi_input or midi_output that is no list of names, as JSON could hold it
+MALFORMED_PORT_NAMES: tuple[Any, ...] = (
+    5,
+    True,
+    'Keys',
+    {'unknown': 'Keys'},
+    {'__list__': 5},
+    {'__list__': ['Keys', 5]},
+    [['Keys']],
+)
+
+
 def use_stand_in_midi_ports(
     *, mocker: MockerFixture, midi_ports: Sequence[MidiPortInfo]
 ) -> StandInDeviceRegistry:

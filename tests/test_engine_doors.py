@@ -67,7 +67,7 @@ ANY_TIME_MODULE_USE = 'time.*'
 
 # PortMidi is reached through pygame.midi, and through the extension module under it (pygame.pypm,
 # which pygame.midi imports as _pypm; ``pygame.midi._pypm`` is the same module). Any use of one,
-# in any form, is the devices door's alone (the allowance spells it ANY_PYGAME_MIDI_USE)
+# in any literal form, is the devices door's alone (the allowance spells it ANY_PYGAME_MIDI_USE)
 PYGAME_MIDI_MODULES = ('pygame.midi', 'pygame.pypm', 'pygame._pypm')
 ANY_PYGAME_MIDI_USE = 'pygame.midi.*'
 
@@ -612,7 +612,7 @@ MIDI_PLANTS = {
 
 @pytest.mark.parametrize(('source', 'reported'), MIDI_PLANTS.values(), ids=MIDI_PLANTS.keys())
 def test_pygame_midi_is_called_only_in_the_devices_door(tmp_path, source, reported):
-    """A use of PortMidi outside the devices door is reported, in every form it could take.
+    """A use of PortMidi outside the devices door is reported, in every literal form it could take.
 
     The door itself may use all of them (its allowance), and nothing else may.
     """

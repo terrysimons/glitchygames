@@ -67,6 +67,7 @@ from tests.replay.playback_fixtures import (
     COUNTING_SAVE_NAMESPACE,
     COUNTING_SAVE_SLOT,
     COUNTING_STREAM_NAME,
+    MALFORMED_PORT_NAMES,
     MARKER_TRAVEL,
     SAVING_TICK,
     SWITCHING_TICK,
@@ -85,6 +86,7 @@ from tests.replay.playback_fixtures import (
     tamper_sprite_in_frame,
     use_stand_in_midi_ports,
 )
+from tests.replay.replay_helpers import rewrite_recording
 from tests.world.test_frame_integration import (
     TEST_FADE_SECONDS,
     CameraFreeScene,
@@ -1265,6 +1267,23 @@ class TestContinuousMidiControlsDuringAScope:
 
 class TestMidiPortsOfAPlayedFile:
     """A recording file's scope opens the ports its run named, read from its real header."""
+
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize('malformed', MALFORMED_PORT_NAMES)
+    def test_a_file_with_malformed_port_names_is_refused(self, tmp_path, caplog, malformed):
+        """As a replay refuses it (tests/replay/test_midi_port_replays.py): no scope begins."""
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        rewrite_recording(
+            recording_path=recording_path,
+            change=lambda trace: trace['options'].update(midi_input=malformed),
+        )
+        with running_scene(CountingScene) as manager:
+            assert not start_playback_from_recording(
+                manager=manager, path=recording_path, then=active_counting_scene(manager)
+            )
+            step(manager)
+            assert manager.playback_session is None
+        assert 'cannot be replayed' in caplog.text
 
     PORTS = (
         MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False),

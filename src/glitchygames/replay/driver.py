@@ -304,6 +304,7 @@ from glitchygames.recording import (
     is_input_post,
     pending_internal_posts,
     private_event_queue,
+    recorded_port_names,
     recorded_start_time,
     remapped_event_records,
     start_tracking_internal_posts,
@@ -2731,11 +2732,12 @@ def decoded_replay_sources(
         The sources.
 
     Raises:
-        TraceFormatError: If the header has no seed or start time, its custom event types are
-            malformed, or what the sources decode is malformed.
+        TraceFormatError: If the header has no seed or start time, its custom event types or its
+            MIDI port names are malformed, or what the sources decode is malformed.
 
     """
     frames = remapped_event_records(frames=frames, remap=custom_event_type_remap(header=header))
+    recorded_port_names(options=header.get(OPTIONS_HEADER_FIELD, {}))
     try:
         return ReplaySources(
             header=header,
@@ -3084,21 +3086,18 @@ def check_recorded_game(
         raise ReplayRefusedError(message)
 
 
-# Options naming devices a replay opens through its recorded answers: absent from a recording that
-# predates them, they are empty in its replay (MidiEventManager.args)
-RECORDED_PORT_NAME_OPTIONS: tuple[str, ...] = ('midi_input', 'midi_output')
-
-
 def apply_recorded_options(*, options: dict[str, Any], recorded: dict[str, Any]) -> None:
     """Put every recorded option except ``REPLAY_LOCAL_OPTIONS`` into ``options``.
 
-    The MIDI port names (``RECORDED_PORT_NAME_OPTIONS``) a recording does not hold become empty.
+    The MIDI port names (``recording.RECORDED_PORT_NAME_OPTIONS``) a recording does not hold become
+    empty. Malformed ones raise TraceFormatError (``recorded_port_names``), no option changed.
 
     Args:
         options: The run's options (the engine's ``options``), changed in place.
         recorded: The header's ``options`` (JSON-safe; read back with ``decoded_options``).
 
     """
+    port_names = recorded_port_names(options=recorded)
     options.update(
         decoded_options(
             recorded={
@@ -3108,9 +3107,9 @@ def apply_recorded_options(*, options: dict[str, Any], recorded: dict[str, Any])
     )
     # A recording that predates an option names none of it: the replay's own command line or the
     # game's default must not (an old recording holds no MIDI answers to open a port with)
-    for name in RECORDED_PORT_NAME_OPTIONS:
-        if name in options and name not in recorded:
-            options[name] = []
+    for name, names in port_names.items():
+        if name in options:
+            options[name] = list(names)
 
 
 def apply_recorded_screen_size(

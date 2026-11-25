@@ -45,6 +45,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 from glitchygames.audio import Instrument
+from glitchygames.checks import required
 from glitchygames.input.state import current_input
 from glitchygames.replay.tools.golden_traces import InputScript, press, release
 from glitchygames.scenes import Scene
@@ -444,11 +445,12 @@ MIDI_READOUT_FRAMES = 12
 class MidiReadoutScene(Scene):
     """A stand-in for a game played from a MIDI keyboard: its marker follows the last note.
 
-    Its facts: it opens MIDI input port 0 through the devices door in ``setup()``; each MIDIIN
-    event it receives (``on_midi_in_event``) moves its marker (a sprite on every frame) to
+    Its facts: it opens MIDI input port 0 through the devices door in ``setup()``; each MIDIIN event
+    it receives (``on_midi_in_event``) moves its marker (a sprite on every frame) to
     ``MIDI_READOUT_ORIGIN`` plus (``data1``, ``data2``), so a replay compares the MIDI the game
-    received; it ends the run itself after ``MIDI_READOUT_FRAMES`` frames
-    (``SceneManager.quit``: no event).
+    received; it reads its input port every frame too and moves the marker down by every message it
+    got that way (none: the messages are the frame's); it ends the run itself after
+    ``MIDI_READOUT_FRAMES`` frames (``SceneManager.quit``: no event).
     """
 
     NAME = 'Midi Readout'
@@ -461,6 +463,7 @@ class MidiReadoutScene(Scene):
         self.marker.rect.topleft = MIDI_READOUT_ORIGIN
         self.all_sprites.add(self.marker)
         self.frames_run = 0
+        self.messages_read: list[Any] = []
 
     @override
     def setup(self: Self) -> None:
@@ -476,8 +479,14 @@ class MidiReadoutScene(Scene):
 
     @override
     def dt_tick(self: Self, dt: float) -> None:
-        """End the run after its frames."""
+        """Read its input (nothing is there for a game), and end the run after its frames."""
         super().dt_tick(dt)
+        keyboard = required(
+            active_sources().devices().midi_input_for_port(port_id=0), what='the keyboard port'
+        )
+        self.messages_read.extend(keyboard.read(8))
+        # A message a game could take from its port would show in the marker's place
+        self.marker.rect.y += len(self.messages_read)
         self.frames_run += 1
         if self.frames_run == MIDI_READOUT_FRAMES:
             self.scene_manager.quit()

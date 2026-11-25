@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import re
+
 import pygame
 import pygame._sdl2.controller
 import pygame.midi
 import pytest
 
 from glitchygames.input.devices import (
+    MAXIMUM_MIDI_PORT_COUNT,
     MIDI_INPUT_KIND,
     MIDI_MESSAGES_PER_PORT_PER_FRAME,
     MIDI_OUTPUT_KIND,
@@ -31,6 +34,8 @@ from glitchygames.input.devices import (
 )
 from glitchygames.input.stand_in_devices import (
     STAND_IN_MIDI_QUEUE_CAPACITY,
+    StandInMidiInput,
+    StandInMidiQueue,
     StandInPortMidiError,
 )
 from glitchygames.input.state import InputSnapshot, set_current_input
@@ -857,6 +862,39 @@ def test_a_missing_midi_port_is_remembered_as_none(mocker):
     assert replay.midi_port_info(port_id=9) is None
 
 
+@pytest.mark.parametrize('count', [MAXIMUM_MIDI_PORT_COUNT + 1, 200_000])
+def test_an_absurd_recorded_midi_port_count_is_no_ports_and_one_warning(caplog, count):
+    """No port is asked about: a search would warn about each id the recording does not hold."""
+    replay = ReplayDeviceRegistry(
+        descriptors=[],
+        enumeration_answers=[
+            EnumerationAnswer(call='midi_port_count', device_index=None, value=count)
+        ],
+    )
+
+    with caplog.at_level('WARNING', logger='game.input.devices'):
+        for _ in range(3):
+            assert find_midi_port(devices=replay, name='Keys', kind=MIDI_INPUT_KIND) is None
+
+    (warning,) = [record.getMessage() for record in caplog.records]
+    assert str(count) in warning
+
+
+def test_the_largest_believable_recorded_midi_port_count_is_answered(caplog):
+    """The bound itself is a count."""
+    replay = ReplayDeviceRegistry(
+        descriptors=[],
+        enumeration_answers=[
+            EnumerationAnswer(
+                call='midi_port_count', device_index=None, value=MAXIMUM_MIDI_PORT_COUNT
+            )
+        ],
+    )
+
+    assert replay.midi_port_count() == MAXIMUM_MIDI_PORT_COUNT
+    assert caplog.records == []
+
+
 def test_replay_answers_midi_enumeration_as_recorded(mocker):
     """A replay gives the recorded MIDI answers and never touches pygame.midi."""
     midi_module = _patch_portmidi(mocker)
@@ -1033,7 +1071,7 @@ def test_a_midi_port_descriptor_refuses_a_kind_that_is_not_midi():
 
 
 def test_opening_an_open_midi_port_hands_back_the_same_port(mocker):
-    """A port opens once per process: a second open returns the first, and nothing is recorded."""
+    """A port opens once per registry: a second open returns the first, and nothing is recorded."""
     midi_module = _patch_portmidi_ports(mocker)
     registry = LiveDeviceRegistry()
     assert registry.midi_input_for_port(port_id=0) is None
@@ -1044,7 +1082,9 @@ def test_opening_an_open_midi_port_hands_back_the_same_port(mocker):
     first_output = registry.open_midi_output(port_id=1)
     second_output = registry.open_midi_output(port_id=1)
 
-    assert first_input is second_input is midi_module.Input.return_value
+    # An input is handed out as a handle: the raw port is the frame's alone
+    assert first_input is second_input
+    assert first_input is not midi_module.Input.return_value
     assert first_output is second_output is midi_module.Output.return_value
     midi_module.Input.assert_called_once_with(0)
     midi_module.Output.assert_called_once_with(1)
@@ -1255,6 +1295,54 @@ def test_a_stand_in_registry_opens_its_midi_ports_and_tells_the_recorder():
     ]
 
 
+@pytest.mark.parametrize(
+    ('open_name', 'port_id', 'message'),
+    [
+        ('open_midi_input', 9, 'There is no MIDI port 9'),
+        ('open_midi_input', -1, 'There is no MIDI port -1'),
+        ('open_midi_input', 1, 'MIDI port 1 (Synth) cannot be opened as a midi_input'),
+        ('open_midi_output', 0, 'MIDI port 0 (Keys) cannot be opened as a midi_output'),
+    ],
+)
+def test_a_stand_in_open_of_a_missing_or_wrong_way_port_fails_as_live_does(
+    mocker, device_answers, open_name, port_id, message
+):
+    """Same error, same recorded answer, same observer's news; a replay of it fails the same."""
+    _patch_portmidi_ports(mocker)
+    failure = EnumerationAnswer(call=open_name, device_index=port_id, value=None, error=message)
+    for registry in (
+        LiveDeviceRegistry(),
+        stand_in_registry(descriptors=[], midi_ports=[KEYS_PORT, SYNTH_PORT]),
+    ):
+        device_answers.clear()
+        with pytest.raises(pygame.error, match=re.escape(message)):
+            getattr(registry, open_name)(port_id=port_id)
+
+        answers = registry.take_enumeration_answers()
+        assert answers == [failure]
+        assert device_answers == [(open_name, port_id, message, None)]
+        assert registry.take_opened_midi_ports() == []
+        assert registry.midi_input_for_port(port_id=port_id) is None
+        assert registry.midi_output_for_port(port_id=port_id) is None
+        replay = ReplayDeviceRegistry(descriptors=[], enumeration_answers=answers)
+        with pytest.raises(pygame.error, match=re.escape(message)):
+            getattr(replay, open_name)(port_id=port_id)
+
+
+def test_a_stand_in_open_made_to_fail_is_told_to_the_recorder():
+    """An answer given to the registry as a failure is recorded like any other, as live does."""
+    failure = EnumerationAnswer(
+        call='open_midi_input', device_index=0, value=None, error='PortMidi: Device already open'
+    )
+    registry = stand_in_registry(descriptors=[], midi_ports=[KEYS_PORT])
+    registry.add_enumeration_answers(answers=[failure])
+
+    with pytest.raises(pygame.error, match='Device already open'):
+        registry.open_midi_input(port_id=0)
+
+    assert registry.take_enumeration_answers() == [failure]
+
+
 def test_stand_in_frames_without_a_recorder_keep_no_midi_ports():
     """The stand-in doors discard untaken MIDI ports at the end of every frame."""
     registry = install_stand_in_devices(descriptors=[], midi_ports=[KEYS_PORT])
@@ -1294,6 +1382,9 @@ def test_a_portmidi_start_failure_during_an_open_is_recorded_once_and_fails_the_
 ):
     """PortMidi cannot start: the open raises, one failure is recorded, the replay raises it too."""
     midi_module = _patch_portmidi_ports(mocker)
+    # pygame-ce 2.5.8's init() does not raise it (its Initialize ignores PortMidi's error). The
+    # door's contract needs the test: whatever an open meets that is a pygame.error, starting
+    # PortMidi included, is remembered, so a replay fails the same (a later pygame may raise)
     midi_module.init.side_effect = pygame.error('PortMidi cannot start')
     live = LiveDeviceRegistry()
 
@@ -1431,7 +1522,7 @@ def test_a_live_port_that_raises_is_dropped_once_and_the_others_still_read(mocke
     pads = FakePortMidiInput(messages=[([0x99, 36, 90, 0], 2)])
     _patch_portmidi_inputs(mocker, inputs_by_port={0: keys, 1: pads})
     registry = LiveDeviceRegistry()
-    registry.open_midi_input(port_id=0)
+    handle = registry.open_midi_input(port_id=0)
     registry.open_midi_input(port_id=1)
 
     with caplog.at_level('ERROR', logger='game.input.devices'):
@@ -1445,7 +1536,7 @@ def test_a_live_port_that_raises_is_dropped_once_and_the_others_still_read(mocke
     assert len(failures) == 1
     assert 'port 0 (Keys)' in failures[0].getMessage()
     # Dropped, not closed: the port stays the one the registry opened
-    assert registry.midi_input_for_port(port_id=0) is keys
+    assert registry.midi_input_for_port(port_id=0) is handle
 
 
 def test_only_the_live_and_stand_in_registries_read_midi_input():
@@ -1688,6 +1779,53 @@ def test_a_port_handed_back_is_recorded_once(mocker, kind):
     assert registry.take_opened_midi_ports() == [KEYS_DESCRIPTOR]
 
 
+@pytest.mark.parametrize('kind', ['live', 'stand-in', 'replay'])
+def test_a_games_input_has_nothing_to_read_and_cannot_steal_from_the_frame(mocker, kind):
+    """A message waits; whatever a game calls on its input, the frame's read still gets it."""
+    waiting = ([0x90, 60, 100, 0], 5)
+    keys = FakePortMidiInput(messages=[waiting])
+    registry = _midi_registry(kind=kind, mocker=mocker)
+    if kind == 'live':
+        _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
+    if kind == 'stand-in':
+        registry.queue_midi_input(port_id=0, messages=[waiting])
+
+    opened = registry.open_midi_input(port_id=0)
+    for handle in (
+        opened,
+        registry.open_midi_input(port_id=0),
+        registry.midi_input_for_port(port_id=0),
+    ):
+        assert handle is opened
+        assert handle.descriptor == KEYS_DESCRIPTOR
+        assert handle.poll() is False
+        assert handle.read(8) == []
+        assert handle.close() is None
+        assert handle.read(8) == []
+        # Nothing on the handle leads to the port
+        assert vars(handle) == {'descriptor': KEYS_DESCRIPTOR}
+
+    if kind != 'replay':
+        assert _timestamps(registry.read_midi_input()) == [5]
+
+
+def test_the_teardown_closes_the_raw_input_a_game_could_not(mocker):
+    """A game's close() leaves the port open; the registry's closes it, once."""
+    midi_module = _patch_portmidi_ports(mocker)
+    raw_port = midi_module.Input.return_value
+    registry = LiveDeviceRegistry()
+    handle = registry.open_midi_input(port_id=0)
+
+    handle.close()
+    raw_port.close.assert_not_called()
+    registry.close_midi_ports()
+
+    raw_port.close.assert_called_once_with()
+    assert registry.midi_input_for_port(port_id=0) is None
+    assert registry.read_midi_input() == []
+    assert (handle.poll(), handle.read(1)) == (False, [])
+
+
 def test_an_adopted_midi_port_is_the_one_an_open_hands_back(device_answers):
     """An instant replay's ports: adopting asks no answer; opening one gets the same stand-in."""
     registry = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
@@ -1915,7 +2053,7 @@ def test_any_other_failure_still_drops_the_port(mocker, caplog, message):
 def test_the_stand_in_port_overflows_as_portmidi_does(caplog):
     """Full at 4096: more is refused, what was queued arrives, a read raises once, then it works."""
     registry = stand_in_registry(descriptors=[], midi_ports=[KEYS_PORT])
-    midi_input = registry.open_midi_input(port_id=0)
+    registry.open_midi_input(port_id=0)
     registry.queue_midi_input(port_id=0, messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
     registry.queue_midi_input(port_id=0, messages=_numbered(count=1, first=9000))
     with caplog.at_level('WARNING', logger='game.input.devices'):
@@ -1924,25 +2062,31 @@ def test_the_stand_in_port_overflows_as_portmidi_does(caplog):
         assert _timestamps(registry.read_midi_input()) == [9001]
     assert len(_overflow_warnings(caplog)) == 1
 
+
+def test_the_stand_in_port_read_by_hand_overflows_as_portmidi_does():
+    """The port the reader holds (a game's handle has nothing to read) keeps PortMidi's contract."""
+    queue = StandInMidiQueue()
+    midi_input = StandInMidiInput(queue=queue)
+
     # Read part way, the overflow not met: still refused
-    registry.queue_midi_input(port_id=0, messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
+    queue.send(messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
     assert len(midi_input.read(10)) == 10
-    registry.queue_midi_input(port_id=0, messages=_numbered(count=1, first=9002))
+    queue.send(messages=_numbered(count=1, first=9002))
     rest = STAND_IN_MIDI_QUEUE_CAPACITY - 10
     assert len(midi_input.read(rest)) == rest
     assert midi_input.poll() is False
     with pytest.raises(StandInPortMidiError):
         midi_input.read(1)
 
-    # Read by hand: poll says nothing waits, the read raises once and loses what it had taken
-    registry.queue_midi_input(port_id=0, messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
+    # poll says nothing waits, the read raises once and loses what it had taken
+    queue.send(messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
     assert len(midi_input.read(STAND_IN_MIDI_QUEUE_CAPACITY)) == STAND_IN_MIDI_QUEUE_CAPACITY
     assert midi_input.poll() is False
     with pytest.raises(StandInPortMidiError) as overflow:
         midi_input.read(1)
     assert overflow.value.args == (OVERFLOW_MESSAGES[0],)
     assert midi_input.read(1) == []
-    registry.queue_midi_input(port_id=0, messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
+    queue.send(messages=_numbered(count=STAND_IN_MIDI_QUEUE_CAPACITY + 1))
     with pytest.raises(StandInPortMidiError):
         midi_input.read(STAND_IN_MIDI_QUEUE_CAPACITY + 1)
     assert midi_input.read(1) == []

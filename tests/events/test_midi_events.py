@@ -500,8 +500,11 @@ class TestNamedMidiPorts:
         assert list(manager.ports) == [(MIDI_INPUT_KIND, 0)]
         proxy = manager.ports[MIDI_INPUT_KIND, 0]
         assert proxy.proxies[1] is devices.midi_input_for_port(port_id=0)
-        # The port's own method, through the proxy
+        # The port's methods, through the proxy: what waits is the frame's, not a game's
+        devices.queue_midi_input(port_id=0, messages=[([0x90, 60, 100, 0], 5)])
         assert proxy.poll() is False
+        assert proxy.read(8) == []
+        assert [event.data1 for event in devices.read_midi_input()] == [60]
         assert proxy.get_device_info() == (b'CoreMIDI', b'Keys', 1, 0, 1)
 
     def test_a_named_output_port_opens_one_proxy(self):
@@ -605,28 +608,29 @@ class TestNamedMidiPorts:
         with pytest.raises(AttributeError):
             operator.attrgetter('Input')(proxy)
 
-    def test_a_proxy_forwards_events_to_the_game(self):
-        """A port proxy forwards MIDI events to the game, as the old proxy did."""
+    def test_an_event_reaches_the_game_once_through_the_manager_not_the_proxy(self):
+        """The manager gives an event to its game; a proxy has no handler of its own to run."""
         install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
         game = MidiRecordingScene()
         manager = MidiEventManager(game=game, input_names=['Keys'])
-        proxy = manager.ports[MIDI_INPUT_KIND, 0]
-        event = HashableEvent(pygame.MIDIIN, device_id=0, status=144, data1=60, data2=127)
+        event = HashableEvent(pygame.MIDIIN, vice_id=0, status=144, data1=60, data2=127)
 
-        proxy.on_midi_in_event(event)
-        proxy.on_midi_out_event(event)
+        manager.on_midi_in_event(event)
+        manager.on_midi_out_event(event)
 
         assert [label for label, _ in game.midi_events_received] == ['midi_in', 'midi_out']
+        proxy_class = type(manager.ports[MIDI_INPUT_KIND, 0])
+        assert not issubclass(proxy_class, MidiEvents)
+        assert {'on_midi_in_event', 'on_midi_out_event'}.isdisjoint(vars(proxy_class))
 
-    def test_a_proxy_for_a_game_without_handlers_skips_events(self):
+    def test_an_event_for_a_game_without_handlers_is_skipped_with_a_port_open(self):
         """A game with no MIDI handlers is skipped, not raised on."""
         install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
         manager = MidiEventManager(game=GameWithoutMidiHandlers(), input_names=['Keys'])
-        proxy = manager.ports[MIDI_INPUT_KIND, 0]
-        event = HashableEvent(pygame.MIDIIN, device_id=0, status=144, data1=60, data2=127)
+        event = HashableEvent(pygame.MIDIIN, vice_id=0, status=144, data1=60, data2=127)
 
-        proxy.on_midi_in_event(event)
-        proxy.on_midi_out_event(event)
+        manager.on_midi_in_event(event)
+        manager.on_midi_out_event(event)
 
 
 class TestAdoptedMidiPorts:

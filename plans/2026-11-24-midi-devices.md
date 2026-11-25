@@ -30,8 +30,10 @@ replayed.
 - MIDI input becomes `MIDIIN` events in the engine's event batch, once per frame, so it is
   recorded and replayed with no new recording machinery.
 - `MidiEventManager` has one proxy per opened port, like `JoystickEventManager`: the proxy
-  forwards the port's events to the game and lists the port among its proxies, so a game calls the
-  port's own methods (`write_short()`, `note_on()`, `read()`, ...) through it. `get_device_info()`
+  lists the port among its proxies, so a game calls an output port's own methods
+  (`write_short()`, `note_on()`, ...) through it. The manager itself gives MIDI events to the game.
+  An input port is read by the door alone: a game holds a handle that has nothing to read, live as
+  in a replay. `get_device_info()`
   is the proxy's own and answers from the descriptor the port was opened with: pygame's ports
   have no such method (pygame's is a module function), and asking PortMidi would let a replay
   differ from its recording.
@@ -53,7 +55,7 @@ replayed.
 ## Anti-goals
 
 - Any use of `pygame.midi` outside the devices door. `tests/test_engine_doors.py` watches it (and
-  PortMidi's extension module under it, `pygame.pypm` / `pygame.midi._pypm`) in every form:
+  PortMidi's extension module under it, `pygame.pypm` / `pygame.midi._pypm`) in every literal form:
   `import`, `from`-import, alias, attribute access on `pygame`, a string load
   (`importlib.import_module('pygame.midi')`, `__import__`). Only `input/devices.py` may.
 - A replay that differs from its recording because a MIDI device is or isn't plugged in.
@@ -116,7 +118,10 @@ The owner chose 1 (2026-11-24).
 - `DeviceRegistry` gains `midi_port_count()`, `midi_port_info(port_id=...)`,
   `default_midi_input_id()`, `default_midi_output_id()`, `open_midi_input(port_id=...)`,
   `open_midi_output(port_id=...)`, and `midi_input_for_port` / `midi_output_for_port` to look up
-  a port already opened (the per-registry rule above; an open of an open port hands it back).
+  a port already opened (the per-registry rule above; an open of an open port hands it back). An
+  input is handed out as a `MidiInputHandle`, live as in a replay (`ReplayMidiInput` is one):
+  `poll()` is False, `read()` is empty, `close()` closes nothing. The live registry alone holds the
+  raw input port, reads it and closes it.
 - `LiveDeviceRegistry` calls `pygame.midi.init()` once, opens real ports, remembers answers and a
   descriptor per opened port, and reads every opened input port when the pump asks it to
   (`read_midi_input()`, below).
@@ -124,7 +129,8 @@ The owner chose 1 (2026-11-24).
   nothing; its events come from the recording's batches) and `ReplayMidiOutput` (accepts every
   write and drops it).
 - The stand-in registry (`src/glitchygames/input/stand_in_devices.py`) gets stand-in MIDI ports for
-  tests, with messages a test queues.
+  tests, with messages a test queues. It refuses an open of a port that is missing or goes the
+  other way as live does (`openable_midi_port`), so a game's handling of the failure can be tested.
 - A second descriptor type, `MidiPortDescriptor` (kind, port id, name, interface), because the
   joystick fields don't apply to a port; recordings made before this change still load.
 - No PortMidi: every call answers as a machine with no MIDI ports.
@@ -163,16 +169,17 @@ The owner chose 1 (2026-11-24).
 - **Game side:** a scene defines `on_midi_in_event(event)` and receives each message as a
   `MidiEvent` (`status`, `data1`-`data3`, `timestamp`, `vice_id`: the port id), in the frame it
   was read. It writes through the proxy in `current_engine().midi_manager.ports` (keyed `(kind,
-  port id)`, with the port's `descriptor`), whose methods are the port's; a replay accepts and
-  drops them.
+  port id)`, with the port's `descriptor`), whose methods are the output port's; a replay accepts
+  and drops them.
 
 ### `MidiEventManager` (`src/glitchygames/events/midi.py`)
 
 - Like `JoystickEventManager`, a bigger change than it looks (today the manager builds one proxy
-  and has no open or adopt methods): `MidiEventProxy` becomes per port, opened through the door (or
-  handed back by it), with `proxies = [game, port]`; the manager keeps them by port id and opens
-  the connected ports at start (`open_connected_midi_ports`, which `GameEngine.enter_playback_devices`
-  calls with the scope's door, as it does for joysticks).
+  and has no open or adopt methods): `MidiEventProxy` becomes per port, opened through the door
+  (or handed back by it), with `proxies = [game, port]` and no event handler (an event names its
+  port, `vice_id`, and the proxy has no state to keep from it, unlike a joystick's); the manager
+  keeps them by port id and opens the connected ports at start (`open_connected_midi_ports`, which
+  `GameEngine.enter_playback_devices` calls with the scope's door, as it does for joysticks).
 - **Instant replay is in scope (the owner, 2026-11-24).** The instant-replay journal records the
   opened MIDI ports' descriptors beside the joysticks' (`RecordedDevices.scene_start_devices`), an
   instant replay adopts them as it adopts joysticks (replay stand-ins, so a write during the replay
@@ -190,15 +197,15 @@ The owner chose 1 (2026-11-24).
   options existed opens none.
 - **What a playback scope does with MIDI** (`replay/playback.py`): live MIDI input is in the
   doors' batch during a scope and is the player's, as a joystick's is, told by its message. A note
-  played is a press (a pedal's is not; it never ends a demo). A note-off, a note-on at velocity 0
-  and the channel's letting go (all sound off, reset all controllers, all notes off) are
-  releases: held, and handed to the live game after the scope. A control moved (pitch bend,
-  channel and polyphonic pressure, controllers below 120, pedals included) is held as its latest
-  message per port, channel and control, because MIDI has no polled state to read again. The
-  parameter numbers and their data (controllers 6, 38, 96-101) are dropped: a lone data entry
-  could change the wrong parameter, so a parameter set during a scope is lost. Program changes,
-  local control and the system and real-time messages are motion and dropped. The scope's
-  ports are stand-ins, so nothing written during it reaches a live port.
+  played is a press: it ends a scope that exits on input, and no other (a pedal's press never
+  does). A note-off, a note-on at velocity 0 and the channel's letting go (all sound off, reset
+  all controllers, all notes off) are releases: held, and handed to the live game after the scope.
+  A control moved (pitch bend, channel and polyphonic pressure, controllers below 120, pedals
+  included) is held as its latest message per port, channel and control, because MIDI has no
+  polled state to read again. The parameter numbers and their data (controllers 6, 38, 96-101) are
+  dropped: a lone data entry could change the wrong parameter, so a parameter set during a scope
+  is lost. Program changes, local control and the system and real-time messages are motion and
+  dropped. The scope's ports are stand-ins, so nothing written during it reaches a live port.
 - The proxy no longer lists the raw `pygame.midi` module among its proxies: today a game could call
   `pygame.midi.Input(...)` through it and go around the door. Nothing in the repository uses that
   passthrough (checked 2026-11-24); enumeration is the door's (`midi_port_count()`, ...), offered
@@ -209,7 +216,7 @@ The owner chose 1 (2026-11-24).
 ### Guards and docs
 
 - `tests/test_engine_doors.py`: `pygame.midi` (and `pygame.pypm`, `pygame.midi._pypm`) allowed
-  only in the devices door, in every form (see Anti-goals), each proved with a plant.
+  only in the devices door, in every literal form (see Anti-goals), each proved with a plant.
 - Each new slot or audited state row checked (`tests/test_engine_context.py`,
   `tests/test_process_state_guard.py`).
 - `docs/architecture/event_system.md` (ports, what a game receives and sends, stand-in ports in a
@@ -225,6 +232,9 @@ The owner chose 1 (2026-11-24).
 - A replay never opens or reads a real MIDI port (the doors guard, and a test with
   `pygame.midi` made to raise).
 - Opening a port that is already open hands back the same port, with no second open.
+- A game that reads, polls or closes its input takes nothing from the frame's events and closes
+  no port, live, on stand-ins and in a replay.
+- Recorded port names of the wrong shape are refused by a replay and by a playback scope.
 - A read that meets an overflow loses that batch, logs once, keeps the port, and the next read
   works; any other read failure drops that port only. The fakes follow PortMidi's observed
   contract (`poll()` False until a read reports the overflow).
@@ -261,4 +271,10 @@ The owner chose 1 (2026-11-24).
   would settle who reads a shared input, with no live inner game to test it; deferred); PortMidi's
   failures are plain `Exception`; an overflow is met by a read and is lost input, not a dead
   port; the proxy's `get_device_info()` answers from the descriptor; `MIDI_MODULE` removed; the
-  guard watches `pygame.midi` and PortMidi's extension module in every form.
+  guard watches `pygame.midi` and PortMidi's extension module in every literal form.
+- 2026-11-24, after the whole-branch review: a game never reads a live input port (the door's reader
+  alone holds it; the handle is the replay stand-in's, because a read would take messages from
+  the recording); the proxy's `on_midi_*_event` are removed (nothing called them); recorded port
+  names that are not lists of names are refused, in a replay and a playback scope alike; a recorded
+  port count past `MAXIMUM_MIDI_PORT_COUNT` is no count; a stand-in registry refuses a missing or
+  wrong-way port as live does.

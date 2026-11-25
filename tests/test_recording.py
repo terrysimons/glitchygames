@@ -1564,7 +1564,7 @@ class TestRecordingSources:
         assert len(read_trace_result(path=path).trace['frames']) == 1
 
 
-# MIDI input per frame of the recorded run: (message, PortMidi's timestamp)
+# MIDI input after each pump of the recorded run: (message, PortMidi's timestamp)
 MIDI_SESSION_MESSAGES = {
     2: [([0x90, 60, 100, 0], 10), ([0x80, 60, 0, 0], 20)],
     5: [([0x90, 64, 90, 0], 30)],
@@ -1584,16 +1584,20 @@ class ScheduledMidiSources(StandInDeviceSources):
         self.pumps = 0
 
     def pump_events(self):
-        """Queue this frame's MIDI messages on port 0, then pump as the live doors do.
+        """Pump as the live doors do, then queue this pump's MIDI messages on port 0.
+
+        They wait there through the next frame's logic, as a device's do, until its pump: a game
+        that could read its port would take them first.
 
         Returns:
             The batch.
         """
+        batch = super().pump_events()
         self.registry.queue_midi_input(
             port_id=0, messages=MIDI_SESSION_MESSAGES.get(self.pumps, [])
         )
         self.pumps += 1
-        return super().pump_events()
+        return batch
 
 
 class MidiSessionEngine(GoldenTraceEngine):
@@ -1651,7 +1655,8 @@ def test_recorded_midi_input_replays_exactly(mocker, tmp_path):
     """A recorded MIDI session replays headless with no PortMidi, its sprites matching.
 
     The scene turns each MIDI note into its marker's place, so the replay compares the MIDI the
-    game received frame by frame; a recorded note changed by one is reported as a divergence.
+    game received frame by frame; a recorded note changed by one is reported as a divergence. It
+    also reads its input each frame, which must not take a message from the frame.
     """
     path = tmp_path / 'midi.jsonl.gz'
     record_midi_session(mocker=mocker, path=path)

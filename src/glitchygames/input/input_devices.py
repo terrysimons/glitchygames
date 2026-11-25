@@ -42,7 +42,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import logging
-from typing import TYPE_CHECKING, Any, Protocol, Self, cast
+from typing import TYPE_CHECKING, Any, Protocol, Self
 
 import pygame
 from pydantic import BaseModel, ConfigDict
@@ -52,7 +52,7 @@ from glitchygames.input.state import current_input
 from glitchygames.sources import active_sources
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Mapping, Sequence
+    from collections.abc import Iterable, Iterator, Mapping
 
     from glitchygames.input.devices import OpenedController, OpenedJoystick
 
@@ -61,8 +61,8 @@ LOG.addHandler(logging.NullHandler())
 
 # The key of scene_start_devices_record's MIDI ports (absent: none)
 MIDI_PORTS_KEY = 'midi_ports'
-# The recorded options a playback scope opens devices by
-_DEVICE_OPTIONS = frozenset({'input_mode', 'midi_input', 'midi_output'})
+# The recorded option a playback scope's input mode comes from
+_INPUT_MODE_OPTION = 'input_mode'
 
 # The input events each layer dispatches (device events are not input: they always pass)
 JOYSTICK_INPUT_EVENT_TYPES: frozenset[int] = frozenset({
@@ -172,32 +172,23 @@ def recorded_devices(
             ),
         )
     # Imported here: glitchygames.recording imports this package (input.state)
-    from glitchygames.recording import decoded_options
+    from glitchygames.recording import decoded_options, recorded_port_names
 
     # Only the options read here are decoded: the header holds them JSON-safe
     header_options: Mapping[str, Any] = {} if options is None else options
-    recorded_options = decoded_options(
-        recorded={name: value for name, value in header_options.items() if name in _DEVICE_OPTIONS}
-    )
+    recorded_mode = decoded_options(
+        recorded={
+            name: value for name, value in header_options.items() if name == _INPUT_MODE_OPTION
+        }
+    ).get(_INPUT_MODE_OPTION)
+    # None in a recording made before the options; malformed names raise TraceFormatError
+    port_names = recorded_port_names(options=header_options)
     return RecordedDevices(
-        input_mode=_known_input_mode(recorded=recorded_options.get('input_mode')),
+        input_mode=_known_input_mode(recorded=recorded_mode),
         scene_start_devices=None,
-        # A recording made before the options named no port
-        midi_input_names=_recorded_names(recorded=recorded_options.get('midi_input')),
-        midi_output_names=_recorded_names(recorded=recorded_options.get('midi_output')),
+        midi_input_names=port_names['midi_input'],
+        midi_output_names=port_names['midi_output'],
     )
-
-
-def _recorded_names(*, recorded: object) -> tuple[str, ...]:
-    """Return the port names a decoded option holds (none for an option that holds no list).
-
-    Returns:
-        The names.
-
-    """
-    if not isinstance(recorded, (list, tuple)):
-        return ()
-    return tuple(str(name) for name in cast('Sequence[object]', recorded))
 
 
 def _known_input_mode(*, recorded: object) -> InputMode:

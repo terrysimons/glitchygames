@@ -128,10 +128,11 @@ Demos and instant replays run inside a playback scope, not a new engine run
      The scope's code's own input posts (a supervisor the played scene added again) are
      dropped: the recording holds them as external and the replay serves them, so each
      arrives once. External events reach only the exit check, never the
-     scene; presses and motion are dropped. Live MIDI input is in the installed doors' batch
-     (its ports are read in every pump, the scope's included, so none waits for the scope's
-     end) and is the player's as a joystick's is, told by its message. A note played is a press
-     (a pedal's is not: it never ends a demo). A note-off (a note-on at velocity 0 too) and a
+     scene; presses and motion are dropped. Live MIDI input is in the installed doors' batch (its
+     ports are read in every pump, the scope's included, so none waits for the scope's end) and is
+     the player's as a joystick's is, told by its message. A note played is a press: it ends a
+     scope that exits on input (a pedal's press never does). A note-off (a note-on at velocity 0
+     too) and a
      channel's letting go (all sound off, reset all controllers, all notes off) are releases:
      held. A control moved (pitch bend, channel or polyphonic pressure, a controller below 120,
      pedals included) is held too, as MIDI has no polled state to read again: only the latest
