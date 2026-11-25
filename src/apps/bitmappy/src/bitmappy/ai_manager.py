@@ -30,10 +30,17 @@ from glitchygames.ai import (
     clean_ai_response as ai_clean_response,
 )
 from glitchygames.ai.sprite_generator import pixel_row_problems
+from glitchygames.ai_link import (
+    log_lucid_circuit_off,
+    lucid_circuit_off_message,
+    reason_lucid_circuit_is_off,
+)
 from glitchygames.checks import required
 from glitchygames.color import (
     RGB_COMPONENT_COUNT,
 )
+from glitchygames.engine import NoRunningEngineError, current_engine
+from glitchygames.sources import has_scoped_sources
 from glitchygames.sprites import (
     SPRITE_GLYPHS,
     SpriteFactory,
@@ -54,7 +61,6 @@ from .ai_worker import (
 )
 from .animated_canvas import pixel_row_repair_notice
 from .constants import (
-    AI_FEATURES_ENABLED,
     AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT,
     AI_VALIDATION_MAX_RETRIES,
     DEBUG_LOG_FIRST_N_PIXELS,
@@ -118,8 +124,28 @@ def _write_temporary_toml_file(*, prefix: str, write: Callable[[str], object]) -
     return temporary_path
 
 
-# What a request says while the AI feature flag is off (constants.AI_FEATURES_ENABLED)
-AI_FEATURES_OFF_MESSAGE = 'AI features are off in this build'
+def ai_off_reason() -> str | None:
+    """Say why Bitmappy's AI is off in the run going on in the current engine context.
+
+    Ask at each use. The gate is the engine's own AI link's
+    (``glitchygames.ai_link.reason_lucid_circuit_is_off``): Lucid Circuit's flag, never with
+    ``--headless``, never in a replay. In-game playback (a recording played inside a live run)
+    counts as a replay: its scene is rebuilt, and must not start a worker or ask the service. An
+    inner game is whatever its own engine is.
+
+    Returns:
+        The reason, or None when the AI may be used. With no engine there is no run to ask, so it
+        is off.
+
+    """
+    try:
+        engine = current_engine()
+    except NoRunningEngineError:
+        return 'no game engine is running'
+    return reason_lucid_circuit_is_off(
+        options=engine.options,
+        in_replay=engine.replay_sources is not None or has_scoped_sources(),
+    )
 
 
 def shut_down_running_ai_workers() -> None:
@@ -166,10 +192,13 @@ class AIManager:
         self.last_conversation_history: list[dict[str, str]] | None = None
 
     def setup(self) -> None:
-        """Initialize AI processing components and start the worker process."""
-        if not AI_FEATURES_ENABLED:
-            # The feature flag (constants.py): no worker, so every request says AI is off
-            self.log.info('AI features are off in this build: no AI worker started')
+        """Initialize AI processing components and start the worker process.
+
+        Nothing starts while the AI is off (``ai_off_reason``), and every request then says why.
+        """
+        off_reason = ai_off_reason()
+        if off_reason is not None:
+            log_lucid_circuit_off(reason=off_reason)
             return
         # Check if we are in the main process
         if multiprocessing.current_process().name == 'MainProcess':
@@ -418,16 +447,28 @@ class AIManager:
         if hasattr(self.editor, 'debug_text'):
             self.editor.debug_text.text = f'Processing AI request... (ID: {request_id})'
 
+    def _refuse_while_the_ai_is_off(self) -> bool:
+        """Ask ``ai_off_reason``, and log and show why when the AI is off.
+
+        Returns:
+            True when it is off: nothing may be asked of the worker.
+
+        """
+        off_reason = ai_off_reason()
+        if off_reason is None:
+            return False
+        log_lucid_circuit_off(reason=off_reason)
+        if hasattr(self.editor, 'debug_text'):
+            self.editor.debug_text.text = lucid_circuit_off_message(reason=off_reason)
+        return True
+
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox."""
         self.log.info("AI Sprite Generation Request: '%s'", text)
         self.log.debug('Text length: %s', len(text))
         self.log.debug('Text type: %s', type(text))
 
-        if not AI_FEATURES_ENABLED:
-            self.log.info('AI features are off in this build: request ignored')
-            if hasattr(self.editor, 'debug_text'):
-                self.editor.debug_text.text = AI_FEATURES_OFF_MESSAGE
+        if self._refuse_while_the_ai_is_off():
             return
 
         if not self.ai_request_queue:
@@ -516,8 +557,11 @@ class AIManager:
 
             # Check if we can retry
             if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
-                self._retry_ai_request(request_id, request_state, validation_error)
-                # DON'T delete from pending_ai_requests - we're retrying
+                if not self._retry_ai_request(request_id, request_state, validation_error):
+                    # Refused: show the answer (and the original prompt) below the reason, then
+                    # drop the request, as when the retries run out
+                    self._handle_ai_error_message(request_id, response.content)
+                # DON'T delete a request being retried from pending_ai_requests
                 return
             # Max retries reached: give up without loading. This used to say "loading sprite
             # anyway", but _load_ai_sprite validates the same content and rejects it, so nothing
@@ -540,15 +584,8 @@ class AIManager:
         # repaired rather than thrown away (the owner, 2026-10-30): the repair only adds
         # transparent pixels, and the load says what it repaired
         pixel_rows_error = self._ai_pixel_row_problems(request_id, response.content)
-        if pixel_rows_error:
-            self.log.warning('AI response pixel rows need repair: %s', pixel_rows_error)
-            if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
-                self._retry_ai_request(request_id, request_state, pixel_rows_error)
-                return
-            self.log.warning(
-                'Max retries (%s) reached, loading the sprite with its pixel rows repaired',
-                AI_VALIDATION_MAX_RETRIES,
-            )
+        if pixel_rows_error and self._retry_pixel_rows(request_id, request_state, pixel_rows_error):
+            return
 
         # Valid response - load the sprite
         self._load_ai_sprite(request_id, response.content)
@@ -556,6 +593,28 @@ class AIManager:
         # Remove from pending requests
         if request_id in self.pending_ai_requests:
             del self.pending_ai_requests[request_id]
+
+    def _retry_pixel_rows(
+        self, request_id: str, request_state: AIRequestState, pixel_rows_error: str
+    ) -> bool:
+        """Retry an answer whose rows need repair, unless it is the last there will be.
+
+        Returns:
+            True when it is retried, False when it is to be loaded repaired: the retries ran out,
+            or the AI is off.
+
+        """
+        self.log.warning('AI response pixel rows need repair: %s', pixel_rows_error)
+        if request_state.retry_count >= AI_VALIDATION_MAX_RETRIES:
+            self.log.warning(
+                'Max retries (%s) reached, loading the sprite with its pixel rows repaired',
+                AI_VALIDATION_MAX_RETRIES,
+            )
+            return False
+        if self._retry_ai_request(request_id, request_state, pixel_rows_error):
+            return True
+        self.log.warning('No retry, loading the sprite with its pixel rows repaired')
+        return False
 
     def _ai_pixel_row_problems(self, request_id: str, content: str) -> str:
         """Check the pixel rows of what loading this response would load.
@@ -576,8 +635,19 @@ class AIManager:
 
     def _retry_ai_request(
         self, request_id: str, request_state: AIRequestState, validation_error: str
-    ) -> None:
-        """Queue the request again, under the same id, with a correction for the error."""
+    ) -> bool:
+        """Queue the request again, under the same id, with a correction for the error.
+
+        While the AI is off (a later run in the same process turned it off) nothing is queued and
+        the reason is shown: the answer is then the request's last.
+
+        Returns:
+            True when the request was queued again, False when the AI is off.
+
+        """
+        if self._refuse_while_the_ai_is_off():
+            return False
+
         request_state.retry_count += 1
         request_state.last_error = validation_error
 
@@ -617,6 +687,7 @@ class AIManager:
                 f' {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})\n'
                 f'Error: {validation_error}'
             )
+        return True
 
     def _log_ai_response_content(self, content: str) -> None:
         """Log AI response content for debugging."""

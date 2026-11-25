@@ -12,24 +12,35 @@
     child then logged `LocalAIServiceNotInstalledError`, as the install root pointed at an empty
     folder.
   - The same without `--no-ai`: the same child.
-- **Status**: Open
+- **Status**: Fixed on `feature/lucid-circuit-switch` (2026-11-24), but for the answers (Known
+  limits)
 - **Priority**: High. The mirror would run a second worker and ask the service on the live game's
   behalf.
-- **Root Cause**: `AIManager.setup` (`src/apps/bitmappy/src/bitmappy/ai_manager.py:168`) tests only
-  `AI_FEATURES_ENABLED`, which is `sys.platform != 'emscripten'`
-  (`src/apps/bitmappy/src/bitmappy/constants.py:70`); it is called from `BitmapEditorScene.setup`
+- **Root Cause**: `AIManager.setup` (`src/apps/bitmappy/src/bitmappy/ai_manager.py:168`) tested only
+  `AI_FEATURES_ENABLED`, which was `sys.platform != 'emscripten'`
+  (`src/apps/bitmappy/src/bitmappy/constants.py:70`; removed by the fix); it is called from `BitmapEditorScene.setup`
   (`src/apps/bitmappy/src/bitmappy/editor.py:867`) and the process starts at
   `src/apps/bitmappy/src/bitmappy/ai_manager.py:188`. The worker calls the service through
   `src/glitchygames/ai/local_service.py`, which no door covers.
 - **Test gap**: The AI-link guard (`tests/test_ai_service_isolation_guard.py`) covers the engine's
   link, not a member's own worker; `tests/child_process_guard.py` does not see `multiprocessing`
   children.
-- **Solution**: Not chosen. Options, all unproven:
-  - Being fixed on `feature/lucid-circuit-switch`: Bitmappy follows Lucid Circuit's switch, and
-    stays off in headless runs and replays.
-  - Beyond that: an AI-answers door, so a recorded generation replays from the recording.
-- **Known limits**: The switch's branch does not record the answers, so a replay of a generated
-  sprite still cannot match. That a replayed request asks the service was read, not run.
+- **Solution**: Bitmappy follows Lucid Circuit's flag, and its AI is off with `--headless`, in a
+  replay (in-game playback and a tile's included) and with no engine to ask: `ai_off_reason`
+  (`src/apps/bitmappy/src/bitmappy/ai_manager.py`), through the engine link's own gate
+  (`reason_lucid_circuit_is_off`, `src/glitchygames/ai_link.py`). It is asked at `setup()`, which
+  then starts no process, queue or thread, and at each request and each retry of one, which show
+  the reason (a refused retry asks nothing more).
+- **Tests**: `src/apps/bitmappy/tests/test_bitmappy_ai_manager.py`: `TestRealWorker` (real
+  processes, the reproduction above included) and `TestLucidCircuit`, which failed before the fix.
+- **Known limits**, all open:
+  - The answers are not recorded, so a replay of a generated sprite still cannot match. An
+    AI-answers door would let a recorded generation replay from the recording (not chosen).
+  - A replayed request shows why the AI is off where the recorded run showed its progress. A
+    replay never compares that text, but the pixels differ.
+  - The scripted recorder (`src/glitchygames/replay/tools/golden_traces.py`, `_start_game`) runs
+    without a window but is not `--headless`: recording Bitmappy's demo still starts a worker. Its
+    script points the service nowhere.
 - **Sweep**: Covered: every `multiprocessing` start in `src/` (one, above). The engine's AI link is
   not created in a replay (`src/glitchygames/engine/game_engine.py`, `self.replay_sources is None`)
   or under `--headless`. Not covered: `VoiceAssistant`'s own calls

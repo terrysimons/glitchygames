@@ -528,9 +528,7 @@ class TestPaddleslapSpawnCooldown:
         """
         game = Game(options=dict(PADDLESLAP_TEST_OPTIONS))
         game.ball_spawn_mode = (
-            BallSpawnMode.ON_PADDLE_COLLISION
-            | BallSpawnMode.COOLDOWN_ENABLED
-            | BallSpawnMode.NORMAL
+            BallSpawnMode.ON_PADDLE_COLLISION | BallSpawnMode.WITH_COOLDOWN | BallSpawnMode.NORMAL
         )
         spawn_new_ball = mocker.patch.object(game, '_spawn_new_ball')
         ball = game.balls[0]
@@ -1004,7 +1002,7 @@ class TestPaddleslapSpawnTriggers:
     def test_a_ball_spawned_by_a_wall_bounce_spawns_on_its_own_bounces(self):
         """Spawned balls carry the spawn triggers, as the opening balls do."""
         game = Game(options={**PADDLESLAP_TEST_OPTIONS, 'ball_spawn_mode': 'wall_only'})
-        game.ball_spawn_mode &= ~BallSpawnMode.COOLDOWN_ENABLED
+        game.ball_spawn_mode &= ~BallSpawnMode.WITH_COOLDOWN
         self._play_event(game=game, event='wall')
         assert len(game.balls) == 2
         spawned_ball = game.balls[-1]

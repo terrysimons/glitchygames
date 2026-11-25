@@ -227,7 +227,7 @@ class FrameObserver(Protocol):
 
 
 class RecordTraceHooks(TypedDict, total=False):
-    """Optional callbacks into a ``record_trace`` run, given to it by keyword.
+    """Optional callbacks into a ``record_trace`` run and its arguments, given to it by keyword.
 
     Attributes:
         frame_observer: Called after each frame is sampled, with the same scene and sprite ids
@@ -235,11 +235,13 @@ class RecordTraceHooks(TypedDict, total=False):
         before_recording: Called with the game scene after it is installed and before
             recording starts (and before the first frame), e.g. to write a save the
             recording's header must hold.
+        extra_arguments: More command-line arguments (``--no-lucid-circuit``).
 
     """
 
     frame_observer: FrameObserver | None
     before_recording: Callable[[Scene], None] | None
+    extra_arguments: list[str] | None
 
 
 def press(key: int) -> pygame.event.Event:
@@ -696,7 +698,8 @@ def record_trace(
             harness's own frames.
         random_seed: The run's master seed, passed as ``--random-seed``; None rolls one, as
             any run does (our golden traces pass ``RANDOM_SEED``).
-        **hooks: Optional callbacks into the run, by keyword (``RecordTraceHooks``).
+        **hooks: Optional callbacks into the run, and its extra command-line arguments, by keyword
+            (``RecordTraceHooks``).
 
     Returns:
         The trace: the game (the scene class's logical name,
@@ -707,12 +710,23 @@ def record_trace(
         sets ``game`` itself (our golden traces name theirs by game key:
         scripts/record_golden_traces.py).
 
+    Raises:
+        TypeError: If a hook is not one of ``RecordTraceHooks``.
+
     """
+    unknown_hooks = sorted(hooks.keys() - RecordTraceHooks.__optional_keys__)
+    if unknown_hooks:
+        message = f'record_trace has no hook named {", ".join(unknown_hooks)}'
+        raise TypeError(message)
     frame_observer = hooks.get('frame_observer')
     before_recording = hooks.get('before_recording')
     frames: list[dict[str, Any]] = []
     sprite_ids = StableSpriteIds()
-    with golden_game(scene_class=scene_class, random_seed=random_seed) as manager:
+    with golden_game(
+        scene_class=scene_class,
+        random_seed=random_seed,
+        extra_arguments=hooks.get('extra_arguments'),
+    ) as manager:
         engine = required(manager.game_engine, what="the golden game's engine")
         rolled_seed = (
             {} if random_seed is not None else {RANDOM_SEED_HEADER_FIELD: engine.random_seed}

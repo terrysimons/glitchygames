@@ -496,9 +496,9 @@ flowchart TB
         trigger["_spawn_new_ball_on_trigger(trigger, ball)"]
         named{"Is it one of the<br/>mode's triggers?"}
         skip1["No spawn"]
-        cooldown{"COOLDOWN_ENABLED and<br/>game_time - last spawn<br/>under the cooldown?"}
+        cooldown{"WITH_COOLDOWN and<br/>game_time - last spawn<br/>under the cooldown?"}
         skip2["No spawn"]
-        speed{"SPEED_CHECK_ENABLED and<br/>the triggering ball faster<br/>than 1000 px/s?"}
+        speed{"WITH_SPEED_LIMIT and<br/>the triggering ball faster<br/>than 1000 px/s?"}
         skip3["No spawn"]
         spawn["_spawn_new_ball()"]
         place["Position: 10 tries for a spot<br/>at least 100 px from every ball<br/>(the last try if none is clear)"]

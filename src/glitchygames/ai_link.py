@@ -9,9 +9,14 @@ The rules:
 1. The frame loop never waits. ``start`` returns at once, and ``take_messages`` only looks at a
    deque, costing one truth test on a frame with nothing waiting. Everything that can block
    (starting the service, connecting, reading the socket) happens on the link's thread.
-2. Nothing runs unless it's wanted: ``create_link`` returns None for ``--no-ai``, ``--headless``
-   (scripted sessions, golden traces, tools), a browser, and a machine without the service, so those
-   runs build plain ``HostSources`` and never import ``websockets``. A replay never asks.
+2. Nothing runs unless it's wanted. ``reason_lucid_circuit_is_off`` is the run's gate, for this
+   link and whatever else of a game uses Lucid Circuit (Bitmappy's AI): off in a replay, when its
+   flag is off (``--no-lucid-circuit``, a browser: ``glitchygames/feature_flags.py``), when the
+   options hold no answer for the flag, and with ``--headless``. ``create_link`` returns None for
+   such a run, and on a machine without the service: the run then builds plain ``HostSources``
+   and never imports ``websockets``. A replay's engine has no host, and makes no link. Each says
+   why (``log_lucid_circuit_off``). Where the service is stays each user's own check, and so does
+   whether there is a run to ask.
 3. Starting the service is one attempt. Not enough free memory means no AI for this run: nothing is
    retried during play. A lost connection is retried slowly, as launchd restarts a crashed service.
 4. A service speaking another protocol version refuses the session, and the link stops. The game and
@@ -47,6 +52,7 @@ from typing import TYPE_CHECKING, Any, cast
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, process
+from glitchygames.feature_flags import LUCID_CIRCUIT, flag_state, option_name
 from glitchygames.state.paths import platform_data_home
 
 if TYPE_CHECKING:
@@ -93,6 +99,8 @@ MAXIMUM_INBOX_MESSAGES = 64
 # bin/ai-service.sh's exit code when no model fits in the memory free right now. The only copy:
 # glitchygames.ai.local_service reads it from here
 EXIT_NOT_ENOUGH_MEMORY = 3
+# Why a run playing a recording has no AI
+REPLAY_OFF_REASON = 'never used in a replay'
 
 
 class ServiceLocations(BaseModel):
@@ -387,26 +395,87 @@ class AiLink:
             self._inbox.append(message)
 
 
-def create_link(*, options: Mapping[str, Any]) -> AiLink | None:
-    """Create the link a run should have, if any (rule 2).
+def lucid_circuit_off_message(*, reason: str) -> str:
+    """Return how a run says Lucid Circuit is off, in the same words for every reason (rule 2).
+
+    Args:
+        reason: The reason.
+
+    Returns:
+        The message.
+
+    """
+    return f'Lucid Circuit is off: {reason}'
+
+
+def log_lucid_circuit_off(*, reason: str, level: int = logging.INFO) -> None:
+    """Log why a run may not use Lucid Circuit, or that this machine's service can't be (rule 2).
+
+    Args:
+        reason: The reason.
+        level: The logging level.
+
+    """
+    LOG.log(level, '%s', lucid_circuit_off_message(reason=reason))
+
+
+def reason_lucid_circuit_is_off(*, options: Mapping[str, Any], in_replay: bool) -> str | None:
+    """Say why a run may not use Lucid Circuit, wherever the service is (rule 2).
+
+    A replay's reason comes first: what a replayed game says then never depends on how the replay
+    was started, or on the machine.
 
     Args:
         options: The run's options.
+        in_replay: Whether the run is playing a recording.
+
+    Returns:
+        The reason (the flag's own, when the flag is off), or None for a run that may.
+
+    """
+    if in_replay:
+        return REPLAY_OFF_REASON
+    lucid_circuit = flag_state(name=LUCID_CIRCUIT)
+    if not lucid_circuit.on:
+        return lucid_circuit.reason
+    if not options.get(option_name(flag_name=LUCID_CIRCUIT)):
+        return 'the options given do not turn it on'
+    if options.get('headless'):
+        return 'never used with --headless'
+    return None
+
+
+def create_link(*, options: Mapping[str, Any]) -> AiLink | None:
+    """Create the link a run should have, if any (rule 2).
+
+    The engine context's flag decides, as for every other reader of it, so one run never has two
+    answers: the engine's options hold the same one (``take_flag_options`` set both), and no
+    recording changes either. Options must turn it on as well: an old caller's, which hold no
+    answer, get no link, and an explicit False vetoes one though the context's flag is on.
+    Neither can turn on what the other did not.
+
+    Args:
+        options: The run's options, taken by its engine.
 
     Returns:
         The link, not started, or None for a run with no AI.
 
     """
-    if not options.get('ai') or options.get('headless') or sys.platform == 'emscripten':
+    # A replay's engine makes no link: it never asks (GameEngine.__init__)
+    reason = reason_lucid_circuit_is_off(options=options, in_replay=False)
+    if reason is not None:
+        log_lucid_circuit_off(reason=reason)
         return None
     locations = service_locations()
     if locations is None:
-        LOG.debug('No local AI service on the platform %s', sys.platform)
+        log_lucid_circuit_off(reason=f'no AI service on the platform {sys.platform}')
         return None
     if not locations.control_script.is_file():
-        LOG.debug('The local AI service is not installed at %s', locations.program_root)
+        log_lucid_circuit_off(reason=f'the AI service is not installed at {locations.program_root}')
         return None
     if not locations.key_file.is_file():
-        LOG.warning('The local AI service at %s has no key', locations.user_root)
+        log_lucid_circuit_off(
+            reason=f'the AI service at {locations.user_root} has no key', level=logging.WARNING
+        )
         return None
     return AiLink(locations=locations)

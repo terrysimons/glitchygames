@@ -25,7 +25,7 @@ sequenceDiagram
 
     INIT->>PARSER: ArgumentParser("Bitmappy version 1.0")
     INIT->>ENGINE: GameEngine.args(parser)
-    Note over ENGINE: Layer 1<br/>Graphics Options (20)<br/>Diagnostics Options (62, 3 hidden)
+    Note over ENGINE: Layer 1<br/>Graphics Options (20)<br/>Diagnostics Options (62, 3 hidden)<br/>Feature Flags (1)
     loop for each of the 12
         ENGINE->>MANAGERS: manager.args(parser)
     end
@@ -49,7 +49,7 @@ the order of the layers. The layers mirror the engine's architecture.
 %%{init: {"flowchart": {"wrappingWidth": 500}}}%%
 flowchart TB
     subgraph ENGINE_ARGUMENT_LAYERS["Engine"]
-        L1["<b>Layer 1: the engine</b> (GameEngine.args)<br/>Graphics Options, Diagnostics Options"]
+        L1["<b>Layer 1: the engine</b> (GameEngine.args)<br/>Graphics Options, Diagnostics Options, Feature Flags"]
         L2["<b>Layer 2: event managers and fonts</b> (each one's args)<br/>Controller Options, Font Options, Game Options, Midi Options,<br/>and 8 reserved groups with no options yet"]
     end
     subgraph GAME_ARGUMENT_LAYERS["Your game"]
@@ -58,10 +58,11 @@ flowchart TB
     L1 --> L2 --> L3
 ```
 
-In `--help` (Bitmappy's or Paddle Slap's) the groups hold 20 Graphics, 59 Diagnostics (3 more
-hidden), 2 Controller, 7 Font, 4 Game and 2 Midi options, then the game's own; the eight empty groups
-are left out. Most of the Diagnostics options are the recording, replay and measurement tools'
-([Tool flags](#tool-flags)). The [Complete Flag Reference](#complete-flag-reference) lists them all.
+In `--help` (Bitmappy's or Paddle Slap's) the groups hold 19 Graphics, 59 Diagnostics (3 more
+hidden), 1 Feature Flags, 2 Controller, 7 Font, 4 Game and 2 Midi options, then the game's own; the
+eight empty groups are left out. Most of the Diagnostics options are the recording, replay and
+measurement tools' ([Tool flags](#tool-flags)). The
+[Complete Flag Reference](#complete-flag-reference) lists them all.
 
 ## How Games Add Arguments
 
@@ -198,6 +199,7 @@ nested mapping is indented below its name. Path options (the tools' and the engi
 recording's header stores) are shown relative to the project root when inside it and absolute
 otherwise. An option whose name holds key, token, secret, password or credential, in any case,
 shows `<redacted>`. The environment is never read. A replay's options are the recorded run's.
+Below the options the same record lists each feature flag's state, and why it is off.
 `random_seed` is the seed the run uses, rolled or given (the owner, 2026-10-28: "The seed should
 definitely be in the options"), never None, so `--random-seed` with it plays the run again.
 
@@ -215,7 +217,6 @@ Added by `GameEngine.args()` in `src/glitchygames/engine/game_engine.py`.
 - `-f, --target-fps TARGET_FPS` (`float`): cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)
 - `--fps-log-interval-ms FPS_LOG_INTERVAL_MS` (`float`): how often to log the FPS counter in ms (default: 1000)
 - `-w, --windowed, --no-windowed` (`bool`): run in a window; --no-windowed runs fullscreen (default: windowed)
-- `--ai, --no-ai` (`bool`): connect to the local AI service if it is installed, starting its models as the game loads; --no-ai never touches it (default: on, but never with --headless or in a replay)
 - `-r, --resolution RESOLUTION` (`str`): the resolution to use (default: 800x480)
 - `--use-gfxdraw` (`store_true`, default `False`): not used yet: stored, but nothing draws with pygame.gfxdraw because of it
 - `--update-type {update,flip}` (`choice`): update or flip (default: update)
@@ -297,8 +298,23 @@ read are `[tool.glitchygames]` in `pyproject.toml` (its `games`, `golden-globs`,
     uv run glitchygames verify --game paddleslap
     ```
 
-`--ai` is the one engine flag not in the registry: two tool flags at once are refused, and `--ai`
-is on by default.
+#### Feature Flags
+
+Added by `add_flag_arguments()` in `src/glitchygames/feature_flags.py` (whose docstring is the
+contract), one per flag declared in `FEATURE_FLAGS`. `flag_state(name=...)` says whether a flag is
+on in the current engine context and, when it is off, why. Each is local to the run: a recording
+never sets one.
+
+- `--lucid-circuit, --no-lucid-circuit` (`bool`, default on): Lucid Circuit, the local AI: it needs the AI service installed, and is never used with --headless or in a replay; unavailable in the browser, which cannot start processes
+
+!!! note "Wanted and possible, no more"
+
+    Whether a run may use a feature is the feature's own gate. Lucid Circuit's is
+    `reason_lucid_circuit_is_off()` in `src/glitchygames/ai_link.py`: the engine's AI link and
+    Bitmappy's AI ask it, and each run it is off in logs why at INFO.
+
+A feature switch is never a constant, and a flag is never read as a module is imported:
+`tests/test_feature_flag_source_guard.py` scans the engine's and every member's source for both.
 
 ### Layer 2: event managers and fonts
 
@@ -396,10 +412,10 @@ The other games add their own options the same way:
 ## What `--help` Looks Like
 
 `uv run bitmappy --help` prints a usage line, the `options:` group (`-h, --help`), then each
-group in the order the layers add them: Graphics, Diagnostics, Controller, Font and Game
-Options, then `Bitmappy v1.0 Options`. argparse leaves out groups with no arguments (App, Sound
-Mixer and the other reserved groups). Every option it prints, with its help text, is listed in
-[Complete Flag Reference](#complete-flag-reference).
+group in the order the layers add them: Graphics and Diagnostics Options, Feature Flags,
+Controller, Font, Game and Midi Options, then `Bitmappy v1.0 Options`. argparse leaves out groups
+with no arguments (App, Sound Mixer and the other reserved groups). Every option it prints, with its
+help text, is listed in [Complete Flag Reference](#complete-flag-reference).
 
 ## How to Add Arguments to a New Event Manager
 

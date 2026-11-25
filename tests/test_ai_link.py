@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import json
+import logging
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -26,6 +27,7 @@ from glitchygames.ai_link import (
     create_link,
     service_locations,
 )
+from glitchygames.feature_flags import flag_state, take_flag_options
 from glitchygames.host import HostSources
 from tests.ai_service_stand_in import SERVICE_KEY, install
 
@@ -440,31 +442,142 @@ def test_the_inbox_keeps_only_the_newest(tmp_path):
     assert messages[0]['number'] == 5
 
 
+def asked(*, lucid_circuit: bool | None) -> dict[str, Any]:
+    """The options of a run whose engine asked this of Lucid Circuit (None: nothing typed).
+
+    Returns:
+        The options, as the engine takes them, with the context's answer set.
+
+    """
+    options: dict[str, Any] = {'lucid_circuit': lucid_circuit}
+    take_flag_options(options=options)
+    return options
+
+
 @pytest.mark.parametrize(
-    'options',
-    [{'ai': False}, {'ai': True, 'headless': True}, {}],
-    ids=['no-ai', 'headless', 'option-missing'],
+    ('lucid_circuit', 'headless', 'linked'),
+    [
+        (None, False, True),
+        (True, False, True),
+        (False, False, False),
+        (None, True, False),
+        (True, True, False),
+        (False, True, False),
+    ],
 )
-def test_a_run_that_should_have_no_ai_gets_no_link(options, tmp_path, monkeypatch):
-    """Even with the service installed: --no-ai and every tool's headless run leave it alone."""
+def test_a_run_gets_a_link_when_lucid_circuit_is_on_and_it_is_not_headless(
+    lucid_circuit, headless, linked, tmp_path, monkeypatch
+):
+    """With the service installed: --no-lucid-circuit and every tool's headless run get none."""
+    install(root=tmp_path)
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
+    options = {**asked(lucid_circuit=lucid_circuit), 'headless': headless}
+
+    assert (create_link(options=options) is not None) is linked
+
+
+@pytest.mark.parametrize('options', [{}, {'ai': True}, {'lucid_circuit': None}])
+def test_options_without_an_answer_get_no_link(options, tmp_path, monkeypatch):
+    """Ruling C: an old caller's options fail closed, though the flag's default is on."""
     install(root=tmp_path)
     monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
 
+    assert flag_state(name='lucid-circuit').on
     assert create_link(options=options) is None
 
 
-def test_a_browser_gets_no_link(tmp_path, monkeypatch):
-    """A browser can't start the service."""
+@pytest.mark.parametrize('context_says', [True, False])
+def test_options_and_context_must_both_turn_it_on(context_says, tmp_path, monkeypatch):
+    """Neither can turn on what the other turned off."""
     install(root=tmp_path)
     monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
+    asked(lucid_circuit=context_says)
+
+    assert create_link(options={'lucid_circuit': not context_says}) is None
+
+
+@pytest.mark.parametrize(
+    'run',
+    [
+        (False, {'lucid_circuit': False}, 'turned off by --no-lucid-circuit'),
+        (True, {'lucid_circuit': True, 'headless': True}, 'never used with --headless'),
+        (True, {}, 'the options given do not turn it on'),
+        (True, {'lucid_circuit': False}, 'the options given do not turn it on'),
+    ],
+    ids=['off', 'headless', 'no-answer', 'vetoed'],
+)
+def test_a_run_with_lucid_circuit_off_says_why(run, tmp_path, monkeypatch, caplog):
+    """The flag's own reason, or the gate's, with the service installed.
+
+    Each run is what the context was asked, the options given and the reason.
+    """
+    lucid_circuit, options, reason = run
+    install(root=tmp_path)
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
+    asked(lucid_circuit=lucid_circuit)
+
+    with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+        create_link(options=options)
+
+    assert caplog.messages == [f'Lucid Circuit is off: {reason}']
+
+
+def test_a_machine_without_the_service_says_so(caplog):
+    """The same words begin it."""
+    with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+        create_link(options=asked(lucid_circuit=True))
+
+    (record,) = caplog.records
+    locations = service_locations()
+    assert locations is not None
+    assert record.levelno == logging.INFO
+    assert record.getMessage() == (
+        f'Lucid Circuit is off: the AI service is not installed at {locations.program_root}'
+    )
+
+
+def test_a_platform_without_the_service_says_so(mocker, no_location_variables, caplog):
+    """Windows, by the platform's name."""
+    mocker.patch.object(ai_link.sys, 'platform', 'win32')
+
+    with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+        create_link(options=asked(lucid_circuit=True))
+
+    assert caplog.messages == ['Lucid Circuit is off: no AI service on the platform win32']
+
+
+def test_an_install_without_a_key_says_so(tmp_path, monkeypatch, caplog):
+    """A damaged install is a warning."""
+    install(root=tmp_path)
+    (tmp_path / 'config' / 'service-api-key').unlink()
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
+
+    with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+        create_link(options=asked(lucid_circuit=True))
+
+    (record,) = caplog.records
+    assert record.levelno == logging.WARNING
+    assert record.getMessage() == f'Lucid Circuit is off: the AI service at {tmp_path} has no key'
+
+
+def test_a_browser_gets_no_link(tmp_path, monkeypatch, caplog):
+    """The flag's availability decides, with its reason, even where a service is found."""
+    install(root=tmp_path)
+    monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
+    options = asked(lucid_circuit=True)
     monkeypatch.setattr(ai_link.sys, 'platform', 'emscripten')
 
-    assert create_link(options={'ai': True}) is None
+    with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+        link = create_link(options=options)
+
+    assert link is None
+    (message,) = caplog.messages
+    assert message.startswith('Lucid Circuit is off: unavailable in the browser')
 
 
 def test_a_machine_without_the_service_gets_no_link():
     """The usual case for a player without it. The harness points the install nowhere."""
-    assert create_link(options={'ai': True}) is None
+    assert create_link(options={'lucid_circuit': True}) is None
 
 
 def test_an_install_without_a_key_gets_no_link(tmp_path, monkeypatch):
@@ -473,7 +586,7 @@ def test_an_install_without_a_key_gets_no_link(tmp_path, monkeypatch):
     (tmp_path / 'config' / 'service-api-key').unlink()
     monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
 
-    assert create_link(options={'ai': True}) is None
+    assert create_link(options={'lucid_circuit': True}) is None
 
 
 def test_an_installed_service_gets_a_link_not_yet_started(tmp_path, monkeypatch):
@@ -481,7 +594,7 @@ def test_an_installed_service_gets_a_link_not_yet_started(tmp_path, monkeypatch)
     calls = install(root=tmp_path)
     monkeypatch.setenv(INSTALL_ROOT_ENVIRONMENT_VARIABLE, str(tmp_path))
 
-    link = create_link(options={'ai': True})
+    link = create_link(options={'lucid_circuit': True})
 
     assert link is not None
     assert link.state is LinkState.NOT_STARTED
@@ -706,7 +819,7 @@ def test_another_platform_has_no_locations_and_no_link(platform, no_location_var
     mocker.patch.object(ai_link.sys, 'platform', platform)
 
     assert service_locations() is None
-    assert create_link(options={'ai': True}) is None
+    assert create_link(options={'lucid_circuit': True}) is None
 
 
 def test_create_link_needs_the_control_script_and_the_key_in_their_own_roots(tmp_path, monkeypatch):
@@ -717,16 +830,17 @@ def test_create_link_needs_the_control_script_and_the_key_in_their_own_roots(tmp
     monkeypatch.setenv(ai_link.USER_ROOT_ENVIRONMENT_VARIABLE, str(user))
     install(root=programs)
     (user / 'config').mkdir(parents=True)
-    assert create_link(options={'ai': True}) is None  # no key in the user root
+    assert create_link(options={'lucid_circuit': True}) is None  # no key in the user root
 
     (user / 'config' / 'service-api-key').write_text(SERVICE_KEY, encoding='utf-8')
-    link = create_link(options={'ai': True})
+    link = create_link(options={'lucid_circuit': True})
     assert link is not None
     assert link.locations == ServiceLocations(program_root=programs, user_root=user)
 
     (programs / 'bin' / 'ai-service.sh').unlink()
-    assert create_link(options={'ai': True}) is None  # no script in the program root
+    assert create_link(options={'lucid_circuit': True}) is None  # no script in the program root
     (programs / 'bin' / 'ai-service.sh').touch()
     (user / 'config' / 'service-api-key').unlink()
     (programs / 'config' / 'service-api-key').write_text(SERVICE_KEY, encoding='utf-8')
-    assert create_link(options={'ai': True}) is None  # a key in the program root does not count
+    # A key in the program root does not count
+    assert create_link(options={'lucid_circuit': True}) is None

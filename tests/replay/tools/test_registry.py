@@ -655,6 +655,38 @@ def test_no_tool_option_clashes_with_any_of_our_games_arguments(console_script):
     assert '--invalid-high-scores' in finished.stdout, console_script
 
 
+@pytest.mark.parametrize('console_script', sorted(EXPECTED_ALL_CONSOLE_SCRIPTS))
+def test_every_game_refuses_the_removed_ai_switch(console_script):
+    """``--ai`` and ``--no-ai`` are unknown: no alias, and no prefix of a game's own argument."""
+    entry_point = game_entry_point(console_script=console_script)
+    # The last keeps the game from ever running, were the first two to be known again
+    refused = ['--ai', '--no-ai', '--no-such-flag']
+
+    finished = run_child(command=[*entry_point_command(entry_point=entry_point), *refused])
+
+    assert finished.returncode == ExitCode.ARGUMENT_PARSER_ERROR, finished.stdout
+    assert f'unrecognized arguments: {" ".join(refused)}' in finished.stdout
+
+
+@pytest.mark.parametrize('removed', ['--ai', '--no-ai'])
+def test_a_tools_game_refuses_the_removed_ai_switch(stand_in_game, tmp_path, capfd, removed):
+    """``glitchygames record-trace GAME PATH -- --ai``: the child's own refusal."""
+    recording = tmp_path / 'recorded.jsonl.gz'
+
+    exit_status = command.main([
+        'record-trace',
+        stand_in_game.console_script,
+        str(recording),
+        '--headless',
+        '--',
+        removed,
+    ])
+
+    assert exit_status == ExitCode.ARGUMENT_PARSER_ERROR
+    assert f'unrecognized arguments: {removed}' in capfd.readouterr().err
+    assert not recording.exists()
+
+
 def test_glitchygames_record_trace_runs_the_game_as_a_child(stand_in_game, tmp_path, capfd):
     """``glitchygames record-trace GAME PATH --random-seed N --headless -- ...``: in a child.
 

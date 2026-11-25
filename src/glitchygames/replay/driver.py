@@ -257,6 +257,7 @@ from glitchygames import clock
 from glitchygames.checks import required
 from glitchygames.events import FPSEVENT
 from glitchygames.exit_codes import ExitCode
+from glitchygames.feature_flags import FEATURE_FLAGS, option_name
 from glitchygames.game_frames import game_frame_clock
 from glitchygames.input.devices import (
     DeviceDescriptor,
@@ -375,6 +376,8 @@ LOG.addHandler(logging.NullHandler())
 # Options the recording never overrides: how this run is watched, logged, paced and recorded,
 # not what the game does
 REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
+    # The AI's switch until Lucid Circuit's flag replaced it: no option now, but 14 committed
+    # recordings hold it, and a recording never puts it in a run's options
     'ai',
     'replay_trace',
     'record_trace',
@@ -410,6 +413,9 @@ REPLAY_LOCAL_OPTIONS: frozenset[str] = frozenset({
     # watched, never what the game does, so a recording replays under any cache mode
     'sound_cache',
     'sound_diagnostics',
+    # Every feature flag's option (--lucid-circuit): what this run wants and can have
+    # (glitchygames/feature_flags.py, rule 4)
+    *(option_name(flag_name=name) for name in FEATURE_FLAGS),
 })
 
 # How many frames before a sprite divergence its report lists (with the divergent frame itself)

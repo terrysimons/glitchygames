@@ -232,7 +232,7 @@ evidence 7, and its interfaces may change before then.
 3. A deliberately wrong rule planted in the store is overturned by the game's behaviour, and its tool withdrawn with
    an FYI.
 4. A question resting on something false is judged bad, with its reason.
-5. Frame times with the loop running against `--no-ai`, on a real display, within Stage 5's budget.
+5. Frame times with the loop running against `--no-lucid-circuit`, on a real display, within Stage 5's budget.
 6. An AI demo that installed code leaves the live game exactly as it was: its golden replay still matches afterwards.
 7. The behaviour suite (`scripts/ai_behaviour/`) scores at least as well with the discovered tools as without.
 

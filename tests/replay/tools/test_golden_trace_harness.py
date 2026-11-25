@@ -333,6 +333,37 @@ def test_a_trace_names_its_game_by_the_scenes_logical_name():
 
 
 @pytest.mark.draws_frames
+@pytest.mark.parametrize(
+    ('hooks', 'lucid_circuit'),
+    [({}, True), ({'extra_arguments': ['--no-lucid-circuit']}, False)],
+)
+def test_a_trace_is_recorded_with_its_extra_arguments(hooks, lucid_circuit):
+    """``extra_arguments`` are on the recorded run's own command line."""
+    options: list[bool] = []
+
+    def read_the_options(scene):
+        options.append(scene.scene_manager.game_engine.options['lucid_circuit'])
+
+    record_trace(
+        scene_class=SeededWanderScene,
+        script=InputScript(),
+        frame_count=1,
+        before_recording=read_the_options,
+        **hooks,
+    )
+
+    assert options == [lucid_circuit]
+
+
+def test_an_unknown_hook_is_refused_by_name():
+    """A misspelt keyword would otherwise be ignored, and its hook never called."""
+    misspelt = {'frame_observers': None, 'extra_argument': ['--no-lucid-circuit']}
+
+    with pytest.raises(TypeError, match='extra_argument, frame_observers'):
+        record_trace(scene_class=SeededWanderScene, script=InputScript(), frame_count=1, **misspelt)
+
+
+@pytest.mark.draws_frames
 def test_golden_harness_stopped_early_reports_a_length_divergence(tmp_path):
     """A harness replay stopped before the recording's last frame reports a length divergence."""
     recording_path = tmp_path / 'tower.jsonl.gz'

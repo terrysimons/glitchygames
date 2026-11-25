@@ -37,7 +37,7 @@ import pygame
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, events
-from glitchygames.ai_link import AiLink, create_link
+from glitchygames.ai_link import REPLAY_OFF_REASON, AiLink, create_link, log_lucid_circuit_off
 from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -73,6 +73,13 @@ from glitchygames.events.sprite_spawn import SPRITE_SPAWN_EVENT, SpriteSpawn, ad
 from glitchygames.events.touch import TouchEventManager
 from glitchygames.events.window import WindowEventManager
 from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
+from glitchygames.feature_flags import (
+    FEATURE_FLAG_GROUP_TITLE,
+    FLAG_OPTIONS_SLOT,
+    add_flag_arguments,
+    flag_state_lines,
+    take_flag_options,
+)
 from glitchygames.fonts import FontManager
 from glitchygames.host import GameHost, HostSources
 from glitchygames.input.device_listing import list_input_devices
@@ -907,7 +914,8 @@ def _clear_a_half_made_engine[EngineT: GameEngine, **InitParameters](
     """Wrap ``GameEngine.__init__``: if it raises, the half-made engine stops being current.
 
     ``__init__`` makes the engine current part way through (once its own state is set); a
-    failure after that (SystemExit from a game flag tool included) must not leave it current.
+    failure after that (SystemExit from a game flag tool included) must not leave it current, or
+    leave its feature flags as the context's (rule 5 of glitchygames/feature_flags.py).
     A decorator, not a ``try`` in ``__init__``: basedpyright then still sees the instance
     variables the methods ``__init__`` calls set.
 
@@ -923,10 +931,13 @@ def _clear_a_half_made_engine[EngineT: GameEngine, **InitParameters](
     def initialize_or_clear(
         engine: EngineT, *args: InitParameters.args, **kwargs: InitParameters.kwargs
     ) -> None:
+        context = current_context()
+        flags_asked_before = context.value(slot=FLAG_OPTIONS_SLOT).asked
         try:
             initialize(engine, *args, **kwargs)
         except BaseException:
             _stop_being_the_current_engine(engine=engine)
+            context.value(slot=FLAG_OPTIONS_SLOT).asked = flags_asked_before
             raise
 
     return initialize_or_clear
@@ -1118,17 +1129,6 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             '-w',
             '--windowed',
             help='run in a window; --no-windowed runs fullscreen (default: windowed)',
-            action=argparse.BooleanOptionalAction,
-            default=True,
-        )
-        # Not a tool in the registry: two tool flags at once are refused, and this is on by default
-        group.add_argument(
-            '--ai',
-            help=(
-                'connect to the local AI service if it is installed, starting its models as '
-                'the game loads; --no-ai never touches it (default: on, but never with '
-                '--headless or in a replay)'
-            ),
             action=argparse.BooleanOptionalAction,
             default=True,
         )
@@ -1361,6 +1361,10 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             default=False,
         )
 
+        # Each feature flag's option, on and off, is made from its declaration, as
+        # glitchygames/feature_flags.py says
+        add_flag_arguments(parser=parser.add_argument_group(FEATURE_FLAG_GROUP_TITLE))
+
         event_managers = (
             AppEventManager,
             AudioEventManager,
@@ -1567,6 +1571,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # This engine's parsed command line (audit C8: its own; GameEngine.OPTIONS is a
         # read-only view of it), set before the engine is current below
         self.options: dict[str, Any] = options
+        # The context's feature flags are this command line's from here on, before anything
+        # reads one or a recording's options are put in place (glitchygames/feature_flags.py)
+        take_flag_options(options=options)
+        # Read now, as another engine made in this context takes it over before this one starts
+        self._flag_state_lines: list[str] = flag_state_lines()
         # The current context's engine from here on (current_engine()): every piece of the
         # engine's own state is set above this line, so no view finds a half-made engine (if
         # the rest raises, _clear_a_half_made_engine clears it again)
@@ -1735,6 +1744,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             self.live_sources = live_sources
             install_sources(sources=self.host.sources)
         else:
+            log_lucid_circuit_off(reason=REPLAY_OFF_REASON)
             install_sources(sources=self.replay_sources)
 
         # We are fully initialized now; the scene (self.game, set at the top) starts once
@@ -3955,10 +3965,22 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         the recording's), not the option as given, which is None when the seed was rolled (the
         owner, 2026-10-28: "The seed should definitely be in the options"); rolled or given is
         on the INFO line (``_log_the_runs_seed``), hidden at the default WARNING.
+
+        Below the options, each feature flag's state and why it is off
+        (glitchygames/feature_flags.py), as this engine was made: its option says only what was
+        asked. The state is whether the feature is wanted and possible, no more: a feature's own
+        gate (Lucid Circuit's for ``--headless`` or a replay: ``ai_link.log_lucid_circuit_off``)
+        logs its reason itself.
         """
         shown_options = {**self.options, 'random_seed': self.random_seed}
+        flag_lines = [f'{OPTIONS_BLOCK_INDENT}{line}' for line in self._flag_state_lines]
         self.log.critical(
-            '%s', startup_options_block(game_name=self._game_name(), options=shown_options)
+            '%s',
+            '\n'.join([
+                startup_options_block(game_name=self._game_name(), options=shown_options),
+                'Feature flags:',
+                *flag_lines,
+            ]),
         )
 
     def _game_name(self: Self) -> str:

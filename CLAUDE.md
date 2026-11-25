@@ -98,10 +98,10 @@ Installed by Ansible (`ansible/ai_service.yml`; plans/lucid-circuit.md, which li
 its own project in `services/ai-service/` (own tests, lock file, 100% coverage) sharing no code with
 the engine. Games reach it only over 127.0.0.1:23231 through `src/glitchygames/ai_link.py` (its
 docstring: where the service is, `service_locations()`, and Linux's core pinning) and `ai_host.py`:
-on by default (`--ai`/`--no-ai`), never with `--headless`, in a replay or browser; the harness
-points it at nowhere (`tests/test_ai_service_isolation_guard.py`). The backtick key opens the AI
-console (`ai_console.py`): read-only, except `/sprite DESCRIPTION`, which adds a generated sprite
-through a recorded spawn event (`events/sprite_spawn.py`).
+on by default; off with `--no-lucid-circuit` (`feature_flags.py`: never a constant, never read at
+import), `--headless`, in a replay or browser; the harness points it at nowhere
+(`tests/test_ai_service_isolation_guard.py`). Backtick opens the AI console (`ai_console.py`):
+read-only, but for `/sprite DESCRIPTION` (a recorded spawn event, `events/sprite_spawn.py`).
 
 ## Architecture Overview
 
@@ -287,10 +287,10 @@ present. Check rendering on the real driver with `SDL_VIDEODRIVER=cocoa uv run p
 
 The pixel-art editor, an app member: canvas editing with undo/redo, animation film strip, up to
 four controllers (CONTROLLER_CONTROLS_README.md), onion skinning, flood fill (Ctrl+click), TOML
-and PNG drag-and-drop, AI generation through the local AI service (`AI_FEATURES_ENABLED`; off in
-WebAssembly). The Load and Save dialogs take the file name as typed (no `example:` prefix), so a
-library sprite is opened by its path. Its sprite library is package data in `src/apps/bitmappy/src/bitmappy/resources/
-sprites/`. Docs: docs/architecture/bitmappy.md.
+and PNG drag-and-drop, AI generation through the local AI service (`ai_manager.ai_off_reason`: Lucid
+Circuit's flag; off with `--headless` and in replays). Load and Save take the file name as typed (no
+`example:` prefix), so a library sprite is opened by its path. The sprite library is package data:
+`src/apps/bitmappy/src/bitmappy/resources/sprites/`. Docs: docs/architecture/bitmappy.md.
 
 ### Browser
 

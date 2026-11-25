@@ -56,6 +56,7 @@ from glitchygames.engine.game_engine import (
 )
 from glitchygames.engine_context import current_context, default_context
 from glitchygames.events.base import SHARED_INSTANCES_SLOT, UNHANDLED_EVENT_TYPES_SLOT
+from glitchygames.feature_flags import FLAG_OPTIONS_SLOT
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
 from glitchygames.input.state import reset_current_input
@@ -404,6 +405,8 @@ def _reset_all_singleton_instances():
     release_channels()
     # No engine is current until a test makes one (glitchygames.engine.game_engine)
     default_context().reset_value(slot=CURRENT_ENGINE_SLOT)
+    # ...and no feature flag has been asked for (glitchygames.feature_flags)
+    default_context().reset_value(slot=FLAG_OPTIONS_SLOT)
     # A fresh performance manager each test (glitchygames.performance.adaptive_clamping)
     default_context().reset_value(slot=PERFORMANCE_MANAGERS_SLOT)
 

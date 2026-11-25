@@ -103,6 +103,7 @@ class TestAISStripIntegration:
         assert temp_path is None
 
 
+@pytest.mark.usefixtures('live_run_with_the_ai_on')
 class TestAIContextFromEditor(FilmStripTestBase):
     """Test the AI context a real editor sends for its selected frame and strip."""
 

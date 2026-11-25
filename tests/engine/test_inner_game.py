@@ -42,6 +42,7 @@ from glitchygames.audio.voices import (
 from glitchygames.engine import GameEngine
 from glitchygames.engine.game_engine import CURRENT_ENGINE_SLOT
 from glitchygames.engine_context import current_context, default_context
+from glitchygames.feature_flags import flag_state
 from glitchygames.inner_game import (
     FLAG_VALUE_COUNTS,
     REFUSED_FLAGS,
@@ -57,6 +58,7 @@ from glitchygames.inner_game import (
     inherited_arguments,
     is_refused_argument,
     is_refused_short_flag_cluster,
+    refused_arguments,
 )
 from glitchygames.render_target import render_target
 from glitchygames.replay.input_blocking import REAL_INPUT_EVENT_TYPES
@@ -1481,6 +1483,19 @@ class TestAFailure:
         assert inner_game.outcome.error == 'the game exited with ARGUMENT_PARSER_ERROR (2)'
         assert current_context() is default_context()
 
+    @pytest.mark.parametrize('removed', ['--ai', '--no-ai'])
+    def test_the_removed_ai_switch_fails_as_an_unknown_argument(
+        self, stand_in: StandInGame, recording: Path, removed: str
+    ):
+        """The refused-argument check names neither, so the game's own parser refuses it."""
+        assert refused_arguments(arguments=(removed,)) == []
+
+        inner_game = replay_stand_in(game=stand_in, path=recording, arguments=(*QUIET, removed))
+
+        assert inner_game.outcome.state is InnerGameState.FAILED
+        assert inner_game.outcome.error == 'the game exited with ARGUMENT_PARSER_ERROR (2)'
+        assert current_context() is default_context()
+
     def test_a_game_raising_while_stepping_fails_alone(
         self,
         stand_in: StandInGame,
@@ -2428,6 +2443,35 @@ class TestTheOuterGamesOptions:
 
         assert inner_game.outcome.state is InnerGameState.ENDED, inner_game.outcome
         assert options['sound_cache'] == 'none'
+
+    @pytest.mark.parametrize(
+        'arguments_and_state',
+        [
+            ((), (), True),
+            (('--no-lucid-circuit',), (), False),
+            (('--no-lucid-circuit',), ('--lucid-circuit',), True),
+            ((), ('--no-lucid-circuit',), False),
+        ],
+    )
+    def test_an_inner_games_feature_flags_are_its_own_command_lines(
+        self,
+        stand_in: StandInGame,
+        recording: Path,
+        mocker: MockerFixture,
+        arguments_and_state: tuple[tuple[str, ...], tuple[str, ...], bool],
+    ):
+        """The outer game's flags reach it, its host's own win, and the outer game keeps its own."""
+        outer, own, on = arguments_and_state
+        build_a_host(mocker=mocker, arguments=(*outer, *QUIET))
+
+        inner_game = replay_stand_in(game=stand_in, path=recording, arguments=own)
+        with inner_game.context.active():
+            inner_state = flag_state(name='lucid-circuit')
+        outer_state = flag_state(name='lucid-circuit')
+        play_to_the_end(inner_game)
+
+        assert inner_state.on is on
+        assert outer_state.on is not bool(outer)
 
     def test_the_hosts_own_arguments_win_over_the_outer_games(
         self, stand_in: StandInGame, recording: Path, mocker: MockerFixture
