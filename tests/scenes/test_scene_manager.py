@@ -3,13 +3,16 @@
 import contextlib
 import re
 import types
+import weakref
 
 import pygame
 import pytest
 
 from glitchygames import events
+from glitchygames.audio import Instrument
 from glitchygames.checks import MissingValueError
 from glitchygames.engine_context import EngineContext
+from glitchygames.replay.tools.golden_traces import FRAME_SECONDS, golden_game
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sprites import Sprite
 from glitchygames.transitions import FadeTransition
@@ -26,6 +29,13 @@ def _take_events(event_type: int) -> list[pygame.event.Event]:
 
     """
     return pygame.event.get(eventtype=event_type)
+
+
+class _QuietScene(Scene):
+    """A stand-in game with nothing in it, for a run the golden-trace harness starts."""
+
+    NAME = 'Quiet'
+    VERSION = '1.0'
 
 
 class TestSceneManager:
@@ -573,6 +583,32 @@ class TestSceneManagerLiveAudio:
         second = self.scene_manager._live_pool()
         assert first is second is live_audio_class.return_value
         live_audio_class.assert_called_once()
+
+    @pytest.mark.draws_frames
+    def test_a_game_ended_with_a_live_voice_playing_leaves_nothing_on_its_channels(self):
+        """``terminate`` releases the live voices: no channel busy, no chunk held by anything.
+
+        A voice nobody releases plays on into whatever runs next in the process, and its stream
+        is left to a finalizer (glitchygames/audio/live.py,
+        bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md).
+        """
+        with golden_game(scene_class=_QuietScene, random_seed=1) as manager:
+            live_sine = Instrument(wave='sine', live=True)
+            voice = manager.audio.sound(live_sine, pitch=220.0).start(owner=manager.active_scene)
+            manager.dt = FRAME_SECONDS
+            manager.run_frame()  # one chunk playing, one queued
+            queued_chunks = [
+                weakref.ref(queued)
+                for index in range(pygame.mixer.get_num_channels())
+                if (queued := pygame.mixer.Channel(index).get_queue()) is not None
+            ]
+            assert queued_chunks
+
+            manager.terminate()
+
+            assert not voice.is_playing
+            assert not pygame.mixer.get_busy()
+            assert [chunk() for chunk in queued_chunks] == [None] * len(queued_chunks)
 
 
 class TestSceneManagerEngineAndQuit:

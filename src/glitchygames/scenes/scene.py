@@ -2738,13 +2738,17 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         """Terminate the scene manager.
 
         A playback scope in progress ends first (the live game comes back, so its scene is
-        the one torn down) and a requested one is dropped.
+        the one torn down) and a requested one is dropped. The live voices are released last,
+        persisting ones too: nothing updates them once the game has ended, and one left playing
+        would play on into whatever the process runs next
+        (bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md).
         """
         self._requested_playback = None
         self._playback_requesting_scene = None
         self._exit_playback(reason='quit', switches_to_then=False)
         self._end_instant_replay_journal()
         self.switch_to_scene(None)
+        self.release_live_voices()
 
     def quit(self: Self) -> None:
         """Quit the game."""
