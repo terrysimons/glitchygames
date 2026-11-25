@@ -1,14 +1,16 @@
 """Tests for bitmappy.ai_manager.AIManager.
 
-The worker process and its queues are local fakes (the process boundary): no test starts a
-process or sends a real AI request. Sprites are real AnimatedSprites loaded from TOML, and every
+The worker process and its queues are local fakes (the process boundary), but for TestRealWorker,
+whose runs are child processes of their own and whose AI service is nowhere: no test sends a real
+AI request. A test that needs the AI on uses ``live_run_with_the_ai_on`` (conftest.py, which says
+why that counts as a live run). Sprites are real AnimatedSprites loaded from TOML, and every
 temporary file the manager writes goes to the test's tmp_path.
 """
 
+import json
 import logging
 import os
 import queue
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs this interpreter on a fixed program
 import sys
 import tempfile
 import textwrap
@@ -18,13 +20,15 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from src.apps.bitmappy.tests.ai_run_support import WINDOWED_ARGUMENTS, make_engine
 from src.apps.bitmappy.tests.training_library_support import use_training_library
 
+import bitmappy
 from bitmappy import ai_manager as ai_manager_module
-from bitmappy import constants as constants_module
 from bitmappy.ai_manager import (
     AI_WORKER_JOIN_TIMEOUT_SECONDS,
     AIManager,
+    ai_off_reason,
     shut_down_running_ai_workers,
 )
 from bitmappy.ai_worker import run_ai_worker_process
@@ -34,7 +38,14 @@ from bitmappy.constants import (
     TRANSPARENT_GLYPH,
 )
 from bitmappy.models import AIRequest, AIRequestState, AIResponse
+from glitchygames import ai_link, feature_flags
 from glitchygames.ai import build_refinement_messages, build_sprite_generation_messages
+from glitchygames.audio import reserve_inner_game_channels
+from glitchygames.engine import ExitCode
+from glitchygames.engine_context import EngineContext
+from glitchygames.inner_game import InnerGame
+from glitchygames.process import OutputCapture, run_command
+from glitchygames.sources import pop_scoped_sources, push_scoped_sources
 from glitchygames.sprites import SPRITE_GLYPHS, SpriteFactory
 from glitchygames.sprites.animated import AnimatedSprite
 
@@ -58,6 +69,16 @@ RAGGED_SPRITE_TOML = (
     '[sprite]\nname = "ball"\npixels = """\n##\n#\n"""\n\n'
     '[colors."#"]\nred = 255\ngreen = 0\nblue = 0\n'
 )
+
+BITMAPPY_DEMO_PATH = Path(bitmappy.__file__).parent / 'demos' / 'drawing.jsonl.gz'
+BROWSER_REASON = 'unavailable in the browser, which cannot start processes'
+OFF_ON_THE_COMMAND_LINE_REASON = 'turned off by --no-lucid-circuit'
+HEADLESS_REASON = 'never used with --headless'
+REPLAY_REASON = 'never used in a replay'
+NO_ENGINE_REASON = 'no game engine is running'
+NOWHERE = '/nonexistent/glitchygames-ai-service'
+# A child process's run: a cold interpreter, one real worker and its shutdown
+CHILD_TIMEOUT_SECONDS = 120.0
 
 DEFAULT_PROMPT_TEXT = 'Enter a description of the sprite you want to create:'
 
@@ -292,6 +313,7 @@ def fake_process_class(mocker):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures('live_run_with_the_ai_on')
 class TestSetup:
     """Test AIManager.setup."""
 
@@ -524,6 +546,7 @@ class TestCheckResponses:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures('live_run_with_the_ai_on')
 class TestOnTextSubmitEvent:
     """Test AIManager.on_text_submit_event."""
 
@@ -1619,6 +1642,7 @@ class TestSmallHelpers:
         assert manager._clean_ai_response('```\n```') == '```\n```'
 
 
+@pytest.mark.usefixtures('live_run_with_the_ai_on')
 class TestWithoutDebugText:
     """Every path works on an editor that has no debug text box."""
 
@@ -1756,65 +1780,381 @@ class TestRemainingBranches:
         )
 
 
-class TestAiFeatureFlag:
-    """constants.AI_FEATURES_ENABLED: off in WebAssembly builds, where no worker can start."""
+def off_message(*, reason: str) -> str:
+    """Return what a request shows while the AI is off.
 
-    def test_the_flag_is_on_where_processes_can_start(self):
-        """This (desktop) interpreter is not emscripten: AI features are on."""
-        assert sys.platform != 'emscripten'
-        assert constants_module.AI_FEATURES_ENABLED is True
+    Returns:
+        The message.
 
-    def test_the_flag_is_off_on_emscripten(self):
-        """Imported on emscripten (a browser build), the flag is off.
+    """
+    return f'Lucid Circuit is off: {reason}'
 
-        In a fresh interpreter: importing the constants again in this one would rebind the
-        package's attribute for later tests.
-        """
-        program = textwrap.dedent("""
-            import importlib
-            import sys
 
-            # Imported as on desktop first (pygame's own import checks the platform too), then
-            # the constants are evaluated again as a browser build would
-            from bitmappy import constants
+def replay_arguments(*extra: str) -> tuple[str, ...]:
+    """Return the arguments of a replay of the bundled demo.
 
-            sys.platform = 'emscripten'
-            print(importlib.reload(constants).AI_FEATURES_ENABLED)
-        """)
-        completed = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - this interpreter, a fixed program
-            [sys.executable, '-c', program],
-            capture_output=True,
-            text=True,
-            check=False,
-            env={**os.environ, 'PYGAME_HIDE_SUPPORT_PROMPT': '1'},
-        )
+    Returns:
+        The arguments.
 
-        assert completed.returncode == 0, completed.stderr[-2000:]
-        assert completed.stdout.strip() == 'False'
+    """
+    return ('--replay-trace', str(BITMAPPY_DEMO_PATH), *extra)
 
-    def test_setup_starts_no_worker_with_the_flag_off(self, mocker, fake_process_class):
-        mocker.patch.object(ai_manager_module, 'AI_FEATURES_ENABLED', new=False)
-        manager = AIManager(_editor())  # type: ignore[arg-type]
+
+OFF_RUNS = [
+    pytest.param(('--no-lucid-circuit',), OFF_ON_THE_COMMAND_LINE_REASON, id='command-line'),
+    pytest.param(('--lucid-circuit', '--headless'), HEADLESS_REASON, id='headless'),
+    pytest.param(replay_arguments('--lucid-circuit'), REPLAY_REASON, id='watched-replay'),
+    pytest.param(replay_arguments('--headless'), REPLAY_REASON, id='headless-replay'),
+    # One reason in every replay, so what a replayed request shows never depends on the machine
+    pytest.param(replay_arguments('--no-lucid-circuit'), REPLAY_REASON, id='off-in-a-replay'),
+]
+
+
+def assert_the_ai_is_off(*, reason: str) -> None:
+    """Check that a manager starts nothing, says why at a request, and cleans up safely."""
+    editor = _editor()
+    manager = AIManager(editor)
+
+    manager.setup()
+
+    assert ai_off_reason() == reason
+    assert (manager.ai_process, manager.ai_request_queue, manager.ai_response_queue) == (
+        None,
+        None,
+        None,
+    )
+    assert manager not in ai_manager_module._RUNNING_AI_MANAGERS
+    manager.check_responses()
+    manager.on_text_submit_event('a ball')
+    assert editor.debug_text.text == off_message(reason=reason)
+    assert manager.pending_ai_requests == {}
+    manager.cleanup()
+    manager.cleanup()
+
+
+class TestLucidCircuit:
+    """Bitmappy's AI follows Lucid Circuit's flag, and stays off with --headless and in a replay."""
+
+    @pytest.mark.parametrize(('arguments', 'reason'), OFF_RUNS)
+    def test_a_run_it_is_off_in_starts_nothing_and_says_why(
+        self, fake_process_class, arguments, reason
+    ):
+        make_engine(*arguments)
+
+        assert_the_ai_is_off(reason=reason)
+
+    def test_a_browser_starts_nothing_and_says_why(self, mocker, fake_process_class):
+        mocker.patch.object(feature_flags, 'sys', mocker.Mock(platform='emscripten'))
+        make_engine('--lucid-circuit')
+
+        assert_the_ai_is_off(reason=BROWSER_REASON)
+
+    def test_with_no_engine_nothing_starts_though_the_flag_is_on(self, fake_process_class):
+        """Ruling C: there is no run to ask, so it fails closed."""
+        feature_flags.take_flag_options(options={'lucid_circuit': True})
+        assert feature_flags.flag_state(name='lucid-circuit').on
+
+        assert_the_ai_is_off(reason=NO_ENGINE_REASON)
+
+    @pytest.mark.parametrize('arguments', [(), ('--lucid-circuit',)])
+    def test_a_live_run_starts_the_worker(self, fake_process_class, arguments):
+        """It is on by default; asking for it changes nothing."""
+        make_engine(*arguments)
+        manager = AIManager(_editor())
 
         manager.setup()
 
-        assert manager.ai_process is None
-        assert manager.ai_request_queue is None
-        assert manager not in ai_manager_module._RUNNING_AI_MANAGERS
+        assert ai_off_reason() is None
+        assert isinstance(manager.ai_process, FakeProcess)
+        assert manager.ai_process.started
         manager.cleanup()
 
-    def test_a_request_with_the_flag_off_says_ai_is_off(self, mocker):
-        mocker.patch.object(ai_manager_module, 'AI_FEATURES_ENABLED', new=False)
-        editor = _editor()
-
-        AIManager(editor).on_text_submit_event('a ball')  # type: ignore[arg-type]
-
-        assert editor.debug_text.text == 'AI features are off in this build'
-
-    def test_a_request_with_the_flag_off_and_no_debug_text_is_ignored(self, mocker):
-        mocker.patch.object(ai_manager_module, 'AI_FEATURES_ENABLED', new=False)
+    def test_a_request_the_ai_is_off_for_needs_no_debug_text(self):
         editor = _editor(with_debug_text=False)
+        make_engine('--no-lucid-circuit')
 
-        AIManager(editor).on_text_submit_event('a ball')  # type: ignore[arg-type]
+        AIManager(editor).on_text_submit_event('a ball')
 
         assert not hasattr(editor, 'debug_text')
+
+    def test_the_log_says_why_at_setup_and_at_a_request(self, caplog):
+        make_engine('--no-lucid-circuit')
+        manager = AIManager(_editor())
+        message = off_message(reason=OFF_ON_THE_COMMAND_LINE_REASON)
+        # The engine's own link said it too, as the engine was made
+        caplog.clear()
+
+        with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+            manager.setup()
+            assert caplog.messages.count(message) == 1
+            manager.on_text_submit_event('a ball')
+
+        assert caplog.messages.count(message) == 2
+
+    def test_a_request_asks_again(self, live_run_with_the_ai_on):
+        """A worker started by an allowed run takes no request once a later run turns it off."""
+        manager = _manager_with_queues(_editor())
+        manager.on_text_submit_event('allowed')
+        assert len(manager.ai_request_queue.items) == 1
+
+        make_engine('--no-lucid-circuit')
+        manager.on_text_submit_event('refused')
+
+        assert len(manager.ai_request_queue.items) == 1
+        assert manager.editor.debug_text.text == off_message(reason=OFF_ON_THE_COMMAND_LINE_REASON)
+
+    def test_in_game_playback_is_a_replay_until_it_ends(self, live_run_with_the_ai_on):
+        """A scene rebuilt from a recording inside a live run starts nothing and asks nothing."""
+        engine = live_run_with_the_ai_on
+        push_scoped_sources(
+            sources=engine.build_live_sources(
+                random_seed=engine.random_seed, captures_scene_starts=False
+            )
+        )
+        try:
+            assert_the_ai_is_off(reason=REPLAY_REASON)
+        finally:
+            pop_scoped_sources()
+
+        assert ai_off_reason() is None
+
+    def test_another_contexts_run_changes_nothing_here(self, live_run_with_the_ai_on):
+        """No engine there is off there; an engine with it off there leaves this one on."""
+        other = EngineContext(name='other')
+        with other.active():
+            assert ai_off_reason() == NO_ENGINE_REASON
+            feature_flags.take_flag_options(options={'lucid_circuit': False})
+        assert ai_off_reason() is None
+
+        make_engine('--no-lucid-circuit')
+        with other.active():
+            assert ai_off_reason() == NO_ENGINE_REASON
+        assert ai_off_reason() == OFF_ON_THE_COMMAND_LINE_REASON
+
+    def test_an_inner_game_is_what_its_own_engine_is(self, live_run_with_the_ai_on):
+        """A replay inside a live run is off; the live run around it stays on."""
+        reserve_inner_game_channels(games=1)
+        inner_game = InnerGame.replay(
+            command='bitmappy', path=BITMAPPY_DEMO_PATH, name='tile', size=(800, 480)
+        )
+        with inner_game.context.active():
+            inner_reason = ai_off_reason()
+        inner_game.finish()
+
+        assert inner_reason == REPLAY_REASON
+        assert ai_off_reason() is None
+
+
+# One run in a process of its own, with real multiprocessing as main() sets it up: what it started
+REAL_RUN_PROGRAM = textwrap.dedent("""
+    import json
+    import multiprocessing
+    import sys
+    import threading
+    from types import SimpleNamespace
+
+    arguments = json.loads(sys.argv[1])
+    sys.argv = ['bitmappy', *arguments['command_line']]
+
+    if __name__ == '__main__':
+        from bitmappy.ai_manager import AIManager
+        from bitmappy.editor import BitmapEditorScene
+        from glitchygames import feature_flags
+        from glitchygames.engine import GameEngine
+
+        multiprocessing.set_start_method('spawn')
+        if arguments['browser']:
+            feature_flags.sys = SimpleNamespace(platform='emscripten')
+        if arguments['engine']:
+            GameEngine(game=BitmapEditorScene)
+        editor = SimpleNamespace(debug_text=SimpleNamespace(text=''), all_sprites=[])
+        threads_before = set(threading.enumerate())
+        manager = AIManager(editor)
+        manager.setup()
+        manager.on_text_submit_event('a ball')
+        result = {
+            'children': len(multiprocessing.active_children()),
+            'queues': manager.ai_request_queue is not None,
+            'threads': len(set(threading.enumerate()) - threads_before),
+            'shown': editor.debug_text.text,
+        }
+        manager.cleanup()
+        result['children_after_cleanup'] = len(multiprocessing.active_children())
+        print(json.dumps(result))
+""")
+
+# The bug's reproduction: the whole command, with each real process start counted
+WHOLE_COMMAND_PROGRAM = textwrap.dedent("""
+    import json
+    import multiprocessing
+    import sys
+
+    sys.argv = ['bitmappy', *json.loads(sys.argv[1])]
+
+    if __name__ == '__main__':
+        import bitmappy
+
+        started = []
+        real_start = multiprocessing.Process.start
+
+        def counted_start(process):
+            real_start(process)
+            started.append(process.pid)
+
+        multiprocessing.Process.start = counted_start
+        try:
+            bitmappy.main()
+        finally:
+            print(json.dumps({'started': len(started)}))
+""")
+
+
+# A whole run that asks the AI at frame 3, as a typed prompt would, and quits at frame 10
+ASKING_RUN_PROGRAM = textwrap.dedent("""
+    import json
+    import multiprocessing
+    import sys
+
+    sys.argv = ['bitmappy', *json.loads(sys.argv[1])]
+
+    if __name__ == '__main__':
+        from bitmappy.ai_manager import shut_down_running_ai_workers
+        from bitmappy.editor import BitmapEditorScene
+        from glitchygames.engine import GameEngine
+
+        multiprocessing.set_start_method('spawn')
+        shown = []
+        children = []
+
+        class AskingEditorScene(BitmapEditorScene):
+            frames_run = 0
+
+            def dt_tick(self, dt):
+                super().dt_tick(dt)
+                self.frames_run += 1
+                if self.frames_run == 3:
+                    self.on_text_submit_event('a ball')
+                    shown.append(self.debug_text.text)
+                    children.append(len(multiprocessing.active_children()))
+                if self.frames_run == 10:
+                    self.scene_manager.quit()
+
+        try:
+            GameEngine(game=AskingEditorScene).start()
+        finally:
+            shut_down_running_ai_workers()
+            print(json.dumps({'shown': shown, 'children': children}))
+""")
+
+
+def run_in_a_child(*, program: str, argument: object) -> tuple[int, dict]:
+    """Run a program in a process of its own, on the dummy drivers, with the AI service nowhere.
+
+    Returns:
+        Its exit code, and the JSON its last line of output is.
+
+    """
+    environment = {
+        **os.environ,
+        'PYGAME_HIDE_SUPPORT_PROMPT': '1',
+        'SDL_VIDEODRIVER': 'dummy',
+        'SDL_AUDIODRIVER': 'dummy',
+        ai_link.INSTALL_ROOT_ENVIRONMENT_VARIABLE: NOWHERE,
+    }
+    completed = run_command(
+        command=[sys.executable, '-c', program, json.dumps(argument)],
+        environment=environment,
+        timeout_seconds=CHILD_TIMEOUT_SECONDS,
+        capture_output=OutputCapture.APART,
+    )
+    assert completed.stdout.strip(), completed.stderr[-2000:]
+    return completed.returncode, json.loads(completed.stdout.splitlines()[-1])
+
+
+def run_with_real_processes(
+    *arguments: str, engine: bool = True, browser: bool = False
+) -> dict[str, object]:
+    """Set up a manager and make one request in a real run.
+
+    Returns:
+        What it started and showed.
+
+    """
+    exit_code, result = run_in_a_child(
+        program=REAL_RUN_PROGRAM,
+        argument={
+            'command_line': [*WINDOWED_ARGUMENTS, *arguments],
+            'engine': engine,
+            'browser': browser,
+        },
+    )
+    assert exit_code == ExitCode.SUCCESS
+    return result
+
+
+def nothing_started(*, reason: str) -> dict[str, object]:
+    """Return what a run whose AI is off reports.
+
+    Returns:
+        The report.
+
+    """
+    return {
+        'children': 0,
+        'queues': False,
+        'threads': 0,
+        'shown': off_message(reason=reason),
+        'children_after_cleanup': 0,
+    }
+
+
+class TestRealWorker:
+    """With real processes: a live run starts one, and no other run starts any.
+
+    The worker that would start reports the AI service not installed: it is nowhere here.
+    """
+
+    def test_a_live_run_starts_one_worker(self):
+        """The measure can see a worker."""
+        result = run_with_real_processes()
+
+        assert result['children'] == 1
+        assert result['queues'] is True
+        assert str(result['shown']).startswith('Processing AI request')
+        assert result['children_after_cleanup'] == 0
+
+    @pytest.mark.parametrize(('arguments', 'reason'), OFF_RUNS)
+    def test_a_run_it_is_off_in_starts_no_process(self, arguments, reason):
+        assert run_with_real_processes(*arguments) == nothing_started(reason=reason)
+
+    def test_a_browser_starts_no_process(self):
+        assert run_with_real_processes(browser=True) == nothing_started(reason=BROWSER_REASON)
+
+    def test_with_no_engine_no_process_starts(self):
+        assert run_with_real_processes(engine=False) == nothing_started(reason=NO_ENGINE_REASON)
+
+    def test_the_whole_command_replays_its_demo_with_no_process(self):
+        """The bug's reproduction (bugs/2026-11-24-bitmappy-starts-an-ai-worker-in-a-replay.md)."""
+        exit_code, result = run_in_a_child(
+            program=WHOLE_COMMAND_PROGRAM, argument=replay_arguments('--headless')
+        )
+
+        assert exit_code == ExitCode.SUCCESS
+        assert result == {'started': 0}
+
+    def test_a_recording_made_with_the_ai_on_matches_without_it(self, tmp_path):
+        """Its request started no worker and shows why: text, which a replay never compares."""
+        recording = str(tmp_path / 'asked.jsonl.gz')
+        _, recorded = run_in_a_child(
+            program=ASKING_RUN_PROGRAM,
+            argument=[*WINDOWED_ARGUMENTS, '--record-trace', recording],
+        )
+        exit_code, replayed = run_in_a_child(
+            program=ASKING_RUN_PROGRAM, argument=['--headless', '--replay-trace', recording]
+        )
+
+        assert recorded['children'] == [1]
+        (recorded_text,) = recorded['shown']
+        assert recorded_text.startswith('Processing AI request')
+        assert exit_code == ExitCode.SUCCESS
+        assert replayed == {'shown': [off_message(reason=REPLAY_REASON)], 'children': [0]}

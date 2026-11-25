@@ -8,7 +8,7 @@ that the script, run through the engine, draws its smiley.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self, override
 
 import pytest
 from scripts.demo_inputs import (
@@ -23,19 +23,27 @@ from scripts.demo_inputs import (
     bitmappy_demo_script,
 )
 
-from bitmappy.ai_manager import AIManager
 from bitmappy.editor import BitmapEditorScene
+from glitchygames.feature_flags import take_flag_options
 from glitchygames.replay.tools.golden_traces import RANDOM_SEED, SCREEN_RESOLUTION, record_trace
 from tests.display_canvas import show_canvas_on_new_display
 
 if TYPE_CHECKING:
-    from pytest_mock import MockerFixture
-
     from glitchygames.scenes import Scene
 
 # The fewest pixels the demo's drawing holds, and the fewest colours (the brief of Task 6)
 MINIMUM_DRAWN_PIXELS = 20
 MINIMUM_DRAWN_COLORS = 2
+
+
+class EditorWithTheAiOff(BitmapEditorScene):
+    """The editor, in a run where Lucid Circuit is off (as with ``--no-lucid-circuit``)."""
+
+    @override
+    def setup(self: Self) -> None:
+        """Turn it off in the run's context, then set up."""
+        take_flag_options(options={'lucid_circuit': False})
+        super().setup()
 
 
 def build_editor(*, resolution: str) -> BitmapEditorScene:
@@ -112,13 +120,12 @@ def expected_canvas() -> dict[tuple[int, int], tuple[int, int, int]]:
 
 
 @pytest.mark.draws_frames
-def test_the_demo_script_draws_its_two_colour_smiley(mocker: MockerFixture):
+def test_the_demo_script_draws_its_two_colour_smiley():
     """Run through the engine at the recorder's resolution, the script paints exactly its smiley.
 
-    The AI worker is a separate process, which a test does not start (its setup is patched);
-    the demo never makes an AI request.
+    The recorder's run is live and windowed, which starts an AI worker, so the scene turns Lucid
+    Circuit off for its run as it is set up; the demo makes no AI request.
     """
-    mocker.patch.object(AIManager, 'setup')
     drawn: dict[tuple[int, int], tuple[int, int, int]] = {}
 
     def read_the_canvas(*, frame_number: int, scene: Scene, sprite_ids: object) -> None:
@@ -136,7 +143,7 @@ def test_the_demo_script_draws_its_two_colour_smiley(mocker: MockerFixture):
                 )
 
     record_trace(
-        scene_class=BitmapEditorScene,
+        scene_class=EditorWithTheAiOff,
         script=bitmappy_demo_script(),
         frame_count=BITMAPPY_DEMO_FRAME_COUNT,
         random_seed=RANDOM_SEED,

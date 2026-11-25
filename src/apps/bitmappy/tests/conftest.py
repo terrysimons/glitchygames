@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING
 
 import pytest
+from src.apps.bitmappy.tests.ai_run_support import make_engine
 
 from bitmappy import onion_skinning, training_library
 from bitmappy.controllers.manager import MultiControllerManager
@@ -11,6 +12,8 @@ from glitchygames.engine_context import default_context
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+    from glitchygames.engine import GameEngine
 
 
 @pytest.fixture(autouse=True)
@@ -49,6 +52,22 @@ def fresh_ai_training_library(mocker) -> None:
     test loaded. The patch drops it for the test and puts the earlier one back after it.
     """
     mocker.patch.object(training_library._INSTALLED, 'library', None)  # pyright: ignore[reportPrivateUsage]
+
+
+@pytest.fixture
+def live_run_with_the_ai_on() -> GameEngine:
+    """Make a real engine whose own command line allows Bitmappy's AI.
+
+    It sets ``--lucid-circuit`` and nothing that turns it off. It counts as a live windowed run
+    though SDL draws on the dummy driver: the AI asks the run's options and doors (no
+    ``--headless``, no recording played), never the video driver. No test that uses it reaches
+    the AI service: the harness points that nowhere (tests/harness.py).
+
+    Returns:
+        The current engine, not started.
+
+    """
+    return make_engine('--lucid-circuit')
 
 
 @pytest.fixture

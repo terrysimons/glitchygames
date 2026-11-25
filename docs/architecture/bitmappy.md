@@ -27,6 +27,11 @@ numpy, pydantic, pygame-ce and tenacity (`src/apps/bitmappy/pyproject.toml`).
   `src/apps/bitmappy/src/bitmappy/resources/`.
 - **Its tests** are in `src/apps/bitmappy/tests/`, with no `__init__.py`. Every test module is
   named `test_bitmappy*.py`; `conftest.py` and the helper `film_strip_support.py` sit beside them.
+- **Its AI** follows Lucid Circuit's feature flag (`--no-lucid-circuit`, off in a browser), and
+  stays off with `--headless`, in a replay (a tile's, and in-game playback, included) and with no
+  engine to ask: `ai_off_reason` (`src/apps/bitmappy/src/bitmappy/ai_manager.py`), through the
+  engine's own gate, `reason_lucid_circuit_is_off` (`src/glitchygames/ai_link.py`). It is asked at
+  `setup()`, where nothing then starts, and at each request, which shows the reason.
 - **The Load and Save dialogs** (the engine's `glitchygames.ui` dialog scenes) treat every file the
   same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
   library is opened by its path. The `example:` prefix they once understood is gone, and Save
@@ -77,7 +82,7 @@ sequenceDiagram
     BES->>BES: FilmStripCoordinator.setup_film_strips()
     GE->>GE: _initialize_event_managers()
     GE->>SM: scene_manager.switch_to_scene(game)
-    SM->>BES: setup() (AIManager.setup() starts the AI worker)
+    SM->>BES: setup() (AIManager.setup() starts the AI worker, unless the AI is off)
     GE->>SM: scene_manager.start()
 
     loop Main Game Loop (while active_scene is not None)

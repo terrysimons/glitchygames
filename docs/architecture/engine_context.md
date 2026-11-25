@@ -328,7 +328,8 @@ machine's one-minute load 3.2 to 3.7): ten `DemoPlayer`s of the real bundled dem
   for a log line even at `--log-level error`). That join waits up to
   `AI_WORKER_JOIN_TIMEOUT_SECONDS` (2 s) and then 1 s more after terminating, so a slow worker
   start costs about 3 s: the likely reading of the 3.1 s build the plan's first measurement saw
-  (neither that 3.1 s nor its 73 to 180 ms readings is reproduced here).
+  (neither that 3.1 s nor its 73 to 180 ms readings is reproduced here). Since 2026-11-24 a tile's
+  Bitmappy starts no worker (its AI is off in a replay); its builds were not measured again.
 - **The ten posters' fast-forward** (seed 5, the 11 ms budget shared each Arcade frame): about
   2.6 s in total (three rounds, 2.60 to 2.68 s), 180 Arcade frames (3 s at 60 Hz) before every
   tile stands at its poster.

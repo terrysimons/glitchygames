@@ -13,7 +13,9 @@ The rules:
    (``--no-lucid-circuit``, a browser: ``glitchygames/feature_flags.py``), with ``--headless``
    (scripted sessions, golden traces, tools), and on a machine without the service, so those runs
    build plain ``HostSources`` and never import ``websockets``. A replay never asks. Each says why
-   (``log_no_link``).
+   (``log_no_link``). Whatever else of a game uses Lucid Circuit asks the same gate
+   (``reason_lucid_circuit_is_off``), which is the run's part of this rule; where the service is
+   stays its own.
 3. Starting the service is one attempt. Not enough free memory means no AI for this run: nothing is
    retried during play. A lost connection is retried slowly, as launchd restarts a crashed service.
 4. A service speaking another protocol version refuses the session, and the link stops. The game and
@@ -96,6 +98,8 @@ MAXIMUM_INBOX_MESSAGES = 64
 # bin/ai-service.sh's exit code when no model fits in the memory free right now. The only copy:
 # glitchygames.ai.local_service reads it from here
 EXIT_NOT_ENOUGH_MEMORY = 3
+# Why a run playing a recording has no AI
+REPLAY_OFF_REASON = 'never used in a replay'
 
 
 class ServiceLocations(BaseModel):
@@ -390,27 +394,46 @@ class AiLink:
             self._inbox.append(message)
 
 
+def lucid_circuit_off_message(*, reason: str) -> str:
+    """Return how a run says Lucid Circuit is off, in the same words for every reason (rule 2).
+
+    Args:
+        reason: The reason.
+
+    Returns:
+        The message.
+
+    """
+    return f'Lucid Circuit is off: {reason}'
+
+
 def log_no_link(*, reason: str, level: int = logging.INFO) -> None:
-    """Say why a run has no link, in the same words for every reason (rule 2).
+    """Say why a run has no link, or another use of Lucid Circuit (rule 2).
 
     Args:
         reason: The reason.
         level: The logging level.
 
     """
-    LOG.log(level, 'Lucid Circuit is off: %s', reason)
+    LOG.log(level, '%s', lucid_circuit_off_message(reason=reason))
 
 
-def _reason_for_no_link(*, options: Mapping[str, Any]) -> str | None:
-    """Say why a run may have no link, wherever the service is (rule 2).
+def reason_lucid_circuit_is_off(*, options: Mapping[str, Any], in_replay: bool) -> str | None:
+    """Say why a run may not use Lucid Circuit, wherever the service is (rule 2).
+
+    A replay's reason comes first: what a replayed game says then never depends on how the replay
+    was started, or on the machine.
 
     Args:
         options: The run's options.
+        in_replay: Whether the run is playing a recording.
 
     Returns:
         The reason (the flag's own, when the flag is off), or None for a run that may.
 
     """
+    if in_replay:
+        return REPLAY_OFF_REASON
     lucid_circuit = flag_state(name=LUCID_CIRCUIT)
     if not lucid_circuit.on:
         return lucid_circuit.reason
@@ -437,7 +460,8 @@ def create_link(*, options: Mapping[str, Any]) -> AiLink | None:
         The link, not started, or None for a run with no AI.
 
     """
-    reason = _reason_for_no_link(options=options)
+    # A replay's engine makes no link: it never asks (GameEngine.__init__)
+    reason = reason_lucid_circuit_is_off(options=options, in_replay=False)
     if reason is not None:
         log_no_link(reason=reason)
         return None

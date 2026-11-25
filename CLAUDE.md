@@ -287,8 +287,8 @@ present. Check rendering on the real driver with `SDL_VIDEODRIVER=cocoa uv run p
 
 The pixel-art editor, an app member: canvas editing with undo/redo, animation film strip, up to
 four controllers (CONTROLLER_CONTROLS_README.md), onion skinning, flood fill (Ctrl+click), TOML
-and PNG drag-and-drop, AI generation through the local AI service (`AI_FEATURES_ENABLED`; off in
-WebAssembly). The Load and Save dialogs take the file name as typed (no `example:` prefix), so a
+and PNG drag-and-drop, AI generation through the local AI service (Lucid Circuit's flag,
+`ai_manager.ai_off_reason`; off with `--headless` and in replays). The Load and Save dialogs take the file name as typed (no `example:` prefix), so a
 library sprite is opened by its path. Its sprite library is package data in `src/apps/bitmappy/src/bitmappy/resources/
 sprites/`. Docs: docs/architecture/bitmappy.md.
 

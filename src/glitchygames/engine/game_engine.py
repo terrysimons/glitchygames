@@ -37,7 +37,7 @@ import pygame
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, events
-from glitchygames.ai_link import AiLink, create_link, log_no_link
+from glitchygames.ai_link import REPLAY_OFF_REASON, AiLink, create_link, log_no_link
 from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -1738,7 +1738,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             )
             install_sources(sources=self.host.sources)
         else:
-            log_no_link(reason='never used in a replay')
+            log_no_link(reason=REPLAY_OFF_REASON)
             install_sources(sources=self.replay_sources)
 
         # We are fully initialized now; the scene (self.game, set at the top) starts once

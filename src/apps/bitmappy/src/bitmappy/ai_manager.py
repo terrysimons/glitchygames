@@ -30,10 +30,17 @@ from glitchygames.ai import (
     clean_ai_response as ai_clean_response,
 )
 from glitchygames.ai.sprite_generator import pixel_row_problems
+from glitchygames.ai_link import (
+    log_no_link,
+    lucid_circuit_off_message,
+    reason_lucid_circuit_is_off,
+)
 from glitchygames.checks import required
 from glitchygames.color import (
     RGB_COMPONENT_COUNT,
 )
+from glitchygames.engine import NoRunningEngineError, current_engine
+from glitchygames.sources import has_scoped_sources
 from glitchygames.sprites import (
     SPRITE_GLYPHS,
     SpriteFactory,
@@ -54,7 +61,6 @@ from .ai_worker import (
 )
 from .animated_canvas import pixel_row_repair_notice
 from .constants import (
-    AI_FEATURES_ENABLED,
     AI_TRAINING_SINGLE_FRAME_EXAMPLE_COUNT,
     AI_VALIDATION_MAX_RETRIES,
     DEBUG_LOG_FIRST_N_PIXELS,
@@ -118,8 +124,28 @@ def _write_temporary_toml_file(*, prefix: str, write: Callable[[str], object]) -
     return temporary_path
 
 
-# What a request says while the AI feature flag is off (constants.AI_FEATURES_ENABLED)
-AI_FEATURES_OFF_MESSAGE = 'AI features are off in this build'
+def ai_off_reason() -> str | None:
+    """Say why Bitmappy's AI is off in the run going on in the current engine context.
+
+    Ask at each use. The gate is the engine's own AI link's
+    (``glitchygames.ai_link.reason_lucid_circuit_is_off``): Lucid Circuit's flag, never with
+    ``--headless``, never in a replay. In-game playback (a recording played inside a live run)
+    counts as a replay: its scene is rebuilt, and must not start a worker or ask the service. An
+    inner game is whatever its own engine is.
+
+    Returns:
+        The reason, or None when the AI may be used. With no engine there is no run to ask, so it
+        is off.
+
+    """
+    try:
+        engine = current_engine()
+    except NoRunningEngineError:
+        return 'no game engine is running'
+    return reason_lucid_circuit_is_off(
+        options=engine.options,
+        in_replay=engine.replay_sources is not None or has_scoped_sources(),
+    )
 
 
 def shut_down_running_ai_workers() -> None:
@@ -166,10 +192,13 @@ class AIManager:
         self.last_conversation_history: list[dict[str, str]] | None = None
 
     def setup(self) -> None:
-        """Initialize AI processing components and start the worker process."""
-        if not AI_FEATURES_ENABLED:
-            # The feature flag (constants.py): no worker, so every request says AI is off
-            self.log.info('AI features are off in this build: no AI worker started')
+        """Initialize AI processing components and start the worker process.
+
+        Nothing starts while the AI is off (``ai_off_reason``), and every request then says why.
+        """
+        off_reason = ai_off_reason()
+        if off_reason is not None:
+            log_no_link(reason=off_reason)
             return
         # Check if we are in the main process
         if multiprocessing.current_process().name == 'MainProcess':
@@ -424,10 +453,11 @@ class AIManager:
         self.log.debug('Text length: %s', len(text))
         self.log.debug('Text type: %s', type(text))
 
-        if not AI_FEATURES_ENABLED:
-            self.log.info('AI features are off in this build: request ignored')
+        off_reason = ai_off_reason()
+        if off_reason is not None:
+            log_no_link(reason=off_reason)
             if hasattr(self.editor, 'debug_text'):
-                self.editor.debug_text.text = AI_FEATURES_OFF_MESSAGE
+                self.editor.debug_text.text = lucid_circuit_off_message(reason=off_reason)
             return
 
         if not self.ai_request_queue:

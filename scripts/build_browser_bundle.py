@@ -465,8 +465,8 @@ GAMES: dict[str, GameSpecification] = {
         title="Zombies Ain't My Neighbors",
         member_packages=('zombies_aint_my_neighbors',),
     ),
-    # The pixel-art editor: its AI sprite generation is off in browser builds (the
-    # bitmappy.constants.AI_FEATURES_ENABLED feature flag)
+    # The pixel-art editor: its AI sprite generation is off in browser builds (Lucid
+    # Circuit's feature flag is unavailable there: glitchygames/feature_flags.py)
     'bitmappy': GameSpecification(
         module='bitmappy.editor',
         scene_class='BitmapEditorScene',
