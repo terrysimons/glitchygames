@@ -46,6 +46,7 @@ from glitchygames.replay.tools.golden_traces import (
     release,
 )
 from glitchygames.ui import InputBox
+from tests.leaked_state_guard import environment_holds
 from tests.workspace_expectations import EXPECTED_BUNDLED_DEMOS
 
 JOYSTICK_DRIVER_VARIABLES = ('SDL_JOYSTICK_HIDAPI', 'SDL_JOYSTICK_MFI', 'SDL_JOYSTICK_IOKIT')
@@ -467,8 +468,8 @@ def test_a_demo_session_puts_the_environment_back(monkeypatch, mocker):
     record_with_the_recorder_patched(mocker)
     assert os.environ[INSTALL_ROOT_ENVIRONMENT_VARIABLE] == '/somewhere/else'
     assert os.environ['SDL_JOYSTICK_HIDAPI'] == '1'
-    assert 'SDL_JOYSTICK_MFI' not in os.environ
-    assert 'SDL_JOYSTICK_IOKIT' not in os.environ
+    assert environment_holds(name='SDL_JOYSTICK_MFI', value=None)
+    assert environment_holds(name='SDL_JOYSTICK_IOKIT', value=None)
 
 
 def test_a_demo_session_puts_the_environment_back_after_a_failure(monkeypatch, mocker):
@@ -479,7 +480,7 @@ def test_a_demo_session_puts_the_environment_back_after_a_failure(monkeypatch, m
     recorded.side_effect = RuntimeError('the recording failed')
     with pytest.raises(RuntimeError, match='the recording failed'):
         record_demo(recipe=session_recipe())
-    assert INSTALL_ROOT_ENVIRONMENT_VARIABLE not in os.environ
+    assert environment_holds(name=INSTALL_ROOT_ENVIRONMENT_VARIABLE, value=None)
     assert os.environ['SDL_JOYSTICK_HIDAPI'] == '1'
 
 

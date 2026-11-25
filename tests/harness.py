@@ -5,11 +5,13 @@ Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 """
 
 import contextlib
+import functools
 import gc
 import logging
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from hypothesis import settings
@@ -80,6 +82,7 @@ from tests.display_canvas import (
     show_canvas_on_new_display,
 )
 from tests.engine_source import ENGINE_DIRECTORY
+from tests.engine_written_state import engine_written_state_for_run, reset_engine_written_state
 from tests.faulthandler_guard import faulthandler_left_on
 from tests.garbage_collection import (
     process_memory_release,
@@ -88,6 +91,10 @@ from tests.garbage_collection import (
 )
 from tests.git_environment import clear_git_repository_variables
 from tests.hidden_test_windows import hide_test_windows
+from tests.leaked_state_guard import (
+    leak_message,
+    watch_process_state,
+)
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import (
     SdlDriverState,
@@ -95,6 +102,11 @@ from tests.sdl_driver_isolation import (
     restore_run_sdl_drivers,
 )
 from tests.signal_handlers import preserved_signal_handlers
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from tests.leaked_state_guard import LeakCheck
 
 # A crash on a thread without the GIL (SDL's audio thread on the native driver) fails its test
 # with a traceback instead of hanging the worker forever in pygame's parachute (installed by the
@@ -620,8 +632,19 @@ def empty_engine_sprite_cache():
 
 
 @pytest.fixture(autouse=True)
-def restore_game_engine_class_state(mocker):
+def restore_game_engine_class_state(monkeypatch, mocker):
     """Restore the GameEngine class attributes that engine code writes, after each test.
+
+    The first of every test's fixtures to ask for ``mocker``, it asks for ``monkeypatch`` first,
+    so ``mocker`` is always undone first. Undone the other way round, a
+    ``mocker.patch.dict(os.environ)`` made after a ``monkeypatch`` change put back its snapshot,
+    which held the change, after ``monkeypatch`` had undone it: 55 tests left PYTHONPATH naming a
+    temporary folder, or GIT_EDITOR removed (tests/test_leaked_state_guard.py).
+
+    The limit of this order: a test that patches a target with ``mocker`` and then the same one
+    with ``monkeypatch`` leaves ``mocker``'s patch in place for every later test, as
+    ``monkeypatch``, undone last, puts back what it found. Use one of the two for a target; a scan
+    of the tests' source looks for both (tests/test_leaked_state_guard.py).
 
     GameEngine.initialize_icon stores the icon in the class attribute `icon` (each engine keeps
     its own game: `GameEngine.game` is a read-only view). A test that runs
@@ -827,25 +850,105 @@ def _start_pygame_and_the_test_display() -> None:
             pygame.display.set_mode(TEST_DISPLAY_SIZE)
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_runtest_setup(item: pytest.Item) -> None:
-    """Start an item that is not a test function on the canvas, as every test function starts.
+# The check of the process state watched since an item's setup began (tests/leaked_state_guard.py)
+PROCESS_STATE_CHECK_KEY: pytest.StashKey[LeakCheck] = pytest.StashKey()
 
-    The canvas comes from ``ensure_pygame_graceful_quit``, an autouse fixture, and autouse
-    fixtures reach only test functions: an item a collector makes (the golden replays'
-    ``ReplayItem``, glitchygames/testing/replays.py) started on whatever the previous test
-    left. A golden replay draws nothing on the display, so on a shuffled Windows CI worker it
-    ended on the previous test's picture and the draws_frames check failed it as drawing
-    unmarked (#283, job 5039; tests/test_harness_every_item_starts_on_the_canvas.py).
+
+def random_is_reseeded_for_each_test(*, config: pytest.Config) -> bool:
+    """Return whether pytest-randomly seeds the global random states around each test.
+
+    Args:
+        config: The run's configuration.
+
+    Returns:
+        True in a shuffled run (``nox -s test-random``).
+
+    """
+    return bool(config.getoption('randomly_reset_seed', default=False))
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> Generator[None, object, object]:
+    """Watch the process's state, and start every item on the canvas.
+
+    The watch is checked in pytest_runtest_teardown, for every item. The state an engine run
+    changes is first read here, before the first item's setup.
+
+    An item that is not a test function starts on the canvas, as every test function does. The
+    canvas comes from ``ensure_pygame_graceful_quit``, an autouse fixture, and autouse fixtures
+    reach only test functions: an item a collector makes (the golden replays' ``ReplayItem``,
+    glitchygames/testing/replays.py) started on whatever the previous test left. A golden replay
+    draws nothing on the display, so on a shuffled Windows CI worker it ended on the previous
+    test's picture and the draws_frames check failed it as drawing unmarked (#283, job 5039;
+    tests/test_harness_every_item_starts_on_the_canvas.py).
 
     Args:
         item: The test about to be set up.
 
+    Returns:
+        object: The wrapped hook's result.
+
     """
-    if isinstance(item, pytest.Function):
-        return
-    _start_pygame_and_the_test_display()
-    show_canvas()
+    if engine_written_state_for_run.cache_info().currsize == 0:
+        _start_pygame_and_the_test_display()
+        engine_written_state_for_run()
+    if not isinstance(item, pytest.Function):
+        _start_pygame_and_the_test_display()
+        show_canvas()
+    item.stash[PROCESS_STATE_CHECK_KEY] = watch_process_state(
+        random_reseeded_for_each_test=random_is_reseeded_for_each_test(config=item.config),
+        reset=functools.partial(
+            reset_engine_written_state, run_state=engine_written_state_for_run()
+        ),
+    )
+    return (yield)
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_teardown(item: pytest.Item) -> Generator[None, object, object]:
+    """Reset what running an engine changes, then fail a test that left other state changed.
+
+    After every fixture's teardown, the wider ones' too (a wrapper that runs first ends last), so
+    nothing that puts state back, or wrongly puts it back, is still to come. A teardown that fails
+    keeps its own error, with what was left changed added to it.
+
+    Args:
+        item: The test being torn down.
+
+    Returns:
+        object: The wrapped hook's result.
+
+    """
+    try:
+        result = yield
+    except BaseException as error:
+        leaks = end_of_item_leaks(item=item)
+        if leaks:
+            error.add_note(leak_message(test=item.nodeid, leaks=leaks))
+        raise
+    leaks = end_of_item_leaks(item=item)
+    if leaks:
+        pytest.fail(leak_message(test=item.nodeid, leaks=leaks), pytrace=False)
+    return result
+
+
+def end_of_item_leaks(*, item: pytest.Item) -> list[str]:
+    """Check the state watched since setup, with what running an engine changes reset.
+
+    Args:
+        item: The test that has been torn down.
+
+    Returns:
+        What the test left changed (now put back, but for a thread); nothing for an item whose
+        setup ended before its watch began.
+
+    """
+    check_process_state = item.stash.get(PROCESS_STATE_CHECK_KEY, None)
+    if check_process_state is None:
+        return []
+    # pytest keeps every item for the whole run, and the check holds a copy of the state
+    del item.stash[PROCESS_STATE_CHECK_KEY]
+    return check_process_state()
 
 
 @pytest.hookimpl(tryfirst=True)

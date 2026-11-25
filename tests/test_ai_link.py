@@ -334,15 +334,30 @@ def refuse_every_connection_at_once(mocker: MockerFixture) -> Any:
     )
 
 
-def test_waiting_to_reconnect_uses_the_engines_sleep_or_the_one_given(tmp_path, mocker):
+def test_stop_ends_the_wait_to_reconnect(tmp_path, mocker):
+    """A game quitting with nothing listening is not held up, and leaves no thread behind."""
+    install(root=tmp_path)
+    refuse_every_connection_at_once(mocker)
+    # Far longer than stop's own wait for the thread
+    mocker.patch.object(ai_link, 'RECONNECT_DELAY_SECONDS', 30.0)
+    link = AiLink(
+        locations=ServiceLocations.in_one_folder(root=tmp_path),
+        session_url='ws://127.0.0.1:9/v1/session',
+    )
+    link.start()
+    assert wait_until(lambda: link.state is LinkState.RECONNECTING)
+
+    link.stop()
+
+    assert link._thread is not None
+    link._thread.join(timeout=WAIT_SECONDS)
+    assert not link._thread.is_alive()
+
+
+def test_waiting_to_reconnect_uses_the_sleep_given(tmp_path, mocker):
     """The wait is injected, so a test or a caller can replace it."""
     install(root=tmp_path)
     attempts = refuse_every_connection_at_once(mocker)
-    # Were the wait given ignored, the link would sleep on the engine's clock and never stop:
-    # this error ends the run instead (the link reports it as UNAVAILABLE)
-    mocker.patch.object(
-        clock, 'raw_sleep', side_effect=AssertionError('waited on the engine sleep, not the given')
-    )
     waits = []
 
     def stop_after_the_second_wait(seconds: float) -> None:
@@ -354,6 +369,11 @@ def test_waiting_to_reconnect_uses_the_engines_sleep_or_the_one_given(tmp_path, 
         locations=ServiceLocations.in_one_folder(root=tmp_path),
         session_url='ws://127.0.0.1:9/v1/session',
         sleep=stop_after_the_second_wait,
+    )
+    # Were the wait given ignored, the link would wait on its own and never stop: this error ends
+    # the run instead (the link reports it as UNAVAILABLE)
+    mocker.patch.object(
+        link._stopping, 'wait', side_effect=AssertionError('waited on its own, not the given')
     )
 
     link._run()  # Run directly: the stop then comes from the same thread, deterministically

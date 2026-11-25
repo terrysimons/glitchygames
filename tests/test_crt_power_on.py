@@ -331,7 +331,9 @@ def test_a_bad_environment_value_falls_back_to_auto_with_a_warning(caplog):
 
 def test_the_tests_never_play_it_unless_asked():
     """tests/sdl_defaults.py turns it off for the run, the native child run included."""
-    assert resolve_mode(option=None, environment=os.environ) is CrtPowerOnMode.OFF
+    mode = resolve_mode(option=None, environment=os.environ)
+
+    assert mode is CrtPowerOnMode.OFF
 
 
 def test_brightness_one_leaves_the_picture_unchanged():

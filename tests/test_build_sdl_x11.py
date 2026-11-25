@@ -579,7 +579,8 @@ class TestCommandLine:
         assert PROBE_COLOR == build_sdl_x11.PROBE_COLOR
 
     @pytest.mark.draws_frames
-    def test_main_exits_with_the_code(self, tmp_path, monkeypatch):
+    def test_main_exits_with_the_code(self, tmp_path, monkeypatch, mocker):
+        mocker.patch.dict(os.environ)  # main() sets PYGAME_HIDE_SUPPORT_PROMPT
         monkeypatch.setattr(
             sys, 'argv', ['build_sdl_x11', 'probe', f'--result={tmp_path / "result.json"}']
         )

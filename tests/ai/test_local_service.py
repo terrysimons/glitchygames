@@ -1,7 +1,6 @@
 """The client for the local AI service, against a real local HTTP server and a real script."""
 
 import json
-import os
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,6 +19,7 @@ from glitchygames.ai.local_service import (
 )
 from glitchygames.ai_link import INSTALL_ROOT_ENVIRONMENT_VARIABLE, ServiceLocations
 from tests.ai_service_stand_in import SERVICE_KEY, install
+from tests.leaked_state_guard import environment_holds
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -365,7 +365,7 @@ def test_no_test_can_reach_the_real_service():
     Without this, a test forgetting a fake client would start real models, on a machine with
     the service installed and only there.
     """
-    assert INSTALL_ROOT_ENVIRONMENT_VARIABLE in os.environ
+    assert not environment_holds(name=INSTALL_ROOT_ENVIRONMENT_VARIABLE, value=None)
     with pytest.raises(LocalAIServiceNotInstalledError):
         create_chat_client()
 

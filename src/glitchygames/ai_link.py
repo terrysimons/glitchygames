@@ -237,8 +237,8 @@ class AiLink:
         Args:
             locations: Where the service's programs and the user's data are.
             session_url: Where its WebSocket listens.
-            sleep: The wait between connection attempts. None is ``clock.raw_sleep``, looked up at
-                each wait, so a patch on ``glitchygames.clock`` reaches it.
+            sleep: The wait between connection attempts. None waits until ``stop`` at most: a sleep
+                would hold a game's quit up for ``STOP_JOIN_SECONDS`` while nothing answers.
 
         """
         self.locations = locations
@@ -340,7 +340,8 @@ class AiLink:
             if self._stopping.is_set():
                 return
             self.state = LinkState.RECONNECTING
-            (clock.raw_sleep if self.sleep is None else self.sleep)(RECONNECT_DELAY_SECONDS)
+            wait = self._stopping.wait if self.sleep is None else self.sleep
+            wait(RECONNECT_DELAY_SECONDS)
 
     def _serve(self, *, session: Connection) -> None:
         """Say hello, then read messages and send pings until stopped or refused.

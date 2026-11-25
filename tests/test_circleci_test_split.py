@@ -9,7 +9,6 @@ machine.
 from __future__ import annotations
 
 import html
-import os
 import re
 from pathlib import Path
 from types import SimpleNamespace
@@ -36,6 +35,7 @@ from tests.circleci_test_split import (
     split_names,
     split_record_path,
 )
+from tests.leaked_state_guard import environment_holds
 
 INNER_RUN_ARGUMENTS = ('-p', 'tests.circleci_test_split', '-p', 'no:randomly', '--assert=plain')
 # Two inner test files; the stand-in splitters below keep test_kept's tests
@@ -394,7 +394,7 @@ def test_a_run_a_test_started_keeps_all_its_tests_under_a_split_environment(pyte
     test went to another machine. A pytest that configures while PYTEST_CURRENT_TEST is set was
     started by a test, as the draws_frames check rules (glitchygames.testing.frame_fingerprints).
     """
-    assert os.environ.get(CURRENT_TEST_VARIABLE)
+    assert not environment_holds(name=CURRENT_TEST_VARIABLE, value=None)
     monkeypatch.setenv(SPLIT_VARIABLE, CIRCLECI_SPLIT)
     monkeypatch.setenv(NODE_TOTAL_VARIABLE, '3')
     monkeypatch.setenv(NODE_INDEX_VARIABLE, '1')
