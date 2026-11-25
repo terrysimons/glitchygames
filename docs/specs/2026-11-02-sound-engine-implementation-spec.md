@@ -632,7 +632,8 @@ its crossfaded filter `live.FilterState`, and every live voice is a live instrum
 - `Sound.start()` puts it on the context's live pool (`live.LiveAudio`, the audio engine's) and
   returns a `LiveSoundHandle` (§8). Its playback settings travel as one
   `live.LiveVoiceOptions`: persist, priority (a full pool steals the lowest at or below), pan
-  (the constant-power law every sound pans by) and the bus's gain, read per chunk.
+  (the constant-power law every sound pans by, rendered into each chunk's two sides and ramped
+  across one when it changes) and the bus's gain, read per chunk.
 - The chunk length is the instrument's (`Instrument(chunk_seconds=)`, 0.03-0.5 s, default 0.1),
   not an engine option: latency is part of a live sound's design (the owner, 2026-11-15).
   `--live-chunk-ms` is not built. M3 measures 50 ms against the underrun probe

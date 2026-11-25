@@ -15,7 +15,14 @@ margin is the rest of the playing chunk minus one device buffer: about 88 ms at 
 Channel facts this module relies on (pygame-ce 2.5.8): Channel.stop() and Channel.fadeout()
 start the queued sound, so fades are rendered into the samples and stop_now() calls stop()
 twice; set_reserved(n) reserves channels 0..n-1; set_num_channels(smaller) stops sounds on the
-removed channels, so the pool is reserved once at startup and never resized.
+removed channels, so the pool is reserved once at startup and never resized. SDL_mixer keeps
+volume and pan on the channel and drops them when a queued chunk starts (and ``Channel.play``
+gives full volume again), so a channel's gains reach only the first chunk: a stream's gains are
+rendered into its chunks, side by side, and its channel stays at full on both
+(bugs/2026-11-25-live-sounds-lose-their-pan.md). A pan change is ramped across a chunk: the one
+queued, rewritten in place, so it starts within one chunk and never steps. The rewrite renders
+nothing again (no noise is drawn) and makes no mixer call: should the queued chunk start while
+it is rewritten, both versions start at the same gains, so there is no step to hear.
 
 A stream holds its own reference to every chunk it plays or queues until its channel has moved
 past it (``LiveStream.held_chunks``), so pygame's channel table never holds a chunk's last
@@ -70,6 +77,7 @@ from glitchygames.audio.synth import (
     apply_kernel,
     filter_kernel,
     mixer_sample_rate,
+    panned_pcm16,
     sample_count,
     to_sound,
 )
@@ -91,6 +99,8 @@ DEFAULT_FADE_OUT = 0.1
 # A live voice's stealing priority when none is given (the baked plays' default)
 DEFAULT_LIVE_PRIORITY = 50
 PAN_RANGE = (-1.0, 1.0)
+# A live channel's gains: full on both sides, its chunks carry their own (the module docstring)
+FULL_CHANNEL_GAINS = (1.0, 1.0)
 # The most chunks a stream holds once it has let go of those its channel moved past: pygame's
 # table names one playing and one queued per channel
 MAXIMUM_HELD_CHUNKS = 2
@@ -233,10 +243,12 @@ class LiveStream:
     as each chunk is rendered. The pool (``LiveAudio``) applies the owner rules to streams. A
     stream without a channel (no mixer) does nothing.
 
-    Its channel pans by the constant-power law every sound pans by (the owner, 2026-11-15: one
-    law, so a live sound centred is as loud as a baked one, and its first pan never jumps); it
-    sets its channel's pan as it starts, so it never inherits the pan a pool channel had. A
-    pause made by ``hold`` holds until
+    Its chunks are panned by the constant-power law every sound pans by (the owner, 2026-11-15:
+    one law, so a live sound centred is as loud as a baked one, and its first pan never jumps),
+    each chunk from its first to its last sample; its channel is set to full on both sides before
+    each play, so a stream never inherits a pan its channel had and never leaves one. A pan
+    change is heard from the start of the next chunk, ramped across it (the module docstring).
+    A pause made by ``hold`` holds until
     ``release_hold``: the owner rules never resume it. ``persist`` and ``priority`` are the
     pool's to read (``LiveAudio.update``, ``LiveAudio.take_channel``).
     """
@@ -273,6 +285,10 @@ class LiveStream:
         self.made_order = 0  # set by the pool: earlier voices are stolen first among equals
         self._gain_source = options.gain_source
         self._pan = options.pan
+        # The newest chunk's samples, and the gains it starts and ends at (None: none rendered)
+        self._newest_samples: FloatArray | None = None
+        self._newest_starting_gains = self._pan_gains()
+        self._newest_ending_gains: tuple[float, float] | None = None
         self._held = False
         # Every chunk played or queued that the channel may still name (the module docstring)
         self._held_chunks: list[pygame.mixer.Sound] = []
@@ -350,7 +366,10 @@ class LiveStream:
         return self._held
 
     def set_pan(self, pan: float) -> None:
-        """Pan its channel by the constant-power law.
+        """Pan by the constant-power law, ramped across the next chunk to start.
+
+        That is the chunk queued, rewritten in place, or the next one rendered when none is. The
+        chunk playing plays on as it is: the change starts within one chunk.
 
         Raises:
             ValueError: For a pan outside -1 to 1.
@@ -359,8 +378,18 @@ class LiveStream:
             message = f'pan must be between -1 and 1, got {pan}'
             raise ValueError(message)
         self._pan = pan
-        if self._channel is not None:
-            self._channel.set_volume(*self._channel_gains())
+        if self._channel is None or self._newest_samples is None:
+            return  # the first chunk starts at the pan
+        _, queued = _channel_table_slots(self._channel)
+        if queued is None or not self._held_chunks or queued is not self._held_chunks[-1]:
+            return  # nothing of its own waits: the next chunk rendered ramps to the pan
+        self._newest_ending_gains = self._pan_gains()
+        frames = pygame.sndarray.samples(queued)
+        frames[...] = panned_pcm16(
+            self._newest_samples,
+            side_gains=self._newest_side_gains(),
+            channel_count=1 if frames.ndim == 1 else frames.shape[1],
+        )
 
     def hold(self) -> bool:
         """Pause until ``release_hold``, whatever the owner rules say.
@@ -393,7 +422,6 @@ class LiveStream:
         self._state = VoiceState.PLAYING
         if not _channel_in_the_table(self._channel):
             return  # a pool shrunk under it: silent (the module docstring)
-        self._channel.set_volume(*self._channel_gains())
         self._play(self._channel)
 
     def update(self) -> None:
@@ -461,6 +489,7 @@ class LiveStream:
     def _play(self, channel: pygame.mixer.Channel) -> None:
         """Play the next chunk, holding it and every chunk the channel named before the play.
 
+        The channel's gains go to full first: its chunks carry theirs (the module docstring).
         The chunks the channel played before are let go only after ``Channel.play`` has
         replaced them in pygame's table, never inside it (the module docstring). Both callers
         (``start``, ``update``) have checked the channel is in the table: pygame's ``chan_play``
@@ -468,6 +497,7 @@ class LiveStream:
         """
         chunk = self._next_chunk()
         self._held_chunks.append(chunk)
+        channel.set_volume(*FULL_CHANNEL_GAINS)
         channel.play(chunk)
         self._let_go_of_chunks_played_out(channel)
 
@@ -479,7 +509,9 @@ class LiveStream:
         ]
 
     def _next_chunk(self) -> pygame.mixer.Sound:
-        """Render the next chunk, faded while stopping, at the route's volume.
+        """Render the next chunk, faded while stopping, at its pan and the route's volume.
+
+        It starts at the gains the chunk before it ended at and ramps to the pan's.
 
         Returns:
             The chunk as a mixer sound.
@@ -487,17 +519,38 @@ class LiveStream:
         samples = self._render(self._chunk_samples)
         if self._state is VoiceState.FADING:
             samples *= self._fade_gains(self._chunk_samples)
+        target = self._pan_gains()
+        self._newest_samples = samples
+        self._newest_starting_gains = self._newest_ending_gains or target
+        self._newest_ending_gains = target
+        side_gains = self._newest_side_gains()
         if not self._audio_route.audible:
-            return to_sound(samples, volume=0.0)
-        return to_sound(samples, volume=1.0 if self._gain_source is None else self._gain_source())
+            return to_sound(samples, volume=0.0, side_gains=side_gains)
+        return to_sound(
+            samples,
+            volume=1.0 if self._gain_source is None else self._gain_source(),
+            side_gains=side_gains,
+        )
 
-    def _channel_gains(self) -> tuple[float, float]:
-        """Its channel's left and right gains, by the constant-power law.
+    def _pan_gains(self) -> tuple[float, float]:
+        """The pan's left and right gains, by the constant-power law.
 
         Returns:
             The gains.
         """
         return constant_power_gains(pan=self._pan, gain=1.0)
+
+    def _newest_side_gains(self) -> FloatArray:
+        """Each sample's left and right gain in the newest chunk: a straight line between its ends.
+
+        Returns:
+            (sample count, 2): the first sample has left its starting gains, the last is at its
+            ending ones.
+        """
+        starting = np.array(self._newest_starting_gains)
+        ending = np.array(self._newest_ending_gains)
+        ramp = np.arange(1, self._chunk_samples + 1)[:, np.newaxis] / self._chunk_samples
+        return starting + (ending - starting) * ramp
 
     def _fade_gains(self, count: int) -> FloatArray:
         positions = self._fade_remaining_samples - np.arange(1, count + 1)

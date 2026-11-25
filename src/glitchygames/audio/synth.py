@@ -493,8 +493,41 @@ def to_pcm16(samples: FloatArray) -> npt.NDArray[np.int16]:
     return np.round(np.clip(samples, -1.0, 1.0) * PCM16_SCALE).astype(np.int16)
 
 
-def to_sound(samples: FloatArray, *, volume: float = 0.5) -> pygame.mixer.Sound:
+def panned_pcm16(
+    samples: FloatArray, *, side_gains: FloatArray, channel_count: int
+) -> npt.NDArray[np.int16]:
+    """Mono samples as the mixer's frames, each side at its own gain, sample by sample.
+
+    The samples are clipped before the gains, as ``to_pcm16`` clips them, so no frame is ever
+    louder than its side's gain. A mono mixer has no sides: it plays both sides' mean power (the
+    constant-power law's centre gain, wherever the sound is panned). With more than two output
+    channels the sides alternate, left first (exact for stereo and quadraphonic).
+
+    Args:
+        samples: The mono samples.
+        side_gains: (sample count, 2): the left and right gain of each sample.
+        channel_count: The mixer's output channels.
+
+    Returns:
+        The frames: one value per sample on a mono mixer, else (sample count, channel_count).
+    """
+    clipped = np.clip(samples, -1.0, 1.0)
+    if channel_count == 1:
+        return to_pcm16(clipped * np.sqrt(np.mean(side_gains**2, axis=1)))
+    sides = np.arange(channel_count) % side_gains.shape[1]
+    return to_pcm16(clipped[:, np.newaxis] * side_gains[:, sides])
+
+
+def to_sound(
+    samples: FloatArray, *, volume: float = 0.5, side_gains: FloatArray | None = None
+) -> pygame.mixer.Sound:
     """Turn mono samples into a pygame Sound matching the mixer.
+
+    Args:
+        samples: The mono samples.
+        volume: The sound's volume.
+        side_gains: The left and right gain of each sample (``panned_pcm16``), or None for the
+            samples as they are on every output channel.
 
     Returns:
         The sound, with its volume set.
@@ -511,8 +544,11 @@ def to_sound(samples: FloatArray, *, volume: float = 0.5) -> pygame.mixer.Sound:
     if sample_format != SIGNED_16_BIT_FORMAT:
         message = f'mixer format {sample_format} is not signed 16-bit'
         raise AudioUnavailableError(message)
-    pcm = to_pcm16(samples)
-    frames = pcm if channel_count == 1 else np.repeat(pcm[:, np.newaxis], channel_count, axis=1)
+    if side_gains is not None:
+        frames = panned_pcm16(samples, side_gains=side_gains, channel_count=channel_count)
+    else:
+        pcm = to_pcm16(samples)
+        frames = pcm if channel_count == 1 else np.repeat(pcm[:, np.newaxis], channel_count, axis=1)
     frames = np.ascontiguousarray(frames)
     # pygame.sndarray.make_sound has incomplete type stubs for its ndarray parameter
     sound: pygame.mixer.Sound = pygame.sndarray.make_sound(frames)

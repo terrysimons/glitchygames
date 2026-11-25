@@ -230,6 +230,12 @@ motor.release()                                # fades it out over 100 ms
   `LiveStream.held_chunks`). pygame-ce 2.5.8 frees a queued Sound twice when pygame's channel
   table holds the only references
   (`bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md`, `docs/quality/upstream_issues.md`).
+- **Its gains are in its chunks.** SDL_mixer keeps volume and pan on the channel and drops them
+  when a queued chunk starts, so each chunk holds its left and right gains, and the channel stays
+  at full on both sides. `set_pan` ramps across the queued chunk, rewritten in place, so it starts
+  within one chunk (0-100 ms by default), ends a chunk later and never steps. A mono mixer plays
+  the centre gain whatever the pan
+  (`bugs/2026-11-25-live-sounds-lose-their-pan.md`).
 - **A game's end releases its live voices**, persisting ones included: `SceneManager.terminate`
   releases them, since nothing updates them once the game has ended. A voice dropped without
   being released is stopped by its stream's finalizer and reported, in the log and in its
