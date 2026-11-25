@@ -902,6 +902,7 @@ class TestInnerPartitions:
         assert top_channel.get_busy()
         assert top_channel.get_sound() is plain_sound
         assert busy_channel_ids() == [partition.live[0], top_channel.id]
+        voice.stream.stop_now()
         pygame.mixer.stop()
 
 

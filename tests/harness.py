@@ -5,6 +5,7 @@ Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 """
 
 import contextlib
+import gc
 import logging
 import os
 import sys
@@ -38,6 +39,10 @@ from glitchygames import engine_context, pixel_snap, process, randomness, source
 from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
 from glitchygames.audio.instruments import registry as instruments_registry
 from glitchygames.audio.library import ENGINE_SOUND_CACHE
+from glitchygames.audio.live import (
+    live_streams_holding_chunks,
+    take_unreleased_live_stream_reports,
+)
 from glitchygames.audio.voices import release_channels
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -884,6 +889,108 @@ def busy_mixer_channels() -> list[int]:
     ]
 
 
+def queued_sounds_no_live_stream_holds() -> list[str]:
+    """Name each channel with a queue whose playing or queued Sound no live stream holds.
+
+    pygame-ce 2.5.8 frees a queued Sound twice when a play lands on a channel playing one Sound
+    with another queued and its table holds the only references
+    (bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md). Live streams hold their own
+    (glitchygames/audio/live.py), so a queue only they make is safe: this finds any other
+    queuer, anywhere in the suite. The holders are the current engine context's live streams,
+    enumerated exactly (``LiveStreamRegistry``), so a stream of an inner context a test made and
+    left queuing is named here too, as unheld. Read before the channels are silenced.
+
+    Returns:
+        One description per such channel; empty when there is none or no mixer.
+    """
+    if pygame.mixer.get_init() is None:
+        return []
+    held_chunk_ids = {
+        id(chunk) for stream in live_streams_holding_chunks() for chunk in stream.held_chunks
+    }
+    found = []
+    for index in range(pygame.mixer.get_num_channels()):
+        channel = pygame.mixer.Channel(index)
+        queued = channel.get_queue()
+        if queued is None:
+            continue
+        unheld = [
+            slot
+            for slot, sound in (('playing', channel.get_sound()), ('queued', queued))
+            if sound is not None and id(sound) not in held_chunk_ids
+        ]
+        if unheld:
+            found.append(
+                f'Sounds no live stream holds on channel {index} with a queue: {unheld} '
+                '(only a live stream may queue: glitchygames/audio/live.py)'
+            )
+    return found
+
+
+def check_every_queued_sound_is_held_by_a_live_stream() -> None:
+    """Fail at once when a channel with a queue names a Sound no live stream holds."""
+    found = queued_sounds_no_live_stream_holds()
+    if found:
+        pytest.fail('\n'.join(found))
+
+
+# What each kind of unreleased stream is told to do
+RELEASE_ADVICE = '(release_voice, release_every_voice, stop_now or SceneManager.terminate)'
+
+
+def unreleased_live_stream_problems() -> list[str]:
+    """Name every live stream of the current context that was never released, after a test.
+
+    Releasing a stream stops its channel and lets go of every chunk, so a stream still holding
+    one was never released, whatever its channel's state. The context's registry enumerates
+    them exactly (``live_streams_holding_chunks``). A stream already dropped sits in a reference
+    cycle with its voice, so the garbage is collected, only when the registry found something
+    (a full collection costs about 44 ms), and its finalizer's report lands on this test. A
+    report of a stream the registry did not find here came from a stream an earlier test on
+    the worker leaked, collected only now; it is worded so.
+
+    Returns:
+        One description per unreleased stream; empty when there is none.
+    """
+    found_ids = {id(stream) for stream in live_streams_holding_chunks()}
+    if found_ids:
+        gc.collect()
+    problems = [
+        f'A live stream was never released ({stream.diagnostic_name}): it still holds '
+        f'{len(stream.held_chunks)} chunk(s) {RELEASE_ADVICE}'
+        for stream in live_streams_holding_chunks()
+    ]
+    for report in take_unreleased_live_stream_reports():
+        if report.stream_id in found_ids:
+            problems.append(
+                f'A live stream was never released ({report.stream_name}): collected holding '
+                f'{report.held_chunk_count} chunk(s) {RELEASE_ADVICE}'
+            )
+        else:
+            problems.append(
+                'A live stream was collected during this test; leaked by an earlier test on '
+                f'this worker ({report.stream_name}): it held {report.held_chunk_count} chunk(s)'
+            )
+    return problems
+
+
+def end_of_test_sound_problems() -> list[str]:
+    """Check a test's sound as it ends, then silence the mixer; return every problem found.
+
+    The queues are read before the channels are silenced (silencing empties them), and a
+    silencing failure is added to the rest rather than raised, so no report is lost.
+
+    Returns:
+        Each problem's description; empty when the test left its sound clean.
+    """
+    problems = queued_sounds_no_live_stream_holds() + unreleased_live_stream_problems()
+    try:
+        silence_every_channel()
+    except pytest.fail.Exception as failure:
+        problems.append(str(failure))
+    return problems
+
+
 def silence_every_channel() -> None:
     """Stop every mixer channel after a test, so no sound plays on into the next one.
 
@@ -934,7 +1041,9 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
 
     yield
 
-    silence_every_channel()
+    # Every sound problem is gathered first, silencing included (end_of_test_sound_problems), and
+    # reported after the rest of the teardown, so a failing check never leaves drivers behind
+    sound_problems = end_of_test_sound_problems()
     restore_run_sdl_drivers(
         run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
         run_state=run_sdl_driver_state,
@@ -947,6 +1056,8 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
             # driver it would stay black (under the last scene's caption) while the worker waits
             # for its next test, or for the run to end
             show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
+    if sound_problems:
+        pytest.fail('\n'.join(sound_problems))
 
 
 @pytest.fixture

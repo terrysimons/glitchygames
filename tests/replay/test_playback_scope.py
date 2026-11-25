@@ -10,13 +10,18 @@ import dataclasses
 import gc
 import logging
 import random
+import sys
 from typing import TYPE_CHECKING, Any, Protocol, Self, override
 
+import numpy as np
 import pygame
 import pytest
 
 from glitchygames import logical_names
 from glitchygames.audio.instrument import Instrument
+from glitchygames.audio.live import take_unreleased_live_stream_reports
+from glitchygames.audio.synth import mixer_sample_rate
+from glitchygames.checks import required
 from glitchygames.events import FPSEVENT, GAMEEVENT
 from glitchygames.exit_codes import BUG_REPORT_HINT
 from glitchygames.input.devices import JOYSTICK_COUNT_CALL, ReplayDeviceRegistry
@@ -1937,6 +1942,49 @@ class TestLiveVoicesThroughAPlayback:
             step(manager)
             # Paused behind the scope, then played on: never released (which stops for good)
             assert voice.is_playing
+
+    @pytest.mark.draws_frames
+    def test_a_stream_collected_inside_a_scope_is_let_go_without_raising(
+        self, tmp_path, monkeypatch
+    ):
+        """The finalizer of a stream dropped unreleased while a playback runs never raises.
+
+        It stops the channel, lets go of the chunks and reports through the log
+        (glitchygames/audio/live.py's ``_let_go_of_chunks``), with the scope's sources
+        installed.
+        """
+        from glitchygames.audio.live_instrument import InstrumentVoice
+
+        unraisable = []
+        monkeypatch.setattr(sys, 'unraisablehook', unraisable.append)
+        recording_path = record_counting_scene(tmp_path=tmp_path, frames=SHORT_RECORDED_FRAMES)
+        with running_scene(CountingScene) as manager:
+            live_scene = active_counting_scene(manager)
+            assert start_playback_from_recording(
+                manager=manager, path=recording_path, then=live_scene
+            )
+            step(manager)
+            assert manager.playback_session is not None
+            engine = required(manager.game_engine, what="the running scene's engine")
+            channel = pygame.mixer.Channel(engine.live_voice_channels[0])
+            voice = InstrumentVoice(
+                channel=channel,
+                owner=live_scene,
+                instrument=Instrument(wave='saw', live=True),
+                frequency=220.0,
+                volume=0.1,
+                sample_rate=mixer_sample_rate(),
+                random_source=np.random.default_rng(3),
+            )
+            voice.stream.start()
+            voice.stream.update()
+
+            del voice
+            gc.collect()
+
+            assert unraisable == []
+            assert not channel.get_busy()
+            assert len(take_unreleased_live_stream_reports()) == 1  # its context's registry
 
 
 class PulsingScene(CountingScene):
