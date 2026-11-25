@@ -557,9 +557,11 @@ class AIManager:
 
             # Check if we can retry
             if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
-                self._retry_ai_request(request_id, request_state, validation_error)
-                # DON'T delete from pending_ai_requests - we're retrying (a retry refused while
-                # the AI is off has dropped it)
+                if not self._retry_ai_request(request_id, request_state, validation_error):
+                    # Refused: show the answer (and the original prompt) below the reason, then
+                    # drop the request, as when the retries run out
+                    self._handle_ai_error_message(request_id, response.content)
+                # DON'T delete from pending_ai_requests - we're retrying
                 return
             # Max retries reached: give up without loading. This used to say "loading sprite
             # anyway", but _load_ai_sprite validates the same content and rejects it, so nothing
@@ -582,15 +584,8 @@ class AIManager:
         # repaired rather than thrown away (the owner, 2026-10-30): the repair only adds
         # transparent pixels, and the load says what it repaired
         pixel_rows_error = self._ai_pixel_row_problems(request_id, response.content)
-        if pixel_rows_error:
-            self.log.warning('AI response pixel rows need repair: %s', pixel_rows_error)
-            if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
-                self._retry_ai_request(request_id, request_state, pixel_rows_error)
-                return
-            self.log.warning(
-                'Max retries (%s) reached, loading the sprite with its pixel rows repaired',
-                AI_VALIDATION_MAX_RETRIES,
-            )
+        if pixel_rows_error and self._retry_pixel_rows(request_id, request_state, pixel_rows_error):
+            return
 
         # Valid response - load the sprite
         self._load_ai_sprite(request_id, response.content)
@@ -598,6 +593,28 @@ class AIManager:
         # Remove from pending requests
         if request_id in self.pending_ai_requests:
             del self.pending_ai_requests[request_id]
+
+    def _retry_pixel_rows(
+        self, request_id: str, request_state: AIRequestState, pixel_rows_error: str
+    ) -> bool:
+        """Retry an answer whose rows need repair, unless it is the last there will be.
+
+        Returns:
+            True when it is retried, False when it is to be loaded repaired: the retries ran out,
+            or the AI is off.
+
+        """
+        self.log.warning('AI response pixel rows need repair: %s', pixel_rows_error)
+        if request_state.retry_count >= AI_VALIDATION_MAX_RETRIES:
+            self.log.warning(
+                'Max retries (%s) reached, loading the sprite with its pixel rows repaired',
+                AI_VALIDATION_MAX_RETRIES,
+            )
+            return False
+        if self._retry_ai_request(request_id, request_state, pixel_rows_error):
+            return True
+        self.log.warning('No retry, loading the sprite with its pixel rows repaired')
+        return False
 
     def _ai_pixel_row_problems(self, request_id: str, content: str) -> str:
         """Check the pixel rows of what loading this response would load.
@@ -618,15 +635,18 @@ class AIManager:
 
     def _retry_ai_request(
         self, request_id: str, request_state: AIRequestState, validation_error: str
-    ) -> None:
+    ) -> bool:
         """Queue the request again, under the same id, with a correction for the error.
 
-        While the AI is off (a later run in the same process turned it off) the request is dropped
-        instead, and the reason shown.
+        While the AI is off (a later run in the same process turned it off) nothing is queued and
+        the reason is shown: the answer is then the request's last.
+
+        Returns:
+            True when the request was queued again, False when the AI is off.
+
         """
         if self._refuse_while_the_ai_is_off():
-            self.pending_ai_requests.pop(request_id, None)
-            return
+            return False
 
         request_state.retry_count += 1
         request_state.last_error = validation_error
@@ -667,6 +687,7 @@ class AIManager:
                 f' {request_state.retry_count + 1}/{AI_VALIDATION_MAX_RETRIES + 1})\n'
                 f'Error: {validation_error}'
             )
+        return True
 
     def _log_ai_response_content(self, content: str) -> None:
         """Log AI response content for debugging."""

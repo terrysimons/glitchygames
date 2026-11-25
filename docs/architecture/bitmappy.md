@@ -32,7 +32,7 @@ numpy, pydantic, pygame-ce and tenacity (`src/apps/bitmappy/pyproject.toml`).
   engine to ask: `ai_off_reason` (`src/apps/bitmappy/src/bitmappy/ai_manager.py`), through the
   engine's own gate, `reason_lucid_circuit_is_off` (`src/glitchygames/ai_link.py`). It is asked at
   `setup()`, where nothing then starts, and at each request and each retry of one, which show the
-  reason.
+  reason (a refused retry's answer is the last: it is loaded if its rows only need repair).
 - **The Load and Save dialogs** (the engine's `glitchygames.ui` dialog scenes) treat every file the
   same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
   library is opened by its path. The `example:` prefix they once understood is gone, and Save

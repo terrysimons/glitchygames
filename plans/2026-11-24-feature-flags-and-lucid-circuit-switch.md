@@ -57,7 +57,7 @@ A source scan, beside the project's others (`tests/test_unseeded_randomness_guar
 that fails when engine or member code:
 
 - assigns a module- or class-level name ending `_ENABLED`, or starting `ENABLE_` or `FEATURE_`,
-  outside `feature_flags.py` (a private name too; two bits of `BallSpawnMode`, which switch nothing
+  outside `feature_flags.py` (a private name too; two bit masks of `BallSpawnMode`, which switch nothing
   by themselves, are allowed by name);
 - calls `flag_state` at import (module or class level, a decorator or a default argument).
 

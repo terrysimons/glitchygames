@@ -1909,16 +1909,11 @@ class TestLucidCircuit:
         assert len(manager.ai_request_queue.items) == 1
         assert manager.editor.debug_text.text == off_message(reason=OFF_ON_THE_COMMAND_LINE_REASON)
 
-    @pytest.mark.parametrize(
-        'content',
-        [
-            pytest.param('[sprite]\nname = "x"\npixels = """\n#\n"""\n', id='invalid'),
-            pytest.param(RAGGED_SPRITE_TOML, id='ragged-rows'),
-        ],
-    )
     @pytest.mark.parametrize('with_debug_text', [True, False])
-    def test_a_retry_asks_again(self, live_run_with_the_ai_on, content, with_debug_text, caplog):
-        """An answer that needs a retry, in a later run the AI is off in, drops its request."""
+    def test_a_refused_retry_drops_an_answer_that_cannot_load(
+        self, live_run_with_the_ai_on, with_debug_text, caplog
+    ):
+        """In a later run the AI is off in: the reason, the answer, and the prompt below them."""
         editor = _editor(with_debug_text=with_debug_text)
         manager = _manager_with_queues(editor)
         manager.on_text_submit_event('a ball')
@@ -1926,6 +1921,7 @@ class TestLucidCircuit:
         manager.ai_request_queue.items.clear()
         make_engine('--no-lucid-circuit')
         caplog.clear()
+        content = '[sprite]\nname = "x"\npixels = """\n#\n"""\n'
 
         with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
             manager._process_ai_response(request.request_id, AIResponse(content=content))
@@ -1936,7 +1932,35 @@ class TestLucidCircuit:
         assert caplog.messages.count(message) == 1
         assert hasattr(editor, 'debug_text') is with_debug_text
         if with_debug_text:
-            assert editor.debug_text.text == message
+            assert editor.debug_text.text == (
+                f'{message}\n\n{content}\n\n--- Original Prompt ---\na ball'
+            )
+
+    def test_a_refused_retry_still_loads_ragged_rows_repaired(
+        self, live_run_with_the_ai_on, caplog
+    ):
+        """The last answer there will be is loaded, not thrown away (the owner, 2026-10-30)."""
+        canvas = FakeCanvas()
+        editor = _editor(canvas=canvas)
+        manager = _manager_with_queues(editor)
+        manager.pending_ai_requests['request-1'] = AIRequestState(original_prompt='a ball')
+        make_engine('--no-lucid-circuit')
+        caplog.clear()
+
+        with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+            manager._process_ai_response('request-1', AIResponse(content=RAGGED_SPRITE_TOML))
+
+        message = off_message(reason=OFF_ON_THE_COMMAND_LINE_REASON)
+        assert not manager.ai_request_queue.items
+        assert len(canvas.loaded_paths) == 1
+        assert canvas.animated_sprite.pixel_row_repairs
+        assert manager.pending_ai_requests == {}
+        assert caplog.messages.count(message) == 1
+        assert 'Max retries' not in caplog.text
+        assert editor.debug_text.text == (
+            'a ball\nRepaired the pixel rows of 1 block(s) while loading (details in the log). '
+            'Saving writes the repaired rows.'
+        )
 
     def test_in_game_playback_is_a_replay_until_it_ends(
         self, fake_process_class, live_run_with_the_ai_on

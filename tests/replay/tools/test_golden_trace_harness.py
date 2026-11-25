@@ -355,6 +355,14 @@ def test_a_trace_is_recorded_with_its_extra_arguments(hooks, lucid_circuit):
     assert options == [lucid_circuit]
 
 
+def test_an_unknown_hook_is_refused_by_name():
+    """A misspelt keyword would otherwise be ignored, and its hook never called."""
+    misspelt = {'frame_observers': None, 'extra_argument': ['--no-lucid-circuit']}
+
+    with pytest.raises(TypeError, match='extra_argument, frame_observers'):
+        record_trace(scene_class=SeededWanderScene, script=InputScript(), frame_count=1, **misspelt)
+
+
 @pytest.mark.draws_frames
 def test_golden_harness_stopped_early_reports_a_length_divergence(tmp_path):
     """A harness replay stopped before the recording's last frame reports a length divergence."""

@@ -304,16 +304,16 @@ contract), one per flag declared in `FEATURE_FLAGS`. `flag_state(name=...)` says
 on in the current engine context and, when it is off, why. Each is local to the run: a recording
 never sets one.
 
+- `--lucid-circuit, --no-lucid-circuit` (`bool`, default on): Lucid Circuit, the local AI: it needs the AI service installed, and is never used with --headless or in a replay; unavailable in the browser, which cannot start processes
+
 !!! note "Wanted and possible, no more"
 
     Whether a run may use a feature is the feature's own gate. Lucid Circuit's is
     `reason_lucid_circuit_is_off()` in `src/glitchygames/ai_link.py`: the engine's AI link and
-    Bitmappy's AI ask it, and each run it is off in logs why.
+    Bitmappy's AI ask it, and each run it is off in logs why at INFO.
 
 A feature switch is never a constant, and a flag is never read as a module is imported:
 `tests/test_feature_flag_source_guard.py` scans the engine's and every member's source for both.
-
-- `--lucid-circuit, --no-lucid-circuit` (`bool`, default on): Lucid Circuit, the local AI: it needs the AI service installed, and is never used with --headless or in a replay; unavailable in the browser, which cannot start processes
 
 ### Layer 2: event managers and fonts
 

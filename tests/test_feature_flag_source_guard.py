@@ -22,17 +22,22 @@ if TYPE_CHECKING:
 
 # The one module that may name a constant so: it declares FEATURE_FLAGS
 DECLARING_MODULE = 'feature_flags.py'
-# Looks like a feature switch by its name, and is not one: (module, name) -> why
+# Looks like a feature switch by its name, and is not one: (module, Class.name) -> why
 ALLOWED_NAMES: dict[tuple[str, str], str] = {
-    ('game_objects/ball.py', 'SPEED_CHECK_ENABLED'): (
-        'a bit of the BallSpawnMode IntFlag, which a game combines into the value it passes: it '
-        'switches nothing by itself'
+    ('game_objects/ball.py', 'BallSpawnMode.SPEED_CHECK_ENABLED'): (
+        'an int bit mask, one of BallSpawnMode (a plain class of them), which a game combines into '
+        'the value it passes: it switches nothing by itself'
     ),
-    ('game_objects/ball.py', 'COOLDOWN_ENABLED'): 'another bit of BallSpawnMode, the same way',
+    ('game_objects/ball.py', 'BallSpawnMode.COOLDOWN_ENABLED'): 'another of its bit masks',
 }
 
-# Each reads the flags of the engine context current at the call
-FLAG_READERS = frozenset({'flag_state', 'flag_state_lines'})
+# Each reads the flags, or a feature's gate on one, of the engine context current at the call
+FLAG_READERS = frozenset({
+    'ai_off_reason',
+    'flag_state',
+    'flag_state_lines',
+    'reason_lucid_circuit_is_off',
+})
 
 # Far fewer than there are, and far more than one package holds: a scan below it lost its files
 MINIMUM_ENGINE_FILES = 150
@@ -46,11 +51,11 @@ def looks_like_a_feature_switch(*, name: str) -> bool:
 
 
 def flag_reader_names(*, tree: ast.Module) -> frozenset[str]:
-    """Return every name a module calls a flag reader by.
+    """Return the names a module calls a flag reader by, as far as the scan follows them.
 
-    Its own names, one it is imported as (``from glitchygames.feature_flags import flag_state as
+    Their own names, one it is imported as (``from glitchygames.feature_flags import flag_state as
     read``, or relatively), and one it is assigned to (``read = feature_flags.flag_state``), at
-    any level, through a chain of them.
+    any level, through a chain of them in any order.
     """
     names = set(FLAG_READERS)
     renames: list[tuple[str, ast.expr]] = []
@@ -93,7 +98,8 @@ class ImportTimeScan(ast.NodeVisitor):
     and default arguments), not the function's own body.
 
     Attributes:
-        names: ``(line, column, name)`` for each name that looks like a feature switch.
+        names: ``(line, column, name)`` for each name that looks like a feature switch, a class's
+            with its classes (``Outer.Inner.NAME``).
         calls: ``(line, column, what)`` for each call of a flag reader.
 
     """
@@ -101,13 +107,19 @@ class ImportTimeScan(ast.NodeVisitor):
     def __init__(self: Self, *, readers: frozenset[str]) -> None:
         """Keep the names the module calls a flag reader by."""
         self.readers = readers
+        self.class_names: list[str] = []
         self.names: list[tuple[int, int, str]] = []
         self.calls: list[tuple[int, int, str]] = []
 
-    def check_name(self: Self, node: ast.stmt | ast.expr | ast.alias, name: str | None) -> None:
+    def check_name(
+        self: Self,
+        node: ast.stmt | ast.expr | ast.alias | ast.pattern | ast.ExceptHandler,
+        name: str | None,
+    ) -> None:
         """Keep a bound name that looks like a feature switch."""
         if name is not None and looks_like_a_feature_switch(name=name):
-            self.names.append((node.lineno, node.col_offset, name))
+            qualified_name = '.'.join([*self.class_names, name])
+            self.names.append((node.lineno, node.col_offset, qualified_name))
 
     @override
     def visit_Name(self: Self, node: ast.Name) -> None:
@@ -118,6 +130,25 @@ class ImportTimeScan(ast.NodeVisitor):
     def visit_Attribute(self: Self, node: ast.Attribute) -> None:
         if isinstance(node.ctx, ast.Store):
             self.check_name(node, node.attr)
+        self.generic_visit(node)
+
+    @override
+    def visit_ExceptHandler(self: Self, node: ast.ExceptHandler) -> None:
+        self.check_name(node, node.name)
+        self.generic_visit(node)
+
+    @override
+    def visit_MatchAs(self: Self, node: ast.MatchAs) -> None:
+        self.check_name(node, node.name)
+        self.generic_visit(node)
+
+    @override
+    def visit_MatchStar(self: Self, node: ast.MatchStar) -> None:
+        self.check_name(node, node.name)
+
+    @override
+    def visit_MatchMapping(self: Self, node: ast.MatchMapping) -> None:
+        self.check_name(node, node.rest)
         self.generic_visit(node)
 
     @override
@@ -159,7 +190,13 @@ class ImportTimeScan(ast.NodeVisitor):
     @override
     def visit_ClassDef(self: Self, node: ast.ClassDef) -> None:
         self.check_name(node, node.name)
-        self.generic_visit(node)
+        # Its decorators and bases run outside it
+        for expression in (*node.decorator_list, *node.bases, *node.keywords):
+            self.visit(expression)
+        self.class_names.append(node.name)
+        for statement in node.body:
+            self.visit(statement)
+        self.class_names.pop()
 
     def visit_definition(self: Self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         """Visit what defining a function runs."""
@@ -178,14 +215,20 @@ class ImportTimeScan(ast.NodeVisitor):
 def feature_switches(source_path: Path, *, allowlist_key: str) -> list[str]:
     """List each feature switch that is a constant, and each flag read at import, in a module.
 
-    A name is refused however the module or a class binds it: assigned (a tuple's, an annotated
-    one's and an augmented one's included), given to an import, defined, set on another module, or
-    made the module's by a function's ``global``. A call is refused under any name
-    ``flag_reader_names`` finds, or as an attribute of anything.
+    A name is refused where the module or a class binds it by an assignment (a tuple's, an
+    annotated one, an augmented one, a walrus), a loop, a ``match`` capture, ``except ... as``, an
+    import's ``as``, a function's or class's definition, or an attribute set (``settings.X``), and
+    where a function declares it ``global``. A call that runs at import is refused under the names
+    ``flag_reader_names`` finds, and as an attribute so named.
 
-    Not detected: a name set through ``setattr`` or ``globals()``; a reader called through
-    something it was passed to (``map(flag_state, ...)``); and a module calling, as it is
-    imported, a function that reads a flag.
+    Not detected:
+
+    - Names: one set through ``setattr`` or ``globals()``, or on a class by its method
+      (``cls.X_ENABLED = ...``); a functional enum's (``Enum('Mode', 'X_ENABLED')``).
+    - Calls: a reader passed to something that calls it (``map``, ``functools.partial``); an alias
+      made by a conditional (``read = flag_state if ... else ...``) or a tuple (``read, other =
+      flag_state, ...``); a lambda called through a name; and any other function that reads a
+      flag, called as the module is imported, but for the ``FLAG_READERS``.
 
     Args:
         source_path: The Python file to scan.
@@ -229,21 +272,18 @@ def scan_source(tmp_path: Path, source: str, *, allowlist_key: str = 'planted.py
 
 
 def test_no_feature_switch_is_a_constant_and_no_flag_is_read_at_import():
-    """The engine's and every member's source: declare a flag, and read it where it is used."""
-    offenders = [
-        offender
-        for allowlist_key, source_path in scanned_source_files(project_root=PROJECT_ROOT)
-        for offender in feature_switches(source_path, allowlist_key=allowlist_key)
-    ]
+    """The engine's and every member's source: declare a flag, and read it where it is used.
 
-    assert offenders == []
+    It counts the files it read, so a scan that read none, or lost a package, does not pass.
+    """
+    offenders: list[str] = []
+    keys: list[str] = []
+    for allowlist_key, source_path in scanned_source_files(project_root=PROJECT_ROOT):
+        offenders.extend(feature_switches(source_path, allowlist_key=allowlist_key))
+        keys.append(allowlist_key)
 
-
-def test_the_scan_reads_the_engine_and_every_member():
-    """It is not vacuous: it reads hundreds of files, and the flags' own module among them."""
-    keys = [key for key, _ in scanned_source_files(project_root=PROJECT_ROOT)]
     member_keys = [key for key in keys if key.startswith('src/')]
-
+    assert offenders == []
     assert len(keys) - len(member_keys) >= MINIMUM_ENGINE_FILES
     assert len(member_keys) >= MINIMUM_MEMBER_FILES
     assert {DECLARING_MODULE, 'ai_link.py'} <= set(keys)
@@ -296,7 +336,16 @@ def test_a_switch_in_a_member_is_reported_under_its_repository_path(tmp_path):
         ('if True:\n    AI_ENABLED = True', ['2 AI_ENABLED']),
         ('try:\n    AI_ENABLED = True\nfinally:\n    pass', ['2 AI_ENABLED']),
         ('for AI_ENABLED in (1,):\n    pass', ['1 AI_ENABLED']),
-        ('class A:\n    class B:\n        AI_ENABLED = True', ['3 AI_ENABLED']),
+        ('class A:\n    class B:\n        AI_ENABLED = True', ['3 A.B.AI_ENABLED']),
+        ('match 1:\n    case AI_ENABLED:\n        pass', ['2 AI_ENABLED']),
+        ('match 1:\n    case [*AI_ENABLED]:\n        pass', ['2 AI_ENABLED']),
+        ('match 1:\n    case {**AI_ENABLED}:\n        pass', ['2 AI_ENABLED']),
+        ('try:\n    pass\nexcept ValueError as AI_ENABLED:\n    pass', ['3 AI_ENABLED']),
+        # Reported in the source's order, though a function's global is found after the rest
+        (
+            'def f():\n    global B_ENABLED\nA_ENABLED = flag_state(name="a")',
+            ['2 B_ENABLED', '3 A_ENABLED', '3 flag_state() at import'],
+        ),
         ('from settings import AI as AI_ENABLED', ['1 AI_ENABLED']),
         ('import settings.ai as FEATURE_AI', ['1 FEATURE_AI']),
         ('import settings\nsettings.AI_ENABLED = True', ['2 AI_ENABLED']),
@@ -306,7 +355,7 @@ def test_a_switch_in_a_member_is_reported_under_its_repository_path(tmp_path):
     ],
 )
 def test_a_feature_switch_that_is_a_constant_is_found(tmp_path, source, expected):
-    """However the module or a class binds it."""
+    """Each way ``feature_switches`` says it finds one."""
     assert scan_source(tmp_path, f'{source}\n') == expected
 
 
@@ -340,6 +389,22 @@ def test_only_the_flags_own_module_names_its_constants_so(tmp_path):
     ) == ['1 FEATURE_FLAGS', '2 flag_state() at import']
 
 
+def test_a_name_is_allowed_only_in_its_own_class(tmp_path):
+    """The module's own constant, or another class's, of an allowed name is refused."""
+    source = (
+        'class BallSpawnMode:\n    COOLDOWN_ENABLED = 1 << 5\n'
+        'class Ball:\n    COOLDOWN_ENABLED = True\n'
+        'COOLDOWN_ENABLED = True\n'
+        'class Outer:\n    class BallSpawnMode:\n        COOLDOWN_ENABLED = True\n'
+    )
+
+    assert scan_source(tmp_path, source, allowlist_key='game_objects/ball.py') == [
+        '4 Ball.COOLDOWN_ENABLED',
+        '5 COOLDOWN_ENABLED',
+        '8 Outer.BallSpawnMode.COOLDOWN_ENABLED',
+    ]
+
+
 DIRECT_IMPORT = 'from glitchygames.feature_flags import flag_state\n'
 
 
@@ -366,7 +431,28 @@ DIRECT_IMPORT = 'from glitchygames.feature_flags import flag_state\n'
         (f'{DIRECT_IMPORT}f = lambda on=flag_state(name="a"): on', '2 flag_state'),
         (f'{DIRECT_IMPORT}AI = (lambda: flag_state(name="a"))()', '2 flag_state'),
         (f'{DIRECT_IMPORT}AI = [flag_state(name=name) for name in NAMES]', '2 flag_state'),
+        (f'{DIRECT_IMPORT}AI = [on for on in flag_state(name="a")]', '2 flag_state'),
+        (f'{DIRECT_IMPORT}AI = [on for on in NAMES if flag_state(name=on)]', '2 flag_state'),
         (f'{DIRECT_IMPORT}read = flag_state\nAI = read(name="a")', '3 read'),
+        # The alias is followed whatever order the assignments are written in
+        (
+            (
+                f'{DIRECT_IMPORT}def f():\n    global two\n    two = one\none = flag_state\n'
+                'f()\nAI = two(name="a")'
+            ),
+            '7 two',
+        ),
+        (
+            (
+                'from glitchygames.ai_link import reason_lucid_circuit_is_off\n'
+                'AI = reason_lucid_circuit_is_off(options={}, in_replay=False)'
+            ),
+            '2 reason_lucid_circuit_is_off',
+        ),
+        (
+            'from bitmappy import ai_manager\nAI = ai_manager.ai_off_reason()',
+            '2 ai_manager.ai_off_reason',
+        ),
         (f'{DIRECT_IMPORT}one = flag_state\ntwo = one\nAI = two(name="a")', '4 two'),
         (f'{DIRECT_IMPORT}read: object = flag_state\nAI = read(name="a")', '3 read'),
         (f'{DIRECT_IMPORT}AI = (read := flag_state) and read(name="a")', '2 read'),

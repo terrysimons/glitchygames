@@ -710,7 +710,14 @@ def record_trace(
         sets ``game`` itself (our golden traces name theirs by game key:
         scripts/record_golden_traces.py).
 
+    Raises:
+        TypeError: If a hook is not one of ``RecordTraceHooks``.
+
     """
+    unknown_hooks = sorted(hooks.keys() - RecordTraceHooks.__optional_keys__)
+    if unknown_hooks:
+        message = f'record_trace has no hook named {", ".join(unknown_hooks)}'
+        raise TypeError(message)
     frame_observer = hooks.get('frame_observer')
     before_recording = hooks.get('before_recording')
     frames: list[dict[str, Any]] = []

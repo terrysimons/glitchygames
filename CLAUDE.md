@@ -100,7 +100,7 @@ the engine. Games reach it only over 127.0.0.1:23231 through `src/glitchygames/a
 docstring: where the service is, `service_locations()`, and Linux's core pinning) and `ai_host.py`:
 on by default; off with `--no-lucid-circuit` (`feature_flags.py`: never a constant, never read at
 import), `--headless`, in a replay or browser; the harness points it at nowhere
-(`tests/test_ai_service_isolation_guard.py`). The backtick key opens the AI console (`ai_console.py`):
+(`tests/test_ai_service_isolation_guard.py`). Backtick opens the AI console (`ai_console.py`):
 read-only, but for `/sprite DESCRIPTION` (a recorded spawn event, `events/sprite_spawn.py`).
 
 ## Architecture Overview
