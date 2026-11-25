@@ -28,8 +28,8 @@
     | 1 | 0 / 16384 | 16384 / 16384 | 13255 | 0 / 16384 | within the tone's own |
 
   - A pan change from centre to left: before, steps of 9630 (the change) and 13255 (the change lost
-    at the next chunk); after, none above the tone's own. This is the pan's own step: the open
-    restart over a queued chunk (Sweep) can still click at any join.
+    at the next chunk); after, none above the tone's own. This is the pan's own step: a restart over
+    a queued chunk (Sweep) could still click at any join, until its own fix.
 - **The owner's levels**: On 2026-11-15 the owner chose one pan law for every sound, and raised the
   motor's level and the projector's volume by the square root of 2 so that a centred live sound
   stays as loud as before. The centre gain was then lost from the second chunk, so both played about
@@ -70,9 +70,10 @@
   `LiveStream` is safe: its chunk holds its gains. Found, open: on a mono mixer `set_volume(left,
   right)` is SDL's panning, which does nothing there, so a library voice's volume and pan are lost
   (measured with raw pygame: samples of 16000 at `set_volume(.1, .1)` play at 16000; the engine's
-  own path was not run on a mono mixer). Found, open: `LiveStream.update` can read the channel idle
-  while SDL_mixer is between a chunk's end and pygame's start of the queued one, and then restarts
-  over the queued chunk, which is cut short: a click. With an update every 8 to 10 ms and no stall
+  own path was not run on a mono mixer). Found, and fixed apart
+  (`2026-11-25-live-sounds-restart-mid-chunk.md`): `LiveStream.update` could read the channel idle
+  while SDL_mixer is between a chunk's end and pygame's start of the queued one, and then restarted
+  over the queued chunk, which was cut short: a click. With an update every 8 to 10 ms and no stall
   (`false_underrun.py` in the triage folder), 11 restarts in 205 chunks with the fix and 10 in 205
   without, each with pygame still naming a chunk for the channel.
 - **Tests** (`tests/audio/test_live.py`; every chunk's heard frames on the real mixer, and the

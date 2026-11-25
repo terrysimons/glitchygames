@@ -17,7 +17,9 @@
 - **Priority**: Low today: no game branches on them (Mr. Muncher calls `release()`, Clockwork Keep
   `cancel()`, both ignoring the answer). High for the mirror and for the first game that does.
 - **Root Cause**: `LiveStream.is_playing` and `is_finished` (`src/glitchygames/audio/live.py:193`,
-  202) read `Channel.get_busy()` while draining, and the fade that leads there is rendered as
+  202) read `Channel.get_busy()` while draining (since
+  `2026-11-25-live-sounds-restart-mid-chunk.md`, pygame's channel table, which follows the same
+  mixer's time), and the fade that leads there is rendered as
   `update` (262) finds the queue empty. `LiveSoundHandle.is_playing`
   (`src/glitchygames/audio/live_instrument.py:467`), `set_pan` (548) and `cancel` (571) use them.
 - **Test gap**: `tests/audio/test_live.py` covers the states, not a recorded run replayed at another
