@@ -142,6 +142,7 @@ from glitchygames.tracing import (
 )
 from tests.display_canvas import display_looks_entirely_black, real_display_surface
 from tests.harness import TEST_WINDOWS_HIDDEN, imported_engine_is_the_checkouts
+from tests.leaked_state_guard import environment_holds
 from tests.replay.replay_helpers import (
     failing_the_test,
     replay_through_engine,
@@ -2643,7 +2644,7 @@ class TestHeadlessDriverRestore:
             engine.start()
 
             assert os.environ['SDL_VIDEODRIVER'] == UNUSED_VIDEO_DRIVER
-            assert 'SDL_AUDIODRIVER' not in os.environ
+            assert environment_holds(name='SDL_AUDIODRIVER', value=None)
 
     def test_a_failed_teardown_still_puts_the_driver_variables_back(self, mocker, monkeypatch):
         """The variables come back even when _shutdown raises (logged; the run's exit is 70)."""

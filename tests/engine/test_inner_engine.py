@@ -31,6 +31,7 @@ from glitchygames.render_target import (
 )
 from glitchygames.replay.tools.golden_traces import command_line
 from glitchygames.scenes import Scene
+from tests.leaked_state_guard import environment_holds
 from tests.replay.replay_helpers import replay_through_engine
 from tests.stand_in_games import (
     STAND_IN_GAME_RESOLUTION,
@@ -171,7 +172,7 @@ class TestAHostedStart:
 
         assert engine is not None
         assert window_state() == before
-        assert 'SDL_AUDIODRIVER' not in os.environ
+        assert environment_holds(name='SDL_AUDIODRIVER', value=None)
         set_mode.assert_not_called()
         set_icon.assert_not_called()
         set_caption.assert_not_called()

@@ -3108,6 +3108,26 @@ def test_the_performance_session_collects_only_the_benchmark_paths():
     assert pytest_command[-len(noxfile._BENCHMARK_PATHS) :] == tuple(noxfile._BENCHMARK_PATHS)
 
 
+def test_the_performance_session_imports_tests_as_the_suite_does():
+    """The session clears ``addopts`` but keeps its import mode.
+
+    In pytest's default mode, entering a tests package puts its root at the front of sys.path: the
+    first benchmark to run in one was failed for it (CircleCI job 6146).
+    """
+    import noxfile
+
+    addopts = tomllib.loads((PROJECT_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))['tool'][
+        'pytest'
+    ]['ini_options']['addopts']
+    import_modes = [option for option in addopts.split() if option.startswith('--import-mode=')]
+    session = RecordingSession(posargs=[])
+    noxfile.performance_test(session)
+
+    pytest_command = next(command for command in session.commands if command[0] == 'pytest')
+    assert len(import_modes) == 1
+    assert import_modes[0] in pytest_command
+
+
 def test_the_performance_session_saves_no_run_into_the_repository():
     """No benchmark run is saved: ``.benchmarks/`` is tracked, and nothing reads it.
 

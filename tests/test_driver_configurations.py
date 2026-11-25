@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -412,6 +413,7 @@ class TestCommandLine:
         assert log == 'x11-macos: make failed\n'
 
     def test_main_exits_with_the_code(self, tmp_path, monkeypatch, mocker):
+        mocker.patch.dict(os.environ)  # main() sets PYGAME_HIDE_SUPPORT_PROMPT
         mocker.patch.object(driver_configurations, 'docker_running', return_value=False)
         output = tmp_path / 'plan.json'
         monkeypatch.setattr(
