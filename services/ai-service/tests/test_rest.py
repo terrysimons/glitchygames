@@ -380,6 +380,24 @@ def client_of_a_failing_worker(settings, mocker, worker):
         yield test_client
 
 
+# Only an answer that never comes is a running server: a connection that times out reached none
+@pytest.mark.parametrize(
+    ('failure', 'state'),
+    [
+        (httpx2.ReadTimeout, 'loading'),
+        (httpx2.ConnectTimeout, 'stopped'),
+        (httpx2.ConnectError, 'stopped'),
+    ],
+)
+def test_a_model_server_that_does_not_answer_in_time_is_not_stopped(client, mocker, failure, state):
+    mocker.patch.object(client.app.state.workers.client, 'send', side_effect=failure('no answer'))
+
+    response = client.get('/health/ready')
+
+    assert response.status_code == 503
+    assert {model['state'] for model in response.json()['models']} == {state}
+
+
 @pytest.mark.parametrize('stream', [False, True])
 def test_a_model_server_failing_mid_request_is_reported_cleanly(client_of_a_failing_worker, stream):
     response = chat(client_of_a_failing_worker, stream=stream)

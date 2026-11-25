@@ -15,8 +15,10 @@
   times out stays "not ready": Windows ends a connect to a closed port that way.
 - **Test gap**: No test had a running service that answers late.
 - **Files**: `src/glitchygames/ai/local_service.py`, `tests/ai/test_local_service.py`.
-- **Siblings (swept)**: `services/ai-service/src/glitchygames_ai_service/workers.py` `state_of` has the
-  same shape and is **not fixed**: a model server that does not answer in 1 s is described as stopped,
-  so `/health/ready` answers 503 and the client starts the service. `scripts/ai_model_comparison.py`
-  only waits on a failed check, and `AiLink` retries a connection without starting anything: both fine.
-- **Limit**: The check is still one HTTP request; a 503 (models stopped or loading) still runs `start`.
+- **Siblings (swept)**: `services/ai-service/src/glitchygames_ai_service/workers.py` `state_of` had the
+  same shape: a model server that did not answer in 1 s was described as stopped. It is now loading
+  (tests in `services/ai-service/tests/test_rest.py`). `scripts/ai_model_comparison.py` only waits on
+  a failed check, and `AiLink` retries a connection without starting anything: both fine.
+- **Not fixed**: `/health/ready` still answers 503 for a loading model, and the client still starts
+  the service on any 503. The reply names every installed model but not which were selected, so the
+  client can't tell a busy service from a stopped one without a new field.
