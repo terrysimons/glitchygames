@@ -22,6 +22,7 @@ import pytest
 
 from glitchygames import process
 from glitchygames.process import ErrorOutput, OutputCapture, start_command, stop_command
+from tests.stoppable_children import SIGNALS_INTERRUPT_NO_SLEEP, WAIT_TO_BE_STOPPED
 
 # SIGKILL's number on POSIX (Windows' signal module has no SIGKILL)
 SIGKILL_NUMBER = 9
@@ -56,7 +57,7 @@ def child_reporting_its_signal(*, ignored: tuple[str, ...]) -> str:
 
     """
     return (
-        'import signal, sys, time\n'
+        'import signal, sys\n'
         'def ended_by(words):\n'
         '    def handler(signal_number, frame):\n'
         '        print(words, flush=True)\n'
@@ -67,8 +68,7 @@ def child_reporting_its_signal(*, ignored: tuple[str, ...]) -> str:
         f'for name in {list(ignored)!r}:\n'
         '    signal.signal(getattr(signal, name), signal.SIG_IGN)\n'
         "print('ready', flush=True)\n"
-        'time.sleep(60)\n'
-    )
+    ) + WAIT_TO_BE_STOPPED
 
 
 def first_line(*, path: Path) -> str:
@@ -1040,7 +1040,7 @@ class TestRunCommandStoppedAtTimeout:
 # A child that writes its process id to the file it is given, then, asked to stop (SIGTERM),
 # writes 'terminated' there and ends: the gentle stop a game's engine turns into its teardown
 CHILD_THAT_SAYS_IT_WAS_TERMINATED = (
-    'import os, pathlib, signal, sys, time\n'
+    'import os, pathlib, signal, sys\n'
     'path = pathlib.Path(sys.argv[1])\n'
     'def terminated(signal_number, frame):\n'
     "    with path.open('a', encoding='utf-8') as file:\n"
@@ -1048,8 +1048,39 @@ CHILD_THAT_SAYS_IT_WAS_TERMINATED = (
     '    sys.exit(0)\n'
     'signal.signal(signal.SIGTERM, terminated)\n'
     "path.write_text(f'{os.getpid()}\\n', encoding='utf-8')\n"
-    'time.sleep(60)\n'
+) + WAIT_TO_BE_STOPPED
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='signal masks are POSIX')
+@pytest.mark.parametrize(
+    ('source', 'signal_name', 'words'),
+    [
+        (child_reporting_its_signal(ignored=()), 'SIGINT', 'interrupted'),
+        (child_reporting_its_signal(ignored=()), 'SIGTERM', 'terminated'),
+        (CHILD_THAT_SAYS_IT_WAS_TERMINATED, 'SIGTERM', 'terminated'),
+    ],
+    ids=['reports-sigint', 'reports-sigterm', 'says-terminated'],
 )
+def test_a_child_acts_on_a_signal_that_interrupts_no_sleep(tmp_path, source, signal_name, words):
+    """A signal landing just before the child's sleep is acted on at its next step."""
+    file_path = tmp_path / 'child.txt'
+    with file_path.open('a', encoding='utf-8') as output:
+        child = start_command(
+            command=[sys.executable, '-c', SIGNALS_INTERRUPT_NO_SLEEP + source, str(file_path)],
+            environment=os.environ,
+            output=output,
+        )
+        try:
+            line_once_written(path=file_path)
+            child.send_signal(getattr(signal, signal_name))
+            returncode = child.wait(timeout=WAIT_SECONDS)
+        finally:
+            stop_command(process=child, first_signal=signal.SIGKILL)
+
+    assert returncode == 0
+    assert file_path.read_text(encoding='utf-8').splitlines()[1:] == [words]
+
+
 # A child that writes whether it was started with SIGHUP ignored, then ends
 CHILD_REPORTING_SIGHUP = (
     'import pathlib, signal, sys\n'

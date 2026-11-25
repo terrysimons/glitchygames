@@ -9,37 +9,43 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import sys
+import time
 from typing import TYPE_CHECKING
 
 import pytest
 from scripts import reproduce_process_stop_under_load as reproducer
 
-from glitchygames.process import OutputCapture, run_command
+from glitchygames.process import OutputCapture, run_command, start_command, stop_command
+from tests.stoppable_children import SIGNALS_INTERRUPT_NO_SLEEP, WAIT_TO_BE_STOPPED
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 needs_posix = pytest.mark.skipif(sys.platform == 'win32', reason='the probe logs POSIX signals')
 
-# A parent that starts a child with a SIGTERM handler, terminates it once the handler is in
-# place, and waits for it
+# How long a test waits for a child to be ready or gone, how often it looks, and how long a
+# ready child is given to reach its sleep
+CHILD_WAIT_SECONDS = 10.0
+STEP_SECONDS = 0.05
+ASLEEP_SECONDS = 0.3
+# A child that ends when terminated, once it has written the file it is given
+CHILD_THAT_ENDS_WHEN_TERMINATED = (
+    'import signal, sys\n'
+    'from pathlib import Path\n'
+    'signal.signal(signal.SIGTERM, lambda number, frame: sys.exit(0))\n'
+    'Path(sys.argv[1]).write_text("ready")\n'
+) + WAIT_TO_BE_STOPPED
+# A parent that starts the child it is given, terminates it once its handler is in place, and
+# waits for it
 PARENT_TERMINATING_ITS_CHILD = """
 import subprocess
 import sys
 from pathlib import Path
 
 ready = Path(sys.argv[1])
-child = subprocess.Popen([
-    sys.executable,
-    '-c',
-    'import signal, sys, time\\n'
-    'from pathlib import Path\\n'
-    'signal.signal(signal.SIGTERM, lambda number, frame: sys.exit(0))\\n'
-    'Path(sys.argv[1]).write_text("ready")\\n'
-    'time.sleep(60)\\n',
-    str(ready),
-])
+child = subprocess.Popen([sys.executable, '-c', sys.argv[2], str(ready)])
 while not ready.exists():
     pass
 child.terminate()
@@ -62,7 +68,13 @@ def probed_run(*, tmp_path: Path, log: Path | None) -> list[dict[str, object]]:
     if log is not None:
         environment[reproducer.PROBE_LOG_VARIABLE] = str(log)
     result = run_command(
-        command=[sys.executable, '-c', PARENT_TERMINATING_ITS_CHILD, str(tmp_path / 'ready')],
+        command=[
+            sys.executable,
+            '-c',
+            PARENT_TERMINATING_ITS_CHILD,
+            str(tmp_path / 'ready'),
+            CHILD_THAT_ENDS_WHEN_TERMINATED,
+        ],
         environment=environment,
         timeout_seconds=60,
         capture_output=OutputCapture.APART,
@@ -95,6 +107,7 @@ def test_the_probe_logs_the_send_before_the_receipt_it_caused(tmp_path: Path):
         '-c',
         PARENT_TERMINATING_ITS_CHILD,
         str(tmp_path / 'ready'),
+        CHILD_THAT_ENDS_WHEN_TERMINATED,
     ]
     assert isinstance(child_command, list)
     assert child_command[0] == sys.executable
@@ -105,6 +118,36 @@ def test_the_probe_does_nothing_without_its_log_variable(tmp_path: Path):
     """With no PROCESS_STOP_PROBE_LOG the processes run unprobed and nothing is written."""
     assert probed_run(tmp_path=tmp_path, log=None) == []
     assert list(tmp_path.iterdir()) in ([], [tmp_path / 'ready'])
+
+
+@needs_posix
+def test_the_probed_child_acts_on_a_signal_that_interrupts_no_sleep(tmp_path: Path):
+    """A SIGTERM landing just before the child's sleep ends it at its next step, not after 60 s."""
+    ready = tmp_path / 'ready'
+    with (tmp_path / 'output.txt').open('w', encoding='utf-8') as output:
+        child = start_command(
+            command=[
+                sys.executable,
+                '-c',
+                SIGNALS_INTERRUPT_NO_SLEEP + CHILD_THAT_ENDS_WHEN_TERMINATED,
+                str(ready),
+            ],
+            environment=os.environ,
+            output=output,
+        )
+        try:
+            deadline = time.monotonic() + CHILD_WAIT_SECONDS
+            while not ready.exists() and time.monotonic() < deadline:
+                time.sleep(STEP_SECONDS)
+            # Sent at once, the signal can land before the child reaches its wait, which proves
+            # nothing: the child is given time to be asleep
+            time.sleep(ASLEEP_SECONDS)
+            child.terminate()
+            returncode = child.wait(timeout=CHILD_WAIT_SECONDS)
+        finally:
+            stop_command(process=child, first_signal=signal.SIGKILL)
+
+    assert returncode == 0
 
 
 def test_a_round_runs_the_three_files_whole_under_xdist_keeping_its_temporary_files(
