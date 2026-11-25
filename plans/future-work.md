@@ -440,6 +440,17 @@ Found while fixing that review (2026-10-27):
 
 ## Gameplay replay
 
+- [ ] **A replay touches nothing real** (clipboard, the player's files, the sound cache): decided, not
+  built: [the plan](2026-11-24-replays-touch-nothing-real.md).
+- [ ] **Every format's version number is a member of a string enumeration** (the owner, 2026-11-25: "Any
+  formats we create need to have their integer based version #s in a string enumeration for
+  ease-of-refactor"). Members named for what changed; files keep the same integers, so nothing committed
+  is rewritten. Today: `tracing.TRACE_FORMAT_VERSION` and `READABLE_FORMAT_VERSIONS`, its copy
+  `replay/driver.CONTROL_EVENTS_FORMAT_VERSION`, `state/manager.SAVE_FORMAT_VERSION`,
+  `audio/assets` (current and legacy sound files), `audio/spec.AUDIO_RENDER_VERSION`,
+  `ai_link.PROTOCOL_VERSION` and the service's own copy (separate code: a test that they agree). Found by
+  name; formats without a `VERSION` constant still need a search.
+
 - **Rumble door** (the user chose option c, 2026-10-20): rumble goes through the doors like
   events, saves and devices. Live sends to the real controllers; a recording also writes each
   send (`rumble_sent`: low/high levels, duration, target device) into its frame; a replay
@@ -1725,10 +1736,11 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   centre 3 dB down on each side). An instrument could render two channels: a pan per source
   (the feature spec's Game Boy-style profile has channels "hard-panned in stereo", M4), width
   (detuned copies left and right, a short one-sided delay), later stereo chorus and ping-pong
-  delay (with M4's delays); live voices would render stereo chunks. A stereo sound pans by the
-  balance law (centre at full, the far side turned down), chosen by what the sound is (mono or
-  stereo), as mixing desks do, never by a per-sound setting. Cost: a stereo sound holds twice
-  the samples in memory and in the disk cache; mono sounds, their keys and files, unchanged.
+  delay (with M4's delays); live voices already play stereo chunks (their pan is rendered in).
+  A stereo sound pans by the balance law (centre at full, the far side turned down), chosen by
+  what the sound is (mono or stereo), as mixing desks do, never by a per-sound setting. Cost: a
+  stereo sound holds twice the samples in memory and in the disk cache; mono sounds, their keys
+  and files, unchanged.
 - ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
   (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
   plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name
