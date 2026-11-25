@@ -3545,6 +3545,18 @@ the sound does:</p>
   answers False once the sound has ended; both kinds are a <code>PlayingSound</code>.</li>
 <li><code>play()</code> refuses a live sound and <code>start()</code> a baked one. A live sound compiles nothing, so it
   costs nothing to declare in <code>SOUNDS</code>.</li>
+<li><strong>Its chunks:</strong> a live voice keeps one chunk playing and one queued on its pool channel, and
+  holds its own reference to each until the channel has moved past it (at most two;
+  <code>LiveStream.held_chunks</code>). pygame-ce 2.5.8 frees a queued Sound twice when pygame's channel
+  table holds the only references
+  (<code>bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md</code>, <code>docs/quality/upstream_issues.md</code>).</li>
+<li><strong>A game's end releases its live voices</strong>, persisting ones included: <code>SceneManager.terminate</code>
+  releases them, since nothing updates them once the game has ended. A voice dropped without
+  being released is stopped by its stream's finalizer and reported, in the log and in its
+  engine context's registry of live streams (<code>LIVE_STREAMS_SLOT</code>, a diagnostic the test harness
+  reads after every test). A test that starts live voices releases them (<code>release_voice</code>,
+  <code>release_every_voice</code>, <code>stop_now</code>), or ends the game through <code>SceneManager.terminate</code>; the
+  harness fails a test that leaves one unreleased.</li>
 </ul>
 <p>In a sound file:</p>
 <div class="language-toml highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">[instruments.motor]</span>
@@ -4235,7 +4247,7 @@ once per sound).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 02:54:09 UTC">November 25, 2026</span>
   </span>
 
     
