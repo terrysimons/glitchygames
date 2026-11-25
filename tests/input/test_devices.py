@@ -10,6 +10,7 @@ import pytest
 from glitchygames.input.devices import (
     MIDI_INPUT_KIND,
     MIDI_OUTPUT_KIND,
+    MIDI_OVERFLOW_QUIET_READS,
     MIDI_READ_BATCH,
     DeviceDescriptor,
     EnumerationAnswer,
@@ -1684,3 +1685,131 @@ def test_a_defect_in_our_conversion_surfaces_and_drops_no_port(mocker):
     midi_module.midis2events = pygame.midi.midis2events
     keys.messages.append(([0x80, 60, 0, 0], 2))
     assert _timestamps(registry.read_midi_input()) == [2]
+
+
+# What PortMidi's read raises when its buffer overflowed (pygame-ce 2.5.8, seen on a virtual port):
+# bytes today, and pygame-ce plans text
+OVERFLOW_MESSAGES = [b'PortMidi: Buffer overflow', 'PortMidi: Buffer overflow']
+NOTE = ([0x90, 60, 100, 0], 1)
+
+
+def _overflowing_port(mocker, *, reads):
+    """Return a PortMidi input whose reads give, in turn, a batch or the failure given.
+
+    It says messages wait while any read is left; a failure is raised, a batch returned.
+    """
+    remaining = list(reads)
+
+    def read(num_events):
+        del num_events
+        outcome = remaining.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    return mocker.Mock(**{
+        'poll.side_effect': lambda: bool(remaining),
+        'read.side_effect': read,
+        'queue': remaining,
+    })
+
+
+def _overflow_warnings(caplog):
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == 'game.input.devices' and 'lost' in record.getMessage()
+    ]
+
+
+@pytest.mark.parametrize('message', OVERFLOW_MESSAGES, ids=['bytes', 'text'])
+def test_an_overflowed_port_loses_input_but_is_still_read(mocker, caplog, message):
+    """A full buffer is lost input, not a dead port: what came before and after it arrives."""
+    keys = _overflowing_port(mocker, reads=[[NOTE], Exception(message), [([0x80, 60, 0, 0], 2)]])
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+
+    with caplog.at_level('WARNING', logger='game.input.devices'):
+        assert _timestamps(registry.read_midi_input()) == [1, 2]
+        keys.queue.append([([0x90, 61, 100, 0], 3)])
+        assert _timestamps(registry.read_midi_input()) == [3]
+
+    (warning,) = _overflow_warnings(caplog)
+    assert 'port 0 (Keys)' in warning
+    assert [record.levelname for record in caplog.records] == ['WARNING']
+
+
+def test_a_port_that_only_overflows_does_not_hold_the_frame(mocker):
+    """Two overflows in a row end the port's read for this frame; the next frame reads again."""
+    keys = _overflowing_port(
+        mocker, reads=[Exception(OVERFLOW_MESSAGES[0]), Exception(OVERFLOW_MESSAGES[0]), [NOTE]]
+    )
+    pads = FakePortMidiInput(messages=[([0x99, 36, 90, 0], 2)])
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys, 1: pads})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+    registry.open_midi_input(port_id=1)
+
+    assert _timestamps(registry.read_midi_input()) == [2]
+    assert _timestamps(registry.read_midi_input()) == [1]
+
+
+def test_a_burst_of_overflows_is_logged_once_and_the_next_burst_again(mocker, caplog):
+    """Per port; a burst ends after MIDI_OVERFLOW_QUIET_READS reads without an overflow."""
+    keys = _overflowing_port(mocker, reads=[])
+    pads = _overflowing_port(mocker, reads=[])
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys, 1: pads})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+    registry.open_midi_input(port_id=1)
+
+    def read_frames(*, frames, overflowing):
+        for _ in range(frames):
+            for port in overflowing:
+                port.queue.append(Exception(OVERFLOW_MESSAGES[0]))
+            registry.read_midi_input()
+
+    with caplog.at_level('WARNING', logger='game.input.devices'):
+        read_frames(frames=3, overflowing=[keys])
+        # Quiet for one read less than it takes: the same burst
+        read_frames(frames=MIDI_OVERFLOW_QUIET_READS - 1, overflowing=[])
+        read_frames(frames=1, overflowing=[keys])
+        assert len(_overflow_warnings(caplog)) == 1
+        # Another port's burst is its own
+        read_frames(frames=1, overflowing=[pads])
+        assert len(_overflow_warnings(caplog)) == 2
+        read_frames(frames=MIDI_OVERFLOW_QUIET_READS, overflowing=[])
+        read_frames(frames=2, overflowing=[keys])
+        assert len(_overflow_warnings(caplog)) == 3
+
+
+@pytest.mark.parametrize('message', [b'PortMidi: Host error', 'PortMidi: Host error'])
+def test_any_other_failure_still_drops_the_port(mocker, caplog, message):
+    """A port failing otherwise is a device that went away: dropped, as before."""
+    keys = _overflowing_port(mocker, reads=[Exception(message), [NOTE]])
+    _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+
+    with caplog.at_level('WARNING', logger='game.input.devices'):
+        assert registry.read_midi_input() == []
+        assert registry.read_midi_input() == []
+
+    assert [record.levelname for record in caplog.records] == ['ERROR']
+
+
+@pytest.mark.parametrize(
+    ('interface', 'name'),
+    [(b'CoreMIDI', b'Keys'), ('CoreMIDI', 'Keys'), (b'CoreMIDI', 'Keys')],
+    ids=['bytes', 'text', 'mixed'],
+)
+def test_port_names_are_read_as_bytes_or_text(mocker, interface, name):
+    """pygame-ce gives bytes (2.5.8) and plans text: the door answers text either way."""
+    midi_module = _patch_portmidi_ports(mocker)
+    midi_module.get_device_info.side_effect = lambda port_id: (interface, name, 1, 0, 0)
+    registry = LiveDeviceRegistry()
+
+    assert registry.midi_port_info(port_id=0) == KEYS_PORT
+    registry.open_midi_input(port_id=0)
+    assert registry.take_opened_midi_ports() == [KEYS_DESCRIPTOR]

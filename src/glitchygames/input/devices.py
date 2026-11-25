@@ -142,6 +142,10 @@ MIDI_UNAVAILABLE_MESSAGE = 'pygame.midi is unavailable in this pygame build'
 NO_MIDI_PORT_ID = -1
 # How many messages one read of a MIDI input asks for (a bigger burst takes several reads)
 MIDI_READ_BATCH = 64
+# How many of an input's reads (one per frame) without an overflow end a burst of them
+MIDI_OVERFLOW_QUIET_READS = 60
+# What PortMidi calls a full input buffer (_is_midi_buffer_overflow)
+MIDI_BUFFER_OVERFLOW_TEXT = 'Buffer overflow'
 
 type EnumerationValue = int | bool | str | list[str | int | bool] | None
 
@@ -579,11 +583,28 @@ def _poll_controller_layer(
     return axes, buttons
 
 
+def _portmidi_text(*, value: object) -> str:
+    """Return a PortMidi name or message as text.
+
+    pygame-ce 2.5.8 gives bytes, decoded here as UTF-8 with undecodable bytes replaced; it plans
+    to give text, taken as it is.
+
+    Args:
+        value: What PortMidi gave.
+
+    Returns:
+        The text.
+
+    """
+    if isinstance(value, bytes):
+        return value.decode('utf-8', errors='replace')
+    return str(value)
+
+
 def _read_midi_port_info(*, midi_module: ModuleType, port_id: int) -> MidiPortInfo | None:
     """Ask PortMidi about one port, without remembering the answer.
 
-    PortMidi gives the interface and the name as bytes: they are decoded as UTF-8, with
-    undecodable bytes replaced.
+    PortMidi gives the interface and the name as bytes or text (``_portmidi_text``).
 
     Returns:
         The port, or None when PortMidi has no such port.
@@ -594,8 +615,8 @@ def _read_midi_port_info(*, midi_module: ModuleType, port_id: int) -> MidiPortIn
         return None
     interface, name, is_input, is_output, _is_opened = info
     return MidiPortInfo(
-        interface=bytes(interface).decode('utf-8', errors='replace'),
-        name=bytes(name).decode('utf-8', errors='replace'),
+        interface=_portmidi_text(value=interface),
+        name=_portmidi_text(value=name),
         is_input=bool(is_input),
         is_output=bool(is_output),
     )
@@ -684,25 +705,48 @@ def _midi_failure_message(*, error: Exception) -> str:
     message = getattr(error, 'parameter', None)
     if message is None:
         message = error.args[0] if error.args else str(error)
-    if isinstance(message, bytes):
-        return message.decode(errors='replace')
-    return str(message)
+    return _portmidi_text(value=message)
+
+
+def _is_midi_buffer_overflow(*, error: Exception) -> bool:
+    """Report whether a read failed because PortMidi's input buffer was full (input was lost).
+
+    PortMidi raises it once, as a plain ``Exception`` told from others only by its text
+    (``b'PortMidi: Buffer overflow'``, pygame-ce 2.5.8), and its next read works. Should that
+    text change, an overflow is taken for any other failure: the port is dropped for the rest of
+    the run, logged with the new text.
+
+    Args:
+        error: What PortMidi raised.
+
+    Returns:
+        True for an overflow.
+
+    """
+    return MIDI_BUFFER_OVERFLOW_TEXT in _midi_failure_message(error=error)
 
 
 class MidiInputReader:
     """Reads opened MIDI input ports into MIDIIN events, dropping a port that fails.
 
     One reader per registry, so the live and the stand-in registries share this one code path.
-    A port whose ``poll`` or ``read`` raises (PortMidi raises a plain ``Exception``) is dropped
-    for the rest of the run:
-    logged once with its port id and name, and never read again. It is not closed: a port that
-    failed mid-run is a device that went away, and PortMidi's own close on it can raise too; it
-    stays in the registry's opened ports, so the open-once rule still holds.
+    A port whose buffer overflowed (``_is_midi_buffer_overflow``: the game fell behind) lost
+    input and is read on: at once, and, if it overflowed again, in the next frame. The loss is
+    logged once per port per burst, a burst ending after ``MIDI_OVERFLOW_QUIET_READS`` of the
+    port's reads without one, so a port logs at most once in that many frames.
+
+    A port whose ``poll`` or ``read`` raises anything else (PortMidi raises a plain
+    ``Exception``) is dropped for the rest of the run: logged once with its port id and name, and
+    never read again. It is not closed: a port that failed mid-run is a device that went away, and
+    PortMidi's own close on it can raise too; it stays in the registry's opened ports, so the
+    open-once rule still holds.
     """
 
     def __init__(self: Self) -> None:
-        """Start with no port dropped."""
+        """Start with no port dropped and none overflowing."""
         self._dropped_port_ids: set[int] = set()
+        # The ports in a burst of overflows, each with the quiet reads left until it ends
+        self._quiet_reads_left: dict[int, int] = {}
 
     def read(
         self: Self,
@@ -745,19 +789,57 @@ class MidiInputReader:
 
         """
         messages: list[Any] = []
+        overflowed = self._read_until_failure(
+            port_id=port_id, port=port, port_name=port_name, messages=messages
+        )
+        if overflowed:
+            # PortMidi raises an overflow once: what arrived after it is there to read. Read on
+            # once only, so a port that keeps overflowing cannot hold the frame
+            self._read_until_failure(
+                port_id=port_id, port=port, port_name=port_name, messages=messages
+            )
+        self._note_overflow(port_id=port_id, port_name=port_name, overflowed=overflowed)
+        return messages
+
+    def _read_until_failure(
+        self: Self, *, port_id: int, port: MidiPortReadable, port_name: str, messages: list[Any]
+    ) -> bool:
+        """Add what waits on a port to ``messages``, until nothing does or a call fails.
+
+        Returns:
+            True when its buffer overflowed. Any other failure drops the port.
+
+        """
         try:
             while port.poll():
                 batch = port.read(MIDI_READ_BATCH)
                 if not batch:
                     break
                 messages.extend(batch)
-        except Exception:
+        except Exception as error:
             # PortMidi's Poll and Read raise a plain Exception (pypm.pyx), not MidiException
+            if _is_midi_buffer_overflow(error=error):
+                return True
             self._dropped_port_ids.add(port_id)
             LOG.exception(
                 'MIDI input port %d (%s) failed and is no longer read', port_id, port_name
             )
-        return messages
+        return False
+
+    def _note_overflow(self: Self, *, port_id: int, port_name: str, overflowed: bool) -> None:
+        """Log the first overflow of a port's burst; count the quiet reads that end one."""
+        if overflowed:
+            if port_id not in self._quiet_reads_left:
+                LOG.warning(
+                    'MIDI input port %d (%s) overflowed: the game fell behind and input was lost',
+                    port_id,
+                    port_name,
+                )
+            self._quiet_reads_left[port_id] = MIDI_OVERFLOW_QUIET_READS
+        elif port_id in self._quiet_reads_left:
+            self._quiet_reads_left[port_id] -= 1
+            if self._quiet_reads_left[port_id] == 0:
+                del self._quiet_reads_left[port_id]
 
 
 class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every DeviceRegistry member
@@ -893,8 +975,7 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
     def midi_port_info(self: Self, *, port_id: int) -> MidiPortInfo | None:
         """Return what PortMidi says about the port ``port_id`` (remembered for the recorder).
 
-        PortMidi gives the interface and the name as bytes: they are decoded as UTF-8, with
-        undecodable bytes replaced.
+        PortMidi gives the interface and the name as bytes or text (``_portmidi_text``).
 
         Args:
             port_id: The PortMidi port id.
