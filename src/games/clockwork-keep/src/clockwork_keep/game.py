@@ -67,7 +67,7 @@ from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
 from glitchygames.sprites import Sprite
-from glitchygames.sprites.hud_label import HudAnchor, HudLabel
+from glitchygames.sprites.hud_label import HudAnchor, HudLabel, HudLabelStyle
 from glitchygames.state import SaveManager, open_saves
 from glitchygames.state.high_scores import (
     HighScoreEntry,
@@ -1219,14 +1219,16 @@ class ClockworkKeepScene(Scene):
 
         """
         return HudLabel(
-            font=font,
-            color=HUD_TEXT_COLOR,
             groups=self.all_sprites,
             text=text,
             position=position,
-            anchor=anchor,
-            shadow_color=HUD_SHADOW_COLOR,
-            layer=LAYER_HUD,
+            style=HudLabelStyle(
+                font=font,
+                color=HUD_TEXT_COLOR,
+                anchor=anchor,
+                shadow_color=HUD_SHADOW_COLOR,
+                layer=LAYER_HUD,
+            ),
         )
 
     def _score_text(self: Self) -> str:

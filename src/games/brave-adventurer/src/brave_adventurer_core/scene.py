@@ -66,7 +66,7 @@ from glitchygames.collision.solids import (
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
-from glitchygames.sprites.hud_label import HudLabel
+from glitchygames.sprites.hud_label import HudLabel, HudLabelStyle
 from glitchygames.state import SaveManager, open_saves
 from glitchygames.state.high_scores import (
     HighScoreEntry,
@@ -287,23 +287,17 @@ class BraveAdventurerSceneBase(Scene):
         """
         # Each label's shadow is its own sprite, added just before it: score shadow, score, lives
         # shadow, lives, the order the HUD was blitted in before it became sprites
+        style = HudLabelStyle(
+            font=font, color=HUD_TEXT_COLOR, shadow_color=HUD_SHADOW_COLOR, layer=LAYER_HUD
+        )
         self.score_label = HudLabel(
-            font=font,
-            color=HUD_TEXT_COLOR,
-            groups=self.all_sprites,
-            text=self._score_text(),
-            position=(10, 10),
-            shadow_color=HUD_SHADOW_COLOR,
-            layer=LAYER_HUD,
+            groups=self.all_sprites, text=self._score_text(), position=(10, 10), style=style
         )
         self.lives_label = HudLabel(
-            font=font,
-            color=HUD_TEXT_COLOR,
             groups=self.all_sprites,
             text=self._lives_text(),
             position=(self.screen_width - 110, 10),
-            shadow_color=HUD_SHADOW_COLOR,
-            layer=LAYER_HUD,
+            style=style,
         )
 
     @override

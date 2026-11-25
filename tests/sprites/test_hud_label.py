@@ -7,12 +7,13 @@ text rendered and blitted straight onto the screen, its shadow first.
 
 from __future__ import annotations
 
+import pydantic
 import pygame
 import pytest
 
 from glitchygames.fonts import font_manager
 from glitchygames.sprites import RootSprite
-from glitchygames.sprites.hud_label import HudAnchor, HudLabel
+from glitchygames.sprites.hud_label import HudAnchor, HudLabel, HudLabelStyle
 from glitchygames.world import CoordinateSpace, is_world_positioned
 
 TEXT_COLOR = (255, 255, 255)
@@ -44,9 +45,12 @@ def group() -> pygame.sprite.LayeredDirty:
     return pygame.sprite.LayeredDirty()
 
 
-def _label(font, group, *, text='Score: 0', position=(10, 10), **settings) -> HudLabel:
+def _label(font, group, *, text='Score: 0', position=(10, 10), **look) -> HudLabel:
     return HudLabel(
-        font=font, color=TEXT_COLOR, groups=group, text=text, position=position, **settings
+        groups=group,
+        text=text,
+        position=position,
+        style=HudLabelStyle(font=font, color=TEXT_COLOR, **look),
     )
 
 
@@ -199,3 +203,56 @@ class TestTheSprite:
         label = _label(font, group, layer=HUD_LAYER)
         below = _label(font, group, text='Below', layer=HUD_LAYER - 1)
         assert group.sprites() == [below, label]
+
+
+class TestTheStyle:
+    """A label's look (font, colors, anchor, shadow, layer) is one frozen value."""
+
+    def test_a_style_cannot_be_changed_once_made(self, font):
+        style = HudLabelStyle(font=font, color=TEXT_COLOR)
+        field = 'color'
+        with pytest.raises(pydantic.ValidationError) as raised:
+            setattr(style, field, SHADOW_COLOR)
+        assert [(error['type'], error['loc']) for error in raised.value.errors()] == [
+            ('frozen_instance', ('color',))
+        ]
+        assert style.color == TEXT_COLOR
+
+    def test_a_style_refuses_a_setting_it_does_not_know(self, font):
+        # Every known setting is valid, so the unknown one is the only error
+        with pytest.raises(pydantic.ValidationError) as raised:
+            HudLabelStyle.model_validate({
+                'font': font,
+                'color': TEXT_COLOR,
+                'outline_color': SHADOW_COLOR,
+            })
+        assert [(error['type'], error['loc']) for error in raised.value.errors()] == [
+            ('extra_forbidden', ('outline_color',))
+        ]
+
+    def test_the_defaults_are_top_left_unshadowed_on_layer_zero(self, font):
+        style = HudLabelStyle(font=font, color=TEXT_COLOR)
+        assert style.anchor is HudAnchor.TOP_LEFT
+        assert style.shadow_color is None
+        assert style.shadow_offset == (1, 1)
+        assert style.layer == 0
+
+    def test_the_shadow_shares_the_look_but_its_color_and_has_no_shadow_of_its_own(
+        self, font, group
+    ):
+        style = HudLabelStyle(
+            font=font,
+            color=TEXT_COLOR,
+            anchor=HudAnchor.TOP_RIGHT,
+            shadow_color=SHADOW_COLOR,
+            shadow_offset=(2, 3),
+            layer=HUD_LAYER,
+        )
+        label = HudLabel(groups=group, text='Lives: 3', position=(700, 10), style=style)
+        assert label.style is style
+        assert label.shadow is not None
+        assert label.shadow.style == HudLabelStyle(
+            font=font, color=SHADOW_COLOR, anchor=HudAnchor.TOP_RIGHT, layer=HUD_LAYER
+        )
+        assert label.shadow.shadow is None
+        assert (label.shadow.rect.right, label.shadow.rect.top) == (702, 13)
