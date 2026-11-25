@@ -6,11 +6,14 @@ import os
 
 from glitchygames.process import OutputCapture, run_command
 from tests.git_environment import GIT_REPOSITORY_VARIABLES, clear_git_repository_variables
+from tests.leaked_state_guard import environment_holds
 
 
 def test_no_repository_variable_reaches_a_test():
     """Whatever started the run (a pre-push hook exports GIT_DIR), tests see none of them."""
-    assert [name for name in GIT_REPOSITORY_VARIABLES if name in os.environ] == []
+    found = [name for name in GIT_REPOSITORY_VARIABLES if name in os.environ]
+
+    assert found == []
 
 
 def test_clearing_removes_only_the_set_ones(monkeypatch):
@@ -22,7 +25,7 @@ def test_clearing_removes_only_the_set_ones(monkeypatch):
     cleared = clear_git_repository_variables()
 
     assert cleared == ('GIT_DIR', 'GIT_WORK_TREE')
-    assert 'GIT_DIR' not in os.environ
+    assert environment_holds(name='GIT_DIR', value=None)
 
 
 def test_git_outside_a_repository_fails_in_a_temporary_directory(tmp_path):

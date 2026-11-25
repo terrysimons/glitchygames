@@ -102,6 +102,7 @@ from tests.input.stand_in_devices import (
     STAND_IN_STICK,
     install_stand_in_devices,
 )
+from tests.leaked_state_guard import environment_holds
 from tests.replay.replay_helpers import tamper_first_sprite_rect
 from tests.slow_window_manager import SlowWindowManager, install_window_manager
 from tests.world.test_gameplay_replay import (
@@ -3011,7 +3012,7 @@ class TestVideoDriverApplied:
         engine = _make_engine(mocker, '--video-driver', 'dummy')
         engine._restore_sdl_driver_variables()
 
-        assert 'SDL_VIDEODRIVER' not in os.environ
+        assert environment_holds(name='SDL_VIDEODRIVER', value=None)
 
     def test_a_display_on_another_driver_is_restarted(self, mocker):
         mocker.patch.dict(os.environ)

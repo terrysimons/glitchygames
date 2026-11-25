@@ -385,7 +385,9 @@ class TestEndToEnd:
                     pygame.init()
                     pygame.display.set_mode({INNER_WINDOW_SIZE})
                     pygame.display.flip()
-                    assert {FINGERPRINTS_VARIABLE!r} in os.environ
+                    # Not asserted on os.environ itself: pytest would print all of it
+                    compared = {FINGERPRINTS_VARIABLE!r} in os.environ
+                    assert compared
                 """
             )
         )

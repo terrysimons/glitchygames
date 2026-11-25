@@ -50,5 +50,7 @@ def test_hidden_set_mode_adds_the_hidden_flag_and_keeps_the_rest():
 
 def test_this_run_hides_its_windows_as_its_driver_asks():
     """The harness installed the wrapper exactly when this run's environment hides windows."""
-    assert TEST_WINDOWS_HIDDEN is hides_test_windows(environment=os.environ)
+    hides = hides_test_windows(environment=os.environ)
+
+    assert TEST_WINDOWS_HIDDEN is hides
     assert hasattr(pygame.display.set_mode, '__wrapped__') is TEST_WINDOWS_HIDDEN

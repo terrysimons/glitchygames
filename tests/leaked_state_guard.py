@@ -38,10 +38,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pygame
 
+from glitchygames import clock
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     import pytest
+    from pytest_mock import MockerFixture
 
     # Compares the state with its start, puts back what differs, and describes each difference
     type LeakCheck = Callable[[], list[str]]
@@ -68,8 +71,9 @@ SIGNALS = sorted(signal.valid_signals())
 def environment_holds(*, name: str, value: str | None) -> bool:
     """Return whether a variable holds a value, for a test to assert.
 
-    Never assert on os.environ itself: pytest prints all of it, every secret, when that fails
-    (tests/test_leaked_state_guard.py checks).
+    Never assert on os.environ itself (``in``, ``get``, an argument): pytest prints all of it, every
+    secret, when that fails. tests/test_leaked_state_guard.py looks for such assertions: a tripwire,
+    not a proof (it sees no alias of os.environ).
 
     Args:
         name: The variable.
@@ -158,8 +162,9 @@ def watch_threads() -> LeakCheck:
             for thread in threading.enumerate()
             if thread not in before and not isinstance(thread, threading._DummyThread)
         ]
+        deadline = clock.raw_counter_seconds() + THREAD_GRACE_SECONDS
         for thread in started:
-            thread.join(timeout=THREAD_GRACE_SECONDS / len(started))
+            thread.join(timeout=max(0.0, deadline - clock.raw_counter_seconds()))
         return [f'the thread {thread.name!r} still runs' for thread in started if thread.is_alive()]
 
     return check
@@ -454,26 +459,67 @@ def watch_process_state(
     return check
 
 
-def drop_mocks_to_put_back(
-    *, monkeypatch: pytest.MonkeyPatch, mock_type: type[object]
+def patches_still_made(*, mocker: MockerFixture) -> tuple[list[Any], list[Any]]:
+    """Return what this test's mocker has patched and not undone.
+
+    pytest-mock keeps it in private attributes: a version without them gives nothing, so what asks
+    checks nothing and no run breaks (tests/test_leaked_state_guard.py fails then).
+
+    Returns:
+        The (owner, attribute name, value put there) of each ``patch.object`` (``patch`` and
+        ``spy`` make one too), and the (dictionary, values put there) of each ``patch.dict``.
+
+    """
+    attributes: list[Any] = []
+    dictionaries: list[Any] = []
+    for item in getattr(getattr(mocker, '_mock_cache', None), 'cache', ()):
+        patch = getattr(item, 'patch', None)
+        if hasattr(patch, 'in_dict'):
+            dictionaries.append((patch.in_dict, patch.values))
+        elif hasattr(patch, 'target') and hasattr(patch, 'attribute'):
+            attributes.append((patch.target, patch.attribute, item.mock))
+    return attributes, dictionaries
+
+
+def drop_patches_to_put_back(
+    *, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
 ) -> list[str]:
-    """Stop monkeypatch from putting a mock back, and describe each it would have.
+    """Stop monkeypatch from putting back what mocker patched, and describe each it would have.
 
     ``mocker`` is undone before ``monkeypatch``, so a ``monkeypatch.setattr`` (or ``setitem``) of
-    what ``mocker`` had patched would put the mock back after ``mocker`` had put the real one back.
-    Each such undo is dropped: ``mocker`` then has the last word. An attribute of a mock is the
-    mock's own business. Only what monkeypatch would put back last is judged, the first it saved.
+    what ``mocker`` had patched would put the patch (a mock, a spy, an autospecced function, any
+    value) back after ``mocker`` had put the real one back. Each such undo is dropped: ``mocker``
+    then has the last word. Judged by what this test's mocker put where, so a mock of the test's
+    own, or of a wider fixture, is put back as ever. Only what monkeypatch would put back last is
+    judged, the first it saved. Not seen: a key ``patch.dict`` removed.
 
     Args:
         monkeypatch: The test's, not yet undone.
-        mock_type: The mocks' type (``mocker.NonCallableMock``).
+        mocker: The test's, not yet undone.
 
     Returns:
-        One description per mock.
+        One description per patch.
 
     """
+    attributes, dictionaries = patches_still_made(mocker=mocker)
+
+    def attribute_is_patch(owner: object, name: str, value: object) -> bool:
+        return any(
+            owner is target and name == patched and value is put_there
+            for target, patched, put_there in attributes
+        )
+
+    def item_is_patch(owner: object, name: object, value: object) -> bool:
+        return any(
+            owner is dictionary and name in put_there and value is put_there[name]
+            for dictionary, put_there in dictionaries
+        )
+
     found: list[str] = []
-    for undo_list in (monkeypatch._setattr, monkeypatch._setitem):
+    for undo_list, is_patch in (
+        (monkeypatch._setattr, attribute_is_patch),
+        (monkeypatch._setitem, item_is_patch),
+    ):
         undos: list[tuple[Any, Any, Any]] = undo_list
         judged: set[tuple[int, object]] = set()
         kept: list[tuple[Any, Any, Any]] = []
@@ -481,9 +527,9 @@ def drop_mocks_to_put_back(
             place = (id(owner), name)
             is_first = place not in judged
             judged.add(place)
-            if is_first and isinstance(value, mock_type) and not isinstance(owner, mock_type):
+            if is_first and is_patch(owner, name, value):
                 found.append(
-                    f'monkeypatch would have put back the mock mocker made of {name!r}: '
+                    f'monkeypatch would have put back what mocker patched {name!r} with: '
                     'change it with mocker alone'
                 )
             else:

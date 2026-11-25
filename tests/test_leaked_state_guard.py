@@ -13,8 +13,10 @@ import gc
 import logging
 import os
 import random
+import re
 import signal
 import sys
+import textwrap
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,10 +24,12 @@ from typing import TYPE_CHECKING
 import pygame
 import pytest
 
+from glitchygames import clock
 from tests import leaked_state_guard
 from tests.harness import PROCESS_STATE_CHECK_KEY, end_of_item_leaks
 from tests.leaked_state_guard import (
     NUMPY_GLOBAL_RANDOM,
+    drop_patches_to_put_back,
     environment_holds,
     numpy_random_state,
     watch_environment,
@@ -44,14 +48,8 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SUBPROCESS_TIMEOUT_SECONDS = 120.0
-# Where a failing assertion could print the whole environment
-FILES_THAT_NEVER_ASSERT_ON_THE_ENVIRONMENT = (
-    'test_leaked_state_guard.py',
-    'test_engine_written_state.py',
-    'leaked_state_guard.py',
-    'engine_written_state.py',
-    'harness.py',
-)
+# An assertion of a text that is no Python on its own: one that names environ, not subscripted
+DUMPING_ASSERTION_LINE = re.compile(r'\s*assert\b.*\benviron\b(?!\[)')
 # A variable no one sets, and the value planted in it: the failure must never show a value
 PLANTED_VARIABLE = 'GLITCHYGAMES_PLANTED_LEAK'
 PLANTED_VALUE = 'planted-secret-value'
@@ -620,102 +618,253 @@ def test_no_value_reaches_the_output_or_the_junit_report(pytester, mocker):
     assert secrets_shown(texts=texts) == []
 
 
-def asserts_naming_the_environment(*, source: str) -> list[int]:
-    """Return the lines of the assertions whose expression names environ.
+def assertions_dumping_the_environment(*, source: str) -> list[int]:
+    """Return the lines of the assertions that print the whole environment when they fail.
+
+    Those naming environ, but for its subscript: pytest prints what ``os.environ['A']`` is, one
+    value, and for any other use all of them.
 
     Args:
-        source: Python.
+        source: Python; an inner test's text, its lines looked at one by one, when it is not.
 
     Returns:
         The lines.
 
     """
-    return [
-        statement.lineno
-        for statement in ast.walk(ast.parse(source))
-        if isinstance(statement, ast.Assert)
-        and any(
-            getattr(part, 'attr', getattr(part, 'id', None)) == 'environ'
-            for part in ast.walk(statement.test)
-        )
+    try:
+        tree = ast.parse(textwrap.dedent(source))
+    except SyntaxError:
+        return [
+            number
+            for number, line in enumerate(source.splitlines(), start=1)
+            if DUMPING_ASSERTION_LINE.match(line)
+        ]
+    lines: list[int] = []
+    for statement in ast.walk(tree):
+        if not isinstance(statement, ast.Assert):
+            continue
+        parts = list(ast.walk(statement.test))
+        subscripted = {id(part.value) for part in parts if isinstance(part, ast.Subscript)}
+        if any(
+            isinstance(part, ast.Attribute | ast.Name)
+            and (part.attr if isinstance(part, ast.Attribute) else part.id) == 'environ'
+            and id(part) not in subscripted
+            for part in parts
+        ):
+            lines.append(statement.lineno)
+    return lines
+
+
+def texts_in(*, source: str) -> list[tuple[int, str]]:
+    """Return a file's strings that name environ, an f-string's values as ``x``.
+
+    Args:
+        source: Python.
+
+    Returns:
+        Each string's line and text.
+
+    """
+    tree = ast.parse(source)
+    inside = {
+        id(part)
+        for string in ast.walk(tree)
+        if isinstance(string, ast.JoinedStr)
+        for part in string.values
+    }
+    texts: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.JoinedStr):
+            text = ''.join(
+                str(part.value) if isinstance(part, ast.Constant) else 'x' for part in node.values
+            )
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            text = '' if id(node) in inside else node.value
+        else:
+            continue
+        if 'environ' in text:
+            texts.append((node.lineno, text))
+    return texts
+
+
+def test_an_assertion_dumping_the_environment_is_found():
+    """The scan below finds what it looks for: in code, in an inner test, in an f-string."""
+    name = 'environ'
+    source = (
+        f"x = 1\nassert 'A' not in os.{name}\nassert {name}.get('A')\nassert x == 1\n"
+        f"assert os.{name}['A'] == 'a'\nassert f(os.{name})\n"
+    )
+    inner = f'    import os\n    assert {{NAME!r}} in os.{name}\n'
+
+    assert assertions_dumping_the_environment(source=source) == [2, 3, 6]
+    assert assertions_dumping_the_environment(source=f'not python\nassert 1 in {name}\n') == [2]
+    texts = [text for _line, text in texts_in(source=f"NAME = 'A'\nTEXT = f{inner!r}\n")]
+    assert [assertions_dumping_the_environment(source=text) for text in texts] == [[2]]
+
+
+def test_no_assertion_of_any_test_dumps_the_environment():
+    """A failing one prints every variable's value into the log and the junit report.
+
+    Every test file's own assertions, and those of the inner tests it holds as text. A tripwire,
+    not a proof: an alias of os.environ, or an inner test put together from pieces, is not seen.
+    """
+    paths = [
+        path
+        for directory in ('tests', 'src/games', 'src/demos', 'src/apps')
+        for path in sorted((PROJECT_ROOT / directory).rglob('*.py'))
+        if 'tests' in path.relative_to(PROJECT_ROOT).parts
     ]
+    found: list[str] = []
+    for path in paths:
+        source = path.read_text(encoding='utf-8')
+        if 'environ' not in source:
+            continue
+        lines = assertions_dumping_the_environment(source=source)
+        lines += [
+            line
+            for line, text in texts_in(source=source)
+            if assertions_dumping_the_environment(source=text)
+        ]
+        found += [f'{path.relative_to(PROJECT_ROOT).as_posix()}:{line}' for line in lines]
+
+    assert len(paths) > 100
+    assert found == []
 
 
-def test_an_assertion_naming_the_environment_is_found():
-    """The scan below finds what it looks for."""
-    source = "x = 1\nassert 'A' not in os.environ\nassert environ.get('A')\nassert x == 1\n"
-
-    assert asserts_naming_the_environment(source=source) == [2, 3]
-
-
-@pytest.mark.parametrize('name', FILES_THAT_NEVER_ASSERT_ON_THE_ENVIRONMENT)
-def test_no_assertion_names_the_environment(name):
-    """A failing one prints every variable's value into the log and the junit report."""
-    source = (PROJECT_ROOT / 'tests' / name).read_text(encoding='utf-8')
-
-    assert asserts_naming_the_environment(source=source) == []
-
-
-def test_no_planted_assertion_names_the_environment():
-    """Nor those of the inner tests, which these files hold as text."""
+def test_no_planted_assertion_dumps_the_environment():
+    """Nor those these files put together from pieces."""
     planted = [clean for _leak, clean, _told in PLANTED_LEAKS.values()]
     planted += [clean for _leaves, clean in PLANTED_ENGINE_STATE.values()]
     sources = [f'assert {clean}' for clean in planted] + [FAILING_TESTS]
 
-    assert [source for source in sources if asserts_naming_the_environment(source=source)] == []
+    assert [text for text in sources if assertions_dumping_the_environment(source=text)] == []
 
 
-def test_a_mock_monkeypatch_would_put_back_fails_the_test(pytester):
-    """Mocker is undone first, so monkeypatch must not undo to the mock it found."""
-    source = (
-        INNER_HEADER
-        + """
+# What the tests of monkeypatch and mocker patch, and the functions there before
+PATCHED_HEADER = (
+    INNER_HEADER
+    + """
+import pytest
 from types import SimpleNamespace
-TARGET = SimpleNamespace(function=len)
-TABLE = {'function': len}
 
 
-def test_patches_with_both(mocker, monkeypatch):
-    mocker.patch.object(TARGET, 'function')
-    monkeypatch.setattr(TARGET, 'function', print)
-    mocker.patch.dict(TABLE, {'function': mocker.Mock()})
-    monkeypatch.setitem(TABLE, 'function', print)
+class Target:
+    def method(self):
+        return 1
 
+
+TARGET = SimpleNamespace(function=Target.method)
+TABLE = {'key': len}
+METHOD = Target.method
+"""
+)
+PATCHED_AFTER = """
 
 def test_after_it():
-    assert TARGET.function is len
-    assert TABLE == {'function': len}
+    assert Target.method is METHOD
+    assert TARGET.function is METHOD
+    assert TABLE == {'key': len}
 """
-    )
 
-    result = run_inner_tests(pytester=pytester, source=source)
+
+@pytest.mark.parametrize(
+    'body',
+    [
+        "mocker.patch.object(Target, 'method'); monkeypatch.setattr(Target, 'method', print)",
+        "mocker.patch.object(Target, 'method', 5); monkeypatch.setattr(Target, 'method', print)",
+        "mocker.spy(Target, 'method'); monkeypatch.setattr(Target, 'method', print)",
+        "mocker.spy(TARGET, 'function'); monkeypatch.setattr(TARGET, 'function', print)",
+        (
+            "mocker.patch.object(Target, 'method', autospec=True); "
+            "monkeypatch.setattr(Target, 'method', print)"
+        ),
+        "mocker.patch.dict(TABLE, {'key': mocker.Mock()}); monkeypatch.setitem(TABLE, 'key', 1)",
+    ],
+    ids=['mock', 'value', 'spy', 'module spy', 'autospec', 'dict'],
+)
+def test_a_patch_monkeypatch_would_put_back_fails_the_test(body, pytester):
+    """Mocker is undone first, so monkeypatch must not undo to the patch it found."""
+    source = f'{PATCHED_HEADER}\n\ndef test_both(mocker, monkeypatch):\n    {body}\n'
+
+    result = run_inner_tests(pytester=pytester, source=source + PATCHED_AFTER)
 
     result.assert_outcomes(passed=2, errors=1)
-    result.stdout.fnmatch_lines(["*would have put back the mock mocker made of 'function'*"] * 2)
+    result.stdout.fnmatch_lines(['*would have put back what mocker patched*'])
 
 
-def test_monkeypatching_a_mock_is_not_a_mock_put_back(pytester):
-    """An attribute of a mock, or a mock monkeypatch itself set, is the test's own business."""
+def test_a_mock_mocker_did_not_put_there_is_put_back(pytester):
+    """A mock of the test's own, or a wider fixture's patch, is monkeypatch's to put back."""
     source = (
-        INNER_HEADER
+        PATCHED_HEADER
         + """
-from types import SimpleNamespace
-TARGET = SimpleNamespace(function=len)
+
+@pytest.fixture(scope='module')
+def patched_for_the_module(module_mocker):
+    return module_mocker.patch.object(TARGET, 'function')
 
 
-def test_patches_a_mock(mocker, monkeypatch):
+def test_own_mocks(mocker, monkeypatch):
+    game = SimpleNamespace(on_event=mocker.Mock())
+    monkeypatch.setattr(game, 'on_event', print)
+    table = {'key': mocker.MagicMock()}
+    monkeypatch.setitem(table, 'key', 1)
+    target = Target()
+    target.method = mocker.Mock()
+    monkeypatch.setattr(target, 'method', print)
     mock = mocker.Mock()
     monkeypatch.setattr(mock, 'attribute', 1)
+    elsewhere = SimpleNamespace(method=mocker.patch.object(Target, 'method'))
+    monkeypatch.setattr(elsewhere, 'method', print)
     monkeypatch.setattr(TARGET, 'function', mock)
     monkeypatch.setattr(TARGET, 'function', print)
 
 
-def test_after_it():
-    assert TARGET.function is len
+def test_monkeypatch_first(mocker, monkeypatch):
+    monkeypatch.setattr(Target, 'method', print)
+    mocker.patch.object(Target, 'method')
+    monkeypatch.setattr(Target, 'method', len)
+
+
+def test_nothing_is_left():
+    assert Target.method is METHOD
+    assert TABLE == {'key': len}
+
+
+def test_over_a_module_patch(patched_for_the_module, monkeypatch):
+    monkeypatch.setattr(TARGET, 'function', print)
+
+
+def test_the_module_patch_is_still_there(patched_for_the_module):
+    assert TARGET.function is patched_for_the_module
 """
     )
 
-    run_inner_tests(pytester=pytester, source=source).assert_outcomes(passed=2)
+    run_inner_tests(pytester=pytester, source=source).assert_outcomes(passed=5)
+
+
+def test_a_pytest_mock_without_its_cache_checks_nothing(mocker, monkeypatch):
+    """The cache is private: a version that renames it must not break a run."""
+    assert drop_patches_to_put_back(monkeypatch=monkeypatch, mocker=mocker.Mock(spec=[])) == []
+
+
+def test_threads_share_one_deadline(mocker):
+    """A thread that ends at once leaves its share of the grace to the others."""
+    mocker.patch.object(leaked_state_guard, 'THREAD_GRACE_SECONDS', SUBPROCESS_TIMEOUT_SECONDS)
+    check = watch_threads()
+    threads = [
+        mocker.Mock(
+            spec=threading.Thread,
+            join=mocker.Mock(),
+            is_alive=lambda: False,
+        )
+        for _ in range(2)
+    ]
+    mocker.patch.object(threading, 'enumerate', return_value=threads)
+    mocker.patch.object(clock, 'raw_counter_seconds', side_effect=[100.0, 100.0, 130.0])
+
+    assert check() == []
+    joined = [thread.join.call_args.kwargs['timeout'] for thread in threads]
+    assert joined == [SUBPROCESS_TIMEOUT_SECONDS, SUBPROCESS_TIMEOUT_SECONDS - 30.0]
 
 
 def test_a_thread_c_started_is_not_judged():

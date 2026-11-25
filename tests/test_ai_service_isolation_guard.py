@@ -15,6 +15,7 @@ from pathlib import Path
 from glitchygames import ai_link
 from glitchygames.ai_link import ServiceLocations, service_locations
 from glitchygames.process import OutputCapture, run_command
+from tests.leaked_state_guard import environment_holds
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 NOWHERE = Path('/nonexistent/glitchygames-ai-service')
@@ -30,8 +31,8 @@ print(service_locations().model_dump_json())
 def test_this_suites_service_is_nowhere():
     """In this run, the service is in the harness's folder that doesn't exist."""
     assert service_locations() == ServiceLocations.in_one_folder(root=NOWHERE)
-    assert ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE not in os.environ
-    assert ai_link.USER_ROOT_ENVIRONMENT_VARIABLE not in os.environ
+    assert environment_holds(name=ai_link.PROGRAM_ROOT_ENVIRONMENT_VARIABLE, value=None)
+    assert environment_holds(name=ai_link.USER_ROOT_ENVIRONMENT_VARIABLE, value=None)
 
 
 def test_the_harness_points_the_service_nowhere_whatever_the_shell_exports(tmp_path: Path):
