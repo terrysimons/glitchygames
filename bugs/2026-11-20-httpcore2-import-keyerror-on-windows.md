@@ -9,12 +9,15 @@
   job log's tail, the step output's `[gw0]` lines, node 0's junit) is in the owner's
   `.superpowers/overnight-2026-11-20/job4241-*`.
 - **Status**: Open (root cause not found; a triage tool is in, 2026-11-20, branch
-  `fix/httpcore2-import-keyerror-triage`)
+  `fix/httpcore2-import-keyerror-triage`; it records the known removals too since 2026-11-24,
+  branch `triage/sys-modules-watcher`)
 - **Priority**: Medium (a CI flake; the same class can break any import in the suite)
 - **What the error means**: importlib's `_load_unlocked` runs the module, then does
   `module = sys.modules.pop(spec.name)`. A `KeyError` there means the module's entry left
   `sys.modules` while the module's own code was running. Its code does not remove itself, so
-  something else did, and the importing thread's traceback cannot show what.
+  something else did, and the importing thread's traceback cannot show what. That need not be a
+  second thread: the failing import ran on the main thread, and code run on that same thread during
+  it (a finalizer in a garbage collection, say) can remove the entry too.
 - **Reproduced (the mechanism, not the CI run)**, with scripts kept in
   `scripts/reproduce_import_keyerror.py`:
   - A second thread restoring a `sys.modules` snapshot (as `mock.patch.dict(sys.modules)` does
@@ -25,6 +28,27 @@
   - Ruled out: two threads importing httpcore2 at once with no restore (600 of 600 imports
     succeed); a leftover thread mid-import when the main thread restores a snapshot and then
     imports (400 of 400 main-thread imports succeed).
+- **What the reproductions establish** (2026-11-24): the mechanism only. A thread paused inside a
+  module's execution while the main thread ends a `mock.patch.dict(sys.modules)`, or deletes the
+  name, gives this error every time (`tests/test_import_failure_threads.py`). Neither shows what
+  happened on CI.
+- **Weak evidence against the suspects** (2026-11-24, macOS): the suspect order and every file found
+  that changes `sys.modules`, run with a watcher on the dictionary (3.15.1 serially, 3.15.2 with two
+  workers), recorded 848 removals, none off the main thread and none during an import. Weak,
+  because the watcher was a prototype that can itself corrupt `sys.modules`, and its filter also
+  left out importlib's failure-path delete (`del sys.modules[spec.name]` when a module's code
+  raises), which a nested failed import of the same name would need. Not covered: Windows, and the
+  part of the failing worker's order the truncated CI log lost.
+- **A dictionary watcher must not be used in the suite** (`PyDict_AddWatcher` with a Python callback,
+  through ctypes or otherwise). Read, in CPython's 3.15 branch `Objects/dictobject.c` (through a
+  summary, not the whole file): `_PyDict_DelItem_KnownHash_LockHeld` finds the entry's index, calls
+  the watcher, then deletes by that index; `clear_lock_held` reads the keys object before calling
+  it. Measured, on macOS with 3.15.1: Python in the callback lets another thread, or a finalizer,
+  insert and resize the dictionary, and `del` and `pop` then crash (segmentation fault; every
+  try with the change made inside the callback, on a plain dictionary and, by another thread, on
+  `sys.modules` during an ordinary import; and 3 of 3 with a callback that does nothing and two
+  threads doing pop-then-set). The removal that fires it is importlib's own, at every import. `pop`'s
+  code was not read; `clear` did not crash when tried.
 - **What ran before it**: node 0's junit (completion order, `-n 2`) puts the failing test right
   after five `tests/replay/tools/test_compare_trace.py` tests (the other worker was in
   `test_verify.py`'s 13 s test), the last being
@@ -36,11 +60,16 @@
 - **Test gap**: nothing records the other threads when an import fails, so the one failure gave
   only the importing thread's stack.
 - **The triage tool**: `tests/import_failure_threads.py` (a plugin in the root `conftest.py`)
-  marks every thread with the test that started it and, when a test's call fails inside the import
-  machinery, adds `live threads at the import failure` to its report: each live thread, daemon or
-  not, the test that started it, and its stack. The next occurrence names the other thread. Tests:
+  marks every thread with the test that started it and, when a test's setup, call or teardown fails
+  inside the import machinery, adds `live threads at the import failure` to its report: each live
+  thread, daemon or not, the test that started it, and its stack. Since 2026-11-24 it also adds
+  `recorded sys.modules removals` (`tests/module_removals.py`: the ends of `patch.dict`, pytester's
+  snapshot restores and `monkeypatch`'s changes, with the imports each overlapped, on the same or
+  another thread) and `sys.modules at the import failure` (whether the module and its packages are
+  present, whether the dictionary was rebound, the garbage collector's state). Not recorded: direct
+  `del` and `pop`, third-party code's changes, importlib's failure-path delete. Tests:
   `tests/test_import_failure_threads.py` (a planted failure, a module that deletes its own
-  `sys.modules` entry mid-import, gives the CI signature).
+  `sys.modules` entry mid-import, gives the CI signature), `tests/test_module_removals.py`.
 - **The class, swept** (2026-11-20; `git grep` for `sys.modules` changes in `tests/` and `src/`):
   - Whole-dict restores (uncovered: each one, when it ends, drops every module imported since it
     began, on any thread, and a thread importing at that moment fails as above). `mock.patch.dict`
@@ -52,6 +81,8 @@
     `tests/test_generate_complexity_graphs.py` (3), `tests/replay/tools/test_identity.py` (2),
     `tests/test_clipboard.py` (2), `tests/engine/test_game_engine.py` (1),
     `tests/test_workspace_config.py` (1), `tests/test_browser_storage.py` (1).
+  - pytester's `runpytest_inprocess` (uncovered; the first sweep missed it): each run ends with
+    `SysModulesSnapshot.restore`, which clears and refills the whole dictionary too.
   - Single-entry changes (covered: `monkeypatch.setitem`/`delitem` put back only their key):
     `tests/audio/test_audio_engine.py`, `tests/templates/test_templates_extra.py`,
     `tests/replay/tools/test_golden_trace_harness.py`, `tests/replay/tools/test_scripted_sessions.py`,
@@ -69,4 +100,5 @@
 - **Reporter**: The coordinating session (glitchygames-bc)
 - **Date Reported**: 2026-11-20
 - **Files**: `tests/import_failure_threads.py`, `tests/test_import_failure_threads.py`,
+  `tests/module_removals.py`, `tests/test_module_removals.py`,
   `conftest.py`, `scripts/reproduce_import_keyerror.py`
