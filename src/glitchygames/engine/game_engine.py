@@ -76,7 +76,7 @@ from glitchygames.exit_codes import BUG_REPORT_HINT, ExitCode
 from glitchygames.fonts import FontManager
 from glitchygames.host import GameHost, HostSources
 from glitchygames.input.device_listing import list_input_devices
-from glitchygames.input.devices import ReplayController
+from glitchygames.input.devices import LiveDeviceRegistry, ReplayController
 from glitchygames.input.input_devices import (
     InputDeviceChanges,
     InputDevices,
@@ -1712,6 +1712,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         # A live run is hosted: the outer game (glitchygames/host.py) reads through the live
         # doors and drives the frames. A replay has no host (its viewer is its outer game)
         self.host: GameHost | None = None
+        # The live doors beneath the host (None in a replay): where MIDI ports close at the end
+        self.live_sources: LiveSources | None = None
         # The run's session with the local AI service, if it has one (glitchygames/ai_link.py)
         self.ai_link: AiLink | None = None
         if self.replay_sources is None:
@@ -1728,6 +1730,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 # Live play against OLD draws OLD over each presented frame
                 sources=self._host_sources(inner=live_sources, overlay=self.onion_skin)
             )
+            self.live_sources = live_sources
             install_sources(sources=self.host.sources)
         else:
             install_sources(sources=self.replay_sources)
@@ -2250,7 +2253,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         self.game_manager = GameEventManager(game=self.scene_manager)
         self.joystick_manager = JoystickEventManager(game=self.scene_manager)
         self.keyboard_manager = KeyboardEventManager(game=self.scene_manager)
-        self.midi_manager = MidiEventManager(game=self.scene_manager)
+        self.midi_manager = MidiEventManager(
+            game=self.scene_manager,
+            input_names=self.options.get('midi_input') or (),
+            output_names=self.options.get('midi_output') or (),
+        )
         self.mouse_manager = MouseEventManager(game=self.scene_manager)
         self.window_manager = WindowEventManager(game=self.scene_manager)
 
@@ -3645,6 +3652,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             self.ai_console.stop()
         if self.ai_link is not None:
             self.ai_link.stop()
+        self._close_midi_ports()
         # Before pygame quits: the sound library's voices fade over 50 ms, waited for at most
         # 100 ms (sound engine impl spec 10.3), then the channel reservation is given back (SDL
         # would keep it for a mixer started again in this process). Even when closing the audio
@@ -3661,6 +3669,21 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 release_channels()
             finally:
                 self._finish_the_teardown()
+
+    def _close_midi_ports(self: Self) -> None:
+        """Close the MIDI ports this run opened, and shut PortMidi down where the run owns it.
+
+        Where port lifetimes end. A replay opened none (its doors are stand-ins). PortMidi is
+        process-wide and each engine context has its own live doors, so an inner game's context
+        (the Arcade's tiles) closes its own ports and leaves PortMidi running for the outer
+        game's, which shuts it down.
+        """
+        if self.live_sources is None:
+            return
+        devices = self.live_sources.devices()
+        # Stand-in devices (the tests', the golden-trace harness's) hold no PortMidi port
+        if isinstance(devices, LiveDeviceRegistry):
+            devices.close_midi_ports(shut_portmidi_down=not is_inner_context())
 
     def _finish_the_teardown(self: Self) -> None:
         """Print the end-of-run reports (unless the replay restarts) and shut down pygame."""

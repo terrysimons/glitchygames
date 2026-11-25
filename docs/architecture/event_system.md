@@ -604,7 +604,7 @@ the joystick and controller managers, the game):
 | `DropEventManager` | `[self.game]` | No pygame subsystem (events only) |
 | `GameEventManager` | `[self.game]` | No pygame subsystem (events only) |
 | `AppEventManager` | `[self.game]` | No pygame subsystem (events only) |
-| `MidiEventManager` | `[self.game, pygame.midi]` (`[self.game]` when this pygame build has no PortMidi) | `get_count()`, `get_device_info()`, etc. |
+| `MidiEventManager` | `[self.game]`; each named MIDI port (`--midi-input`, `--midi-output`) has a proxy in `ports`, whose `proxies` are `[self.game, port]` | the port's own methods (`poll()`, `read()`, `write_short()`, ...) and `get_device_info()` |
 
 Managers without a pygame subsystem in their proxy list (like `DropEventManager`)
 only forward events — `__getattr__` falls through to the game object.

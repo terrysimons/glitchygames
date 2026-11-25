@@ -1314,6 +1314,15 @@ class TestReplayDoors:
         }
         assert {'replay_trace', 'record_trace', 'log_level'} <= REPLAY_LOCAL_OPTIONS
 
+    def test_a_replay_opens_the_ports_its_recording_named(self):
+        """--midi-input and --midi-output are the recording's, not the replay command's."""
+        options = {'midi_input': ['Other'], 'midi_output': []}
+        apply_recorded_options(
+            options=options, recorded={'midi_input': ['Keys'], 'midi_output': ['Synth']}
+        )
+        assert options == {'midi_input': ('Keys',), 'midi_output': ('Synth',)}
+        assert not {'midi_input', 'midi_output'} & REPLAY_LOCAL_OPTIONS
+
     def test_debug_events_stays_local(self):
         """debug_events follows this run's --debug-events, never the recording's."""
         options = {'debug_events': True}

@@ -1478,3 +1478,58 @@ def test_what_a_port_gave_before_it_failed_is_delivered_in_that_frame(mocker):
     assert _timestamps(first) == list(range(MIDI_READ_BATCH))
     assert second == []
     assert keys.read_sizes == [MIDI_READ_BATCH]
+
+
+def test_closing_the_midi_ports_closes_each_and_shuts_portmidi_down_once(mocker):
+    """Ruling D: every opened port closes, PortMidi quits, a second close does nothing more."""
+    midi_module = _patch_portmidi_ports(mocker)
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+    registry.open_midi_output(port_id=1)
+
+    registry.close_midi_ports(shut_portmidi_down=True)
+    registry.close_midi_ports(shut_portmidi_down=True)
+
+    midi_module.Input.return_value.close.assert_called_once_with()
+    midi_module.Output.return_value.close.assert_called_once_with()
+    midi_module.quit.assert_called_once_with()
+    assert registry.midi_input_for_port(port_id=0) is None
+    assert registry.midi_output_for_port(port_id=1) is None
+
+
+def test_closing_the_midi_ports_keeps_portmidi_running_when_told_to(mocker):
+    """A context that does not own PortMidi (an inner game's) closes its ports and quits nothing."""
+    midi_module = _patch_portmidi_ports(mocker)
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+
+    registry.close_midi_ports(shut_portmidi_down=False)
+
+    midi_module.Input.return_value.close.assert_called_once_with()
+    midi_module.quit.assert_not_called()
+
+
+def test_closing_the_midi_ports_touches_nothing_when_portmidi_never_started(mocker):
+    """No MIDI was asked: closing asks PortMidi nothing and does not start it."""
+    midi_module = _patch_portmidi_ports(mocker)
+    registry = LiveDeviceRegistry()
+
+    registry.close_midi_ports(shut_portmidi_down=True)
+
+    assert midi_module.mock_calls == []
+
+
+def test_a_midi_port_that_fails_to_close_is_logged_and_the_others_still_close(mocker, caplog):
+    """The teardown goes on: one port raising on close does not leave the rest open."""
+    midi_module = _patch_portmidi_ports(mocker)
+    midi_module.Input.return_value.close.side_effect = pygame.midi.MidiException('already closed')
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+    registry.open_midi_output(port_id=1)
+
+    with caplog.at_level('WARNING', logger='game.input.devices'):
+        registry.close_midi_ports(shut_portmidi_down=True)
+
+    midi_module.Output.return_value.close.assert_called_once_with()
+    midi_module.quit.assert_called_once_with()
+    assert 'port 0 (Keys)' in caplog.text

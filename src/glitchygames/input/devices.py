@@ -47,6 +47,7 @@ from typing import TYPE_CHECKING, Any, Protocol, Self, runtime_checkable
 import pygame
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from glitchygames.checks import required
 from glitchygames.input.state import (
     ControllerAxes,
     ControllerButtons,
@@ -1028,6 +1029,52 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
 
         """
         return self._midi_outputs.get(port_id)
+
+    def close_midi_ports(self: Self, *, shut_portmidi_down: bool) -> None:
+        """Close every opened MIDI port, and shut PortMidi down where this registry may.
+
+        Where port lifetimes end (the engine's teardown). Nothing happens when PortMidi was
+        never started here, and closing twice is safe: the ports are forgotten as they close.
+        A port that raises on close is logged and the rest still close, so a teardown never
+        stops on one.
+
+        PortMidi is process-wide while a registry is one engine context's, so a context that
+        does not own PortMidi (an inner game's) passes ``shut_portmidi_down=False`` and closes
+        only its own ports.
+
+        Args:
+            shut_portmidi_down: Whether to call ``pygame.midi.quit`` once the ports are closed.
+
+        """
+        if not self._midi_initialized:
+            return
+        midi_module = required(import_midi_module(log_unavailable=False), what='pygame.midi')
+        for port_id, midi_input in self._midi_inputs.items():
+            self._close_midi_port(
+                port=midi_input,
+                label=f'input port {port_id} ({self._midi_input_names.get(port_id)})',
+                midi_module=midi_module,
+            )
+        for port_id, midi_output in self._midi_outputs.items():
+            self._close_midi_port(
+                port=midi_output, label=f'output port {port_id}', midi_module=midi_module
+            )
+        self._midi_inputs.clear()
+        self._midi_outputs.clear()
+        self._midi_input_names.clear()
+        if shut_portmidi_down:
+            midi_module.quit()
+            self._midi_initialized = False
+
+    @staticmethod
+    def _close_midi_port(
+        *, port: PygameMidiInput | PygameMidiOutput, label: str, midi_module: ModuleType
+    ) -> None:
+        """Close one port, logging (not raising) a failure."""
+        try:
+            port.close()
+        except midi_module.MidiException, pygame.error:
+            LOG.warning('MIDI %s failed to close', label, exc_info=True)
 
     def open_controller(self: Self, *, device_index: int) -> pygame._sdl2.controller.Controller:
         """Open the game controller at ``device_index`` and remember it.
