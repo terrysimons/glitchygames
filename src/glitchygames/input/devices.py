@@ -26,7 +26,7 @@ for the recorder and a replay answers from the recording, never from the MIDI ha
 WebAssembly builds) answers as zero ports, and those answers are remembered as usual. PortMidi is
 initialized lazily, on the first MIDI call, so a game that never asks never starts it.
 
-MIDI ports open here too (``open_midi_input``, ``open_midi_output``), once per process: a second
+MIDI ports open here too (``open_midi_input``, ``open_midi_output``), once per registry: a second
 open of the same port hands back the first one, and ``midi_input_for_port`` /
 ``midi_output_for_port`` look an opened one up. An open is an answer (the port id, or the error),
 and the recorder takes the opened ports' descriptors (``take_opened_midi_ports``) into its own
@@ -118,8 +118,6 @@ def import_midi_module(*, log_unavailable: bool = True) -> ModuleType | None:
             LOG.info('pygame.midi is unavailable in this pygame build: no MIDI devices')
         return None
 
-
-MIDI_MODULE = import_midi_module()
 
 JOYSTICK_KIND = 'joystick'
 CONTROLLER_KIND = 'controller'
@@ -432,7 +430,7 @@ class DeviceRegistry(Protocol):
         ...
 
     def open_midi_input(self, *, port_id: int) -> OpenedMidiInput:
-        """Open the MIDI input port ``port_id`` (once per process: later opens return it).
+        """Open the MIDI input port ``port_id`` (once per registry: later opens return it).
 
         Args:
             port_id: The PortMidi port id.
@@ -441,7 +439,7 @@ class DeviceRegistry(Protocol):
         ...
 
     def open_midi_output(self, *, port_id: int) -> OpenedMidiOutput:
-        """Open the MIDI output port ``port_id`` (once per process: later opens return it).
+        """Open the MIDI output port ``port_id`` (once per registry: later opens return it).
 
         Args:
             port_id: The PortMidi port id.
@@ -651,11 +649,31 @@ class ReadsMidiInput(Protocol):
         ...
 
 
+def _midi_failure_message(*, error: Exception) -> str:
+    """Return the text of a failure PortMidi raised (its messages may be bytes).
+
+    Args:
+        error: What a PortMidi call raised.
+
+    Returns:
+        The message as text.
+
+    """
+    # MidiException keeps its message as ``parameter`` (its str() is that message's repr)
+    message = getattr(error, 'parameter', None)
+    if message is None:
+        message = error.args[0] if error.args else str(error)
+    if isinstance(message, bytes):
+        return message.decode(errors='replace')
+    return str(message)
+
+
 class MidiInputReader:
     """Reads opened MIDI input ports into MIDIIN events, dropping a port that fails.
 
     One reader per registry, so the live and the stand-in registries share this one code path.
-    A port whose ``poll`` or ``read`` raises ``MidiException`` is dropped for the rest of the run:
+    A port whose ``poll`` or ``read`` raises (PortMidi raises a plain ``Exception``) is dropped
+    for the rest of the run:
     logged once with its port id and name, and never read again. It is not closed: a port that
     failed mid-run is a device that went away, and PortMidi's own close on it can raise too; it
     stays in the registry's opened ports, so the open-once rule still holds.
@@ -675,7 +693,7 @@ class MidiInputReader:
         """Read every opened input, in port-id order, until each has nothing left waiting.
 
         Args:
-            midi_module: ``pygame.midi`` (for ``midis2events`` and ``MidiException``).
+            midi_module: ``pygame.midi`` (for ``midis2events``).
             inputs: The opened input ports by port id.
             port_names: Each port's name, kept from when it was opened (a vanished device
                 cannot be asked).
@@ -693,7 +711,8 @@ class MidiInputReader:
                 self._read_port(
                     midi_module=midi_module, port_id=port_id, port=inputs[port_id], events=events
                 )
-            except midi_module.MidiException:
+            except Exception:
+                # PortMidi's Poll and Read raise a plain Exception (pypm.pyx), not MidiException
                 self._dropped_port_ids.add(port_id)
                 LOG.exception(
                     'MIDI input port %d (%s) failed and is no longer read',
@@ -947,7 +966,6 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         midi_input = self._construct_midi_port(
             call=OPEN_MIDI_INPUT_CALL,
             port_id=port_id,
-            midi_module=midi_module,
             construct=midi_module.Input,
         )
         self._midi_inputs[port_id] = midi_input
@@ -977,7 +995,6 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         midi_output = self._construct_midi_port(
             call=OPEN_MIDI_OUTPUT_CALL,
             port_id=port_id,
-            midi_module=midi_module,
             construct=midi_module.Output,
         )
         self._midi_outputs[port_id] = midi_output
@@ -1001,7 +1018,7 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
 
         Ports are read in port-id order, each until nothing is waiting, so a burst larger than
         ``MIDI_READ_BATCH`` arrives whole, in one frame. Only opened ports are read. A port that
-        raises ``MidiException`` is dropped for the rest of the run (``MidiInputReader``).
+        raises is dropped for the rest of the run (``MidiInputReader``).
 
         Returns:
             The events (``vice_id`` is the port id; timestamps are PortMidi's).
@@ -1030,50 +1047,45 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         """
         return self._midi_outputs.get(port_id)
 
-    def close_midi_ports(self: Self, *, shut_portmidi_down: bool) -> None:
-        """Close every opened MIDI port, and shut PortMidi down where this registry may.
+    def close_midi_ports(self: Self) -> None:
+        """Close every MIDI port this registry opened, then shut PortMidi down.
 
         Where port lifetimes end (the engine's teardown). Nothing happens when PortMidi was
         never started here, and closing twice is safe: the ports are forgotten as they close.
-        A port that raises on close is logged and the rest still close, so a teardown never
-        stops on one.
+        A port whose close raises (PortMidi raises a plain ``Exception``) is logged and the
+        rest still close; PortMidi is shut down after them, whatever any of them did.
 
-        PortMidi is process-wide while a registry is one engine context's, so a context that
-        does not own PortMidi (an inner game's) passes ``shut_portmidi_down=False`` and closes
-        only its own ports.
-
-        Args:
-            shut_portmidi_down: Whether to call ``pygame.midi.quit`` once the ports are closed.
+        Ports are opened once per registry, not once per process, and a registry belongs to one
+        engine context. Only the outermost context runs live today (an inner game is a replay),
+        so only it shuts PortMidi down; two live contexts are not supported (plans/
+        future-work.md, "MIDI ports across live engine contexts").
 
         """
         if not self._midi_initialized:
             return
         midi_module = required(import_midi_module(log_unavailable=False), what='pygame.midi')
-        for port_id, midi_input in self._midi_inputs.items():
-            self._close_midi_port(
-                port=midi_input,
-                label=f'input port {port_id} ({self._midi_input_names.get(port_id)})',
-                midi_module=midi_module,
-            )
-        for port_id, midi_output in self._midi_outputs.items():
-            self._close_midi_port(
-                port=midi_output, label=f'output port {port_id}', midi_module=midi_module
-            )
-        self._midi_inputs.clear()
-        self._midi_outputs.clear()
-        self._midi_input_names.clear()
-        if shut_portmidi_down:
-            midi_module.quit()
+        try:
+            for port_id, midi_input in self._midi_inputs.items():
+                self._close_midi_port(
+                    port=midi_input,
+                    label=f'input port {port_id} ({self._midi_input_names.get(port_id)})',
+                )
+            for port_id, midi_output in self._midi_outputs.items():
+                self._close_midi_port(port=midi_output, label=f'output port {port_id}')
+        finally:
+            self._midi_inputs.clear()
+            self._midi_outputs.clear()
+            self._midi_input_names.clear()
             self._midi_initialized = False
+            midi_module.quit()
 
     @staticmethod
-    def _close_midi_port(
-        *, port: PygameMidiInput | PygameMidiOutput, label: str, midi_module: ModuleType
-    ) -> None:
+    def _close_midi_port(*, port: PygameMidiInput | PygameMidiOutput, label: str) -> None:
         """Close one port, logging (not raising) a failure."""
         try:
             port.close()
-        except midi_module.MidiException, pygame.error:
+        except Exception:
+            # PortMidi's Close raises a plain Exception (pypm.pyx)
             LOG.warning('MIDI %s failed to close', label, exc_info=True)
 
     def open_controller(self: Self, *, device_index: int) -> pygame._sdl2.controller.Controller:
@@ -1346,18 +1358,17 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         *,
         call: str,
         port_id: int,
-        midi_module: ModuleType,
         construct: Callable[[int], PortT],
     ) -> PortT:
         """Open the port with pygame's constructor; what PortMidi refuses is a pygame.error.
 
-        PortMidi's own ``MidiException`` is raised as ``pygame.error`` (and remembered under
-        ``call``), as every other door call fails, so a replay raises the same.
+        Anything the constructor raises (``Exception``, not ``BaseException``) is raised as
+        ``pygame.error`` (and remembered under ``call``), as every other door call fails, so a
+        replay raises the same.
 
         Args:
             call: The open call to remember a failure under.
             port_id: The PortMidi port id.
-            midi_module: pygame.midi (it names ``MidiException``).
             construct: ``midi_module.Input`` or ``midi_module.Output``.
 
         Returns:
@@ -1366,9 +1377,11 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         """
         try:
             return construct(port_id)
-        except (pygame.error, midi_module.MidiException) as error:
-            # MidiException's str() is the repr of its message (its ``parameter``)
-            failure = pygame.error(str(getattr(error, 'parameter', error)))
+        except Exception as error:
+            # PortMidi's constructors raise a plain Exception whose message may be bytes
+            # (pypm.pyx), and pygame.midi.MidiException is not a pygame.error: whatever the
+            # constructor raises becomes the one remembered pygame.error
+            failure = pygame.error(_midi_failure_message(error=error))
             self._remember_failure(call=call, device_index=port_id, error=failure)
             raise failure from error
 
@@ -2475,6 +2488,24 @@ def find_midi_port(*, devices: DeviceRegistry, name: str, kind: str) -> int | No
     Returns:
         The port id, or None when no port matches.
 
+    """
+    found = find_midi_port_with_info(devices=devices, name=name, kind=kind)
+    return None if found is None else found[0]
+
+
+def find_midi_port_with_info(
+    *, devices: DeviceRegistry, name: str, kind: str
+) -> tuple[int, MidiPortInfo] | None:
+    """Return the id and PortMidi's description of the first port with this name that fits ``kind``.
+
+    Args:
+        devices: The devices door.
+        name: The port name to find.
+        kind: ``MIDI_INPUT_KIND`` (a port the game reads) or ``MIDI_OUTPUT_KIND`` (one it writes).
+
+    Returns:
+        The port id and its info, or None when no port matches.
+
     Raises:
         ValueError: If ``kind`` is neither ``MIDI_INPUT_KIND`` nor ``MIDI_OUTPUT_KIND``.
 
@@ -2487,5 +2518,5 @@ def find_midi_port(*, devices: DeviceRegistry, name: str, kind: str) -> int | No
         if info is None or info.name != name:
             continue
         if info.is_input if kind == MIDI_INPUT_KIND else info.is_output:
-            return port_id
+            return port_id, info
     return None

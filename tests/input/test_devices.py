@@ -27,6 +27,7 @@ from glitchygames.input.devices import (
     find_midi_port,
     sdl_controller_module,
 )
+from glitchygames.input.stand_in_devices import StandInPortMidiError
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.live_sources import LiveSources
 from glitchygames.sources import active_sources
@@ -1314,7 +1315,7 @@ class FakePortMidiInput:
     """A PortMidi input as the hardware gives it: queued messages, read in batches."""
 
     def __init__(self, *, messages, fails=False, fails_after_reads=None):
-        """Queue the messages; it raises MidiException on every poll once ``fails``.
+        """Queue the messages; it raises a plain Exception on every poll once ``fails``.
 
         ``fails_after_reads`` makes it fail from the poll after that many reads.
         """
@@ -1326,8 +1327,9 @@ class FakePortMidiInput:
     def poll(self):
         after_reads = self.fails_after_reads
         if self.fails or (after_reads is not None and len(self.read_sizes) >= after_reads):
+            # PortMidi's Poll raises a plain Exception (pypm.pyx)
             message = 'Host error'
-            raise pygame.midi.MidiException(message)
+            raise StandInPortMidiError(message)
         return bool(self.messages)
 
     def read(self, num_events):
@@ -1383,7 +1385,7 @@ def test_a_live_read_with_no_opened_input_touches_nothing(mocker):
 
 
 def test_a_live_port_that_raises_is_dropped_once_and_the_others_still_read(mocker, caplog):
-    """A MidiException drops that port (logged once with id and name); the other keeps reading."""
+    """A port raising a plain Exception is dropped (logged once, with id and name)."""
     keys = FakePortMidiInput(messages=[([0x90, 60, 100, 0], 1)], fails=True)
     pads = FakePortMidiInput(messages=[([0x99, 36, 90, 0], 2)])
     _patch_portmidi_inputs(mocker, inputs_by_port={0: keys, 1: pads})
@@ -1481,14 +1483,14 @@ def test_what_a_port_gave_before_it_failed_is_delivered_in_that_frame(mocker):
 
 
 def test_closing_the_midi_ports_closes_each_and_shuts_portmidi_down_once(mocker):
-    """Ruling D: every opened port closes, PortMidi quits, a second close does nothing more."""
+    """Every opened port closes, PortMidi quits, a second close does nothing more."""
     midi_module = _patch_portmidi_ports(mocker)
     registry = LiveDeviceRegistry()
     registry.open_midi_input(port_id=0)
     registry.open_midi_output(port_id=1)
 
-    registry.close_midi_ports(shut_portmidi_down=True)
-    registry.close_midi_ports(shut_portmidi_down=True)
+    registry.close_midi_ports()
+    registry.close_midi_ports()
 
     midi_module.Input.return_value.close.assert_called_once_with()
     midi_module.Output.return_value.close.assert_called_once_with()
@@ -1497,39 +1499,77 @@ def test_closing_the_midi_ports_closes_each_and_shuts_portmidi_down_once(mocker)
     assert registry.midi_output_for_port(port_id=1) is None
 
 
-def test_closing_the_midi_ports_keeps_portmidi_running_when_told_to(mocker):
-    """A context that does not own PortMidi (an inner game's) closes its ports and quits nothing."""
-    midi_module = _patch_portmidi_ports(mocker)
-    registry = LiveDeviceRegistry()
-    registry.open_midi_input(port_id=0)
-
-    registry.close_midi_ports(shut_portmidi_down=False)
-
-    midi_module.Input.return_value.close.assert_called_once_with()
-    midi_module.quit.assert_not_called()
-
-
 def test_closing_the_midi_ports_touches_nothing_when_portmidi_never_started(mocker):
     """No MIDI was asked: closing asks PortMidi nothing and does not start it."""
     midi_module = _patch_portmidi_ports(mocker)
     registry = LiveDeviceRegistry()
 
-    registry.close_midi_ports(shut_portmidi_down=True)
+    registry.close_midi_ports()
 
     assert midi_module.mock_calls == []
 
 
-def test_a_midi_port_that_fails_to_close_is_logged_and_the_others_still_close(mocker, caplog):
-    """The teardown goes on: one port raising on close does not leave the rest open."""
+def test_ports_that_fail_to_close_are_logged_the_rest_close_and_portmidi_quits(mocker, caplog):
+    """PortMidi's Close raises a plain Exception: every failure is logged, all ports are tried."""
     midi_module = _patch_portmidi_ports(mocker)
-    midi_module.Input.return_value.close.side_effect = pygame.midi.MidiException('already closed')
+    midi_module.Input.return_value.close.side_effect = StandInPortMidiError('input close failed')
+    midi_module.Output.return_value.close.side_effect = StandInPortMidiError('output close failed')
     registry = LiveDeviceRegistry()
     registry.open_midi_input(port_id=0)
     registry.open_midi_output(port_id=1)
 
     with caplog.at_level('WARNING', logger='game.input.devices'):
-        registry.close_midi_ports(shut_portmidi_down=True)
+        registry.close_midi_ports()
 
+    midi_module.Input.return_value.close.assert_called_once_with()
     midi_module.Output.return_value.close.assert_called_once_with()
     midi_module.quit.assert_called_once_with()
-    assert 'port 0 (Keys)' in caplog.text
+    assert 'input port 0 (Keys)' in caplog.text
+    assert 'output port 1' in caplog.text
+
+
+def test_a_midi_constructor_failure_is_a_remembered_pygame_error_and_replays_the_same(mocker):
+    """PortMidi's Input raises a plain Exception with a bytes message: pygame.error, recorded."""
+    midi_module = _patch_portmidi_ports(mocker)
+    midi_module.Input.side_effect = Exception(b'PortMidi: Device already open')
+    midi_module.Output.side_effect = ValueError('no such output')
+    live = LiveDeviceRegistry()
+
+    with pytest.raises(pygame.error, match='PortMidi: Device already open'):
+        live.open_midi_input(port_id=0)
+    with pytest.raises(pygame.error, match='no such output'):
+        live.open_midi_output(port_id=1)
+
+    answers = live.take_enumeration_answers()
+    failures = [(answer.call, answer.error) for answer in answers if answer.error is not None]
+    assert failures == [
+        ('open_midi_input', 'PortMidi: Device already open'),
+        ('open_midi_output', 'no such output'),
+    ]
+    assert live.midi_input_for_port(port_id=0) is None
+    replay = ReplayDeviceRegistry(
+        descriptors=[],
+        enumeration_answers=[EnumerationAnswer.from_json(answer.to_json()) for answer in answers],
+    )
+    with pytest.raises(pygame.error, match='PortMidi: Device already open'):
+        replay.open_midi_input(port_id=0)
+
+
+@pytest.mark.parametrize(
+    ('raised', 'message'),
+    [
+        (pygame.midi.MidiException('Device id invalid'), 'Device id invalid'),
+        (Exception(b'bytes \xff message'), 'bytes � message'),
+        (Exception(), ''),
+        (Exception('text'), 'text'),
+    ],
+)
+def test_a_midi_constructor_failure_message_is_text_whatever_was_raised(mocker, raised, message):
+    """MidiException's parameter, bytes, nothing at all and text all become the error's text."""
+    midi_module = _patch_portmidi_ports(mocker)
+    midi_module.Input.side_effect = raised
+
+    with pytest.raises(pygame.error) as caught:
+        LiveDeviceRegistry().open_midi_input(port_id=0)
+
+    assert str(caught.value) == message

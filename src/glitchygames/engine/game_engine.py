@@ -3652,7 +3652,11 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             self.ai_console.stop()
         if self.ai_link is not None:
             self.ai_link.stop()
-        self._close_midi_ports()
+        # A failing close is logged and the teardown goes on (as the audio's below)
+        try:
+            self._close_midi_ports()
+        except Exception:
+            self.log.exception('Closing the MIDI ports failed')
         # Before pygame quits: the sound library's voices fade over 50 ms, waited for at most
         # 100 ms (sound engine impl spec 10.3), then the channel reservation is given back (SDL
         # would keep it for a mixer started again in this process). Even when closing the audio
@@ -3671,19 +3675,21 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
                 self._finish_the_teardown()
 
     def _close_midi_ports(self: Self) -> None:
-        """Close the MIDI ports this run opened, and shut PortMidi down where the run owns it.
+        """Close the MIDI ports this run opened and shut PortMidi down.
 
-        Where port lifetimes end. A replay opened none (its doors are stand-ins). PortMidi is
-        process-wide and each engine context has its own live doors, so an inner game's context
-        (the Arcade's tiles) closes its own ports and leaves PortMidi running for the outer
-        game's, which shuts it down.
+        Where port lifetimes end. A replay opened none (its doors are stand-ins). Only a live run
+        has live doors, and only the outermost context runs live: an inner game (the Arcade's
+        tiles) is always a replay today (glitchygames/inner_game.py), so no live context's
+        teardown shuts PortMidi down under another's. A live inner context, should one be built,
+        needs the ownership question settled first: plans/future-work.md, "MIDI ports across
+        live engine contexts".
         """
         if self.live_sources is None:
             return
         devices = self.live_sources.devices()
         # Stand-in devices (the tests', the golden-trace harness's) hold no PortMidi port
         if isinstance(devices, LiveDeviceRegistry):
-            devices.close_midi_ports(shut_portmidi_down=not is_inner_context())
+            devices.close_midi_ports()
 
     def _finish_the_teardown(self: Self) -> None:
         """Print the end-of-run reports (unless the replay restarts) and shut down pygame."""

@@ -30,7 +30,6 @@ from __future__ import annotations
 import collections
 from typing import TYPE_CHECKING, Any, Self, override
 
-from glitchygames.checks import required
 from glitchygames.input.devices import (
     CONTROLLER_COUNT_CALL,
     CONTROLLER_KIND,
@@ -70,6 +69,14 @@ STAND_IN_DOORS_RANDOM_SEED = 1
 FAILING_PORT_MESSAGE = 'Host error'
 
 
+class StandInPortMidiError(Exception):
+    """What a failing port raises, as PortMidi's own ``Poll``, ``Read`` and ``Close`` do.
+
+    PortMidi (pypm.pyx) raises a plain ``Exception``, which is neither a ``pygame.error`` nor a
+    ``pygame.midi.MidiException``; this is as plain as a named class can be.
+    """
+
+
 class StandInMidiInput(ReplayMidiInput):
     """A stand-in MIDI input port that holds the messages a test queued for it.
 
@@ -100,7 +107,8 @@ class StandInMidiInput(ReplayMidiInput):
     def poll(self: Self) -> bool:
         """Say whether messages are waiting.
 
-        A port made to fail (``fail_midi_input``) raises ``pygame.midi.MidiException`` here.
+        A port made to fail (``fail_midi_input``) raises ``StandInPortMidiError`` here (a plain
+        ``Exception``, as PortMidi's ``Poll`` does).
 
         Returns:
             True when a message is queued.
@@ -123,8 +131,7 @@ class StandInMidiInput(ReplayMidiInput):
 
     def _raise_when_failing(self: Self) -> None:
         if self.descriptor.port_id in self._failing_port_ids:
-            midi_module = required(import_midi_module(log_unavailable=False), what='pygame.midi')
-            raise midi_module.MidiException(FAILING_PORT_MESSAGE)
+            raise StandInPortMidiError(FAILING_PORT_MESSAGE)
 
 
 class StandInDeviceRegistry(ReplayDeviceRegistry):
@@ -348,7 +355,7 @@ class StandInDeviceRegistry(ReplayDeviceRegistry):
         self._pending_for(port_id=port_id).extend(messages)
 
     def fail_midi_input(self: Self, *, port_id: int) -> None:
-        """Make a port raise ``pygame.midi.MidiException`` whenever it is read.
+        """Make a port raise a plain ``Exception`` whenever it is read.
 
         Args:
             port_id: The port's position in ``midi_ports``.

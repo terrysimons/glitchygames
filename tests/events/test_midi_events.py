@@ -26,6 +26,7 @@ from glitchygames.input.devices import (
     MidiPortInfo,
     import_midi_module,
 )
+from glitchygames.live_sources import LiveSources
 from glitchygames.scenes import Scene
 from tests.input.stand_in_devices import install_stand_in_devices
 
@@ -546,6 +547,37 @@ class TestNamedMidiPorts:
         assert manager.ports == {}
         assert 'Keys' in caplog.text
         assert 'cannot open' in caplog.text
+
+    def test_a_port_that_cannot_be_looked_up_is_logged_and_skipped(self, mocker, caplog):
+        """A pygame.error from the door while listing ports is logged, naming the port."""
+        devices = install_stand_in_devices(descriptors=[], midi_ports=[KEYS_INPUT])
+        mocker.patch.object(
+            devices, 'midi_port_count', side_effect=pygame.error('PortMidi is gone')
+        )
+        with caplog.at_level('WARNING', logger='game.midi'):
+            manager = MidiEventManager(game=MidiRecordingScene(), input_names=['Keys'])
+
+        assert manager.ports == {}
+        assert 'Keys' in caplog.text
+        assert 'PortMidi is gone' in caplog.text
+
+    def test_a_portmidi_constructor_failure_is_skipped_and_recorded(self, mocker, caplog):
+        """PortMidi's Input raises a plain Exception (bytes): skipped, logged, answer recorded."""
+        midi_module = mocker.Mock()
+        mocker.patch('glitchygames.input.devices.import_midi_module', return_value=midi_module)
+        midi_module.get_device_info.side_effect = lambda port_id: (b'CoreMIDI', b'Keys', 1, 0, 0)
+        midi_module.get_count.return_value = 1
+        midi_module.Input.side_effect = Exception(b'PortMidi: Device already open')
+        sources = LiveSources(random_seed=1)
+        mocker.patch('glitchygames.events.midi.active_sources', return_value=sources)
+
+        with caplog.at_level('WARNING', logger='game.midi'):
+            manager = MidiEventManager(game=MidiRecordingScene(), input_names=['Keys'])
+
+        assert manager.ports == {}
+        assert 'PortMidi: Device already open' in caplog.text
+        errors = [a.error for a in sources.devices().take_enumeration_answers() if a.error]
+        assert errors == ['PortMidi: Device already open']
 
     def test_naming_a_port_twice_opens_it_once(self):
         """The same name twice is one proxy."""

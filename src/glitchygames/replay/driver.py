@@ -3084,8 +3084,15 @@ def check_recorded_game(
         raise ReplayRefusedError(message)
 
 
+# Options naming devices a replay opens through its recorded answers: absent from a recording that
+# predates them, they are empty in its replay (MidiEventManager.args)
+RECORDED_PORT_NAME_OPTIONS: tuple[str, ...] = ('midi_input', 'midi_output')
+
+
 def apply_recorded_options(*, options: dict[str, Any], recorded: dict[str, Any]) -> None:
     """Put every recorded option except ``REPLAY_LOCAL_OPTIONS`` into ``options``.
+
+    The MIDI port names (``RECORDED_PORT_NAME_OPTIONS``) a recording does not hold become empty.
 
     Args:
         options: The run's options (the engine's ``options``), changed in place.
@@ -3095,6 +3102,11 @@ def apply_recorded_options(*, options: dict[str, Any], recorded: dict[str, Any])
     for name, value in recorded.items():
         if name not in REPLAY_LOCAL_OPTIONS:
             options[name] = value_from_json(value)
+    # A recording that predates an option names none of it: the replay's own command line or the
+    # game's default must not (an old recording holds no MIDI answers to open a port with)
+    for name in RECORDED_PORT_NAME_OPTIONS:
+        if name in options and name not in recorded:
+            options[name] = []
 
 
 def apply_recorded_screen_size(

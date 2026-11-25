@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 
-from glitchygames.checks import required
 from glitchygames.events import (
     MIDI_EVENTS,
     MidiEvent,
@@ -36,7 +35,7 @@ from glitchygames.input.devices import (
     MIDI_INPUT_KIND,
     MIDI_OUTPUT_KIND,
     MidiPortDescriptor,
-    find_midi_port,
+    find_midi_port_with_info,
 )
 from glitchygames.sources import active_sources
 
@@ -174,10 +173,16 @@ class MidiEventManager(ResourceManager):
     ) -> None:
         """Open the port ``name`` of ``kind`` into ``proxies``, or log why it is skipped."""
         devices = active_sources().devices()
-        port_id = find_midi_port(devices=devices, name=name, kind=kind)
-        if port_id is None:
+        try:
+            found = find_midi_port_with_info(devices=devices, name=name, kind=kind)
+        except pygame.error as error:
+            # The door could not list the ports (an answer, recorded like any other)
+            log.warning('MIDI %s port %r could not be looked up: %s', kind, name, error)
+            return
+        if found is None:
             log.warning('MIDI %s port %r is not present: skipped', kind, name)
             return
+        port_id, info = found
         if (kind, port_id) in proxies:
             return
         try:
@@ -189,7 +194,6 @@ class MidiEventManager(ResourceManager):
         except pygame.error as error:
             log.warning('MIDI %s port %r could not be opened: %s', kind, name, error)
             return
-        info = required(devices.midi_port_info(port_id=port_id), what=f'MIDI port {port_id}')
         descriptor = MidiPortDescriptor(
             kind=kind, port_id=port_id, name=info.name, interface=info.interface
         )

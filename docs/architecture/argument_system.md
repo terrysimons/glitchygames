@@ -336,8 +336,6 @@ Added by `GameEventManager.args()` in `src/glitchygames/events/game.py`.
   file as it is, save nothing; the game-over screen still shows the run's score) or drop it with
   a warning
 
-#### Reserved groups (empty, no arguments yet)
-
 #### Midi Options
 
 Added by `MidiEventManager.args()` in `src/glitchygames/events/midi.py`. MIDI starts only when a
@@ -349,8 +347,10 @@ PortMidi is never initialized and a recording holds no MIDI answers.
 
 Both are recorded in a recording's options, and a replay takes the recording's, not its own
 command line's (they are not `REPLAY_LOCAL_OPTIONS`), so a replay opens the ports the recorded
-run named and never depends on the replaying machine's port names.
+run named and never depends on the replaying machine's port names. A recording made before
+the options existed names none, so its replay opens none whatever its command line says.
 
+#### Reserved groups (empty, no arguments yet)
 
 These event managers create their group as an extension point but add no options, so `--help`
 leaves them out.

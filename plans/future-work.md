@@ -2308,3 +2308,19 @@ discussing it found and decided:
   - Run on some CI OSes only, as intended: the `SIGBREAK` tests and the 1 ms timer test
     (`tests/timing/test_fast_timer_os.py`) only on Windows; one timing test is skipped only on
     Windows.
+
+## MIDI ports across live engine contexts (2026-11-24, plans/2026-11-24-midi-devices.md)
+
+MIDI ports are opened once per registry (one engine context's live doors), not once per process,
+and only the outermost context shuts PortMidi down. That holds while an inner game is always a
+replay (no live doors). Not decided, for the day a live game runs inside another:
+
+- [ ] **Two live contexts opening one port.** PortMidi refuses a second `Input` on an open port,
+  and each context's registry opens its own: the second open fails (a logged, skipped port). The
+  door may need a process-wide owner, or the Arcade must open ports once and share them.
+- [ ] **Who reads a shared input.** A message is read once; with two contexts holding one input,
+  one context's frame takes what the other would have seen. Decide whether the foreground game
+  reads, or the host fans messages out through recorded events.
+- [ ] **`InnerGame.finish()` never closes ports.** It does not call the registry's
+  `close_midi_ports()`, and a live inner context's PortMidi must not be shut down under the outer
+  one (the engine's `_close_midi_ports` shuts it down unconditionally today).

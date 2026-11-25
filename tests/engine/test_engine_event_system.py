@@ -755,22 +755,29 @@ class TestMidiPortOptions:
         finally:
             engine_construction.close()
 
-    def test_the_ports_close_where_the_run_ends(self, mocker, midi_engine):
-        """The teardown closes the live doors' MIDI ports and shuts PortMidi down."""
+    def test_a_real_teardown_closes_the_ports(self, mocker, midi_engine):
+        """_shutdown reaches the live registry's close: deleting the call fails this test."""
         close = mocker.patch.object(LiveDeviceRegistry, 'close_midi_ports')
+        mocker.patch('pygame.display.quit')
+        mocker.patch('pygame.quit')
 
-        midi_engine._close_midi_ports()
+        midi_engine._shutdown()
 
-        close.assert_called_once_with(shut_portmidi_down=True)
+        close.assert_called_once_with()
 
-    def test_an_inner_games_context_leaves_portmidi_running(self, mocker, midi_engine):
-        """PortMidi is process-wide: an inner game's teardown closes its ports, not PortMidi."""
-        mocker.patch('glitchygames.engine.game_engine.is_inner_context', return_value=True)
-        close = mocker.patch.object(LiveDeviceRegistry, 'close_midi_ports')
+    def test_a_failing_close_does_not_stop_the_teardown(self, mocker, midi_engine, caplog):
+        """A close that raises is logged, and pygame still shuts down."""
+        mocker.patch.object(
+            LiveDeviceRegistry, 'close_midi_ports', side_effect=RuntimeError('quit failed')
+        )
+        mocker.patch('pygame.display.quit')
+        pygame_quit = mocker.patch('pygame.quit')
 
-        midi_engine._close_midi_ports()
+        with caplog.at_level('ERROR', logger='game.engine'):
+            midi_engine._shutdown()
 
-        close.assert_called_once_with(shut_portmidi_down=False)
+        pygame_quit.assert_called_once_with()
+        assert 'Closing the MIDI ports failed' in caplog.text
 
     def test_a_replay_has_no_live_ports_to_close(self, mocker, midi_engine):
         """A replay has no live doors: nothing is closed."""

@@ -1029,7 +1029,6 @@ PROCESS_STATE: dict[str, dict[str, str]] = {
     },
     'input/devices.py': {
         '_SDL_CONTROLLER_MODULE': "R5: an import's result, the same in every context.",
-        'MIDI_MODULE': "R5: an import's result, the same in every context.",
     },
     'input/state.py': {
         '_SCANCODE_OF_KEY_CODE': 'R3: an immutable scancode table built at import.',
