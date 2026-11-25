@@ -94,6 +94,9 @@ a reference the tests check the model's mechanics against, catching invented rul
 
 ## No real stimulus (the owner, 2026-11-24)
 
+The doors this needs for the clipboard, files and the sound cache are planned in
+[a replay touches nothing real](2026-11-24-replays-touch-nothing-real.md).
+
 **"The mirror, as a reflection, does not get the real stimulus."** It receives what the live game
 received, and touches no real source or sink itself: no device, sound, file of the player's, clipboard,
 network, AI service or child process. The owner's decisions:
