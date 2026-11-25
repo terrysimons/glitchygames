@@ -561,7 +561,7 @@ class AIManager:
                     # Refused: show the answer (and the original prompt) below the reason, then
                     # drop the request, as when the retries run out
                     self._handle_ai_error_message(request_id, response.content)
-                # DON'T delete from pending_ai_requests - we're retrying
+                # DON'T delete a request being retried from pending_ai_requests
                 return
             # Max retries reached: give up without loading. This used to say "loading sprite
             # anyway", but _load_ai_sprite validates the same content and rejects it, so nothing

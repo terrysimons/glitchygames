@@ -59,9 +59,10 @@ flowchart TB
 ```
 
 In `--help` (Bitmappy's or Paddle Slap's) the groups hold 20 Graphics, 59 Diagnostics (3 more
-hidden), 1 Feature Flags, 2 Controller, 7 Font and 4 Game options, then the game's own; the nine empty groups
-are left out. Most of the Diagnostics options are the recording, replay and measurement tools'
-([Tool flags](#tool-flags)). The [Complete Flag Reference](#complete-flag-reference) lists them all.
+hidden), 1 Feature Flags, 2 Controller, 7 Font and 4 Game options, then the game's own; the nine
+empty groups are left out. Most of the Diagnostics options are the recording, replay and
+measurement tools' ([Tool flags](#tool-flags)). The
+[Complete Flag Reference](#complete-flag-reference) lists them all.
 
 ## How Games Add Arguments
 
@@ -399,9 +400,9 @@ The other games add their own options the same way:
 
 `uv run bitmappy --help` prints a usage line, the `options:` group (`-h, --help`), then each
 group in the order the layers add them: Graphics and Diagnostics Options, Feature Flags,
-Controller, Font and Game Options, then `Bitmappy v1.0 Options`. argparse leaves out groups with no arguments (App, Sound
-Mixer and the other reserved groups). Every option it prints, with its help text, is listed in
-[Complete Flag Reference](#complete-flag-reference).
+Controller, Font and Game Options, then `Bitmappy v1.0 Options`. argparse leaves out groups with
+no arguments (App, Sound Mixer and the other reserved groups). Every option it prints, with its
+help text, is listed in [Complete Flag Reference](#complete-flag-reference).
 
 ## How to Add Arguments to a New Event Manager
 
