@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Self
 import pygame
 
 from glitchygames import clock
-from glitchygames.input.devices import LiveDeviceRegistry
+from glitchygames.input.devices import LiveDeviceRegistry, ReadsMidiInput
 from glitchygames.input.state import capture_live_snapshot
 from glitchygames.render_target import is_inner_context
 from glitchygames.sources import without_discarded_scope_posts
@@ -97,6 +97,7 @@ class LiveSources:
 
         A playback scope's own posts still queued when it ended are dropped
         (``sources.without_discarded_scope_posts``; glitchygames/replay/playback.py, rule 4).
+        Then the MIDI input the opened ports received is appended (``ReadsMidiInput``).
 
         Returns:
             The batch, in queue order.
@@ -106,8 +107,16 @@ class LiveSources:
         # if you're using pygame < 2.2, you'll need to use pygame.fastevent.
         fastevent = getattr(pygame, 'fastevent', None)
         if self._use_fastevents and fastevent is not None:
-            return without_discarded_scope_posts(events=list(fastevent.get()))
-        return without_discarded_scope_posts(events=list(pygame.event.get()))
+            sdl_events = list(fastevent.get())
+        else:
+            sdl_events = list(pygame.event.get())
+        batch = without_discarded_scope_posts(events=sdl_events)
+        # MIDI input is not in SDL's queue: the opened ports are read here, so the recorder
+        # records it with the batch and a replay serves it from the recording
+        devices = self.devices()
+        if isinstance(devices, ReadsMidiInput):
+            batch.extend(devices.read_midi_input())
+        return batch
 
     def frame_seconds(self: Self, *, measured: float) -> float:
         """Live logic receives the measured frame time.

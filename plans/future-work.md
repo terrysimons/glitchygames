@@ -465,7 +465,8 @@ Found while fixing that review (2026-10-27):
     read by playbacks, devices and tools. A notification event of the same output lets game
     code or a wrapper react to it.
   - Sinks: pluggable per kind (SDL rumble, serial, MIDI out, OSC, DMX); a playback's policy
-    picks which sinks it drives (rumble door, above).
+    picks which sinks it drives (rumble door, above). MIDI out's ports and their writes (not
+    recorded until this record exists) are built: `plans/2026-11-24-midi-devices.md`.
   Other candidates worth recording the same way:
   - Haptics beyond rumble: trigger rumble and adaptive triggers (DualSense).
   - Controller lights: DualSense/DualShock light bar colour, player LEDs.
@@ -478,8 +479,9 @@ Found while fixing that review (2026-10-27):
   - Save writes: what was written and when (they are sandboxed in a replay; recorded, they could
     be compared).
   - Presentation changes: fullscreen, resolution and window changes.
-  Input from such devices (an Arduino's buttons, MIDI in) would come back through the input
-  door as device events, recorded as external input like a controller's.
+  Input from such devices (an Arduino's buttons) would come back through the input door as
+  device events, recorded as external input like a controller's. MIDI in already does
+  (`plans/2026-11-24-midi-devices.md`).
 - ~~**Content hashes and measurement history in recordings**~~ **Done** 2026-10-21 (design doc
   `plans/2026-10-20-recording-content-hash-and-history.md`, hashing option "Better"; plan
   `plans/2026-10-21-recording-content-hash-and-history-implementation.md`). The golden fixtures
@@ -2319,3 +2321,54 @@ discussing it found and decided:
   - Run on some CI OSes only, as intended: the `SIGBREAK` tests and the 1 ms timer test
     (`tests/timing/test_fast_timer_os.py`) only on Windows; one timing test is skipped only on
     Windows.
+
+## MIDI ports across live engine contexts (2026-11-24, plans/2026-11-24-midi-devices.md)
+
+MIDI ports are opened once per registry (one engine context's live doors), not once per process,
+and whichever live context tears down closes its ports and shuts PortMidi down. Today only the
+outermost context runs live, because an inner game is always a replay (no live doors). Not
+decided, for the day a live game runs inside another:
+
+- [ ] **Two live contexts opening one port.** PortMidi refuses a second `Input` on an open port,
+  and each context's registry opens its own: the second open fails (a logged, skipped port). The
+  door may need a process-wide owner, or the Arcade must open ports once and share them.
+- [ ] **Two processes, the mirror game's case.** The mirror (plans/lucid-circuit-4b-mirror.md) runs in
+  its own process, so no rule inside one process keeps it off the live game's port; what a second
+  process's open does differs by platform and is untested. The mirror must never open one: it is a
+  reflection and gets no real stimulus (the owner, 2026-11-24). Its replay door already hands out
+  stand-in ports; enforcing that belongs to the mirror's plan.
+- [ ] **Who reads a shared input.** A message is read once; with two contexts holding one input,
+  one context's frame takes what the other would have seen. Decide whether the foreground game
+  reads, or the host fans messages out through recorded events.
+- [ ] **Notes sounding as a playback scope starts.** A note a live output port is playing when a
+  demo or an instant replay begins keeps sounding until the live game lets it go after the scope:
+  the scope writes nothing to a live port, a note-off included.
+- [ ] **A port can't be reopened in the process.** pygame-ce 2.5.8's own `close()` does not close a
+  PortMidi port, so one closed there can't be opened again until PortMidi is shut down (which the
+  engine's teardown does). Opening a port once per registry keeps games from meeting this.
+- [ ] **`InnerGame.finish()` never closes ports.** It does not call the registry's
+  `close_midi_ports()`, and a live inner context's PortMidi must not be shut down under the outer
+  one (the engine's `_close_midi_ports` shuts it down unconditionally today).
+
+## MIDI devices: what can wait (2026-11-24, the whole-branch review of plans/2026-11-24-midi-devices.md)
+
+- [ ] **A failed import or start is tried again on every MIDI call.** Without PortMidi,
+  `LiveDeviceRegistry._started_midi_module` imports `pygame.midi` again each time (only its log line
+  is said once), and an `init()` that failed is called again by the next call. A game that asks every
+  frame pays an import attempt every frame. Remember the failure per registry.
+- [ ] **A game's default port cannot be un-named.** `--midi-input` and `--midi-output` append, so a
+  game that gives its own default names can be given more ports on the command line, never fewer. Add
+  a way to name none (an empty name, or `--no-midi-input`).
+- [ ] **Two ports sharing a name.** A name opens the first port of that name that fits; the second
+  of two identical keyboards cannot be named. A suffix or the port's interface could tell them apart.
+- [ ] **An absurd recorded joystick count.** `ReplayDeviceRegistry.joystick_count` and
+  `controller_count` answer any recorded integer, so a malformed recording (200,000) has the joystick
+  manager ask about, and the registry warn of, each index. MIDI's count is bounded
+  (`MAXIMUM_MIDI_PORT_COUNT`); do the same for these.
+- [ ] **A stand-in joystick registry is kinder than SDL.** Opening a missing index only warns and
+  records no failure, where a live open raises `pygame.error`; the stand-in MIDI ports fail as live
+  ones do. It predates MIDI and affects tests only.
+- [ ] **A game holds the live output port itself.** Inputs are handed out as a handle, outputs are
+  not: a write after a game's own `close()` raises live and is dropped in a replay, and
+  `ReplayMidiOutput` has no `abort()`, so a game calling it gets AttributeError in a replay or a
+  playback scope. Hand out an output handle: `abort` accepted, `close` closing nothing.

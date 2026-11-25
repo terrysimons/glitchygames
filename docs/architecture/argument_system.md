@@ -29,7 +29,7 @@ sequenceDiagram
     loop for each of the 12
         ENGINE->>MANAGERS: manager.args(parser)
     end
-    Note over MANAGERS: Layer 2, in this order<br/>App, Audio, Controller (2), Drop,<br/>Font (7), Game (4), Joystick, Keyboard,<br/>Midi, Mouse, Touch, Window<br/>(the 9 without a count add empty groups)
+    Note over MANAGERS: Layer 2, in this order<br/>App, Audio, Controller (2), Drop,<br/>Font (7), Game (4), Joystick, Keyboard,<br/>Midi (2), Mouse, Touch, Window<br/>(the 8 without a count add empty groups)
     INIT->>PARSER: add_argument_group("Bitmappy v1.0 Options")
     INIT->>GAME: BitmapEditorScene.args(group)
     Note over GAME: Layer 3<br/>-v, -s
@@ -50,7 +50,7 @@ the order of the layers. The layers mirror the engine's architecture.
 flowchart TB
     subgraph ENGINE_ARGUMENT_LAYERS["Engine"]
         L1["<b>Layer 1: the engine</b> (GameEngine.args)<br/>Graphics Options, Diagnostics Options, Feature Flags"]
-        L2["<b>Layer 2: event managers and fonts</b> (each one's args)<br/>Controller Options, Font Options, Game Options,<br/>and 9 reserved groups with no options yet"]
+        L2["<b>Layer 2: event managers and fonts</b> (each one's args)<br/>Controller Options, Font Options, Game Options, Midi Options,<br/>and 8 reserved groups with no options yet"]
     end
     subgraph GAME_ARGUMENT_LAYERS["Your game"]
         L3["<b>Layer 3: your game</b> (its scene's args)<br/>GameName vX.Y Options"]
@@ -58,9 +58,9 @@ flowchart TB
     L1 --> L2 --> L3
 ```
 
-In `--help` (Bitmappy's or Paddle Slap's) the groups hold 20 Graphics, 59 Diagnostics (3 more
-hidden), 1 Feature Flags, 2 Controller, 7 Font and 4 Game options, then the game's own; the nine
-empty groups are left out. Most of the Diagnostics options are the recording, replay and
+In `--help` (Bitmappy's or Paddle Slap's) the groups hold 19 Graphics, 59 Diagnostics (3 more
+hidden), 1 Feature Flags, 2 Controller, 7 Font, 4 Game and 2 Midi options, then the game's own; the
+eight empty groups are left out. Most of the Diagnostics options are the recording, replay and
 measurement tools' ([Tool flags](#tool-flags)). The
 [Complete Flag Reference](#complete-flag-reference) lists them all.
 
@@ -352,6 +352,20 @@ Added by `GameEventManager.args()` in `src/glitchygames/events/game.py`.
   file as it is, save nothing; the game-over screen still shows the run's score) or drop it with
   a warning
 
+#### Midi Options
+
+Added by `MidiEventManager.args()` in `src/glitchygames/events/midi.py`. MIDI starts only when a
+port is named: with neither option given the manager asks the devices door nothing about MIDI,
+PortMidi is never initialized and a recording holds no MIDI answers.
+
+- `--midi-input NAME` (`append`, default none): open the MIDI input port with this name, as PortMidi lists it (repeatable; the first port of that name that is an input, and naming one twice opens it once). A port that is not present, or that fails to open, is logged once and skipped; the run goes on. The game then receives its messages as `MIDIIN` events (`docs/architecture/event_system.md`, MIDI ports)
+- `--midi-output NAME` (`append`, default none): open the MIDI output port with this name (repeatable), as `--midi-input`
+
+Both are recorded in a recording's options, and a replay takes the recording's, not its own
+command line's (they are not `REPLAY_LOCAL_OPTIONS`), so a replay opens the ports the recorded
+run named and never depends on the replaying machine's port names. A recording made before
+the options existed names none, so its replay opens none whatever its command line says.
+
 #### Reserved groups (empty, no arguments yet)
 
 These event managers create their group as an extension point but add no options, so `--help`
@@ -364,7 +378,6 @@ leaves them out.
 | Drop Options | `events/drop.py` | `DropEventManager` |
 | Joystick Options | `events/joystick.py` | `JoystickEventManager` |
 | Keyboard Options | `events/keyboard.py` | `KeyboardEventManager` |
-| Midi Options | `events/midi.py` | `MidiEventManager` |
 | Mouse Options | `events/mouse.py` | `MouseEventManager` |
 | Touch Options | `events/touch.py` | `TouchEventManager` |
 | Window Options | `events/window.py` | `WindowEventManager` |
@@ -400,8 +413,8 @@ The other games add their own options the same way:
 
 `uv run bitmappy --help` prints a usage line, the `options:` group (`-h, --help`), then each
 group in the order the layers add them: Graphics and Diagnostics Options, Feature Flags,
-Controller, Font and Game Options, then `Bitmappy v1.0 Options`. argparse leaves out groups with
-no arguments (App, Sound Mixer and the other reserved groups). Every option it prints, with its
+Controller, Font, Game and Midi Options, then `Bitmappy v1.0 Options`. argparse leaves out groups
+with no arguments (App, Sound Mixer and the other reserved groups). Every option it prints, with its
 help text, is listed in [Complete Flag Reference](#complete-flag-reference).
 
 ## How to Add Arguments to a New Event Manager

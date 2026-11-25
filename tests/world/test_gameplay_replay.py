@@ -33,7 +33,13 @@ from glitchygames.engine_context import EngineContext
 from glitchygames.events import FPSEVENT, allow_every_event_type
 from glitchygames.events.sprite_spawn import SpriteSpawn, post_sprite_spawn
 from glitchygames.exit_codes import ExitCode
-from glitchygames.input.devices import JOYSTICK_KIND, DeviceDescriptor
+from glitchygames.input.devices import (
+    JOYSTICK_KIND,
+    MIDI_INPUT_KIND,
+    MIDI_OUTPUT_KIND,
+    DeviceDescriptor,
+    MidiPortDescriptor,
+)
 from glitchygames.live_sources import LiveSources
 from glitchygames.logical_names import logical_module_name, logical_name
 from glitchygames.machine_state import current_machine_state
@@ -48,6 +54,7 @@ from glitchygames.recording import (
     RecordingSources,
     UnrepresentableValue,
     event_to_record,
+    json_safe_value,
     pending_internal_posts,
     post_event,
     post_input_event,
@@ -128,6 +135,7 @@ from glitchygames.state.sandbox import open_saves
 from glitchygames.timing import DEFAULT_SLEEP_GRANULARITY_NS, FastTimer, PacingTimer, SleepModel
 from glitchygames.tracing import (
     GZIP_WINDOW_BITS,
+    TraceFormatError,
     read_trace,
     read_trace_result,
     write_trace,
@@ -1307,6 +1315,24 @@ class TestReplayDoors:
             'pair': (1, 2),
         }
         assert {'replay_trace', 'record_trace', 'log_level'} <= REPLAY_LOCAL_OPTIONS
+
+    def test_a_replay_opens_the_ports_its_recording_named(self):
+        """--midi-input and --midi-output are the recording's, not the replay command's."""
+        options = {'midi_input': ['Other'], 'midi_output': []}
+        # As a header holds them: argparse's lists, tagged
+        recorded = {'midi_input': json_safe_value(['Keys']), 'midi_output': json_safe_value([])}
+        assert recorded['midi_input'] == {'__list__': ['Keys']}
+        apply_recorded_options(options=options, recorded=json.loads(json.dumps(recorded)))
+        assert options == {'midi_input': ['Keys'], 'midi_output': []}
+        assert not {'midi_input', 'midi_output'} & REPLAY_LOCAL_OPTIONS
+
+    def test_malformed_recorded_port_names_are_refused_and_change_no_option(self):
+        options = {'midi_input': ['Other'], 'resolution': '640x480'}
+        with pytest.raises(TraceFormatError, match='midi_input'):
+            apply_recorded_options(
+                options=options, recorded={'resolution': '320x240', 'midi_input': 5}
+            )
+        assert options == {'midi_input': ['Other'], 'resolution': '640x480'}
 
     def test_debug_events_stays_local(self):
         """debug_events follows this run's --debug-events, never the recording's."""
@@ -4809,6 +4835,55 @@ class TestRecordedBatchMerging:
         assert sources.last_batch_origins() == [INTERNAL_ORIGIN]
         assert sources.result.divergence is None
 
+    def test_a_recording_without_midi_fields_loads_with_no_ports(self, caplog):
+        """A recording made before MIDI ports existed has neither field: no ports, no warning."""
+        caplog.set_level('WARNING')
+        sources = minimal_sources(frames=[recorded_frame(frame_number=0)])
+        install_sources(sources=sources)
+
+        assert sources.devices().take_opened_midi_ports() == []
+        assert sources.devices().midi_input_for_port(port_id=0) is None
+        assert sources.recording.recorded_frame_fields(frame_index=0) == {}
+        assert caplog.records == []
+
+    def test_the_headers_midi_ports_open_in_the_replay(self):
+        """A port opened before the first frame is in the header's midi_ports."""
+        descriptor = MidiPortDescriptor(
+            kind=MIDI_INPUT_KIND, port_id=1, name='Keys', interface='CoreMIDI'
+        )
+        sources = ReplaySources(
+            header={
+                'game_class': 'SomeGame',
+                'random_seed': RANDOM_SEED,
+                'recorded_at': '2026-10-19T12:00:00',
+                'options': {},
+                'midi_ports': [descriptor.to_json()],
+            },
+            frames=[recorded_frame(frame_number=0)],
+            format_version=3,
+            is_truncated=False,
+            options=HEADLESS_REPLAY_OPTIONS,
+        )
+        install_sources(sources=sources)
+
+        assert sources.devices().open_midi_input(port_id=1).descriptor == descriptor
+
+    def test_a_frames_midi_ports_open_in_the_replay_and_a_rebaseline_copies_them(self):
+        """midi_ports_opened teaches the replay a port; a rebaseline copies it from the frame."""
+        descriptor = MidiPortDescriptor(
+            kind=MIDI_OUTPUT_KIND, port_id=2, name='Synth', interface='CoreMIDI'
+        )
+        frame = {**recorded_frame(frame_number=0), 'midi_ports_opened': [descriptor.to_json()]}
+        sources = minimal_sources(frames=[frame])
+        install_sources(sources=sources)
+
+        midi_output = sources.devices().open_midi_output(port_id=2)
+
+        assert midi_output.descriptor == descriptor
+        assert sources.recording.recorded_frame_fields(frame_index=0) == {
+            'midi_ports_opened': [descriptor.to_json()]
+        }
+
     def test_a_recorded_joystick_reference_maps_to_the_opened_stand_in(self):
         """A served joystick event carries the stand-in the replayed code opened for it."""
         descriptor = DeviceDescriptor(
@@ -5999,7 +6074,6 @@ class TestRebaselinedHeader:
         """The header's field is checked like the rest of it: a format error, not a crash."""
         from glitchygames.recording import CUSTOM_EVENT_TYPES_HEADER_FIELD
         from glitchygames.replay import driver
-        from glitchygames.tracing import TraceFormatError
 
         with pytest.raises(TraceFormatError, match='custom_event_types must map'):
             driver.decoded_replay_sources(

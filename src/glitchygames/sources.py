@@ -40,7 +40,12 @@ if TYPE_CHECKING:
 
     # Type only: glitchygames.input's package __init__ imports input.rumble, which comes to
     # import this module, so a runtime import here would be a cycle (this module is a leaf)
-    from glitchygames.input.devices import DeviceDescriptor, DeviceRegistry, EnumerationAnswer
+    from glitchygames.input.devices import (
+        DeviceDescriptor,
+        DeviceRegistry,
+        EnumerationAnswer,
+        MidiPortDescriptor,
+    )
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scenes import Scene
 
@@ -237,13 +242,14 @@ class DeviceAnswerObserver(Protocol):
     """Told each answer the devices door gives (glitchygames/input/devices.py), as it is given."""
 
     def on_device_answer(
-        self, *, answer: EnumerationAnswer, opened: DeviceDescriptor | None
+        self, *, answer: EnumerationAnswer, opened: DeviceDescriptor | MidiPortDescriptor | None
     ) -> None:
         """Look at one enumeration or open answer (an instant-replay journal keeps it).
 
         Args:
             answer: The answer given (a failure's carries its ``error``).
-            opened: The descriptor of the device an open opened, else None.
+            opened: The descriptor of the device or MIDI port an open opened, or of the MIDI
+                port it handed back (a port is opened once), else None.
 
         """
         ...
@@ -554,12 +560,15 @@ def stop_observing_device_answers(*, observer: DeviceAnswerObserver) -> None:
     _registry().device_answer_observers.discard(observer)
 
 
-def notify_device_answer(*, answer: EnumerationAnswer, opened: DeviceDescriptor | None) -> None:
+def notify_device_answer(
+    *, answer: EnumerationAnswer, opened: DeviceDescriptor | MidiPortDescriptor | None
+) -> None:
     """Tell every observer an answer was given (the device registries call it).
 
     Args:
         answer: The answer given.
-        opened: The descriptor of the device an open opened, else None.
+        opened: The descriptor of the device or MIDI port an open opened or handed back, else
+            None.
 
     """
     # A copy: an observer may stop observing while it is told
