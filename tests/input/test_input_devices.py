@@ -613,3 +613,19 @@ class TestRumble:
 def test_an_input_event_without_an_instance_id_is_dropped():
     """An input event naming no device reaches no handler."""
     assert InputDevices().dispatches(event_type=pygame.JOYBUTTONDOWN, instance_id=None) is False
+
+
+def test_doors_whose_devices_read_no_midi_pump_the_event_queue_alone(mocker):
+    """A replay registry has no MIDI to read: the pump gives SDL's batch and asks PortMidi none."""
+    portmidi = mocker.patch('glitchygames.input.devices.import_midi_module')
+    sources = ReplayDeviceSources(
+        registry=ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+    )
+    pygame.event.clear()
+    posted = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a', scancode=4)
+    assert pygame.event.post(posted)
+
+    batch = sources.pump_events()
+
+    assert [event for event in batch if event.type == pygame.KEYDOWN] == [posted]
+    portmidi.assert_not_called()
