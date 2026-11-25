@@ -1,7 +1,7 @@
 # Feature Flags, and Lucid Circuit's Switch
 
 - **Date:** 2026-11-24
-- **Status:** Scope and branch approved by the owner. Plan for review; nothing is built.
+- **Status:** Approved by the owner, to be built by subagents. Nothing is built yet.
 - **Master plan:** [lucid-circuit.md](lucid-circuit.md). The mirror's own plan is
   [lucid-circuit-4b-mirror.md](lucid-circuit-4b-mirror.md).
 - **Branch:** `feature/lucid-circuit-switch`
@@ -13,6 +13,7 @@
 - `AI_FEATURES_ENABLED` is replaced by feature flags, at least one, for Lucid Circuit.
 - The mirror process's marker is `--lucid-circuit-mirror`. It is not built here.
 - Agreed: flags declared once, parents win, read at use, local to the run, logged at start.
+- Bitmappy's AI stays off in headless runs and replays.
 
 ## The problem
 
@@ -73,7 +74,9 @@ It is a test, not another kind of flag: it keeps the next feature from bringing 
    `ai: True` or `lucid_circuit: True` connects nothing, and one holding `False` blocks nothing;
    `--ai` and `--no-ai` are refused; every committed recording still verifies.
 3. **Bitmappy.** Behaviours: `--no-lucid-circuit` starts no AI worker and every request says why; the
-   browser's reason is the one shown there; on is unchanged. Its tests set the flag instead of
+   browser's reason is the one shown there. Its AI also stays off with `--headless` and in a replay,
+   as the link does (the owner, 2026-11-24; measured: a headless replay started a real worker), each
+   with its reason; a live windowed run with Lucid Circuit on is unchanged. Its tests set the flag instead of
    reloading or patching modules. `AI_FEATURES_ENABLED` and its message constant are gone.
 4. **The guard and the docs.** The scan with plants for each form; `docs/architecture/argument_system.md`,
    `CLAUDE.md` (within its line limit), and the Lucid Circuit plans' live instructions (history
@@ -84,9 +87,3 @@ It is a test, not another kind of flag: it keeps the next feature from bringing 
 - The mirror, its marker and any child flag: they arrive with their features. Proposed, not decided:
   AI-written code and events sent back into the game default to off even when Lucid Circuit is on.
 - Remote or percentage rollouts, and flags kept per player. Callers would not change.
-
-## Open question
-
-- **Bitmappy in a headless run or a replay.** From the code, its `AIManager.setup` checks neither
-  today, unlike the link. This plan keeps that behaviour. Should Bitmappy's AI also stay off there?
-  Recommended: yes, as its own small change, since a replay should start no real AI worker.
