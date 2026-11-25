@@ -2,10 +2,12 @@
 
 Triage tool for bugs/2026-11-20-httpcore2-import-keyerror-on-windows.md, reported by
 tests/import_failure_threads.py. Read when the report is made, after the exception has unwound: by
-then importlib has deleted the entry of each package whose own code was running, so an absent
-package is expected. What separates the hypotheses is which other names under the failed module's
-top-level package are there (``HOW_TO_READ``); a name that is gone is found through its package's
-attribute, read from ``sys.modules`` or, when the package is gone too, from the traceback's frames.
+then importlib has deleted the entry of each module whose own code was running, so those being
+absent is expected (the section names them). What separates the hypotheses is which other names
+under the failed module's top-level package are there (``HOW_TO_READ``); a name that is gone is
+found through its package's attribute, read from ``sys.modules`` or, when the package is gone too,
+from the traceback's frames. Children of a finished subpackage that has itself left ``sys.modules``
+are not listed: nothing here holds it.
 Tests: tests/test_import_failure_state.py.
 """
 
@@ -26,9 +28,11 @@ if TYPE_CHECKING:
 # How to read the state: hints, each with the other explanation it leaves open
 HOW_TO_READ = (
     'How to read this (hints, not proof):',
-    "- an absent package: nothing (importlib deletes a failing package's entry as it unwinds)",
+    '- absent, with its own code in the traceback: nothing (importlib deletes it, unwinding)',
     '- only the failed name absent: perhaps a targeted delete, or a second load failing',
     '- siblings loaded earlier absent too: perhaps a whole-dictionary restore',
+    '- but a `with patch.dict(sys.modules)` in the failing test restores as the exception unwinds,',
+    '  after the failure, and looks the same',
     '- the failed name present: perhaps it was put back since, or the pop missed it',
     '- found by iteration but not by hash, or the other way: perhaps a fault in the dictionary',
 )
@@ -72,6 +76,20 @@ def loads_report(*, name: str, traceback_object: TracebackType | None) -> str:
         f'{running} (a load with its code above it: one load inside another; a load that had '
         'ended does not show)'
     )
+
+
+def running_modules(traceback_object: TracebackType | None) -> list[str]:
+    """Name the modules whose own code a traceback passes through.
+
+    Returns:
+        Their names, outermost first.
+
+    """
+    return [
+        str(frame.f_globals.get('__name__'))
+        for frame, _ in traceback.walk_tb(traceback_object)
+        if frame.f_code.co_name == '<module>'
+    ]
 
 
 def namespace_of(module: object) -> Mapping[str, Any]:
@@ -152,7 +170,8 @@ def modules_under_report(
         for attribute, value in tuple(namespace.items()):
             name = f'{package}.{attribute}'
             if (
-                isinstance(value, types.ModuleType)
+                # isinstance would run a lazy proxy's own __class__
+                issubclass(type(value), types.ModuleType)
                 and namespace_of(value).get('__name__') == name
                 and name not in modules
             ):
@@ -215,6 +234,7 @@ def modules_state_report(
         lines.extend((
             f'{name} in sys.modules: {by_hash} by hash, {by_iteration} by iteration',
             loads_report(name=name, traceback_object=traceback_object),
+            f'own code in the traceback: {", ".join(running_modules(traceback_object)) or "none"}',
             *modules_under_report(
                 top=name.partition('.')[0], modules=modules, namespaces=namespaces
             ),

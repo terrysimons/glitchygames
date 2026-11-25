@@ -82,6 +82,7 @@ def test_a_targeted_delete_leaves_the_siblings_in_place(package, monkeypatch):
     ) in state
     assert f'] {PACKAGE}:' not in state
     assert f'{PACKAGE}.first: NOT in' not in state
+    assert f'own code in the traceback: {PACKAGE}\n' in state
     assert f'] {PACKAGE}_lookalike:' not in state
     assert '] sys:' not in state
     for line in HOW_TO_READ:
@@ -189,6 +190,30 @@ def test_a_lazy_module_is_not_loaded_by_looking(monkeypatch):
     monkeypatch.setitem(sys.modules, PACKAGE, Lazy(PACKAGE))
 
     assert f'{PACKAGE}: id' in state_of(KeyError(PACKAGE))
+
+
+def test_a_lazy_proxy_held_by_a_package_is_not_asked_its_class(monkeypatch):
+    """A proxy pretending to be a module would load through its own __class__."""
+    asked = []
+
+    class Proxy:
+        @property
+        def __class__(self):
+            asked.append('asked')
+            return types.ModuleType
+
+    module = types.ModuleType(PACKAGE)
+    vars(module)['proxy'] = Proxy()
+    monkeypatch.setitem(sys.modules, PACKAGE, module)
+    state = state_of(KeyError(PACKAGE))
+
+    assert f'{PACKAGE}: id' in state
+    assert asked == []
+
+
+def test_a_failure_with_no_modules_code_says_none():
+    """An error raised outside every module's own code."""
+    assert 'own code in the traceback: none' in state_of(KeyError('sys'))
 
 
 @pytest.mark.parametrize('error', [ImportError('x'), KeyError(3), ValueError('x')])

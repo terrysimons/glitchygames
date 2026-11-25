@@ -558,7 +558,11 @@ def recorder_in_place() -> RemovalRecorder | None:
     """
     for method in wrapped_methods():
         with contextlib.suppress(ImportError, AttributeError):
-            return getattr(getattr(method.find_owner(), method.name), RECORDER_ATTRIBUTE)
+            found = getattr(getattr(method.find_owner(), method.name), RECORDER_ATTRIBUTE)
+            # By name: a second copy of this module has a class of its own. A test's mock in a
+            # method's place has every attribute, and is no recorder
+            if type(found).__name__ == RemovalRecorder.__name__:
+                return found
     return None
 
 

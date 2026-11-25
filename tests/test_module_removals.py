@@ -583,6 +583,15 @@ def test_a_missing_method_is_skipped_and_said(mocker, missing):
     assert wrapped_now() == in_place
 
 
+def test_a_mock_in_a_methods_place_is_not_taken_for_the_recorder(recorder, mocker):
+    """A mock answers for every attribute: the search goes on to the real wrapper."""
+    mocker.patch.object(module_removals.patch_dict_class(), '_patch_dict', mocker.MagicMock())
+    found = module_removals.recorder_in_place()
+    mocker.stopall()
+
+    assert found is recorder
+
+
 def test_no_method_at_all_shares_nothing(mocker):
     """With nothing to find, there is no recorder in place."""
     mocker.patch.object(module_removals, 'wrapped_methods', return_value=())

@@ -48,15 +48,22 @@
   raises), which a nested failed import of the same name would need; and because the first sweep
   had missed files (below). Not covered: Windows, the part of the failing worker's order the
   truncated CI log lost, and direct deletes by code the sweep did not find.
-- **Injection** (2026-11-24, macOS 3.15.1): a whole restore at a random moment of the import gave
-  `_api` at none of about 290 sampled points of 436,611, only in the short end of `_api`'s own body.
-  A restore at a uniformly random moment is therefore an unlikely way to the second failure's name.
+- **Injection** (2026-11-24, macOS 3.15.1): a whole restore at one traced point of the import (a
+  line or audit event, sampled evenly, about 290 of 436,611). `_synchronization` (its body imports
+  anyio) came up at 18 of the sampled points, `_api` at none; a separate targeted sweep found `_api`
+  only in the short end of its own body. So a restore at a uniformly random traced point readily
+  gives the first failure's name and is an unlikely way to the second's. Limits: traced points are
+  not moments of time, and the snapshot was taken just before the import with httpx2, anyio and ssl
+  already loaded; what CI's worker had loaded, and any snapshot's age, may differ.
 - **Hypotheses, most likely first (speculation: no evidence singles one out)**:
   1. A targeted removal of the failed name, or a second load of it whose failure-path delete
      removed it, by code running on the importing thread or on one that had ended by report time.
-  2. A whole-dictionary restore on another thread that had ended by report time. It must have
-     landed just as the failing module's body ended, in both failures.
-  3. A fault in the dictionary or the interpreter (the pop missing an entry that is there): Windows
+  2. A whole-dictionary restore on another thread that had ended by report time. For `_api` it must
+     have landed as that module's body ended; for `_synchronization` it had far more room.
+  3. A whole-dictionary restore on the importing thread during the import: a finalizer, or an
+     abandoned generator's `with patch.dict(sys.modules)` closing when it is collected. The same
+     room as 2, with no second thread to see.
+  4. A fault in the dictionary or the interpreter (the pop missing an entry that is there): Windows
      only so far, and the state section's lookups by hash and by iteration would show it.
 - **A dictionary watcher must not be used in the suite** (`PyDict_AddWatcher` with a Python callback,
   through ctypes or otherwise). Read, in CPython's 3.15 branch `Objects/dictobject.c` (through a
