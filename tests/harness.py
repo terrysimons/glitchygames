@@ -5,6 +5,7 @@ Uses pytest-mock's mocker fixture for automatic patch cleanup where possible.
 """
 
 import contextlib
+import functools
 import gc
 import logging
 import os
@@ -90,7 +91,11 @@ from tests.garbage_collection import (
 )
 from tests.git_environment import clear_git_repository_variables
 from tests.hidden_test_windows import hide_test_windows
-from tests.leaked_state_guard import leak_message, watch_process_state
+from tests.leaked_state_guard import (
+    drop_mocks_to_put_back,
+    leak_message,
+    watch_process_state,
+)
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import (
     SdlDriverState,
@@ -637,6 +642,11 @@ def restore_game_engine_class_state(monkeypatch, mocker):
     which held the change, after ``monkeypatch`` had undone it: 55 tests left PYTHONPATH naming a
     temporary folder, or GIT_EDITOR removed (tests/test_leaked_state_guard.py).
 
+    The order this costs: ``mocker.patch`` then ``monkeypatch.setattr`` of the same target, where
+    ``monkeypatch`` would put the mock back after ``mocker`` had put the real one back. That test
+    fails here, with the mock dropped (a value patched with no mock, or a ``patch.dict`` one, is not
+    seen).
+
     GameEngine.initialize_icon stores the icon in the class attribute `icon` (each engine keeps
     its own game: `GameEngine.game` is a read-only view). A test that runs
     it with mocks (a mocked pygame.image.load) would otherwise leave the mock
@@ -654,6 +664,10 @@ def restore_game_engine_class_state(monkeypatch, mocker):
     ):
         # Patched with its own value: whatever the test assigns is undone at teardown
         mocker.patch.object(GameEngine, attribute_name, getattr(GameEngine, attribute_name))
+    yield
+    mocks = drop_mocks_to_put_back(monkeypatch=monkeypatch, mock_type=mocker.NonCallableMock)
+    if mocks:
+        pytest.fail('\n'.join(mocks), pytrace=False)
 
 
 @pytest.fixture(autouse=True)
@@ -887,7 +901,10 @@ def pytest_runtest_setup(item: pytest.Item) -> Generator[None, object, object]:
         _start_pygame_and_the_test_display()
         show_canvas()
     item.stash[PROCESS_STATE_CHECK_KEY] = watch_process_state(
-        random_reseeded_for_each_test=random_is_reseeded_for_each_test(config=item.config)
+        random_reseeded_for_each_test=random_is_reseeded_for_each_test(config=item.config),
+        reset=functools.partial(
+            reset_engine_written_state, run_state=engine_written_state_for_run()
+        ),
     )
     return (yield)
 
@@ -921,17 +938,19 @@ def pytest_runtest_teardown(item: pytest.Item) -> Generator[None, object, object
 
 
 def end_of_item_leaks(*, item: pytest.Item) -> list[str]:
-    """Reset what running an engine changes, then check the state watched since setup.
+    """Check the state watched since setup, with what running an engine changes reset.
 
     Args:
         item: The test that has been torn down.
 
     Returns:
-        What the test left changed (now put back, but for a thread).
+        What the test left changed (now put back, but for a thread); nothing for an item whose
+        setup ended before its watch began.
 
     """
-    reset_engine_written_state(run_state=engine_written_state_for_run())
-    check_process_state = item.stash[PROCESS_STATE_CHECK_KEY]
+    check_process_state = item.stash.get(PROCESS_STATE_CHECK_KEY, None)
+    if check_process_state is None:
+        return []
     # pytest keeps every item for the whole run, and the check holds a copy of the state
     del item.stash[PROCESS_STATE_CHECK_KEY]
     return check_process_state()

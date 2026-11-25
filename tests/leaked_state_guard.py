@@ -17,7 +17,9 @@ reset (tests/engine_written_state.py).
 Limits: a fixture wider than one test must not hold a change of these states between its tests (its
 first test would be failed, and the state put back under it). The umask is not read (reading it
 sets it), nor open files, SDL's input grab or asyncio's event loop policy. A NullHandler is not a
-change: a library adds its own as it is imported, which a test may be the first to do.
+change: a library adds its own as it is imported, which a test may be the first to do. In a run
+with pytest-timeout's signal method a failing test is also told its SIGALRM handler was changed:
+pytest-timeout cancels its timer as the failure is reported (our runs use its thread method).
 """
 
 from __future__ import annotations
@@ -39,6 +41,8 @@ import pygame
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import pytest
+
     # Compares the state with its start, puts back what differs, and describes each difference
     type LeakCheck = Callable[[], list[str]]
 
@@ -49,15 +53,33 @@ RAW_ENVIRONMENT: dict[Any, Any] = vars(ENVIRONMENT)['_data']
 # pytest's own: the test and phase running
 PYTEST_CURRENT_TEST = 'PYTEST_CURRENT_TEST'
 # How long all of a test's leftover threads together may take to end. Only a test that leaves one
-# waits, so it is generous: a thread told to stop and still winding down is no leak (a connect to a
-# closed Windows port takes seconds), one that never ends is
-THREAD_GRACE_SECONDS = 5.0
+# waits. Short, so a stop that is slow fails as one that never comes does (the AI link once slept on
+# for up to a second after its stop gave up). Windows needs longer: a connect to a closed loopback
+# port, which no stop can end, takes seconds there (CI job 4022)
+THREAD_GRACE_SECONDS = 5.0 if sys.platform == 'win32' else 0.5
 # Key repeat as pygame starts: off
 NO_KEY_REPEAT = (0, 0)
 # What numpy.random's own functions draw from
 NUMPY_GLOBAL_RANDOM = np.random.mtrand._rand
 # The signals whose handlers Python can read and set
 SIGNALS = sorted(signal.valid_signals())
+
+
+def environment_holds(*, name: str, value: str | None) -> bool:
+    """Return whether a variable holds a value, for a test to assert.
+
+    Never assert on os.environ itself: pytest prints all of it, every secret, when that fails
+    (tests/test_leaked_state_guard.py checks).
+
+    Args:
+        name: The variable.
+        value: What it must hold; None when it must not be set.
+
+    Returns:
+        Whether it does.
+
+    """
+    return ENVIRONMENT.get(name) == value
 
 
 def watch_environment() -> LeakCheck:
@@ -160,10 +182,8 @@ def same_numpy_state(one: dict[str, Any], other: dict[str, Any]) -> bool:
         Whether they are the same.
 
     """
-    return (
-        one['state']['pos'] == other['state']['pos']
-        and (one['has_gauss'], one['gauss']) == (other['has_gauss'], other['gauss'])
-        and one['state']['key'].tobytes() == other['state']['key'].tobytes()
+    return (one['has_gauss'], one['gauss']) == (other['has_gauss'], other['gauss']) and all(
+        np.array_equal(part, other['state'][name]) for name, part in one['state'].items()
     )
 
 
@@ -181,6 +201,7 @@ def watch_global_random(*, reseeded_for_each_test: bool) -> LeakCheck:
     if reseeded_for_each_test:
         return list
     before = random.getstate()
+    numpy_generator = NUMPY_GLOBAL_RANDOM._bit_generator
     numpy_before = numpy_random_state()
 
     def check() -> list[str]:
@@ -188,6 +209,10 @@ def watch_global_random(*, reseeded_for_each_test: bool) -> LeakCheck:
         if random.getstate() != before:
             random.setstate(before)
             leaks.append("random's global state moved (draw from a random.Random)")
+        if NUMPY_GLOBAL_RANDOM._bit_generator is not numpy_generator:
+            # First: another kind of generator has another state, which ours is not compared with
+            np.random.set_bit_generator(numpy_generator)
+            leaks.append("numpy.random's bit generator was replaced")
         if not same_numpy_state(numpy_random_state(), numpy_before):
             NUMPY_GLOBAL_RANDOM.set_state(numpy_before)
             leaks.append("numpy.random's global state moved (draw from numpy's default_rng)")
@@ -222,16 +247,6 @@ def put_back_collecting(enabled: object) -> None:
         gc.disable()
 
 
-def put_back_path(entries: list[str]) -> None:
-    """Put sys.path's entries back, in the list it is."""
-    sys.path[:] = entries
-
-
-def put_back_arguments(arguments: list[str]) -> None:
-    """Put sys.argv's entries back, in the list it is."""
-    sys.argv[:] = arguments
-
-
 def put_back_thresholds(thresholds: tuple[int, int, int]) -> None:
     """Put the garbage collector's thresholds back."""
     gc.set_threshold(*thresholds)
@@ -259,8 +274,6 @@ SETTINGS: tuple[tuple[str, Callable[[], Any], Callable[[Any], None]], ...] = (
     ('sys.unraisablehook', *attribute(sys, 'unraisablehook')),
     ('sys.displayhook', *attribute(sys, 'displayhook')),
     ('threading.excepthook', *attribute(threading, 'excepthook')),
-    ('sys.path', lambda: list(sys.path), put_back_path),
-    ('sys.argv', lambda: list(sys.argv), put_back_arguments),
     ('the recursion limit', sys.getrecursionlimit, sys.setrecursionlimit),
     ('the working directory', current_directory, put_back_directory),
     ('whether the garbage collector runs', gc.isenabled, put_back_collecting),
@@ -282,8 +295,31 @@ def watch_settings() -> LeakCheck:
         for (name, read, put_back), value in zip(SETTINGS, before, strict=True):
             if read() != value:
                 put_back(value)
-                leaks.append(f'{name} was changed')
+                leaks.append(f'{name} changed')
         return leaks
+
+    return check
+
+
+def watch_list(*, name: str) -> LeakCheck:
+    """Watch a list of sys's: which object it is, and what it holds.
+
+    Args:
+        name: Its name in sys.
+
+    Returns:
+        The check.
+
+    """
+    original: list[str] = getattr(sys, name)
+    before = original.copy()
+
+    def check() -> list[str]:
+        if getattr(sys, name) is original and original == before:
+            return []
+        original[:] = before
+        setattr(sys, name, original)
+        return [f'sys.{name} changed']
 
     return check
 
@@ -314,7 +350,8 @@ def loggers_set() -> dict[str, LoggerState]:
 
     """
     states = {logging.root.name: logger_state(logger=logging.root)}
-    for name, logger in logging.root.manager.loggerDict.items():
+    # A copy: another thread may be making a logger
+    for name, logger in list(logging.root.manager.loggerDict.items()):
         if isinstance(logger, logging.Logger):
             state = logger_state(logger=logger)
             if state != UNSET_LOGGER:
@@ -383,30 +420,76 @@ def watch_signals() -> LeakCheck:
     return check
 
 
-def watch_process_state(*, random_reseeded_for_each_test: bool) -> LeakCheck:
+def watch_process_state(
+    *, random_reseeded_for_each_test: bool, reset: Callable[[], None]
+) -> LeakCheck:
     """Start watching every kind of state, changing none.
 
     Args:
         random_reseeded_for_each_test: As ``watch_global_random`` takes it.
+        reset: Resets what no test is failed for (tests/engine_written_state.py).
 
     Returns:
-        The check: each difference from now, put back where it can be.
+        The check: each difference from now, put back where it can be. It waits for the test's
+        threads first, so what one changes as it ends is seen, then resets.
 
     """
+    check_threads = watch_threads()
     checks = [
         watch_environment(),
         watch_key_repeat(),
-        watch_threads(),
         watch_global_random(reseeded_for_each_test=random_reseeded_for_each_test),
         watch_settings(),
+        watch_list(name='path'),
+        watch_list(name='argv'),
         watch_logging(),
         watch_signals(),
     ]
 
     def check() -> list[str]:
-        return [leak for check_kind in checks for leak in check_kind()]
+        thread_leaks = check_threads()
+        reset()
+        return thread_leaks + [leak for check_kind in checks for leak in check_kind()]
 
     return check
+
+
+def drop_mocks_to_put_back(
+    *, monkeypatch: pytest.MonkeyPatch, mock_type: type[object]
+) -> list[str]:
+    """Stop monkeypatch from putting a mock back, and describe each it would have.
+
+    ``mocker`` is undone before ``monkeypatch``, so a ``monkeypatch.setattr`` (or ``setitem``) of
+    what ``mocker`` had patched would put the mock back after ``mocker`` had put the real one back.
+    Each such undo is dropped: ``mocker`` then has the last word. An attribute of a mock is the
+    mock's own business. Only what monkeypatch would put back last is judged, the first it saved.
+
+    Args:
+        monkeypatch: The test's, not yet undone.
+        mock_type: The mocks' type (``mocker.NonCallableMock``).
+
+    Returns:
+        One description per mock.
+
+    """
+    found: list[str] = []
+    for undo_list in (monkeypatch._setattr, monkeypatch._setitem):
+        undos: list[tuple[Any, Any, Any]] = undo_list
+        judged: set[tuple[int, object]] = set()
+        kept: list[tuple[Any, Any, Any]] = []
+        for owner, name, value in undos:
+            place = (id(owner), name)
+            is_first = place not in judged
+            judged.add(place)
+            if is_first and isinstance(value, mock_type) and not isinstance(owner, mock_type):
+                found.append(
+                    f'monkeypatch would have put back the mock mocker made of {name!r}: '
+                    'change it with mocker alone'
+                )
+            else:
+                kept.append((owner, name, value))
+        undos[:] = kept
+    return found
 
 
 def leak_message(*, test: str, leaks: list[str]) -> str:

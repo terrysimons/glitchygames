@@ -16,6 +16,7 @@ from tests.engine_written_state import (
     engine_written_state_for_run,
     reset_engine_written_state,
 )
+from tests.leaked_state_guard import environment_holds
 
 # As tests/test_leaked_state_guard.py runs its inner tests: in this process, with the harness
 INNER_OPTIONS = ('-p', 'tests.harness', '-p', 'no:randomly', '-p', 'no:cacheprovider')
@@ -43,7 +44,7 @@ PLANTED = {
     ),
     'the click-through variable': (
         "os.environ[CLICKTHROUGH_VARIABLE] = 'planted'",
-        'os.environ.get(CLICKTHROUGH_VARIABLE) == CLICKTHROUGH_FOR_RUN',
+        'environment_holds(name=CLICKTHROUGH_VARIABLE, value=CLICKTHROUGH_FOR_RUN)',
     ),
 }
 INNER_HEADER = """\
@@ -56,6 +57,7 @@ from tests.engine_written_state import (
     CLICKTHROUGH_VARIABLE,
     engine_written_state_for_run,
 )
+from tests.leaked_state_guard import environment_holds
 
 RUN_STATE = engine_written_state_for_run()
 CONTROLLER_TYPES = [
@@ -95,7 +97,7 @@ def test_what_an_engine_writes_is_reset_for_the_next_test(state, pytester):
 
 
 def test_every_item_is_reset_even_one_no_fixture_reaches(pytester):
-    """A golden replay's item runs an engine, and gets no autouse fixture."""
+    """An item a collector makes gets no autouse fixture, whatever it runs in this process."""
     pytester.makeconftest("""
 import pygame
 import pytest
@@ -131,7 +133,8 @@ def test_a_variable_the_run_was_given_is_put_back(mocker, monkeypatch):
 
     reset_engine_written_state(run_state=engine_written_state_for_run())
 
-    assert os.environ.pop(CLICKTHROUGH_VARIABLE) == RUN_VALUE
+    assert environment_holds(name=CLICKTHROUGH_VARIABLE, value=RUN_VALUE)
+    del os.environ[CLICKTHROUGH_VARIABLE]
 
 
 def test_a_type_the_run_started_with_blocked_is_blocked_again():

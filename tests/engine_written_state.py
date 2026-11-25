@@ -6,7 +6,8 @@ channel count (the engine's partition only grows it), the window caption, and
 ``SDL_MOUSE_FOCUS_CLICKTHROUGH``. In the suite they would carry to every later test on the worker:
 a posted controller event silently dropped, 44 mixer channels where a fresh process has 8. So they
 are reset to what the run started with, for every item (autouse fixtures reach only test
-functions, and a golden replay's item runs an engine). Nothing fails: running an engine is the
+functions: an item a collector makes could run an engine in this process and gets none; the golden
+replays' items run theirs in a child process). Nothing fails: running an engine is the
 tests' business. State a test must put back itself is tests/leaked_state_guard.py's.
 
 What has stopped (pygame, its display or its mixer, quit by the test) is left alone: it starts
