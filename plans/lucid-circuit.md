@@ -17,7 +17,8 @@
   when it starts, linked from here and linking back: [Stage 1](lucid-circuit-1-local-service.md),
   [Stage 3](lucid-circuit-3-engine-connection.md), [Stage 4](lucid-circuit-4-console.md),
   [Stage 4b](lucid-circuit-4b-mirror.md), [Stage 5](lucid-circuit-5-load-harness.md),
-  [Stage 10b](lucid-circuit-10b-self-improvement.md), and the
+  [Stage 10b](lucid-circuit-10b-self-improvement.md), the
+  [passive and participating modes](lucid-circuit-modes.md) (2026-11-23, brainstorm draft), and the
   [Linux and .deb](lucid-circuit-linux.md) widening of Stages 1-2 (ARM first, the Raspberry Pi 5;
   x86_64 designed for).
 
