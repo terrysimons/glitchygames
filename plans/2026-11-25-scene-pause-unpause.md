@@ -62,6 +62,18 @@ Every switch runs the old scene's `cleanup()` and the new scene's `setup()`
 Recordings must replay unchanged. One that diverges stops the work and goes to the owner; none is
 re-recorded.
 
+## Other work in the same code
+
+- `feature/mascot-demo` (local, not landing soon) changes several of the same files; its conflicts
+  are settled when it merges main.
+- The window-owner events fix (`plans/2026-11-20-window-owner-events.md`, not started) sets scene
+  defaults such as `KEY_REPEAT` and `CURSOR` on enter and undoes them on exit, hooking
+  `_setup_new_scene` and `_cleanup_current_scene`. Here a pause runs neither for the paused
+  scene, so the two plans must agree on one activation hook: undo the paused scene's settings as
+  the pause screen becomes active, and set them again on unpausing.
+- The owner saw Brave not unpause with Space once (2026-11-25, not reproduced;
+  `.ledger/triage/brave-unpause/`): its probes are a regression check for step 3.
+
 ## Open
 
 Bitmappy's dialogs have the same fault by another route: they switch away from the editor and
