@@ -20,6 +20,8 @@ def _create_no_bounce_balls(num_balls, screen_width=800, screen_height=600):
         List of BallSprite instances with bouncing disabled.
 
     """
+    # Its own generator: the global one would move, and the balls differ, with the test order
+    draws = random.Random(42)
     balls = []
     for _index in range(num_balls):
         ball = BallSprite(
@@ -27,10 +29,10 @@ def _create_no_bounce_balls(num_balls, screen_width=800, screen_height=600):
             bounce_left_right=False,
         )
         assert ball.rect is not None
-        ball.rect.x = random.randint(100, screen_width - 100)
-        ball.rect.y = random.randint(100, screen_height - 100)
-        ball.speed.x = random.uniform(-300, 300)
-        ball.speed.y = random.uniform(-300, 300)
+        ball.rect.x = draws.randint(100, screen_width - 100)
+        ball.rect.y = draws.randint(100, screen_height - 100)
+        ball.speed.x = draws.uniform(-300, 300)
+        ball.speed.y = draws.uniform(-300, 300)
         balls.append(ball)
     return balls
 

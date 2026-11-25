@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -323,6 +324,7 @@ class TestCommandLine:
         assert error_output.getvalue().startswith('pygame.error: ')
 
     def test_main_exits_with_the_command_code(self, mocker: Any, tmp_path: Path) -> None:
+        mocker.patch.dict(os.environ)  # main() sets PYGAME_HIDE_SUPPORT_PROMPT
         plan_path = tmp_path / 'plan.json'
         plan_path.write_text(plan_with().model_dump_json())
         mocker.patch.object(sys, 'argv', ['native_audio_health', 'probe', f'--plan={plan_path}'])

@@ -22,6 +22,8 @@ def _create_bouncing_balls(num_balls, screen_width=800, screen_height=600):
         List of BallSprite instances with randomized positions and speeds.
 
     """
+    # Its own generator: the global one would move, and the balls differ, with the test order
+    draws = random.Random(42)
     balls = []
     for _index in range(num_balls):
         ball = BallSprite(
@@ -29,10 +31,10 @@ def _create_bouncing_balls(num_balls, screen_width=800, screen_height=600):
             bounce_left_right=True,
         )
         assert ball.rect is not None
-        ball.rect.x = random.randint(50, screen_width - 50)
-        ball.rect.y = random.randint(50, screen_height - 50)
-        ball.speed.x = random.uniform(-200, 200)
-        ball.speed.y = random.uniform(-200, 200)
+        ball.rect.x = draws.randint(50, screen_width - 50)
+        ball.rect.y = draws.randint(50, screen_height - 50)
+        ball.speed.x = draws.uniform(-200, 200)
+        ball.speed.y = draws.uniform(-200, 200)
         balls.append(ball)
     return balls
 

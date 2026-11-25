@@ -623,9 +623,10 @@ def test_python_m_glitchygames_is_the_command():
     assert as_module.stdout == as_script.stdout
 
 
-def test_the_main_module_runs_the_command(mocker, monkeypatch, capsys):
+def test_the_main_module_runs_the_command(mocker, capsys):
     """glitchygames/__main__.py hides the banner, then runs the command with sys.argv."""
-    monkeypatch.delenv(PYGAME_BANNER_VARIABLE, raising=False)
+    mocker.patch.dict(os.environ)  # main() sets the banner variable
+    os.environ.pop(PYGAME_BANNER_VARIABLE, None)
     mocker.patch.object(sys, 'argv', ['glitchygames', '--help'])
 
     with pytest.raises(SystemExit) as exit_information:
