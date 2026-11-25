@@ -16,7 +16,6 @@ A hang is a child still running at ``CRASH_DEADLINE_SECONDS``; ``run_command`` t
 
 from __future__ import annotations
 
-import faulthandler
 import os
 import signal
 import sys
@@ -157,12 +156,12 @@ def test_the_fatal_signals_are_the_ones_pygames_parachute_takes():
 
 def test_an_enabled_faulthandler_is_left_as_it_is(mocker):
     """Someone already chose how crashes are reported (pytest does): nothing is changed."""
+    mocker.patch.object(game_engine_module.faulthandler, 'is_enabled', return_value=True)
     set_handler = mocker.patch.object(game_engine_module.signal, 'signal')
     enable = mocker.patch.object(game_engine_module.faulthandler, 'enable')
 
     handling = report_fatal_signals_with_faulthandler()
 
-    assert faulthandler.is_enabled()
     assert handling is FatalSignalHandling.ALREADY_REPORTED
     set_handler.assert_not_called()
     enable.assert_not_called()
