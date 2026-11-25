@@ -1259,12 +1259,26 @@ class TestHud:
         assert clockwork_scene.all_sprites.get_top_layer() == LAYER_HUD
         assert floor.text == f'Floor: {clockwork_scene.floor_data.name}'
 
-    def test_setup_again_on_resuming_from_pause_keeps_one_set_of_labels(self, clockwork_scene):
-        """Resuming runs setup() again: a second set of labels would draw the HUD twice."""
-        clockwork_scene.setup()
-        labels = [s for s in clockwork_scene.all_sprites if isinstance(s, HudLabel)]
-        clockwork_scene.setup()
-        assert [s for s in clockwork_scene.all_sprites if isinstance(s, HudLabel)] == labels
+    @pytest.mark.draws_frames
+    def test_pausing_and_unpausing_keeps_one_set_of_labels(self):
+        """A second set of labels would draw the HUD twice (it once did, on resuming)."""
+        with golden_game(scene_class=ClockworkKeepScene, random_seed=1) as manager:
+            scene = manager.active_scene
+            assert isinstance(scene, ClockworkKeepScene)
+            manager.dt = 1 / 60
+            manager.run_frame()
+            labels = [s for s in scene.all_sprites if isinstance(s, HudLabel)]
+            assert labels
+            scene.pause()
+            for _ in range(2):
+                manager.dt = 1 / 60
+                manager.run_frame()
+            assert isinstance(manager.active_scene, PauseScene)
+            scene.unpause()
+            manager.dt = 1 / 60
+            manager.run_frame()
+            assert manager.active_scene is scene
+            assert [s for s in scene.all_sprites if isinstance(s, HudLabel)] == labels
 
     def test_the_floor_name_is_centred_as_before(self, clockwork_scene):
         """(screen width - text width) // 2, the shadow a pixel right and down."""

@@ -401,7 +401,7 @@ def test_a_pad_unplugged_while_paused_frees_its_slot_on_resume():
         engine.scene_manager.switch_to_scene(pause_screen)
 
         support.unplug_the_pad(engine)
-        engine.scene_manager.switch_to_scene(title)
+        title.unpause()
         # The resumed title's first frame
         rendered(title)
 
@@ -421,7 +421,7 @@ def test_pausing_and_resuming_keeps_every_connected_player():
         press_key(title, pygame.K_p)
         engine.scene_manager.switch_to_scene(title.next_scene)
 
-        engine.scene_manager.switch_to_scene(title)
+        title.unpause()
         rendered(title)
 
         assert joined_devices(title) == [gamepad(STAND_IN_PAD.instance_id), None, None, None]

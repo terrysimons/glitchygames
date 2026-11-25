@@ -288,7 +288,7 @@ def test_the_card_returns_to_the_title_when_its_last_pad_left_during_a_pause():
         engine.scene_manager.switch_to_scene(pause_screen)
 
         support.unplug_the_pad(engine)
-        engine.scene_manager.switch_to_scene(card)
+        card.unpause()
         # The resumed card's first frame
         support.rendered(card)
 

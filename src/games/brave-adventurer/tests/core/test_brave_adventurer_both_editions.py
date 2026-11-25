@@ -1171,12 +1171,27 @@ class TestHud:
         }
         assert real_scene.all_sprites.get_top_layer() == LAYER_HUD
 
-    def test_setup_again_on_resuming_from_pause_keeps_one_set_of_labels(self, real_scene):
-        """Resuming runs setup() again: a second set of labels would draw the HUD twice."""
-        real_scene.setup()
-        labels = [sprite for sprite in real_scene.all_sprites if isinstance(sprite, HudLabel)]
-        real_scene.setup()
-        assert [s for s in real_scene.all_sprites if isinstance(s, HudLabel)] == labels
+    @pytest.mark.draws_frames
+    @pytest.mark.parametrize('scene_class', GAME_SCENE_CLASSES)
+    def test_pausing_and_unpausing_keeps_one_set_of_labels(self, scene_class):
+        """A second set of labels would draw the HUD twice (it once did, on resuming)."""
+        with golden_game(scene_class=scene_class, random_seed=1) as manager:
+            scene = manager.active_scene
+            assert isinstance(scene, scene_class)
+            manager.dt = FRAME_SECONDS
+            manager.run_frame()
+            labels = [s for s in scene.all_sprites if isinstance(s, HudLabel)]
+            assert labels
+            scene.pause()
+            for _ in range(2):
+                manager.dt = FRAME_SECONDS
+                manager.run_frame()
+            assert isinstance(manager.active_scene, PauseScene)
+            scene.unpause()
+            manager.dt = FRAME_SECONDS
+            manager.run_frame()
+            assert manager.active_scene is scene
+            assert [s for s in scene.all_sprites if isinstance(s, HudLabel)] == labels
 
     def test_each_frame_shows_that_frames_score_and_lives(self, real_scene):
         real_scene.setup()

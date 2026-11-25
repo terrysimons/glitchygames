@@ -57,6 +57,7 @@ from glitchygames.replay.tools.golden_traces import FRAME_SECONDS, press, releas
 from glitchygames.scene_start import SceneStart
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
+from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sources import (
     active_sources,
     has_scoped_sources,
@@ -3289,6 +3290,31 @@ class TestPlayRecordingDemos:
             game_over.resume()
             (restarted_game,), _keywords = switch_to_scene.call_args
             assert type(restarted_game) is KeyReleaseCountingScene
+
+    @pytest.mark.draws_frames
+    def test_a_demo_from_the_pause_screen_keeps_the_game_paused_behind_it(
+        self, tmp_path, mocker: MockerFixture
+    ):
+        """The demo's own scene switches neither clean up the paused game nor unpause it."""
+        recording_path = record_counting_scene(
+            tmp_path=tmp_path, frames=RECORDED_FRAMES, scene_class=SwitchingCountingScene
+        )
+        with running_scene(KeyReleaseCountingScene) as manager:
+            game = manager.active_scene
+            assert game is not None
+            setup = mocker.spy(game, 'setup')
+            cleanup = mocker.spy(game, 'cleanup')
+            pause_scene = PauseScene(options=manager.OPTIONS)
+            manager.switch_to_scene(pause_scene)
+            manager.play_recording(path=recording_path, then=pause_scene)
+            step(manager, frames=RECORDED_FRAMES + 2)
+            assert outcome_reason(manager) == 'end_of_recording'
+            assert manager.active_scene is pause_scene
+            cleanup.assert_not_called()
+            game.unpause()
+            assert manager.active_scene is game
+            setup.assert_not_called()
+            cleanup.assert_not_called()
 
     @pytest.mark.draws_frames
     def test_a_demo_asked_for_during_a_demo_is_refused(self, tmp_path, caplog):

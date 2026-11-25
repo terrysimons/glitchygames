@@ -485,8 +485,7 @@ class ClockworkKeepScene(Scene):
         """Set up the floor scene."""
         super().setup()
         self.hud_font = hud_font = pygame.font.Font(None, 28)
-        if self.score_label is None:
-            self._add_hud_labels(font=hud_font)
+        self._add_hud_labels(font=hud_font)
         # The engine aims the camera at the player each frame (both axes; the bounds above
         # keep it from scrolling sideways) and places every world sprite from it
         self.camera.follow(target=self.player, axes=FollowAxes.BOTH)
@@ -1179,7 +1178,7 @@ class ClockworkKeepScene(Scene):
         self.rects = None  # Full screen update
 
     def _add_hud_labels(self: Self, *, font: pygame.font.Font) -> None:
-        """Add the score, lives and floor labels to the group (once: resuming runs setup again).
+        """Add the score, lives and floor labels to the group.
 
         Args:
             font: The HUD font.

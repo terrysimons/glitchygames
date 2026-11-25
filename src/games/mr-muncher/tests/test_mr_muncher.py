@@ -314,6 +314,31 @@ class TestStartingALevel:
         scene.cleanup()
         assert scene.projector is None
 
+    @pytest.mark.draws_frames
+    def test_the_projector_is_kept_through_a_pause(self):
+        """Pausing cleaned the reel up, which released its projector for the rest of play."""
+        with golden_game(scene_class=MrMuncherScene, random_seed=TEST_SEED) as manager:
+            reel = manager.active_scene
+            assert isinstance(reel, MrMuncherScene)
+            manager._live_audio = LiveAudio(channel_indices=(0,))
+            for _ in range(round(reel.ready_seconds / FRAME_SECONDS) + 2):
+                manager.dt = FRAME_SECONDS
+                manager.run_frame()
+            projector = reel.projector
+            assert projector is not None
+            for key in (pygame.K_p, pygame.K_SPACE):
+                pygame.event.post(press(key))
+                pygame.event.post(release(key))
+                for _ in range(3):
+                    manager.dt = FRAME_SECONDS
+                    manager.run_frame()
+                if key == pygame.K_p:
+                    assert isinstance(manager.active_scene, PauseScene)
+            assert manager.active_scene is reel
+            assert reel.projector is projector
+            assert projector.is_playing
+            assert not projector.is_paused
+
     def test_without_a_free_voice_it_plays_without_its_projector(self, scene, caplog):
         scene.scene_manager._live_audio = LiveAudio(channel_indices=())
         _tick(scene, seconds=scene.ready_seconds + FRAME_SECONDS)

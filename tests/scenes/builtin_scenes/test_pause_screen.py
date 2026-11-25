@@ -20,6 +20,7 @@ from glitchygames.engine import RunningGame
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.sprites import Sprite
 from glitchygames.testing.keys import qwerty_scancode
 
 if TYPE_CHECKING:
@@ -456,3 +457,171 @@ class TestPauseSceneGamepad:
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
+
+
+class LifecycleGame(Game):
+    """A game that counts each time the engine sets it up, loads it and cleans it up."""
+
+    def __init__(self: Self, options: dict[str, Any] | None = None) -> None:
+        """Start with nothing counted."""
+        super().__init__(options=options)
+        self.calls: list[str] = []
+
+    @override
+    def setup(self: Self) -> None:
+        """Count a setup, and add a sprite as a game does."""
+        super().setup()
+        self.calls.append('setup')
+        Sprite(x=10, y=10, width=8, height=8, groups=self.all_sprites)
+
+    @override
+    def load_resources(self: Self) -> None:
+        """Count a load."""
+        self.calls.append('load_resources')
+
+    @override
+    def cleanup(self: Self) -> None:
+        """Count a cleanup."""
+        super().cleanup()
+        self.calls.append('cleanup')
+
+
+ENTERED = ['setup', 'load_resources']
+
+
+class TestAPausedSceneStaysSetUp:
+    """Pausing is not leaving: setup() and cleanup() run once in a scene's life."""
+
+    @staticmethod
+    def _entered(scene_manager: SceneManager) -> LifecycleGame:
+        game = LifecycleGame(options={})
+        scene_manager.game_engine = _engine_for(game)
+        scene_manager.switch_to_scene(game)
+        return game
+
+    @staticmethod
+    def _pause(scene_manager: SceneManager, game: Scene) -> PauseScene:
+        game.pause()
+        scene_manager._switch_to_requested_scene()
+        pause_scene = scene_manager.active_scene
+        assert isinstance(pause_scene, PauseScene)
+        return pause_scene
+
+    @pytest.mark.draws_frames
+    def test_pausing_and_unpausing_twice_neither_cleans_up_nor_sets_up_again(
+        self, isolated_scene_manager
+    ):
+        game = self._entered(isolated_scene_manager)
+        sprites = game.all_sprites.sprites()
+        for _ in range(2):
+            self._pause(isolated_scene_manager, game)
+            assert game.calls == ENTERED
+            game.unpause()
+            assert isolated_scene_manager.active_scene is game
+            assert game.calls == ENTERED
+        assert game.all_sprites.sprites() == sprites
+        _draw_the_active_scene(isolated_scene_manager)
+
+    @pytest.mark.draws_frames
+    def test_quitting_while_paused_cleans_up_the_paused_scene_once(
+        self, isolated_scene_manager, mocker
+    ):
+        game = self._entered(isolated_scene_manager)
+        pause_scene = self._pause(isolated_scene_manager, game)
+        pause_cleanup = mocker.spy(pause_scene, 'cleanup')
+        _draw_the_active_scene(isolated_scene_manager)
+        isolated_scene_manager.terminate()
+        assert game.calls == [*ENTERED, 'cleanup']
+        pause_cleanup.assert_called_once_with()
+
+    @pytest.mark.draws_frames
+    def test_a_paused_scene_is_cleaned_up_once_even_if_the_pause_screen_fails_to(
+        self, isolated_scene_manager, mocker
+    ):
+        game = self._entered(isolated_scene_manager)
+        pause_scene = self._pause(isolated_scene_manager, game)
+        mocker.patch.object(pause_scene, 'cleanup', side_effect=RuntimeError('pause cleanup'))
+        _draw_the_active_scene(isolated_scene_manager)
+        with pytest.raises(RuntimeError, match='pause cleanup'):
+            isolated_scene_manager.switch_to_scene(None)
+        assert game.calls == [*ENTERED, 'cleanup']
+
+    def test_leaving_the_pause_screen_for_another_scene_cleans_up_the_paused_one_once(
+        self, isolated_scene_manager
+    ):
+        game = self._entered(isolated_scene_manager)
+        self._pause(isolated_scene_manager, game)
+        isolated_scene_manager.switch_to_scene(Scene())
+        assert game.calls == [*ENTERED, 'cleanup']
+        isolated_scene_manager.switch_to_scene(Scene())
+        assert game.calls == [*ENTERED, 'cleanup']
+        _draw_the_active_scene(isolated_scene_manager)
+
+    def test_a_transition_from_the_pause_screen_cleans_up_the_paused_scene_once(
+        self, isolated_scene_manager, mocker
+    ):
+        game = self._entered(isolated_scene_manager)
+        self._pause(isolated_scene_manager, game)
+        isolated_scene_manager._start_transition(Scene(), mocker.Mock())
+        assert game.calls == [*ENTERED, 'cleanup']
+        isolated_scene_manager._active_transition = None
+        _draw_the_active_scene(isolated_scene_manager)
+
+    @pytest.mark.draws_frames
+    def test_a_transition_back_to_the_paused_scene_unpauses_it(
+        self, isolated_scene_manager, mocker
+    ):
+        game = self._entered(isolated_scene_manager)
+        self._pause(isolated_scene_manager, game)
+        isolated_scene_manager._start_transition(game, mocker.Mock())
+        isolated_scene_manager._active_transition = None
+        assert isolated_scene_manager.active_scene is game
+        assert game.calls == ENTERED
+        _draw_the_active_scene(isolated_scene_manager)
+
+    @pytest.mark.draws_frames
+    def test_a_pause_screen_over_a_pause_screen_keeps_the_game_paused(self, isolated_scene_manager):
+        game = self._entered(isolated_scene_manager)
+        self._pause(isolated_scene_manager, game)
+        isolated_scene_manager.switch_to_scene(PauseScene())
+        assert game.calls == ENTERED
+        game.unpause()
+        assert isolated_scene_manager.active_scene is game
+        assert game.calls == ENTERED
+        _draw_the_active_scene(isolated_scene_manager)
+
+    @pytest.mark.draws_frames
+    def test_a_scene_left_without_a_pause_is_cleaned_up_and_set_up_again(
+        self, isolated_scene_manager
+    ):
+        game = self._entered(isolated_scene_manager)
+        isolated_scene_manager.switch_to_scene(Scene())
+        isolated_scene_manager.switch_to_scene(game)
+        assert game.calls == [*ENTERED, 'cleanup', *ENTERED]
+        _draw_the_active_scene(isolated_scene_manager)
+
+    @pytest.mark.draws_frames
+    def test_unpausing_forgets_key_presses_and_starts_the_frame_time_again(
+        self, isolated_scene_manager, mocker
+    ):
+        game = self._entered(isolated_scene_manager)
+        self._pause(isolated_scene_manager, game)
+        forget = mocker.spy(game, 'forget_key_presses')
+        game.dt = 0.5
+        game.unpause()
+        forget.assert_called_once_with()
+        assert game.dt == 0.0
+        assert isolated_scene_manager.proxies == [isolated_scene_manager, game]
+        _draw_the_active_scene(isolated_scene_manager)
+
+    @pytest.mark.draws_frames
+    def test_the_pause_screen_unpauses_through_the_games_own_unpause(
+        self, isolated_scene_manager, mocker
+    ):
+        game = self._entered(isolated_scene_manager)
+        pause_scene = self._pause(isolated_scene_manager, game)
+        unpause = mocker.spy(game, 'unpause')
+        _press_and_release(pause_scene, pygame.K_SPACE)
+        unpause.assert_called_once_with()
+        assert isolated_scene_manager.active_scene is game
+        _draw_the_active_scene(isolated_scene_manager)

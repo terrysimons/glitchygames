@@ -92,8 +92,6 @@ class RosterScene(PadTolerantScene):
         self.background_color = BLACK
         self.roster = as_roster(roster)
         self.actions = self._create_action_map(options=self.options or {})
-        # Set up once already: a later setup is a resume (from the pause screen)
-        self._has_been_set_up = False
 
     @staticmethod
     def _create_action_map(*, options: Mapping[str, Any]) -> ActionMap:
@@ -119,17 +117,15 @@ class RosterScene(PadTolerantScene):
         return actions
 
     @override
-    def setup(self) -> None:
-        """Set the screen up; on a resume, first drop the pads unplugged while it was away.
+    def unpause(self) -> None:
+        """Play on, once the pads unplugged during the pause are dropped.
 
         The engine tells only the active scene that a device left
         (``SceneManager.on_input_device_removed``), so a pad unplugged on the pause screen never
         reached this one. Every pad in the roster must still be a connected device.
         """
-        super().setup()
-        if self._has_been_set_up:
-            self._drop_pads_no_longer_connected()
-        self._has_been_set_up = True
+        super().unpause()
+        self._drop_pads_no_longer_connected()
 
     def _drop_pads_no_longer_connected(self) -> None:
         """Free the slot of every joined pad the engine no longer sees."""
