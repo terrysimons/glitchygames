@@ -3,7 +3,8 @@
 # them (https://github.com/RPi-Distro/raspi-config, branch trixie: do_autologin and do_blanking),
 # but by editing the files directly: raspi-config's do_blanking tells labwc from X11 by a running
 # labwc session (pgrep labwc), so run before the desktop is up it would write X11's file instead.
-# The first Raspberry Pi OS Pi: raspberry-pi-5-16gb-raspberry-pi-os (2026-11-16).
+# The first Raspberry Pi OS Pi: raspberry-pi-5-16gb-raspberry-pi-os (2026-11-16); the 8 GB Pi 5
+# raspberry-pi-5-8gb-raspberry-pi-os joined it (2026-11-21).
 
 # The display is the job's: its session starts at boot, and the owner switches users to play
 - name: Log the runner's user in at boot

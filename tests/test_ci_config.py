@@ -266,6 +266,7 @@ def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
         'raspberry-pi-4-4gb-ubuntu',
         'raspberry-pi-5-8gb-ubuntu',
         'raspberry-pi-5-16gb-ubuntu',
+        'raspberry-pi-5-8gb-raspberry-pi-os',
         'raspberry-pi-5-16gb-raspberry-pi-os',
     ]
     for host, variables in hosts.items():
@@ -280,6 +281,7 @@ def test_each_raspberry_pis_job_uses_the_resource_class_ansible_registers():
     [
         'raspberry-pi-5-8gb-ubuntu',
         'raspberry-pi-5-16gb-ubuntu',
+        'raspberry-pi-5-8gb-raspberry-pi-os',
         'raspberry-pi-5-16gb-raspberry-pi-os',
     ],
 )
@@ -3204,6 +3206,7 @@ def raspberry_pi_job() -> str:
         'raspberry-pi-4-4gb-ubuntu',
         'raspberry-pi-5-8gb-ubuntu',
         'raspberry-pi-5-16gb-ubuntu',
+        'raspberry-pi-5-8gb-raspberry-pi-os',
         'raspberry-pi-5-16gb-raspberry-pi-os',
     ],
 )
@@ -3723,6 +3726,8 @@ def tools_on_path(*, mocker, present: set[str]) -> None:
     )
 
 
+# security-scan's bandit runs: every check at medium and up, then B101 (assert_used) alone
+BANDIT_RUNS = 2
 SECURITY_SCAN_COMMANDS = [
     (
         'python',
@@ -3747,7 +3752,7 @@ SECURITY_SCAN_COMMANDS = [
 
 
 def test_the_security_scan_runs_bandit_then_the_sbom_grype_and_licenses(mocker, monkeypatch):
-    """bandit, then the SBOM from uv.lock, grype on it, its license check."""
+    """Bandit (medium and up, then B101 alone), the SBOM from uv.lock, grype on it, its licenses."""
     import noxfile
 
     tools_on_path(mocker=mocker, present={'syft', 'grype'})
@@ -3758,8 +3763,13 @@ def test_the_security_scan_runs_bandit_then_the_sbom_grype_and_licenses(mocker, 
     noxfile.security_scan(session)
 
     commands = [command for command in session.commands if command[0] != 'uv']
-    assert commands[0][0] == 'bandit'
-    assert commands[1:] == SECURITY_SCAN_COMMANDS
+    medium_and_up, asserts_only = commands[:BANDIT_RUNS]
+    assert medium_and_up[:5] == ('bandit', '-c', 'pyproject.toml', '-ll', '-ii')
+    # An assert outside tests fails at any severity (B101 is low, which -ll would hide)
+    assert asserts_only[:5] == ('bandit', '-c', 'pyproject.toml', '-t', 'B101')
+    assert '-ll' not in asserts_only
+    assert asserts_only[asserts_only.index('-r') + 1 :] == tuple(noxfile._SOURCE_PACKAGE_DIRS)
+    assert commands[BANDIT_RUNS:] == SECURITY_SCAN_COMMANDS
     assert session.warnings == []
 
 
@@ -3775,7 +3785,7 @@ def test_sbom_drift_fails_the_scan_after_grype_and_the_license_check(mocker, mon
     with pytest.raises(AssertionError, match='differs from the committed one'):
         noxfile.security_scan(session)
 
-    assert [command for command in session.commands if command[0] != 'uv'][1:] == (
+    assert [command for command in session.commands if command[0] != 'uv'][BANDIT_RUNS:] == (
         SECURITY_SCAN_COMMANDS
     )
     assert session.warnings == ['SBOM drift: M docs/sbom.cyclonedx.json']
@@ -3792,7 +3802,9 @@ def test_missing_syft_or_grype_is_skipped_locally(mocker, monkeypatch):
 
     noxfile.security_scan(session)
 
-    assert [command[0] for command in session.commands if command[0] != 'uv'] == ['bandit']
+    assert [command[0] for command in session.commands if command[0] != 'uv'] == [
+        'bandit'
+    ] * BANDIT_RUNS
     assert len(session.warnings) == 1
     assert session.warnings[0].startswith('grype not found on PATH')
 

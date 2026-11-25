@@ -1906,7 +1906,8 @@ Loading and memory:
 
 - [ ] **Decide whether to enable the memory cgroup on Raspberry Pi OS.** Its firmware boots the
   kernel with `cgroup_disable=memory` (in its own boot arguments, ahead of `cmdline.txt`'s: read
-  2026-11-16 on `raspberry-pi-5-16gb-raspberry-pi-os`), so the runner's `MemoryMax=2G` and
+  2026-11-16 on `raspberry-pi-5-16gb-raspberry-pi-os`; not read on
+  `raspberry-pi-5-8gb-raspberry-pi-os`, added 2026-11-21), so the runner's `MemoryMax=2G` and
   `MemorySwapMax=0` are written and not enforced there; the Ubuntu Pis enforce them. Left alone
   for now (the owner: "Leave boot arguments alone but make a todo"). It matters only once a Pi's
   CircleCI job is switched on: no workflow runs one, and the push-time measuring logs in over SSH,
@@ -1914,6 +1915,16 @@ Loading and memory:
   `/boot/firmware/cmdline.txt` (https://docs.k3s.io/installation/requirements, Raspberry Pi), a
   reboot applying it, and have a play check every Pi's `/sys/fs/cgroup/cgroup.controllers` holds
   `memory`. Details: plans/2026-11-04-raspberry-pi-ci-runner.md, "The first Raspberry Pi OS Pi".
+
+## HDMI audio on Raspberry Pi OS (the owner, 2026-11-20)
+
+- [ ] **Test the HDMI audio procedure on Raspberry Pi OS before publishing OS-specific steps.**
+  The `raspberry_pi_audio` role (plans/2026-11-04-raspberry-pi-ci-runner.md, "HDMI audio on the
+  Ubuntu Pi 5s") is proven only on the Ubuntu Pi 5s and refuses any other OS. On
+  `raspberry-pi-5-16gb-raspberry-pi-os`, record the release, desktop or Lite image, audio stack,
+  card and sink discovery, HDMI0 and HDMI1 playback, hotplug behaviour, and the settings after a
+  reboot (the owner's procedure, its "TODO: Raspberry Pi OS"). Then widen the role's OS check and
+  set `raspberry_pi_hdmi_audio_volume_percent` on that host.
 
 ## Sprite color profiles and a glyph generator (the owner, 2026-11-16)
 

@@ -1,0 +1,1177 @@
+[
+  {
+    "id": 41,
+    "type": "PipeWire:Interface:Metadata",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x"
+    ],
+    "props": {
+      "client.id": 33,
+      "factory.id": 7,
+      "metadata.name": "default",
+      "module.id": 6,
+      "object.serial": 41
+    },
+    "metadata": [
+      {
+        "subject": 0,
+        "key": "default.audio.sink",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "alsa_output.platform-107c701400.hdmi.hdmi-stereo"
+        }
+      },
+      {
+        "subject": 0,
+        "key": "default.audio.source",
+        "type": "Spa:String:JSON",
+        "value": {
+          "name": "alsa_output.platform-107c701400.hdmi.hdmi-stereo"
+        }
+      }
+    ]
+  },
+  {
+    "id": 68,
+    "type": "PipeWire:Interface:Device",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props",
+        "params"
+      ],
+      "props": {
+        "alsa.card": 0,
+        "alsa.card_name": "vc4-hdmi-0",
+        "alsa.driver_name": "vc4",
+        "alsa.id": "vc4hdmi0",
+        "alsa.long_card_name": "vc4-hdmi-0",
+        "api.acp.auto-port": false,
+        "api.acp.auto-profile": false,
+        "api.alsa.card": 0,
+        "api.alsa.card.longname": "vc4-hdmi-0",
+        "api.alsa.card.name": "vc4-hdmi-0",
+        "api.alsa.path": "hw:0",
+        "api.alsa.split-enable": true,
+        "api.alsa.use-acp": true,
+        "api.dbus.ReserveDevice1": "Audio0",
+        "api.dbus.ReserveDevice1.Priority": -20,
+        "client.id": 40,
+        "device.api": "alsa",
+        "device.bus-path": "platform-107c701400.hdmi",
+        "device.description": "Built-in Audio",
+        "device.enum.api": "udev",
+        "device.form-factor": "internal",
+        "device.icon-name": "audio-card-analog",
+        "device.name": "alsa_card.platform-107c701400.hdmi",
+        "device.nick": "vc4-hdmi-0",
+        "device.plugged.usec": 3726971,
+        "device.string": 0,
+        "device.subsystem": "sound",
+        "device.sysfs.path": "/devices/platform/soc@107c000000/107c701400.hdmi/sound/card0",
+        "factory.id": 15,
+        "media.class": "Audio/Device",
+        "object.id": 68,
+        "object.path": "alsa:acp:vc4hdmi0",
+        "object.serial": 68,
+        "spa.object.id": 2
+      },
+      "params": {
+        "EnumProfile": [
+          {
+            "index": 0,
+            "name": "off",
+            "description": "Off",
+            "priority": 0,
+            "available": "yes",
+            "classes": [
+              0
+            ]
+          },
+          {
+            "index": 1,
+            "name": "output:hdmi-stereo",
+            "description": "Digital Stereo (HDMI) Output",
+            "priority": 5900,
+            "available": "yes",
+            "classes": [
+              1,
+              [
+                "Audio/Sink",
+                1,
+                "card.profile.devices",
+                [
+                  1
+                ]
+              ]
+            ]
+          },
+          {
+            "index": 2,
+            "name": "pro-audio",
+            "description": "Pro Audio",
+            "priority": 1,
+            "available": "unknown",
+            "classes": [
+              1,
+              [
+                "Audio/Sink",
+                1,
+                "card.profile.devices",
+                [
+                  0
+                ]
+              ]
+            ]
+          }
+        ],
+        "Profile": [
+          {
+            "index": 1,
+            "name": "output:hdmi-stereo",
+            "description": "Digital Stereo (HDMI) Output",
+            "priority": 5900,
+            "available": "yes",
+            "classes": [
+              1,
+              [
+                "Audio/Sink",
+                1,
+                "card.profile.devices",
+                [
+                  1
+                ]
+              ]
+            ],
+            "save": false
+          }
+        ],
+        "EnumRoute": [
+          {
+            "index": 0,
+            "direction": "Output",
+            "name": "hdmi-output-0",
+            "description": "HDMI / DisplayPort",
+            "priority": 5900,
+            "available": "yes",
+            "info": [
+              8,
+              "port.type",
+              "hdmi",
+              "port.availability-group",
+              "Legacy 1",
+              "device.icon_name",
+              "video-display",
+              "card.profile.port",
+              "0",
+              "device.product.name",
+              "ROG XG27UQ",
+              "iec958.codecs.detected",
+              "[\"PCM\"]",
+              "audio.channels.detected",
+              "2",
+              "audio.position.detected",
+              "[FL,FR]"
+            ],
+            "profiles": [
+              1
+            ],
+            "devices": [
+              1
+            ]
+          }
+        ],
+        "Route": [
+          {
+            "index": 0,
+            "direction": "Output",
+            "name": "hdmi-output-0",
+            "description": "HDMI / DisplayPort",
+            "priority": 5900,
+            "available": "yes",
+            "info": [
+              10,
+              "port.type",
+              "hdmi",
+              "port.availability-group",
+              "Legacy 1",
+              "device.icon_name",
+              "video-display",
+              "card.profile.port",
+              "0",
+              "device.product.name",
+              "ROG XG27UQ",
+              "iec958.codecs.detected",
+              "[\"PCM\"]",
+              "audio.channels.detected",
+              "2",
+              "audio.position.detected",
+              "[FL,FR]",
+              "route.hw-mute",
+              "false",
+              "route.hw-volume",
+              "false"
+            ],
+            "profiles": [
+              1
+            ],
+            "device": 1,
+            "props": {
+              "mute": false,
+              "channelVolumes": [
+                1.0,
+                1.0
+              ],
+              "volumeBase": 1.0,
+              "volumeStep": 1.5e-05,
+              "channelMap": [
+                "FL",
+                "FR"
+              ],
+              "softVolumes": [
+                1.0,
+                1.0
+              ],
+              "latencyOffsetNsec": 0,
+              "iec958Codecs": []
+            },
+            "devices": [
+              1
+            ],
+            "profile": 1,
+            "save": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": 69,
+    "type": "PipeWire:Interface:Device",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "change-mask": [
+        "props",
+        "params"
+      ],
+      "props": {
+        "alsa.card": 1,
+        "alsa.card_name": "vc4-hdmi-1",
+        "alsa.driver_name": "vc4",
+        "alsa.id": "vc4hdmi1",
+        "alsa.long_card_name": "vc4-hdmi-1",
+        "api.acp.auto-port": false,
+        "api.acp.auto-profile": false,
+        "api.alsa.card": 1,
+        "api.alsa.card.longname": "vc4-hdmi-1",
+        "api.alsa.card.name": "vc4-hdmi-1",
+        "api.alsa.path": "hw:1",
+        "api.alsa.split-enable": true,
+        "api.alsa.use-acp": true,
+        "api.dbus.ReserveDevice1": "Audio1",
+        "api.dbus.ReserveDevice1.Priority": -20,
+        "client.id": 40,
+        "device.api": "alsa",
+        "device.bus-path": "platform-107c706400.hdmi",
+        "device.description": "Built-in Audio",
+        "device.enum.api": "udev",
+        "device.form-factor": "internal",
+        "device.icon-name": "audio-card-analog",
+        "device.name": "alsa_card.platform-107c706400.hdmi",
+        "device.nick": "vc4-hdmi-1",
+        "device.plugged.usec": 3825419,
+        "device.string": 1,
+        "device.subsystem": "sound",
+        "device.sysfs.path": "/devices/platform/soc@107c000000/107c706400.hdmi/sound/card1",
+        "factory.id": 15,
+        "media.class": "Audio/Device",
+        "object.id": 69,
+        "object.path": "alsa:acp:vc4hdmi1",
+        "object.serial": 69,
+        "spa.object.id": 4
+      },
+      "params": {
+        "EnumProfile": [
+          {
+            "index": 0,
+            "name": "off",
+            "description": "Off",
+            "priority": 0,
+            "available": "yes",
+            "classes": [
+              0
+            ]
+          },
+          {
+            "index": 1,
+            "name": "pro-audio",
+            "description": "Pro Audio",
+            "priority": 1,
+            "available": "yes",
+            "classes": [
+              1,
+              [
+                "Audio/Sink",
+                1,
+                "card.profile.devices",
+                [
+                  0
+                ]
+              ]
+            ]
+          }
+        ],
+        "Profile": [
+          {
+            "index": 0,
+            "name": "off",
+            "description": "Off",
+            "priority": 0,
+            "available": "yes",
+            "classes": [
+              0
+            ],
+            "save": false
+          }
+        ],
+        "EnumRoute": [],
+        "Route": []
+      }
+    }
+  },
+  {
+    "id": 73,
+    "type": "PipeWire:Interface:Node",
+    "version": 3,
+    "permissions": [
+      "r",
+      "w",
+      "x",
+      "m"
+    ],
+    "info": {
+      "max-input-ports": 129,
+      "max-output-ports": 0,
+      "change-mask": [
+        "input-ports",
+        "output-ports",
+        "state",
+        "props",
+        "params"
+      ],
+      "n-input-ports": 2,
+      "n-output-ports": 2,
+      "state": "suspended",
+      "error": null,
+      "props": {
+        "alsa.card": 0,
+        "alsa.card_name": "vc4-hdmi-0",
+        "alsa.class": "generic",
+        "alsa.device": 0,
+        "alsa.driver_name": "vc4",
+        "alsa.id": "vc4hdmi0",
+        "alsa.long_card_name": "vc4-hdmi-0",
+        "alsa.name": "MAI PCM i2s-hifi-0",
+        "alsa.resolution_bits": 16,
+        "alsa.subclass": "generic-mix",
+        "alsa.subdevice": 0,
+        "alsa.subdevice_name": "subdevice #0",
+        "alsa.sync.id": "00000000:00000000:00000000:00000000",
+        "api.alsa.card.longname": "vc4-hdmi-0",
+        "api.alsa.card.name": "vc4-hdmi-0",
+        "api.alsa.path": "hdmi:0",
+        "api.alsa.pcm.card": 0,
+        "api.alsa.pcm.stream": "playback",
+        "audio.channels": 2,
+        "audio.position": "[ FL, FR ]",
+        "card.profile.device": 1,
+        "client.id": 40,
+        "clock.quantum-limit": 8192,
+        "device.api": "alsa",
+        "device.class": "sound",
+        "device.icon-name": "audio-card-analog",
+        "device.id": 68,
+        "device.profile.description": "Digital Stereo (HDMI)",
+        "device.profile.name": "hdmi-stereo",
+        "device.routes": 1,
+        "factory.id": 19,
+        "factory.name": "api.alsa.pcm.sink",
+        "iec958.codecs": "[\"PCM\"]",
+        "library.name": "audioconvert/libspa-audioconvert",
+        "media.class": "Audio/Sink",
+        "node.description": "Built-in Audio Digital Stereo (HDMI)",
+        "node.driver": true,
+        "node.loop.name": "data-loop.0",
+        "node.name": "alsa_output.platform-107c701400.hdmi.hdmi-stereo",
+        "node.nick": "MAI PCM i2s-hifi-0",
+        "node.pause-on-idle": false,
+        "object.id": 73,
+        "object.path": "alsa:acp:vc4hdmi0:1:playback",
+        "object.serial": 73,
+        "port.group": "playback",
+        "priority.driver": 1000,
+        "priority.session": 1000
+      },
+      "params": {
+        "EnumFormat": [
+          {
+            "mediaType": "audio",
+            "mediaSubtype": "raw",
+            "format": {
+              "default": "S32P",
+              "alt1": "S32P",
+              "alt2": "S32LE",
+              "alt3": "S32P",
+              "alt4": "S32BE",
+              "alt5": "S24_32P",
+              "alt6": "S24_32LE",
+              "alt7": "S24_32P",
+              "alt8": "S24_32BE",
+              "alt9": "S24P",
+              "alt10": "S24LE",
+              "alt11": "S24P",
+              "alt12": "S24BE",
+              "alt13": "S16P",
+              "alt14": "S16LE",
+              "alt15": "S16P",
+              "alt16": "S16BE",
+              "alt17": "S8",
+              "alt18": "U8P",
+              "alt19": "U8",
+              "alt20": "U16LE",
+              "alt21": "U16BE",
+              "alt22": "U24_32LE",
+              "alt23": "U24_32BE",
+              "alt24": "U24LE",
+              "alt25": "U24BE",
+              "alt26": "U32LE",
+              "alt27": "U32BE"
+            },
+            "rate": {
+              "default": 48000,
+              "min": 32000,
+              "max": 48000
+            },
+            "channels": 2,
+            "position": [
+              "FL",
+              "FR"
+            ]
+          },
+          {
+            "mediaType": "audio",
+            "mediaSubtype": "iec958",
+            "iec958Codec": {
+              "default": "PCM",
+              "alt1": "PCM"
+            },
+            "rate": {
+              "default": 48000,
+              "min": 32000,
+              "max": 48000
+            }
+          }
+        ],
+        "PropInfo": [
+          {
+            "id": "volume",
+            "description": "Volume",
+            "type": {
+              "default": 1.0,
+              "min": 0.0,
+              "max": 10.0
+            }
+          },
+          {
+            "id": "mute",
+            "description": "Mute",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            }
+          },
+          {
+            "id": "channelVolumes",
+            "description": "Channel Volumes",
+            "type": {
+              "default": 1.0,
+              "min": 0.0,
+              "max": 10.0
+            },
+            "container": "Array"
+          },
+          {
+            "id": "channelMap",
+            "description": "Channel Map",
+            "type": "",
+            "container": "Array"
+          },
+          {
+            "id": "monitorMute",
+            "description": "Monitor Mute",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            }
+          },
+          {
+            "id": "monitorVolumes",
+            "description": "Monitor Volumes",
+            "type": {
+              "default": 1.0,
+              "min": 0.0,
+              "max": 10.0
+            },
+            "container": "Array"
+          },
+          {
+            "id": "softMute",
+            "description": "Soft Mute",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            }
+          },
+          {
+            "id": "softVolumes",
+            "description": "Soft Volumes",
+            "type": {
+              "default": 1.0,
+              "min": 0.0,
+              "max": 10.0
+            },
+            "container": "Array"
+          },
+          {
+            "name": "monitor.channel-volumes",
+            "description": "Monitor channel volume",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.disable",
+            "description": "Disable Channel mixing",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.min-volume",
+            "description": "Minimum volume level",
+            "type": {
+              "default": 0.0,
+              "min": 0.0,
+              "max": 10.0
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.max-volume",
+            "description": "Maximum volume level",
+            "type": {
+              "default": 10.0,
+              "min": 0.0,
+              "max": 10.0
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.normalize",
+            "description": "Normalize Volumes",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.mix-lfe",
+            "description": "Mix LFE into channels",
+            "type": {
+              "default": true,
+              "alt1": true,
+              "alt2": false
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.upmix",
+            "description": "Enable upmixing",
+            "type": {
+              "default": true,
+              "alt1": true,
+              "alt2": false
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.lfe-cutoff",
+            "description": "LFE cutoff frequency",
+            "type": {
+              "default": 0.0,
+              "min": 0.0,
+              "max": 1000.0
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.fc-cutoff",
+            "description": "FC cutoff frequency (Hz)",
+            "type": {
+              "default": 0.0,
+              "min": 0.0,
+              "max": 48000.0
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.rear-delay",
+            "description": "Rear channels delay (ms)",
+            "type": {
+              "default": 0.0,
+              "min": 0.0,
+              "max": 1000.0
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.stereo-widen",
+            "description": "Stereo widen",
+            "type": {
+              "default": 0.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.hilbert-taps",
+            "description": "Taps for phase shift of rear",
+            "type": {
+              "default": 0,
+              "min": 0,
+              "max": 255
+            },
+            "params": true
+          },
+          {
+            "name": "channelmix.upmix-method",
+            "description": "Upmix method to use",
+            "type": "none",
+            "params": true,
+            "labels": [
+              "none",
+              "Disabled",
+              "simple",
+              "Simple upmixing",
+              "psd",
+              "Passive Surround Decoding"
+            ]
+          },
+          {
+            "id": "rate",
+            "description": "Rate scaler",
+            "type": {
+              "default": 1.0,
+              "min": 0.0,
+              "max": 10.0
+            }
+          },
+          {
+            "id": "quality",
+            "name": "resample.quality",
+            "description": "Resample Quality",
+            "type": {
+              "default": 4,
+              "min": 0,
+              "max": 14
+            },
+            "params": true
+          },
+          {
+            "name": "resample.disable",
+            "description": "Disable Resampling",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "dither.noise",
+            "description": "Add noise bits",
+            "type": {
+              "default": 0,
+              "min": 0,
+              "max": 16
+            },
+            "params": true
+          },
+          {
+            "name": "dither.method",
+            "description": "The dithering method",
+            "type": "none",
+            "params": true,
+            "labels": [
+              "none",
+              "Disabled",
+              "rectangular",
+              "Rectangular dithering",
+              "triangular",
+              "Triangular dithering",
+              "triangular-hf",
+              "Sloped Triangular dithering",
+              "wannamaker3",
+              "Wannamaker 3 dithering",
+              "shaped5",
+              "Lipshitz 5 dithering"
+            ]
+          },
+          {
+            "name": "debug.wav-path",
+            "description": "Path to WAV file",
+            "type": "",
+            "params": true
+          },
+          {
+            "name": "channelmix.lock-volumes",
+            "description": "Disable volume updates",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "audioconvert.filter-graph.disable",
+            "description": "Disable Filter graph updates",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "audioconvert.filter-graph.N",
+            "description": "A filter graph to load",
+            "type": "",
+            "params": true
+          },
+          {
+            "id": "device",
+            "name": "api.alsa.path",
+            "description": "The ALSA device",
+            "type": "hdmi:0"
+          },
+          {
+            "id": "deviceName",
+            "description": "The ALSA device name",
+            "type": ""
+          },
+          {
+            "id": "cardName",
+            "description": "The ALSA card name",
+            "type": ""
+          },
+          {
+            "id": "latencyOffsetNsec",
+            "description": "Latency offset (ns)",
+            "type": {
+              "default": 0,
+              "min": 0,
+              "max": 2000000000
+            }
+          },
+          {
+            "id": "iec958Codecs",
+            "name": "iec958.codecs",
+            "description": "Enabled IEC958 (S/PDIF) codecs",
+            "type": "",
+            "params": true,
+            "container": "Array"
+          },
+          {
+            "name": "audio.channels",
+            "description": "Audio Channels",
+            "type": 2,
+            "params": true
+          },
+          {
+            "name": "audio.rate",
+            "description": "Audio Rate",
+            "type": 0,
+            "params": true
+          },
+          {
+            "name": "audio.format",
+            "description": "Audio Format",
+            "type": "UNKNOWN",
+            "params": true
+          },
+          {
+            "name": "audio.position",
+            "description": "Audio Position",
+            "type": "[ FL, FR ]",
+            "params": true
+          },
+          {
+            "name": "audio.allowed-rates",
+            "description": "Audio Allowed Rates",
+            "type": "[ ]",
+            "params": true
+          },
+          {
+            "name": "api.alsa.period-size",
+            "description": "Period Size",
+            "type": {
+              "default": 0,
+              "min": 0,
+              "max": 8192
+            },
+            "params": true
+          },
+          {
+            "name": "api.alsa.period-num",
+            "description": "Number of Periods",
+            "type": {
+              "default": 0,
+              "min": 0,
+              "max": 1024
+            },
+            "params": true
+          },
+          {
+            "name": "api.alsa.headroom",
+            "description": "Headroom",
+            "type": {
+              "default": 0,
+              "min": 0,
+              "max": 8192
+            },
+            "params": true
+          },
+          {
+            "name": "api.alsa.start-delay",
+            "description": "Start Delay",
+            "type": {
+              "default": 0,
+              "min": 0,
+              "max": 8192
+            },
+            "params": true
+          },
+          {
+            "name": "api.alsa.disable-mmap",
+            "description": "Disable MMAP",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "api.alsa.disable-batch",
+            "description": "Disable Batch",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "api.alsa.disable-tsched",
+            "description": "Disable timer based scheduling",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "api.alsa.use-chmap",
+            "description": "Use the driver channelmap",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "api.alsa.multi-rate",
+            "description": "Support multiple rates",
+            "type": {
+              "default": true,
+              "alt1": true,
+              "alt2": false
+            },
+            "params": true
+          },
+          {
+            "name": "api.alsa.htimestamp",
+            "description": "Use hires timestamps",
+            "type": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "params": true
+          },
+          {
+            "name": "latency.internal.rate",
+            "description": "Internal latency in samples",
+            "type": {
+              "default": 0,
+              "min": 0,
+              "max": 65536
+            },
+            "params": true
+          },
+          {
+            "name": "latency.internal.ns",
+            "description": "Internal latency in nanoseconds",
+            "type": {
+              "default": 0,
+              "min": 0,
+              "max": 2000000000
+            },
+            "params": true
+          },
+          {
+            "name": "clock.name",
+            "description": "The name of the clock",
+            "type": "api.alsa.p-0",
+            "params": true
+          },
+          {
+            "name": "api.alsa.htimestamp.max-errors",
+            "description": "Max errors before disabling htimestamp",
+            "type": {
+              "default": 64,
+              "min": 0,
+              "max": 2147483647
+            },
+            "params": true
+          }
+        ],
+        "Props": [
+          {
+            "volume": 1.0,
+            "mute": false,
+            "channelVolumes": [
+              1.0,
+              1.0
+            ],
+            "channelMap": [
+              "FL",
+              "FR"
+            ],
+            "softMute": false,
+            "softVolumes": [
+              1.0,
+              1.0
+            ],
+            "monitorMute": false,
+            "monitorVolumes": [
+              1.0,
+              1.0
+            ],
+            "params": [
+              "monitor.channel-volumes",
+              false,
+              "channelmix.disable",
+              false,
+              "channelmix.min-volume",
+              0.0,
+              "channelmix.max-volume",
+              10.0,
+              "channelmix.normalize",
+              false,
+              "channelmix.mix-lfe",
+              true,
+              "channelmix.upmix",
+              true,
+              "channelmix.lfe-cutoff",
+              0.0,
+              "channelmix.fc-cutoff",
+              0.0,
+              "channelmix.rear-delay",
+              0.0,
+              "channelmix.stereo-widen",
+              0.0,
+              "channelmix.hilbert-taps",
+              0,
+              "channelmix.upmix-method",
+              "none",
+              "resample.quality",
+              4,
+              "resample.disable",
+              false,
+              "dither.noise",
+              0,
+              "dither.method",
+              "none",
+              "debug.wav-path",
+              "",
+              "channelmix.lock-volumes",
+              false,
+              "audioconvert.filter-graph.disable",
+              false,
+              "audioconvert.filter-graph",
+              ""
+            ]
+          },
+          {
+            "device": "hdmi:0",
+            "deviceName": "",
+            "cardName": "",
+            "latencyOffsetNsec": 0,
+            "iec958Codecs": [
+              "PCM"
+            ],
+            "params": [
+              "audio.channels",
+              2,
+              "audio.rate",
+              0,
+              "audio.format",
+              "UNKNOWN",
+              "audio.position",
+              "[ FL, FR ]",
+              "audio.allowed-rates",
+              "[ ]",
+              "api.alsa.period-size",
+              0,
+              "api.alsa.period-num",
+              0,
+              "api.alsa.headroom",
+              0,
+              "api.alsa.start-delay",
+              0,
+              "api.alsa.disable-mmap",
+              false,
+              "api.alsa.disable-batch",
+              false,
+              "api.alsa.disable-tsched",
+              false,
+              "api.alsa.use-chmap",
+              false,
+              "api.alsa.multi-rate",
+              true,
+              "api.alsa.htimestamp",
+              false,
+              "api.alsa.htimestamp.max-errors",
+              64,
+              "latency.internal.rate",
+              0,
+              "latency.internal.ns",
+              0,
+              "clock.name",
+              "api.alsa.p-0"
+            ]
+          }
+        ],
+        "Format": [],
+        "EnumPortConfig": [
+          {
+            "direction": "Input",
+            "mode": {
+              "default": "none",
+              "alt1": "none",
+              "alt2": "dsp",
+              "alt3": "convert"
+            },
+            "monitor": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            },
+            "control": {
+              "default": false,
+              "alt1": false,
+              "alt2": true
+            }
+          }
+        ],
+        "PortConfig": [
+          {
+            "direction": "Input",
+            "mode": "dsp",
+            "monitor": true,
+            "control": false,
+            "format": {
+              "mediaType": "audio",
+              "mediaSubtype": "raw",
+              "format": "F32P",
+              "channels": 2,
+              "position": [
+                "FL",
+                "FR"
+              ]
+            }
+          }
+        ],
+        "Latency": [
+          {
+            "direction": "Input",
+            "minQuantum": 1.0,
+            "maxQuantum": 1.0,
+            "minRate": 0,
+            "maxRate": 0,
+            "minNs": 0,
+            "maxNs": 0
+          },
+          {
+            "direction": "Output",
+            "minQuantum": 0.0,
+            "maxQuantum": 0.0,
+            "minRate": 0,
+            "maxRate": 0,
+            "minNs": 0,
+            "maxNs": 0
+          }
+        ],
+        "ProcessLatency": [
+          {
+            "quantum": 0.0,
+            "rate": 0,
+            "ns": 0
+          }
+        ],
+        "Tag": []
+      }
+    }
+  }
+]

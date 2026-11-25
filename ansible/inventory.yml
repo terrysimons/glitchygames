@@ -78,6 +78,8 @@ all:
                 kind: active-cooler
                 levels: []
               raspberry_pi_cooling: Active cooling; the official cooled case
+              # HDMI audio as on the 16 GB Ubuntu Pi 5 (the owner, 2026-11-20)
+              raspberry_pi_hdmi_audio_volume_percent: 75
             raspberry-pi-5-16gb-ubuntu:
               # Its address is a DHCP lease (it moved from 172.23.23.161 to 172.23.23.135 after
               # a power cut, 2026-11-20), so it is reached by its mDNS name, which the hostname
@@ -110,6 +112,10 @@ all:
               # balanced and power-saver profiles, so it does not touch cpufreq. A Pi that sets
               # no raspberry_pi_cpu_governor keeps whatever governor it has
               raspberry_pi_cpu_governor: performance
+              # HDMI0 and HDMI1 each unmuted at this volume, as wpctl reads it (0.75), with an HDMI
+              # default (the raspberry_pi_audio role: the owner's procedure, at 75% rather than
+              # its 100%, the owner, 2026-11-20). A Pi that sets none keeps its audio as it is
+              raspberry_pi_hdmi_audio_volume_percent: 75
               # The Active Cooler on the firmware's default curve, until a measurement under
               # load says the overclock needs more (the owner, 2026-11-14)
               raspberry_pi_fan:
@@ -129,6 +135,33 @@ all:
             raspberry_pi_os_marker_file: /etc/rpi-issue
             raspberry_pi_firmware_config: /boot/firmware/config.txt
           hosts:
+            # The 8 GB Pi 5 on Raspberry Pi OS (read 2026-11-21: Raspberry Pi 5 Model B Rev 1.0,
+            # Debian 13 Trixie, kernel 6.18.60+rpt-rpi-2712), on a microSD card, stock. Its host
+            # comes before the 16 GB Pi's: each group's Pis are in natural order (4gb, 8gb, 16gb)
+            raspberry-pi-5-8gb-raspberry-pi-os:
+              # Its address is a DHCP lease (wlan0, 172.23.23.132 when read, 2026-11-21), so it is
+              # reached by its mDNS name, which the hostname below keeps
+              ansible_host: glitchygames-pi5-8gb-raspberry-pi-os.local
+              # Its hostname as it came (spelled raspberry-pi-os, unlike the 16 GB Pi's
+              # raspberrypios): the playbook names each host, and any other name would change the
+              # mDNS name it is reached by
+              raspberry_pi_hostname: glitchygames-pi5-8gb-raspberry-pi-os
+              # .circleci/config.yml's build-and-test-raspberry-pi-5-8gb-raspberry-pi-os names
+              # this (tests/test_ci_config.py); the playbook created its resource class (2026-11-22)
+              raspberry_pi_resource_class: terrysimons/raspberry-pi-5-8gb-raspberry-pi-os
+              raspberry_pi_description: Raspberry Pi 5 (8 GB) on Raspberry Pi OS with a real display
+              host_memory_gb: 8
+              raspberry_pi_os_release: "13"
+              raspberry_pi_board: pi5
+              # Stock: arm_freq=2400, over_voltage=0 (read 2026-11-21)
+              raspberry_pi_overclock_enabled: false
+              raspberry_pi_overclock_settings: {}
+              # Its Active Cooler (a PWM fan, read 2026-11-21) on the firmware's default curve
+              raspberry_pi_fan:
+                kind: active-cooler
+                levels: []
+              # It boots from a 1 TB microSD card (mmcblk0, read 2026-11-21), not an NVMe SSD
+              raspberry_pi_cooling: Active cooling; boots from a microSD card
             # The first Raspberry Pi OS Pi (2026-11-16): the 16 GB Pi 5 in the NVMe heat-sink
             # case, set up as the Ubuntu 16 GB Pi is (the owner: "the same sorts of corallary
             # settings that the Ubuntu system had"; plans/2026-11-04-raspberry-pi-ci-runner.md)

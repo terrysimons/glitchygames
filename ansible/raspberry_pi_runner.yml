@@ -1,6 +1,7 @@
 ---
 # The Raspberry Pis (ansible/inventory.yml's raspberry_pis: a Pi 4 on Ubuntu 26.10, a 16 GB Pi 5
-# on Ubuntu 26.04, an 8 GB Pi 5 on Ubuntu 26.10, and a 16 GB Pi 5 on Raspberry Pi OS 13, Trixie),
+# on Ubuntu 26.04, an 8 GB Pi 5 on Ubuntu 26.10, and an 8 GB and a 16 GB Pi 5 on Raspberry Pi OS 13,
+# Trixie),
 # each a CircleCI machine runner for its
 # build-and-test-<host> job and a machine the pre-push hook measures on
 # (plans/2026-11-04-raspberry-pi-ci-runner.md). Add --limit raspberry-pi-5-8gb-ubuntu (or another
@@ -331,6 +332,13 @@
     - name: Set up the runner's desktop session
       ansible.builtin.import_role:
         name: raspberry_pi_desktop
+
+    # HDMI audio in the CI user's and the deploy user's sessions, on a Pi that sets
+    # raspberry_pi_hdmi_audio_volume_percent (the Ubuntu Pi 5s); after the desktop, whose
+    # auto-login starts the CI user's session. In this play for ci_user and deploy_user
+    - name: Set up HDMI audio
+      ansible.builtin.import_role:
+        name: raspberry_pi_audio
 
     - name: Refuse a runner that could reach the owner's GitHub key
       ansible.builtin.command:
