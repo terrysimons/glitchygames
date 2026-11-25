@@ -959,6 +959,22 @@ def value_from_json(encoded: object) -> object:
     return encoded
 
 
+def decoded_options(*, recorded: Mapping[str, Any]) -> dict[str, object]:
+    """Return a recording's options as the run had them (its header holds them JSON-safe).
+
+    Every reader of a header's option values goes through here: a list, say, is stored tagged
+    (``json_safe_value``).
+
+    Args:
+        recorded: The header's ``options``, or some of them.
+
+    Returns:
+        The options by name, each read back with ``value_from_json``.
+
+    """
+    return {name: value_from_json(value) for name, value in recorded.items()}
+
+
 def event_to_record(*, event: pygame.event.Event, origin: str) -> dict[str, Any]:
     """Describe a pygame event as a JSON-safe record, with every attribute.
 

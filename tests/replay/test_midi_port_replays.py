@@ -13,8 +13,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from glitchygames.input.devices import MidiPortInfo, ReplayDeviceRegistry
-from glitchygames.input.stand_in_devices import StandInDeviceSources, stand_in_registry
-from glitchygames.replay.tools.golden_traces import GoldenTraceEngine
+from tests.replay.playback_fixtures import use_stand_in_midi_ports
 from tests.replay.replay_helpers import rewrite_recording
 from tests.world.test_gameplay_recording import (
     RUN_ENGINE_ARGUMENTS,
@@ -30,20 +29,6 @@ if TYPE_CHECKING:
 
 KEYS = MidiPortInfo(interface='CoreMIDI', name='Keys', is_input=True, is_output=False)
 PADS = MidiPortInfo(interface='CoreMIDI', name='Pads', is_input=True, is_output=False)
-
-
-def use_stand_in_midi_ports(mocker, *, midi_ports: list[MidiPortInfo]) -> None:
-    """Make the recording run's live doors stand-ins that list ``midi_ports``."""
-
-    def build_live_sources(engine, *, random_seed, captures_scene_starts):
-        del engine
-        return StandInDeviceSources(
-            registry=stand_in_registry(descriptors=[], midi_ports=midi_ports),
-            random_seed=random_seed,
-            captures_scene_starts=captures_scene_starts,
-        )
-
-    mocker.patch.object(GoldenTraceEngine, 'build_live_sources', build_live_sources)
 
 
 def replay_with_arguments(*, recording_path: Path, mocker, arguments: tuple[str, ...]):
@@ -68,7 +53,7 @@ def replay_with_arguments(*, recording_path: Path, mocker, arguments: tuple[str,
 @pytest.mark.draws_frames
 def test_a_replay_opens_the_recorded_port_whatever_its_command_names(mocker, tmp_path, caplog):
     """Recorded with --midi-input Keys, replayed with --midi-input Pads: Keys opens, no warning."""
-    use_stand_in_midi_ports(mocker, midi_ports=[PADS, KEYS])
+    use_stand_in_midi_ports(mocker=mocker, midi_ports=[PADS, KEYS])
     recording_path = record_session(
         tmp_path=tmp_path, mocker=mocker, extra_arguments=('--midi-input', 'Keys')
     )

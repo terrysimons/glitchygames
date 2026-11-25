@@ -16,13 +16,13 @@ and play the journal back with no divergence (glitchygames/replay/playback.py). 
    opened before the game can write to them (including those its ``setup()`` opens) and the
    answers the devices door gives (``glitchygames.sources.observe_device_answers``); the
    answers given and the devices and MIDI ports opened from the scene's ``__init__`` until then
-   come from its start capture (``SceneStartCapture.device_answers`` / ``opened_devices`` /
-   ``opened_midi_ports``). A MIDI port is opened once per devices door, so an open that hands
-   back one opened earlier tells its port too: the journal holds every port the scene asked
-   for. Code-posted events are tracked for the whole run (``GameEngine`` owns the internal-post
-   tracker), so every event's origin and the count of posts pending as a frame begins are exact
-   in plain live play. Resuming the scene from the pause screen sets it up again and keeps the
-   journal.
+   come from its start capture (``SceneStartCapture.device_openings``). A MIDI port is opened
+   once per devices door, so an open that hands back one opened earlier tells its port too: the
+   journal holds every port the scene asked for, each once (opening one it holds already, at
+   the scene's start included, adds nothing). Code-posted events are tracked for the whole run
+   (``GameEngine`` owns the internal-post tracker), so every event's origin and the count of
+   posts pending as a frame begins are exact in plain live play. Resuming the scene from the
+   pause screen sets it up again and keeps the journal.
 3. Recording begins (``begin``) at the top of the scene's first logic frame
    (glitchygames/scene_start.py, rule 7), with the polled input that frame's logic reads (the
    previous frame's snapshot). ``SceneManager.instant_replay_journal`` is None until then.
@@ -120,7 +120,8 @@ from typing import TYPE_CHECKING, Any, Final, Self
 from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames import clock
-from glitchygames.input.devices import MidiPortDescriptor
+from glitchygames.input.devices import DeviceDescriptor, MidiPortDescriptor
+from glitchygames.input.input_devices import MIDI_PORTS_KEY
 from glitchygames.input.state import IDLE_INPUT, snapshot_changes
 from glitchygames.logical_names import logical_name
 from glitchygames.recording import (
@@ -151,7 +152,7 @@ if TYPE_CHECKING:
 
     import pygame
 
-    from glitchygames.input.devices import DeviceDescriptor, EnumerationAnswer
+    from glitchygames.input.devices import EnumerationAnswer
     from glitchygames.input.state import InputSnapshot
     from glitchygames.scene_start import ResumeBridge, SceneStart
     from glitchygames.scenes import Scene
@@ -264,16 +265,21 @@ class InstantReplayJournal:
         self._saves_opened: dict[str, Any] = {}
         self._devices_opened: list[dict[str, Any]] = []
         self._midi_ports_opened: list[dict[str, Any]] = []
+        # Every MIDI port the journal holds: the scene's start's and those opened since,
+        # by kind and port id
+        self._known_midi_ports: set[tuple[str, int]] = {
+            (descriptor.kind, descriptor.port_id)
+            for descriptor in map(
+                MidiPortDescriptor.from_json, (scene_start_devices or {}).get(MIDI_PORTS_KEY, [])
+            )
+        }
         self._device_enumeration: list[dict[str, Any]] = []
         self._resume_bridge: dict[str, Any] | None = None
         self._playback_answers: list[bool] = []
         capture = scene.scene_start_capture
         if capture is not None:
-            self._devices_opened = [descriptor.to_json() for descriptor in capture.opened_devices]
-            self._midi_ports_opened = [
-                descriptor.to_json() for descriptor in capture.opened_midi_ports
-            ]
-            self._device_enumeration = [answer.to_json() for answer in capture.device_answers]
+            for answer, opened in capture.device_openings:
+                self._keep_device_answer(answer=answer, opened=opened)
         observe_save_store_openings(observer=self)
         observe_device_answers(observer=self)
 
@@ -418,12 +424,25 @@ class InstantReplayJournal:
             opened: The descriptor of the device or MIDI port an open opened, else None.
 
         """
-        if not self._is_watching():
-            return
-        self._device_enumeration.append(answer.to_json())
+        if self._is_watching():
+            self._keep_device_answer(answer=answer, opened=opened)
+
+    def _keep_device_answer(
+        self: Self,
+        *,
+        answer: EnumerationAnswer,
+        opened: DeviceDescriptor | MidiPortDescriptor | None,
+    ) -> None:
         if isinstance(opened, MidiPortDescriptor):
+            port = (opened.kind, opened.port_id)
+            if port in self._known_midi_ports:
+                # Handed back: a playback hands its stand-in back too, taking no answer, so the
+                # journal of a scene that asks every frame must not grow
+                return
+            self._known_midi_ports.add(port)
             self._midi_ports_opened.append(opened.to_json())
-        elif opened is not None:
+        self._device_enumeration.append(answer.to_json())
+        if isinstance(opened, DeviceDescriptor):
             self._devices_opened.append(opened.to_json())
 
     def add_playback_answer(self: Self, *, granted: bool) -> None:

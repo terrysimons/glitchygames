@@ -24,7 +24,7 @@ Rules:
    the game can write to it (``glitchygames.state.open_saves`` tells the pending captures). So the
    save view is the saves as they were before the scene's ``__init__`` ran. While pending it also
    keeps every answer the devices door gives and every device and MIDI port opened
-   (``SceneStartCapture.device_answers`` / ``opened_devices`` / ``opened_midi_ports``, told by
+   (``SceneStartCapture.device_openings``, told by
    ``glitchygames.sources.notify_device_answer``): not part of the start, but what an
    instant-replay journal's header serves the rebuilt scene's ``__init__``
    (glitchygames/instant_replay.py).
@@ -78,7 +78,6 @@ from typing import TYPE_CHECKING, Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from glitchygames.input.devices import MidiPortDescriptor
 from glitchygames.logical_names import logical_name
 from glitchygames.randomness import capture_stream_states, restore_stream_states
 from glitchygames.sources import (
@@ -93,7 +92,11 @@ from glitchygames.sources import (
 from glitchygames.state.sandbox import save_namespace_snapshot
 
 if TYPE_CHECKING:
-    from glitchygames.input.devices import DeviceDescriptor, EnumerationAnswer
+    from glitchygames.input.devices import (
+        DeviceDescriptor,
+        EnumerationAnswer,
+        MidiPortDescriptor,
+    )
     from glitchygames.scenes import Scene
     from glitchygames.state.manager import SaveManager
 
@@ -252,9 +255,9 @@ class SceneStartCapture:
         # The devices door's answers and opened devices from the scene's __init__ to its first
         # setup, in order: an instant-replay journal's header holds them
         # (glitchygames/instant_replay.py), as a recording's frames hold them
-        self.device_answers: list[EnumerationAnswer] = []
-        self.opened_devices: list[DeviceDescriptor] = []
-        self.opened_midi_ports: list[MidiPortDescriptor] = []
+        self.device_openings: list[
+            tuple[EnumerationAnswer, DeviceDescriptor | MidiPortDescriptor | None]
+        ] = []
 
     def on_device_answer(
         self: Self,
@@ -270,11 +273,7 @@ class SceneStartCapture:
 
         """
         # Only while pending: complete() stops observing before it sets the start
-        self.device_answers.append(answer)
-        if isinstance(opened, MidiPortDescriptor):
-            self.opened_midi_ports.append(opened)
-        elif opened is not None:
-            self.opened_devices.append(opened)
+        self.device_openings.append((answer, opened))
 
     def on_save_store_opened(self: Self, *, namespace: str, store: SaveManager) -> None:
         """Snapshot a store opened while pending, unless an earlier snapshot holds it.

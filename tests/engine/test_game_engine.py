@@ -88,6 +88,7 @@ from glitchygames.input.devices import (
 from glitchygames.input.input_devices import InputMode, RecordedDevices, recorded_devices
 from glitchygames.live_sources import LiveSources
 from glitchygames.performance import AdaptiveClamping
+from glitchygames.recording import json_safe_value
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.sources import (
     active_sources,
@@ -2688,7 +2689,7 @@ class TestPlaybackDevices:
             engine.enter_playback_devices(
                 recorded=recorded_devices(
                     # The journal decides, whatever options stand beside it
-                    options={'midi_input': ['Keys']},
+                    options={'midi_input': json_safe_value(['Keys'])},
                     scene_start_devices={'input_mode': 'auto', 'devices': []},
                 ),
                 registry=registry,
@@ -2730,7 +2731,11 @@ class TestPlaybackDevices:
         with caplog.at_level('WARNING'):
             engine.enter_playback_devices(
                 recorded=recorded_devices(
-                    options={'midi_input': ['Pads'], 'midi_output': []}, scene_start_devices=None
+                    options={
+                        'midi_input': json_safe_value(['Pads']),
+                        'midi_output': json_safe_value([]),
+                    },
+                    scene_start_devices=None,
                 ),
                 registry=registry,
             )
@@ -2745,7 +2750,15 @@ class TestPlaybackDevices:
         assert engine.midi_manager.ports is live_ports
         assert midi_module.Input.call_count == live_opens
 
-    @pytest.mark.parametrize('options', [None, {}, {'midi_input': [], 'midi_output': []}])
+    @pytest.mark.parametrize(
+        'options',
+        [
+            None,
+            {},
+            # As a header holds them (a list is tagged)
+            {'midi_input': json_safe_value([]), 'midi_output': json_safe_value([])},
+        ],
+    )
     def test_a_recording_file_naming_no_midi_port_asks_the_scopes_door_nothing(
         self, mocker, options
     ):

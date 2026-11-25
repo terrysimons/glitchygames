@@ -297,6 +297,7 @@ from glitchygames.recording import (
     RecordingSources,
     UnrepresentableValue,
     custom_event_type_remap,
+    decoded_options,
     event_from_record,
     event_to_record,
     forget_pending_posts,
@@ -308,7 +309,6 @@ from glitchygames.recording import (
     start_tracking_internal_posts,
     stop_tracking_internal_posts,
     take_matching_post,
-    value_from_json,
 )
 from glitchygames.recording_history import (
     CONTENT_HASH_FIELD,
@@ -3096,12 +3096,16 @@ def apply_recorded_options(*, options: dict[str, Any], recorded: dict[str, Any])
 
     Args:
         options: The run's options (the engine's ``options``), changed in place.
-        recorded: The header's ``options`` (JSON-safe; read back with ``value_from_json``).
+        recorded: The header's ``options`` (JSON-safe; read back with ``decoded_options``).
 
     """
-    for name, value in recorded.items():
-        if name not in REPLAY_LOCAL_OPTIONS:
-            options[name] = value_from_json(value)
+    options.update(
+        decoded_options(
+            recorded={
+                name: value for name, value in recorded.items() if name not in REPLAY_LOCAL_OPTIONS
+            }
+        )
+    )
     # A recording that predates an option names none of it: the replay's own command line or the
     # game's default must not (an old recording holds no MIDI answers to open a port with)
     for name in RECORDED_PORT_NAME_OPTIONS:

@@ -2381,6 +2381,11 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             # stay pushed over the live game
             pop_scoped_sources()
             raise
+        # The playback's rumble (its scene's pulses and shakes) goes to a controller of its own
+        # that reaches no device (_update_frame_services), so the live game's waits untouched.
+        # First of all: _exit_playback needs it back whatever fails below (the devices' opening)
+        self._live_rumble_behind_scope = self.rumble
+        self.rumble = RumbleController(intensity=self.rumble.intensity)
         # The played scene sees the recording's devices, opened through the scope's devices
         # door in the input mode it was recorded in; the live game's wait untouched (BUGS.md
         # #184.3; _exit_playback puts them back)
@@ -2394,10 +2399,6 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
                 ),
                 registry=replay.devices(),
             )
-        # The playback's rumble (its scene's pulses and shakes) goes to a controller of its own
-        # that reaches no device (_update_frame_services), so the live game's waits untouched
-        self._live_rumble_behind_scope = self.rumble
-        self.rumble = RumbleController(intensity=self.rumble.intensity)
         LOG.info('Starting the %s playback of %s', request.kind, request.scene_class.__name__)
         self.record_control_event(
             kind=PLAYBACK_KIND, data={'source': request.kind, 'frames': request.frame_count}
@@ -2493,7 +2494,8 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             self._previous_fps_event_seconds = session.saved_fps_event_seconds
             # The playback's own scene switches set it to playback scenes
             self.previous_scene = session.saved_previous_scene
-            # _enter_playback set it right after the session, with nothing in between to fail
+            # _enter_playback sets it right after the session, before anything that can fail (the
+            # devices' opening comes after)
             self.rumble = required(
                 self._live_rumble_behind_scope,
                 what='the live rumble controller the playback set aside',

@@ -19,11 +19,7 @@ from glitchygames.events import FPSEVENT
 from glitchygames.input import devices as devices_module
 from glitchygames.input.devices import MIDI_INPUT_KIND, MidiPortInfo, ReplayMidiInput
 from glitchygames.input.input_devices import scene_start_devices_record
-from glitchygames.input.stand_in_devices import (
-    StandInDeviceSources,
-    StandInMidiInput,
-    stand_in_registry,
-)
+from glitchygames.input.stand_in_devices import StandInMidiInput
 from glitchygames.input.state import IDLE_INPUT, current_input
 from glitchygames.instant_replay import (
     JOURNAL_BYTES_PER_MINUTE_LIMIT,
@@ -33,6 +29,7 @@ from glitchygames.instant_replay import (
 )
 from glitchygames.live_sources import LiveSources
 from glitchygames.recording import (
+    DEVICE_ENUMERATION_FIELD,
     EXTERNAL_ORIGIN,
     INTERNAL_ORIGIN,
     MIDI_PORTS_HEADER_FIELD,
@@ -56,12 +53,7 @@ from glitchygames.replay.playback import (
     start_playback_from_recording,
 )
 from glitchygames.replay.silence import FrameSilencer
-from glitchygames.replay.tools.golden_traces import (
-    FRAME_SECONDS,
-    GoldenTraceEngine,
-    press,
-    release,
-)
+from glitchygames.replay.tools.golden_traces import FRAME_SECONDS, press, release
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
 from glitchygames.sources import active_sources
@@ -80,6 +72,7 @@ from tests.replay.playback_fixtures import (
     active_counting_scene,
     record_counting_scene,
     step_finishing,
+    use_stand_in_midi_ports,
 )
 from tests.replay.test_playback_scope import LivePostingSupervisor
 from tests.world.test_frame_integration import CameraFreeScene, running_scene, step
@@ -90,7 +83,6 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
     from glitchygames.events.base import HashableEvent
-    from glitchygames.input.stand_in_devices import StandInDeviceRegistry
     from glitchygames.replay.playback import PlaybackSources
 
 INSTANT_REPLAY_TEST_SECONDS = 10.0
@@ -1230,6 +1222,35 @@ class InstantMidiScene(CountingScene):
         self.marker.rect.y += 1
 
 
+class InstantReopeningMidiScene(InstantMidiScene):
+    """Opens every port again every frame."""
+
+    def __init__(
+        self: Self,
+        options: dict[str, Any] | None = None,
+        groups: pygame.sprite.LayeredDirty[Any] | None = None,
+    ) -> None:
+        """Open the first output twice.
+
+        Args:
+            options: The game's options.
+            groups: The sprite group.
+
+        """
+        super().__init__(options=options, groups=groups)
+        active_sources().devices().open_midi_output(port_id=1)
+
+    @override
+    def dt_tick(self: Self, dt: float) -> None:
+        """Open what is open again (the second output too, once it is)."""
+        super().dt_tick(dt)
+        devices = active_sources().devices()
+        devices.open_midi_input(port_id=0)
+        devices.open_midi_output(port_id=1)
+        if self.frames_ticked >= MIDI_OPENING_TICK:
+            devices.open_midi_output(port_id=2)
+
+
 class MidiOpeningScene(CameraFreeScene):
     """An earlier scene, which opens the output the next one opens too."""
 
@@ -1240,27 +1261,6 @@ class MidiOpeningScene(CameraFreeScene):
         active_sources().devices().open_midi_output(port_id=2)
 
 
-def use_stand_in_midi_ports(*, mocker: MockerFixture) -> StandInDeviceRegistry:
-    """Make the engine's live doors stand-ins with MIDI_TEST_PORTS (GoldenTraceEngine builds them).
-
-    Returns:
-        The stand-in registry.
-
-    """
-    registry = stand_in_registry(descriptors=[], midi_ports=MIDI_TEST_PORTS)
-
-    def build_live_sources(
-        engine: GoldenTraceEngine, *, random_seed: int, captures_scene_starts: bool
-    ) -> StandInDeviceSources:
-        del engine
-        return StandInDeviceSources(
-            registry=registry, random_seed=random_seed, captures_scene_starts=captures_scene_starts
-        )
-
-    mocker.patch.object(GoldenTraceEngine, 'build_live_sources', build_live_sources)
-    return registry
-
-
 class TestMidiPorts:
     """The journal carries the MIDI ports the scene started with and those it opened."""
 
@@ -1268,7 +1268,7 @@ class TestMidiPorts:
     def test_ports_named_opened_at_construction_and_mid_scene_play_back(
         self, mocker: MockerFixture, caplog
     ):
-        use_stand_in_midi_ports(mocker=mocker)
+        use_stand_in_midi_ports(mocker=mocker, midi_ports=MIDI_TEST_PORTS)
         with running_scene(CameraFreeScene, extra_arguments=['--midi-input', 'Keys']) as manager:
             engine = manager.game_engine
             assert engine is not None
@@ -1319,7 +1319,7 @@ class TestMidiPorts:
         self, mocker: MockerFixture, caplog
     ):
         """Opened once per registry, so the scene is handed it back: the journal still holds it."""
-        use_stand_in_midi_ports(mocker=mocker)
+        use_stand_in_midi_ports(mocker=mocker, midi_ports=MIDI_TEST_PORTS)
         with running_scene(MidiOpeningScene) as manager:
             manager.switch_to_scene(InstantMidiScene(options=manager.OPTIONS))
             step(manager, frames=JOURNALED_FRAMES)
@@ -1332,6 +1332,31 @@ class TestMidiPorts:
         assert 'is not in the recording' not in caplog.text
 
     @pytest.mark.draws_frames
+    def test_a_port_the_journal_holds_is_not_kept_again(self, mocker: MockerFixture):
+        """Named at the start, in the header or in a frame: opening it again adds nothing."""
+        use_stand_in_midi_ports(mocker=mocker, midi_ports=MIDI_TEST_PORTS)
+        with running_scene(CameraFreeScene, extra_arguments=['--midi-input', 'Keys']) as manager:
+            manager.switch_to_scene(InstantReopeningMidiScene(options=manager.OPTIONS))
+            step(manager, frames=JOURNALED_FRAMES)
+            live_scene = manager.active_scene
+            assert isinstance(live_scene, InstantReopeningMidiScene)
+            recording = journal_of(manager).as_recording()
+            held = [
+                *recording.header[MIDI_PORTS_HEADER_FIELD],
+                *(
+                    record
+                    for frame in recording.frames
+                    for record in frame.get(MIDI_PORTS_OPENED_FIELD, [])
+                ),
+            ]
+            assert [record['name'] for record in held] == ['Synth', 'Drums']
+            # The answers of those opens are not kept either (a journal would grow each frame)
+            assert (
+                sum(len(frame.get(DEVICE_ENUMERATION_FIELD, [])) for frame in recording.frames) == 1
+            )
+            play_journal(manager=manager, recording=recording, then=live_scene)
+
+    @pytest.mark.draws_frames
     def test_a_game_with_no_midi_has_a_journal_with_no_midi_fields(self):
         with running_scene(InstantCountingScene) as manager:
             step(manager, frames=JOURNALED_FRAMES)
@@ -1341,16 +1366,16 @@ class TestMidiPorts:
         assert not any(MIDI_PORTS_OPENED_FIELD in frame for frame in recording.frames)
 
     @pytest.mark.draws_frames
-    def test_notes_played_live_during_a_replay_reach_nothing_but_their_releases_after_it(
+    def test_live_midi_during_a_replay_reaches_only_the_live_game_after_it(
         self, mocker: MockerFixture
     ):
         """The port is read every frame of the scope, so no burst waits behind it.
 
-        As a joystick's input: presses and motion are dropped, releases reach the live game
-        after it. The played scene hears its recording's notes only. The journal then holds the
-        gap: a second replay, across the first, matches.
+        As a joystick's input: presses are dropped, releases reach the live game after it, and
+        so does where each continuous control was left. The played scene hears its recording's
+        notes only. The journal then holds the gap: a second replay, across the first, matches.
         """
-        registry = use_stand_in_midi_ports(mocker=mocker)
+        registry = use_stand_in_midi_ports(mocker=mocker, midi_ports=MIDI_TEST_PORTS)
         with running_scene(CameraFreeScene, extra_arguments=['--midi-input', 'Keys']) as manager:
             manager.switch_to_scene(InstantMidiScene(options=manager.OPTIONS))
             registry.queue_midi_input(port_id=0, messages=[([0x90, 60, 100, 0], 1)])
@@ -1375,7 +1400,7 @@ class TestMidiPorts:
             step_until_the_scope_ends(manager=manager, stepper=step)
             assert live_scene.messages == [(0x90, 60)]
             step(manager, frames=3)
-            assert live_scene.messages == [(0x90, 60), (0x80, 60)]
+            assert live_scene.messages == [(0x90, 60), (0xE0, 0), (0x80, 60)]
 
             play_journal(
                 manager=manager, recording=journal_of(manager).as_recording(), then=live_scene
@@ -1386,7 +1411,7 @@ class TestMidiPorts:
         self, mocker: MockerFixture
     ):
         """Leaving fails part way: the live ports return as the same objects."""
-        use_stand_in_midi_ports(mocker=mocker)
+        use_stand_in_midi_ports(mocker=mocker, midi_ports=MIDI_TEST_PORTS)
         with running_scene(
             InstantCountingScene, extra_arguments=['--midi-input', 'Keys']
         ) as manager:

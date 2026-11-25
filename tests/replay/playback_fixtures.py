@@ -7,11 +7,12 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, override
 
 import pygame
 
+from glitchygames.input.stand_in_devices import StandInDeviceSources, stand_in_registry
 from glitchygames.input.state import current_input
 from glitchygames.randomness import random_stream
 from glitchygames.recording import post_event
 from glitchygames.replay.playback import start_playback_from_recording
-from glitchygames.replay.tools.golden_traces import discard_environment_events
+from glitchygames.replay.tools.golden_traces import GoldenTraceEngine, discard_environment_events
 from glitchygames.scenes import SceneManager
 from glitchygames.state import open_saves
 from glitchygames.tracing import FRAMES_FIELD, read_trace_result, write_trace
@@ -28,6 +29,10 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
+    from pytest_mock import MockerFixture
+
+    from glitchygames.input.devices import MidiPortInfo
+    from glitchygames.input.stand_in_devices import StandInDeviceRegistry
     from glitchygames.scenes import Scene
 
 COUNTING_STREAM_NAME = 'test.counting'
@@ -259,6 +264,33 @@ def record_counting_scene(
         step(manager, frames=frames)
         engine.stop_trace_recording()
     return recording_path
+
+
+def use_stand_in_midi_ports(
+    *, mocker: MockerFixture, midi_ports: Sequence[MidiPortInfo]
+) -> StandInDeviceRegistry:
+    """Make a run's live doors stand-ins that list ``midi_ports`` (GoldenTraceEngine builds them).
+
+    Args:
+        mocker: The test's mocker.
+        midi_ports: The ports PortMidi would list.
+
+    Returns:
+        The stand-in registry.
+
+    """
+    registry = stand_in_registry(descriptors=[], midi_ports=midi_ports)
+
+    def build_live_sources(
+        engine: GoldenTraceEngine, *, random_seed: int, captures_scene_starts: bool
+    ) -> StandInDeviceSources:
+        del engine
+        return StandInDeviceSources(
+            registry=registry, random_seed=random_seed, captures_scene_starts=captures_scene_starts
+        )
+
+    mocker.patch.object(GoldenTraceEngine, 'build_live_sources', build_live_sources)
+    return registry
 
 
 def active_counting_scene(manager: Any) -> CountingScene:

@@ -40,6 +40,7 @@ from glitchygames.input.input_devices import (
 )
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.live_sources import LiveSources
+from glitchygames.recording import json_safe_value
 from glitchygames.sources import install_sources
 
 # An unmapped joystick: device index 0, instance id 5
@@ -424,7 +425,7 @@ class TestRecordedDevices:
 
     def test_a_journals_midi_ports_are_adopted_and_its_options_names_ignored(self):
         recorded = recorded_devices(
-            options={'midi_input': ['Keys']},
+            options={'midi_input': json_safe_value(['Keys'])},
             scene_start_devices={
                 'input_mode': 'auto',
                 'devices': [],
@@ -438,7 +439,11 @@ class TestRecordedDevices:
 
     def test_a_recording_files_midi_port_names_come_from_its_options(self):
         recorded = recorded_devices(
-            options={'midi_input': ['Keys', 'Pads'], 'midi_output': ['Synth']},
+            # As a header holds them (a list is tagged)
+            options={
+                'midi_input': json_safe_value(['Keys', 'Pads']),
+                'midi_output': json_safe_value(['Synth']),
+            },
             scene_start_devices=None,
         )
 

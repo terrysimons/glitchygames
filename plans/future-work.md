@@ -2321,6 +2321,12 @@ replay (no live doors). Not decided, for the day a live game runs inside another
 - [ ] **Who reads a shared input.** A message is read once; with two contexts holding one input,
   one context's frame takes what the other would have seen. Decide whether the foreground game
   reads, or the host fans messages out through recorded events.
+- [ ] **Notes sounding as a playback scope starts.** A note a live output port is playing when a
+  demo or an instant replay begins keeps sounding until the live game lets it go after the scope:
+  the scope writes nothing to a live port, a note-off included.
+- [ ] **A port can't be reopened in the process.** pygame-ce 2.5.8's own `close()` does not close a
+  PortMidi port, so one closed there can't be opened again until PortMidi is shut down (which the
+  engine's teardown does). Opening a port once per registry keeps games from meeting this.
 - [ ] **`InnerGame.finish()` never closes ports.** It does not call the registry's
   `close_midi_ports()`, and a live inner context's PortMidi must not be shut down under the outer
   one (the engine's `_close_midi_ports` shuts it down unconditionally today).
