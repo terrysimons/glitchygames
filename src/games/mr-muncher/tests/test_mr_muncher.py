@@ -287,7 +287,7 @@ class TestStartingALevel:
         _tick(later, seconds=READY_SECONDS - 0.1)
         played.assert_called_once_with('action')
 
-    def test_setting_up_again_after_a_pause_shows_no_message_in_play(self, playing):
+    def test_setting_up_again_shows_no_message_in_play(self, playing):
         playing.setup()
         assert not playing.message.visible
 

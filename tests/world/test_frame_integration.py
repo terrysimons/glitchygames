@@ -155,8 +155,7 @@ class FollowingScene(Scene):
     def setup(self: Self) -> None:
         """Create the player, the HUD sprite and a following camera (once).
 
-        Resuming from a pause runs setup() again; the scene keeps what it already has, as a
-        game keeps its state across a pause.
+        Run again (a scene returned to without a pause), it keeps what it already has.
         """
         if getattr(self, 'player', None) is not None:
             return
@@ -1172,7 +1171,7 @@ class TestSceneStartCaptureScope:
 
     @pytest.mark.draws_frames
     def test_resume_from_pause_keeps_the_first_capture(self, mocker):
-        """Resuming runs the scene's setup again but keeps the start of its first setup."""
+        """Unpausing keeps the start of the scene's setup."""
         mocker.patch.object(StartCapturedScene, 'INSTANT_REPLAY_SECONDS', 10.0)
         with running_scene(StartCapturedScene) as manager:
             game_scene = manager.active_scene

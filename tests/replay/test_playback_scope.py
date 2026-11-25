@@ -3272,7 +3272,7 @@ class TestPlayRecordingDemos:
     def test_after_a_demo_that_switches_scenes_game_over_restarts_the_live_game(
         self, tmp_path, mocker: MockerFixture
     ):
-        """The scope keeps SceneManager.previous_scene, which GameOverScene.resume restarts."""
+        """The scope keeps SceneManager.previous_scene, which GameOverScene.play_again restarts."""
         recording_path = record_counting_scene(
             tmp_path=tmp_path, frames=RECORDED_FRAMES, scene_class=SwitchingCountingScene
         )
@@ -3287,7 +3287,7 @@ class TestPlayRecordingDemos:
             assert manager.active_scene is game_over
             assert manager.previous_scene is live_game
             switch_to_scene = mocker.spy(manager, 'switch_to_scene')
-            game_over.resume()
+            game_over.play_again()
             (restarted_game,), _keywords = switch_to_scene.call_args
             assert type(restarted_game) is KeyReleaseCountingScene
 

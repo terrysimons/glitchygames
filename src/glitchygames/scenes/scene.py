@@ -697,7 +697,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         """Make the journal of a scene that offers instant replay, as it is first set up.
 
         Called before its ``setup()`` (glitchygames/instant_replay.py, rule 2). A later setup
-        (resuming it from the pause screen) keeps its journal; a scene whose start is not
+        (of a scene returned to) keeps its journal; a scene whose start is not
         captured and a scene a playback scope builds keep none.
 
         Args:
@@ -4697,19 +4697,6 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
         """
         self.scene_manager.switch_to_scene(self)
         self.log.info('Scene unpaused')
-
-    def resume(self: Self) -> None:
-        """Resume the current scene.
-
-        Default implementation switches back to the previous scene.
-        Scenes can override this method to provide custom resume behavior.
-
-        """
-        if self.scene_manager.previous_scene:
-            self.scene_manager.switch_to_scene(self.scene_manager.previous_scene)
-            self.log.info('Scene resumed')
-        else:
-            self.log.warning('No previous scene found to resume')
 
     def game_over(self: Self) -> None:
         """Handle game over for the current scene.

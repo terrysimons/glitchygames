@@ -517,8 +517,7 @@ class MrMuncherScene(Scene):
     def setup(self: Self) -> None:
         """Show the reel's first message (the sounds were compiled when the level was built)."""
         super().setup()
-        # (Set up again when play resumes after a pause: only a reel still waiting to start
-        # shows its message)
+        # Only a reel still waiting to start shows its message
         if self.phase is Phase.READY:
             self._show_ready_message()
         log.info('Mr. Muncher: reel %d', self.settings.level)
@@ -1502,7 +1501,7 @@ class MrMuncherGameOverScene(GameOverScene):
 
         """
         if event.button in {pygame.CONTROLLER_BUTTON_A, pygame.CONTROLLER_BUTTON_START}:
-            self.resume()
+            self.play_again()
 
     @override
     def on_controller_button_down_event(self: Self, event: ControllerButtonEvent) -> None:
@@ -1513,10 +1512,10 @@ class MrMuncherGameOverScene(GameOverScene):
 
         """
         if event.button in {pygame.CONTROLLER_BUTTON_A, pygame.CONTROLLER_BUTTON_START}:
-            self.resume()
+            self.play_again()
 
     @override
-    def resume(self: Self) -> None:
+    def play_again(self: Self) -> None:
         """Start a new game (explicitly: the previous scene depends on how this was reached)."""
         self.scene_manager.switch_to_scene(MrMuncherScene(options=self.options))
 

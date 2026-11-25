@@ -179,11 +179,10 @@ flowchart TB
 ```
 
 Resuming from the pause screen switches back to the *same* scene object, so the game picks up
-where it stopped; its `setup()` runs again (it only rebuilds the HUD font and re-follows the
-player; the sounds are asked for once, when the scene is built). The pause screen's `debug_subject` is the paused game,
+where it stopped; a paused scene stays set up, so its `setup()` does not run again. The pause screen's `debug_subject` is the paused game,
 so the debug overlay keeps showing the game's hitboxes over the frozen picture.
 
-The game-over screen does not resume the old scene: `GameOverScene.resume()` builds a new
+The game-over screen does not resume the old scene: `GameOverScene.play_again()` builds a new
 instance of the previous scene's class with the same options, so a restart is a clean game
 (and the Papyrus Edition restarts as the Papyrus Edition).
 

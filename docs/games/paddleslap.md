@@ -86,11 +86,11 @@ stateDiagram-v2
 
     [*] --> Game : GameEngine(game=Game).start()
     Game --> PauseScene : Space released<br/>Scene.pause() sets next_scene
-    PauseScene --> Game : Space, Start or A, or focus regained<br/>resume() switches back to the same Game
+    PauseScene --> Game : Space, Start or A, or focus regained<br/>unpause() switches back to the same Game
     Game --> GameOver : last ball gone<br/>_show_game_over() sets next_scene
     GameOver --> Demo : 10 s of game time idle<br/>play_recording(then=self)
     Demo --> GameOver : any key or button,<br/>or the demo's end
-    GameOver --> NewGame : Space, Start or A<br/>resume()
+    GameOver --> NewGame : Space, Start or A<br/>play_again()
     NewGame --> Game
     Game --> [*] : Q or Esc
     PauseScene --> [*] : Q or Esc
@@ -101,12 +101,12 @@ stateDiagram-v2
     Both set `next_scene` instead of switching at once, so the scene manager switches after the
     frame renders. Pausing during event processing would otherwise freeze the previous frame's
     picture (the comment on `Scene.pause()`). `PauseScene` shows `previous_scene.screenshot`;
-    `resume()` switches back to the same `Game` object, so the rally goes on where it was.
+    `unpause()` switches back to the same `Game` object, so the rally goes on where it was.
 
 !!! note "A new game is always a `Game`"
-    `GameOverScene.resume()` restarts the type of the scene manager's `previous_scene`, which a
+    `GameOverScene.play_again()` restarts the type of the scene manager's `previous_scene`, which a
     playback scope could change (BUGS.md #81, resolved: the scope now restores it), so
-    `PaddleSlapGameOverScene.resume()` names `Game` explicitly.
+    `PaddleSlapGameOverScene.play_again()` names `Game` explicitly.
 
 Rebuilding the game-over screen
 :   `PaddleSlapGameOverScene.replay_arguments()` returns
@@ -213,7 +213,7 @@ classDiagram
             idle_since_game_time : float
             dt_tick(dt)
             replay_arguments()
-            resume()
+            play_again()
         }
     }
 
@@ -224,13 +224,13 @@ classDiagram
 
     Game ..> PauseScene : SPACE calls the inherited pause
     Game ..> PaddleSlapGameOverScene : next_scene when the last ball is gone
-    PaddleSlapGameOverScene ..> Game : resume starts a new Game
+    PaddleSlapGameOverScene ..> Game : play_again starts a new Game
 ```
 
 `Game` never names `PauseScene`: its pause action calls `Scene.pause()`, which it inherits, and
 that requests the engine's `PauseScene` for the end of the frame. PaddleSlap's game-over screen
 extends the engine's, adding the attract-mode demo after an idle wait and always restarting a new
-`Game` (the engine's `resume()` restarts whatever scene came before, which depends on how the screen was reached: BUGS.md #81).
+`Game` (the engine's `play_again()` restarts whatever scene came before, which depends on how the screen was reached: BUGS.md #81).
 
 ### Sprites
 

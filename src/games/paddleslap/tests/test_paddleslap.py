@@ -639,7 +639,7 @@ class TestPaddleslapGameOverDemo:
         scene, _play_recording = self.game_over_screen(mocker)
         switch_to_scene = mocker.patch.object(scene.scene_manager, 'switch_to_scene')
 
-        scene.resume()
+        scene.play_again()
 
         (new_game,), _keywords = switch_to_scene.call_args
         assert type(new_game) is Game

@@ -34,7 +34,7 @@ Rules:
    and setting it up (a transition builds the next floor a frame early), and
    ``replay_arguments()``, which must read back from JSON exactly as returned (no tuples,
    non-string keys, NaN or objects), else a ``TypeError`` naming the scene is raised. Later
-   setups (resuming from the pause screen) keep the first start.
+   setups (a scene returned to; unpausing runs none) keep the first start.
 4. ``rebuild_scene`` restores the construction-time streams and frame clock, constructs the scene
    class with the recorded arguments and the given options, then restores the setup-time streams
    and frame clock; it does not call ``setup()``. It sets the global random streams and frame

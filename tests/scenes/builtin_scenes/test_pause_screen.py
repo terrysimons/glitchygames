@@ -300,6 +300,15 @@ class TestPauseSceneBehaviour:
         assert pause_scene.debug_subject is pause_scene
         _draw_the_active_scene(isolated_scene_manager)
 
+    @pytest.mark.draws_frames
+    def test_unpausing_with_nothing_paused_warns_and_stays(self, isolated_scene_manager, caplog):
+        pause_scene = self._pause_scene_after(isolated_scene_manager, previous_scene=None)
+        with caplog.at_level(logging.WARNING):
+            _press_and_release(pause_scene, pygame.K_SPACE)
+        assert 'No paused scene found' in caplog.text
+        assert isolated_scene_manager.active_scene is pause_scene
+        _draw_the_active_scene(isolated_scene_manager)
+
     def test_setup_without_a_game_engine_stops(self, isolated_scene_manager):
         """The pause overlay shows the running game, which only a game engine knows.
 

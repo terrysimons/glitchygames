@@ -1,7 +1,6 @@
 # Pausing is not leaving: `Scene.pause()` and `Scene.unpause()`
 
-> **Status: design agreed with the owner (2026-11-25); nothing is built.** Stacked on
-> `refactor/engine-hud-labels`.
+> **Status: built (2026-11-25), not pushed.** Stacked on `refactor/engine-hud-labels`.
 
 **Goal:** A paused scene stays set up. Pausing runs no `cleanup()`, and unpausing runs no
 `setup()` or `load_resources()`: each runs once in a scene's life.
@@ -25,8 +24,10 @@ Every switch runs the old scene's `cleanup()` and the new scene's `setup()`
 - `Scene.unpause()` is on the paused scene. The pause screen calls it; by default it makes the
   scene active again. A scene that must react overrides it and calls `super()`. No `on_pause` or
   `on_unpause` hooks until a scene needs the exact moment.
-- The scene manager suspends the outgoing scene when the incoming one presents it as paused
-  (`debug_subject`, the rule the audio engine already uses to hold a paused scene's voices).
+- The scene manager suspends the outgoing scene when the incoming one has
+  `PAUSES_PREVIOUS_SCENE` (`PauseScene`). `debug_subject` cannot say so: a pause screen knows its
+  game only once set up, after the outgoing scene would be cleaned up. A playback scope keeps the
+  live game's paused scene, and cleans up one it paused itself.
   Unpausing still does what every activation must: forget key presses, snap mode, `dt` of 0,
   caption, frame rate, full redraw, performance tracking; `previous_scene` is the pause screen.
 - A suspended scene is cleaned up exactly once if it is never unpaused: quitting from the pause
@@ -41,8 +42,8 @@ Every switch runs the old scene's `cleanup()` and the new scene's `setup()`
    reproduce the projector bug.
 2. Rename only (`play_again()`). Every recording replays unchanged.
 3. The manager and `unpause()`, red first.
-4. Games: the roster's pad check moves to `unpause()`; drop the guards in Brave, Clockwork and
-   Zombies' roster; Zombies' yard and Mr. Muncher's ready message as each test allows.
+4. Games: the roster's pad check moves to `unpause()`; the guards in Brave, Clockwork and
+   Zombies' roster go. Zombies' yard and Mr. Muncher's ready message keep theirs (harmless).
 5. Docs (`docs/games/`, `scene_start.py`, comments saying setup runs again), the projector's bug
    record, and the HUD record's class and sweep.
 

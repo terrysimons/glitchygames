@@ -1358,10 +1358,10 @@ class PaddleSlapGameOverScene(GameOverScene):
         super().on_controller_button_down_event(event)
 
     @override
-    def resume(self: Self) -> None:
+    def play_again(self: Self) -> None:
         """Start a new PaddleSlap game.
 
-        Explicitly a ``Game``: GameOverScene.resume restarts the type of the scene manager's
+        Explicitly a ``Game``: GameOverScene.play_again restarts the type of the scene manager's
         ``previous_scene``, which depends on how this screen was reached (a playback scope
         restores it as it ends: BUGS.md #81), while game over here always starts a new game.
         """

@@ -311,8 +311,8 @@ Pads already plugged in when the game starts are never announced to a scene (the
 synchronizes them before any scene exists), so joining reads only the press's instance id.
 
 The engine tells only the active scene that a device left, so a pad unplugged on the pause
-screen is caught when the title or the card resumes: setting a screen up again drops every
-joined pad the engine no longer sees (`RosterScene.setup`).
+screen is caught when the title or the card plays on: unpausing drops every joined pad the engine no
+longer sees (`RosterScene.unpause`).
 
 ## Drawing
 
