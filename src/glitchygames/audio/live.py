@@ -17,6 +17,26 @@ start the queued sound, so fades are rendered into the samples and stop_now() ca
 twice; set_reserved(n) reserves channels 0..n-1; set_num_channels(smaller) stops sounds on the
 removed channels, so the pool is reserved once at startup and never resized.
 
+A stream holds its own reference to every chunk it plays or queues until its channel has moved
+past it (``LiveStream.held_chunks``), so pygame's channel table never holds a chunk's last
+reference. pygame-ce 2.5.8's ``endsound_callback`` drops the playing chunk before it clears the
+queue slot; when that drop frees the chunk, ``Mix_FreeChunk`` halts the channel and re-enters the
+callback, which releases the queued chunk a second time: the heap is corrupted
+(bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md, docs/quality/upstream_issues.md).
+A stream is released when its game ends (``SceneManager.terminate`` releases the live voices),
+when the pool steals or ends it, or by ``stop_now``. A stream dropped while still holding chunks
+was never released: its finalizer stops the channel if the channel still names one, lets go, and
+reports it: to its context's registry (``LIVE_STREAMS_SLOT``, a list no logger level can
+filter) and as a logged warning. A finalizer must never raise (an exception in a weakref
+callback is only printed). Each context's registry also holds its live streams weakly, so the
+test harness can ask it, after every test, for each stream still holding chunks
+(``live_streams_holding_chunks``) and fail the test that leaked it (tests/harness.py).
+
+Only this module stores ``pygame.mixer.Channel`` objects, so only its table reads can outlive a
+mixer quit or restart (a fresh ``Channel(index)`` checks init and range itself). Every read goes
+through ``_channel_table_slots``, and a channel at or past ``get_num_channels()`` (a pool shrunk
+or restarted under a stale stream) is silent: nothing is played or queued on it.
+
 An inner context's pool is the live pool its build took from the channels the host declared
 (``voices.inner_context_partition``; Arcade sub-plan 4, decision 4), never the default
 context's. A voice belongs to the context it is
@@ -31,6 +51,7 @@ from __future__ import annotations
 import enum
 import itertools
 import logging
+import weakref
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import numpy as np
@@ -53,7 +74,7 @@ from glitchygames.audio.synth import (
     to_sound,
 )
 from glitchygames.audio.voices import constant_power_gains
-from glitchygames.engine_context import current_context
+from glitchygames.engine_context import ContextSlot, current_context
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -70,6 +91,91 @@ DEFAULT_FADE_OUT = 0.1
 # A live voice's stealing priority when none is given (the baked plays' default)
 DEFAULT_LIVE_PRIORITY = 50
 PAN_RANGE = (-1.0, 1.0)
+# The most chunks a stream holds once it has let go of those its channel moved past: pygame's
+# table names one playing and one queued per channel
+MAXIMUM_HELD_CHUNKS = 2
+# Logged by a stream's finalizer when it was collected still holding chunks: nobody released it
+UNRELEASED_LIVE_STREAM_MESSAGE = (
+    'A live stream (%s) was never released: collected holding %d chunk(s) '
+    '(release_voice, release_every_voice or stop_now)'
+)
+
+
+class UnreleasedLiveStreamReport(BaseModel):
+    """A live stream collected while still holding chunks: nobody released it.
+
+    Attributes:
+        stream_name: Its owner's class and its channel (``LiveStream.diagnostic_name``).
+        stream_id: The stream's ``id``, for telling which stream a report is about.
+        held_chunk_count: How many chunks it still held.
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    stream_name: str
+    stream_id: int
+    held_chunk_count: int
+
+
+class LiveStreamRegistry:
+    """One context's live streams, held weakly, and the reports of those collected unreleased.
+
+    A diagnostic: nothing in a game reads it. The test harness asks it after every test.
+    """
+
+    def __init__(self) -> None:
+        """Start with no stream and no report."""
+        self._streams: weakref.WeakSet[LiveStream] = weakref.WeakSet()
+        self._unreleased_reports: list[UnreleasedLiveStreamReport] = []
+
+    def add(self, stream: LiveStream) -> None:
+        """Name a new stream (``LiveStream.__init__``)."""
+        self._streams.add(stream)
+
+    def streams_holding_chunks(self) -> tuple[LiveStream, ...]:
+        """Every stream of this context still alive and holding a chunk, whatever its channel.
+
+        Returns:
+            The streams.
+        """
+        return tuple(stream for stream in self._streams if stream.held_chunks)
+
+    def report_unreleased(self, report: UnreleasedLiveStreamReport) -> None:
+        """Keep a collected stream's report (its finalizer, ``_let_go_of_chunks``)."""
+        self._unreleased_reports.append(report)
+
+    def take_unreleased_reports(self) -> tuple[UnreleasedLiveStreamReport, ...]:
+        """Take the reports kept since they were last taken.
+
+        Returns:
+            The reports, oldest first; none are kept.
+        """
+        reports = tuple(self._unreleased_reports)
+        self._unreleased_reports.clear()
+        return reports
+
+
+LIVE_STREAMS_SLOT: ContextSlot[LiveStreamRegistry] = ContextSlot(
+    name='glitchygames.audio.live.live_streams', factory=LiveStreamRegistry
+)
+
+
+def live_streams_holding_chunks() -> tuple[LiveStream, ...]:
+    """The current context's live streams still holding chunks (a diagnostic).
+
+    Returns:
+        The streams.
+    """
+    return current_context().value(slot=LIVE_STREAMS_SLOT).streams_holding_chunks()
+
+
+def take_unreleased_live_stream_reports() -> tuple[UnreleasedLiveStreamReport, ...]:
+    """Take the current context's reports of live streams collected unreleased (a diagnostic).
+
+    Returns:
+        The reports, oldest first.
+    """
+    return current_context().value(slot=LIVE_STREAMS_SLOT).take_unreleased_reports()
 
 
 @runtime_checkable
@@ -168,6 +274,25 @@ class LiveStream:
         self._gain_source = options.gain_source
         self._pan = options.pan
         self._held = False
+        # Every chunk played or queued that the channel may still name (the module docstring)
+        self._held_chunks: list[pygame.mixer.Sound] = []
+        # Read now: Channel.id raises once the mixer has quit
+        self._diagnostic_name = (
+            f'{type(owner).__qualname__} on channel {"none" if channel is None else channel.id}'
+        )
+        if channel is not None:
+            registry = current_context().value(slot=LIVE_STREAMS_SLOT)
+            registry.add(self)
+            weakref.finalize(
+                self,
+                _let_go_of_chunks,
+                channel,
+                self._held_chunks,
+                UnreleasedLiveStreamReport(
+                    stream_name=self._diagnostic_name, stream_id=id(self), held_chunk_count=0
+                ),
+                registry,
+            ).atexit = False
 
     @property
     def chunk_samples(self) -> int:
@@ -208,6 +333,16 @@ class LiveStream:
             and self._channel is not None
             and not self._channel.get_busy()
         )
+
+    @property
+    def diagnostic_name(self) -> str:
+        """Its owner's class and its channel, as reports name it."""
+        return self._diagnostic_name
+
+    @property
+    def held_chunks(self) -> tuple[pygame.mixer.Sound, ...]:
+        """The chunks it holds: every one its channel names, at most ``MAXIMUM_HELD_CHUNKS``."""
+        return tuple(self._held_chunks)
 
     @property
     def is_held(self) -> bool:
@@ -256,19 +391,30 @@ class LiveStream:
         if self._channel is None or self._state is not VoiceState.IDLE:
             return
         self._state = VoiceState.PLAYING
+        if not _channel_in_the_table(self._channel):
+            return  # a pool shrunk under it: silent (the module docstring)
         self._channel.set_volume(*self._channel_gains())
-        self._channel.play(self._next_chunk())
+        self._play(self._channel)
 
     def update(self) -> None:
-        """Keep one chunk queued; call once per frame."""
-        if self._channel is None or self._state not in {VoiceState.PLAYING, VoiceState.FADING}:
+        """Keep one chunk queued, letting go of the chunks played out; call once per frame."""
+        if self._channel is None:
             return
+        self._let_go_of_chunks_played_out(self._channel)
+        if self._state not in {VoiceState.PLAYING, VoiceState.FADING}:
+            return
+        if not _channel_in_the_table(self._channel):
+            return  # a pool shrunk under it: silent (the module docstring)
         if not self._channel.get_busy():
             log.debug('Live voice underrun; restarting')
-            self._channel.play(self._next_chunk())
+            self._play(self._channel)
             return
-        if self._channel.get_queue() is None:
-            self._channel.queue(self._next_chunk())
+        _, queued = _channel_table_slots(self._channel)
+        if queued is None:
+            chunk = self._next_chunk()
+            self._held_chunks.append(chunk)
+            self._channel.queue(chunk)
+            self._let_go_of_chunks_played_out(self._channel)
 
     def stop(self, *, fade_out: float = DEFAULT_FADE_OUT) -> bool:
         """Fade to silence over fade_out seconds of rendered audio, then drain.
@@ -296,6 +442,7 @@ class LiveStream:
         if self._channel is not None and self._state is not VoiceState.STOPPED:
             self._channel.stop()
             self._channel.stop()
+            self._let_go_of_chunks_played_out(self._channel)
         self._state = VoiceState.STOPPED
         self._held = False
 
@@ -310,6 +457,26 @@ class LiveStream:
         if self._channel is not None and self._state is VoiceState.PAUSED:
             self._channel.unpause()
             self._state = VoiceState.PLAYING
+
+    def _play(self, channel: pygame.mixer.Channel) -> None:
+        """Play the next chunk, holding it and every chunk the channel named before the play.
+
+        The chunks the channel played before are let go only after ``Channel.play`` has
+        replaced them in pygame's table, never inside it (the module docstring). Both callers
+        (``start``, ``update``) have checked the channel is in the table: pygame's ``chan_play``
+        indexes it with SDL's -1 for a channel SDL refuses.
+        """
+        chunk = self._next_chunk()
+        self._held_chunks.append(chunk)
+        channel.play(chunk)
+        self._let_go_of_chunks_played_out(channel)
+
+    def _let_go_of_chunks_played_out(self, channel: pygame.mixer.Channel) -> None:
+        """Keep only the held chunks the channel still names, playing or queued."""
+        named = _channel_table_slots(channel)
+        self._held_chunks[:] = [
+            chunk for chunk in self._held_chunks if any(chunk is sound for sound in named)
+        ]
 
     def _next_chunk(self) -> pygame.mixer.Sound:
         """Render the next chunk, faded while stopping, at the route's volume.
@@ -339,6 +506,64 @@ class LiveStream:
         if self._fade_remaining_samples <= 0:
             self._state = VoiceState.DRAINING
         return gains
+
+
+def _channel_in_the_table(channel: pygame.mixer.Channel) -> bool:
+    """Whether pygame's channel table has this stored channel: the mixer runs, the pool holds it.
+
+    Returns:
+        False on a quit mixer, or for a channel at or past ``get_num_channels()``.
+    """
+    return pygame.mixer.get_init() is not None and channel.id < pygame.mixer.get_num_channels()
+
+
+def _channel_table_slots(
+    channel: pygame.mixer.Channel,
+) -> tuple[pygame.mixer.Sound | None, pygame.mixer.Sound | None]:
+    """The Sounds pygame's channel table names for a stored channel: playing, then queued.
+
+    pygame-ce 2.5.8's ``Channel.get_sound`` and ``get_queue`` index its table with no check that
+    the mixer is running or the channel exists. Only a stored ``Channel`` (this module's) can
+    outlive its mixer: on a quit mixer the table is gone (a NULL read), and on a restarted one it
+    has 8 entries (a read past its end). Neither names a chunk played before. The table never
+    shrinks, so a channel below ``get_num_channels()`` is inside it; one at or past it (the pool
+    shrank or the mixer restarted) is not read, and (None, None) is returned.
+
+    Returns:
+        The playing and the queued Sound, each None when there is none or it was not read.
+    """
+    if not _channel_in_the_table(channel):
+        return (None, None)
+    return (channel.get_sound(), channel.get_queue())
+
+
+def _let_go_of_chunks(
+    channel: pygame.mixer.Channel,
+    held_chunks: list[pygame.mixer.Sound],
+    report: UnreleasedLiveStreamReport,
+    registry: LiveStreamRegistry,
+) -> None:
+    """Let go of a dropped stream's chunks, stopping its channel first if it still names one.
+
+    A stream's finalizer (``LiveStream.__init__``): it holds the channel, the chunk list, the
+    stream's report made at construction (its name: ``Channel.id`` raises on a quit mixer) and
+    its context's registry, not the stream. Stopped twice (the module's channel facts),
+    pygame's table names none of them, so none is freed inside pygame's callback. A quit or
+    restarted mixer names none of them: they simply go, and nothing asks the mixer anything.
+    Holding any chunk at all means nobody released the stream, which is reported once it has
+    let go: kept in the registry and logged (``UNRELEASED_LIVE_STREAM_MESSAGE``). It never
+    raises.
+    """
+    if not held_chunks:
+        return
+    named = _channel_table_slots(channel)
+    if any(chunk is sound for chunk in held_chunks for sound in named):
+        channel.stop()
+        channel.stop()
+    held_count = len(held_chunks)
+    held_chunks.clear()
+    registry.report_unreleased(report.model_copy(update={'held_chunk_count': held_count}))
+    log.warning(UNRELEASED_LIVE_STREAM_MESSAGE, report.stream_name, held_count)
 
 
 class FilterState:

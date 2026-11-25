@@ -225,6 +225,18 @@ motor.release()                                # fades it out over 100 ms
   answers False once the sound has ended; both kinds are a `PlayingSound`.
 - `play()` refuses a live sound and `start()` a baked one. A live sound compiles nothing, so it
   costs nothing to declare in `SOUNDS`.
+- **Its chunks:** a live voice keeps one chunk playing and one queued on its pool channel, and
+  holds its own reference to each until the channel has moved past it (at most two;
+  `LiveStream.held_chunks`). pygame-ce 2.5.8 frees a queued Sound twice when pygame's channel
+  table holds the only references
+  (`bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md`, `docs/quality/upstream_issues.md`).
+- **A game's end releases its live voices**, persisting ones included: `SceneManager.terminate`
+  releases them, since nothing updates them once the game has ended. A voice dropped without
+  being released is stopped by its stream's finalizer and reported, in the log and in its
+  engine context's registry of live streams (`LIVE_STREAMS_SLOT`, a diagnostic the test harness
+  reads after every test). A test that starts live voices releases them (`release_voice`,
+  `release_every_voice`, `stop_now`), or ends the game through `SceneManager.terminate`; the
+  harness fails a test that leaves one unreleased.
 
 In a sound file:
 

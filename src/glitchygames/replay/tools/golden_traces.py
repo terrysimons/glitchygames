@@ -455,6 +455,22 @@ class GoldenTraceSceneManager(SceneManager):
         """Run one frame the way SceneManager.start() does, without pacing or timing."""
         self._run_frame()
 
+    def end_game_audio(self) -> None:
+        """Release the game's live voices and halt every mixer channel, as its game ends.
+
+        The harness steps frames itself and never calls ``terminate``, which releases them in a
+        real run, so a test that runs two games in one process (record, then replay) would have
+        the first game's audio play on into the second's: the second game's live voice would
+        start on a channel still playing a chunk with one queued
+        (bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md). Voices go first: halting a
+        channel with a chunk queued starts the queued chunk. Twice: a chunk queued outside the
+        live voices starts on the first.
+        """
+        self.release_live_voices()
+        if pygame.mixer.get_init() is not None:
+            pygame.mixer.stop()
+            pygame.mixer.stop()
+
 
 class GoldenTraceEngine(GameEngine):
     """The GameEngine, started without its frame loop so the recorder can step frames.
@@ -615,6 +631,10 @@ def golden_game(
 ) -> Generator[GoldenTraceSceneManager]:
     """Start a game in the harness with temporary saves; tear it all down afterwards.
 
+    The teardown ends the game's audio (``GoldenTraceSceneManager.end_game_audio``), so a test
+    that runs two games in one process never has the first game's audio play on into the
+    second's.
+
     Args:
         scene_class: The game's scene class.
         random_seed: The run's master seed (``--random-seed``), or None (``seed_arguments``).
@@ -637,6 +657,7 @@ def golden_game(
             engine = manager.game_engine
             if engine is not None:
                 engine.stop_trace_recording()
+            manager.end_game_audio()
             pygame.event.clear()
             GoldenTraceSceneManager.uninstall()
 

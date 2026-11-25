@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 def running_scene(
     scene_class: type[Scene], *, extra_arguments: Sequence[str] = ()
 ) -> Generator[GoldenTraceSceneManager]:
-    """Start a scene headless in the harness's deterministic environment.
+    """Start a scene headless in the harness's deterministic environment; end its audio after.
 
     Args:
         scene_class: The scene class to make active.
@@ -62,5 +62,6 @@ def running_scene(
             engine.install_game(scene_class=scene_class)
             yield manager
         finally:
+            manager.end_game_audio()
             pygame.event.clear()
             GoldenTraceSceneManager.uninstall()

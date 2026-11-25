@@ -117,9 +117,18 @@ def save_directory(tmp_path, mocker):
 
 @pytest.fixture
 def scene(save_directory):
-    """A new game's first level, its random streams seeded."""
+    """A new game's first level, its random streams seeded; its live voices released after.
+
+    Yields:
+        The scene.
+    """
     reset_streams(seed=TEST_SEED)
-    return MrMuncherScene(options={'input_mode': 'joystick'})
+    level = MrMuncherScene(options={'input_mode': 'joystick'})
+    yield level
+    # The game never ends here (SceneManager.terminate releases them in a real run), so the
+    # projector a test started, or stopped with a fade no frame finishes, is released, as the
+    # test harness requires
+    level.scene_manager.release_live_voices()
 
 
 @pytest.fixture
