@@ -22,15 +22,6 @@ if TYPE_CHECKING:
 
 # The one module that may name a constant so: it declares FEATURE_FLAGS
 DECLARING_MODULE = 'feature_flags.py'
-# Looks like a feature switch by its name, and is not one: (module, Class.name) -> why
-ALLOWED_NAMES: dict[tuple[str, str], str] = {
-    ('game_objects/ball.py', 'BallSpawnMode.SPEED_CHECK_ENABLED'): (
-        'an int bit mask, one of BallSpawnMode (a plain class of them), which a game combines into '
-        'the value it passes: it switches nothing by itself'
-    ),
-    ('game_objects/ball.py', 'BallSpawnMode.COOLDOWN_ENABLED'): 'another of its bit masks',
-}
-
 # Each reads the flags, or a feature's gate on one, of the engine context current at the call
 FLAG_READERS = frozenset({
     'ai_off_reason',
@@ -98,8 +89,7 @@ class ImportTimeScan(ast.NodeVisitor):
     and default arguments), not the function's own body.
 
     Attributes:
-        names: ``(line, column, name)`` for each name that looks like a feature switch, a class's
-            with its classes (``Outer.Inner.NAME``).
+        names: ``(line, column, name)`` for each name that looks like a feature switch.
         calls: ``(line, column, what)`` for each call of a flag reader.
 
     """
@@ -107,7 +97,6 @@ class ImportTimeScan(ast.NodeVisitor):
     def __init__(self: Self, *, readers: frozenset[str]) -> None:
         """Keep the names the module calls a flag reader by."""
         self.readers = readers
-        self.class_names: list[str] = []
         self.names: list[tuple[int, int, str]] = []
         self.calls: list[tuple[int, int, str]] = []
 
@@ -118,8 +107,7 @@ class ImportTimeScan(ast.NodeVisitor):
     ) -> None:
         """Keep a bound name that looks like a feature switch."""
         if name is not None and looks_like_a_feature_switch(name=name):
-            qualified_name = '.'.join([*self.class_names, name])
-            self.names.append((node.lineno, node.col_offset, qualified_name))
+            self.names.append((node.lineno, node.col_offset, name))
 
     @override
     def visit_Name(self: Self, node: ast.Name) -> None:
@@ -190,13 +178,7 @@ class ImportTimeScan(ast.NodeVisitor):
     @override
     def visit_ClassDef(self: Self, node: ast.ClassDef) -> None:
         self.check_name(node, node.name)
-        # Its decorators and bases run outside it
-        for expression in (*node.decorator_list, *node.bases, *node.keywords):
-            self.visit(expression)
-        self.class_names.append(node.name)
-        for statement in node.body:
-            self.visit(statement)
-        self.class_names.pop()
+        self.generic_visit(node)
 
     def visit_definition(self: Self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         """Visit what defining a function runs."""
@@ -212,7 +194,7 @@ class ImportTimeScan(ast.NodeVisitor):
                 self.visit(default)
 
 
-def feature_switches(source_path: Path, *, allowlist_key: str) -> list[str]:
+def feature_switches(source_path: Path, *, key: str) -> list[str]:
     """List each feature switch that is a constant, and each flag read at import, in a module.
 
     A name is refused where the module or a class binds it by an assignment (a tuple's, an
@@ -232,7 +214,7 @@ def feature_switches(source_path: Path, *, allowlist_key: str) -> list[str]:
 
     Args:
         source_path: The Python file to scan.
-        allowlist_key: How the allowlist and ``DECLARING_MODULE`` spell the file.
+        key: How ``scanned_source_files`` and ``DECLARING_MODULE`` spell the file.
 
     Returns:
         ``<path>:<line> <what>`` for each, in source order.
@@ -245,18 +227,14 @@ def feature_switches(source_path: Path, *, allowlist_key: str) -> list[str]:
         if isinstance(node, ast.Global):
             for name in node.names:
                 scan.check_name(node, name)
-    refused_names = [
-        found
-        for found in scan.names
-        if allowlist_key != DECLARING_MODULE and (allowlist_key, found[-1]) not in ALLOWED_NAMES
-    ]
+    refused_names = [] if key == DECLARING_MODULE else scan.names
     return [
         f'{source_path}:{line} {what}'
         for line, _column, what in sorted([*refused_names, *scan.calls])
     ]
 
 
-def scan_source(tmp_path: Path, source: str, *, allowlist_key: str = 'planted.py') -> list[str]:
+def scan_source(tmp_path: Path, source: str, *, key: str = 'planted.py') -> list[str]:
     """Scan a planted module.
 
     Returns:
@@ -267,7 +245,7 @@ def scan_source(tmp_path: Path, source: str, *, allowlist_key: str = 'planted.py
     source_path.write_text(source, encoding='utf-8')
     return [
         offender.removeprefix(f'{source_path}:')
-        for offender in feature_switches(source_path, allowlist_key=allowlist_key)
+        for offender in feature_switches(source_path, key=key)
     ]
 
 
@@ -278,9 +256,9 @@ def test_no_feature_switch_is_a_constant_and_no_flag_is_read_at_import():
     """
     offenders: list[str] = []
     keys: list[str] = []
-    for allowlist_key, source_path in scanned_source_files(project_root=PROJECT_ROOT):
-        offenders.extend(feature_switches(source_path, allowlist_key=allowlist_key))
-        keys.append(allowlist_key)
+    for key, source_path in scanned_source_files(project_root=PROJECT_ROOT):
+        offenders.extend(feature_switches(source_path, key=key))
+        keys.append(key)
 
     member_keys = [key for key in keys if key.startswith('src/')]
     assert offenders == []
@@ -290,17 +268,13 @@ def test_no_feature_switch_is_a_constant_and_no_flag_is_read_at_import():
     assert 'src/apps/bitmappy/src/bitmappy/ai_manager.py' in keys
 
 
-def test_every_allowed_name_is_still_there(mocker):
-    """An allowlist entry whose name is gone goes too."""
-    allowed = dict(ALLOWED_NAMES)
-    mocker.patch.dict(ALLOWED_NAMES, clear=True)
-    found = {
-        (key, offender.rpartition(' ')[2])
-        for key, source_path in scanned_source_files(project_root=PROJECT_ROOT)
-        for offender in feature_switches(source_path, allowlist_key=key)
-    }
+def test_the_scan_finds_a_real_files_names():
+    """The flags' own module, read as any other is: its FEATURE_FLAGS is found."""
+    paths = dict(scanned_source_files(project_root=PROJECT_ROOT))
 
-    assert found == set(allowed)
+    offenders = feature_switches(paths[DECLARING_MODULE], key='another_module.py')
+
+    assert any(offender.endswith(' FEATURE_FLAGS') for offender in offenders)
 
 
 def test_a_switch_in_a_member_is_reported_under_its_repository_path(tmp_path):
@@ -312,7 +286,7 @@ def test_a_switch_in_a_member_is_reported_under_its_repository_path(tmp_path):
     offenders = {
         key: found
         for key, source_path in scanned_source_files(project_root=tmp_path)
-        if (found := feature_switches(source_path, allowlist_key=key))
+        if (found := feature_switches(source_path, key=key))
     }
 
     assert list(offenders) == [member_key]
@@ -336,7 +310,7 @@ def test_a_switch_in_a_member_is_reported_under_its_repository_path(tmp_path):
         ('if True:\n    AI_ENABLED = True', ['2 AI_ENABLED']),
         ('try:\n    AI_ENABLED = True\nfinally:\n    pass', ['2 AI_ENABLED']),
         ('for AI_ENABLED in (1,):\n    pass', ['1 AI_ENABLED']),
-        ('class A:\n    class B:\n        AI_ENABLED = True', ['3 A.B.AI_ENABLED']),
+        ('class A:\n    class B:\n        AI_ENABLED = True', ['3 AI_ENABLED']),
         ('match 1:\n    case AI_ENABLED:\n        pass', ['2 AI_ENABLED']),
         ('match 1:\n    case [*AI_ENABLED]:\n        pass', ['2 AI_ENABLED']),
         ('match 1:\n    case {**AI_ENABLED}:\n        pass', ['2 AI_ENABLED']),
@@ -381,27 +355,10 @@ def test_only_the_flags_own_module_names_its_constants_so(tmp_path):
     """Its calls are not exempt, and neither is a member's module of the same file name."""
     source = 'FEATURE_FLAGS = {}\nSTATE = flag_state(name="a")\n'
 
-    assert scan_source(tmp_path, source, allowlist_key=DECLARING_MODULE) == [
-        '2 flag_state() at import'
-    ]
-    assert scan_source(
-        tmp_path, source, allowlist_key='src/apps/bitmappy/src/bitmappy/feature_flags.py'
-    ) == ['1 FEATURE_FLAGS', '2 flag_state() at import']
-
-
-def test_a_name_is_allowed_only_in_its_own_class(tmp_path):
-    """The module's own constant, or another class's, of an allowed name is refused."""
-    source = (
-        'class BallSpawnMode:\n    COOLDOWN_ENABLED = 1 << 5\n'
-        'class Ball:\n    COOLDOWN_ENABLED = True\n'
-        'COOLDOWN_ENABLED = True\n'
-        'class Outer:\n    class BallSpawnMode:\n        COOLDOWN_ENABLED = True\n'
-    )
-
-    assert scan_source(tmp_path, source, allowlist_key='game_objects/ball.py') == [
-        '4 Ball.COOLDOWN_ENABLED',
-        '5 COOLDOWN_ENABLED',
-        '8 Outer.BallSpawnMode.COOLDOWN_ENABLED',
+    assert scan_source(tmp_path, source, key=DECLARING_MODULE) == ['2 flag_state() at import']
+    assert scan_source(tmp_path, source, key='src/apps/bitmappy/src/bitmappy/feature_flags.py') == [
+        '1 FEATURE_FLAGS',
+        '2 flag_state() at import',
     ]
 
 

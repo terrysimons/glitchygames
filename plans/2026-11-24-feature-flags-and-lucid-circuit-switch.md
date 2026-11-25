@@ -57,8 +57,9 @@ A source scan, beside the project's others (`tests/test_unseeded_randomness_guar
 that fails when engine or member code:
 
 - assigns a module- or class-level name ending `_ENABLED`, or starting `ENABLE_` or `FEATURE_`,
-  outside `feature_flags.py` (a private name too; two bit masks of `BallSpawnMode`, which switch nothing
-  by themselves, are allowed by name);
+  outside `feature_flags.py` (a private name too). There are no exceptions: two bit masks of
+  `BallSpawnMode` that were so named are `WITH_COOLDOWN` and `WITH_SPEED_LIMIT` (the owner,
+  2026-11-24);
 - calls `flag_state` at import (module or class level, a decorator or a default argument).
 
 It is a test, not another kind of flag: it keeps the next feature from bringing back a constant.

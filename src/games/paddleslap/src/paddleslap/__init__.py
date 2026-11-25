@@ -644,7 +644,7 @@ class Game(Scene):
             return
 
         # Check cooldown if enabled
-        if self.ball_spawn_mode & BallSpawnMode.COOLDOWN_ENABLED:
+        if self.ball_spawn_mode & BallSpawnMode.WITH_COOLDOWN:
             current_time = self.game_time
             cooldown = self._get_spawn_cooldown()
             if current_time - self.last_ball_spawn_time < cooldown:
@@ -656,7 +656,7 @@ class Game(Scene):
                 return
 
         # Check speed if enabled
-        if self.ball_spawn_mode & BallSpawnMode.SPEED_CHECK_ENABLED:
+        if self.ball_spawn_mode & BallSpawnMode.WITH_SPEED_LIMIT:
             speed_magnitude = math.sqrt(ball.speed.x**2 + ball.speed.y**2)
             max_reasonable_speed = 1000.0  # 1000 pixels per second
             if speed_magnitude > max_reasonable_speed:
@@ -664,7 +664,7 @@ class Game(Scene):
                 return
 
         # Spawn conditions met, spawn a new ball
-        if self.ball_spawn_mode & BallSpawnMode.COOLDOWN_ENABLED:
+        if self.ball_spawn_mode & BallSpawnMode.WITH_COOLDOWN:
             self.last_ball_spawn_time = self.game_time
         self._spawn_new_ball()
 
