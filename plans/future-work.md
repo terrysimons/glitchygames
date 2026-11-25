@@ -1914,6 +1914,16 @@ Loading and memory:
   reboot applying it, and have a play check every Pi's `/sys/fs/cgroup/cgroup.controllers` holds
   `memory`. Details: plans/2026-11-04-raspberry-pi-ci-runner.md, "The first Raspberry Pi OS Pi".
 
+## HDMI audio on Raspberry Pi OS (the owner, 2026-11-20)
+
+- [ ] **Test the HDMI audio procedure on Raspberry Pi OS before publishing OS-specific steps.**
+  The `raspberry_pi_audio` role (plans/2026-11-04-raspberry-pi-ci-runner.md, "HDMI audio on the
+  Ubuntu Pi 5s") is proven only on the Ubuntu Pi 5s and refuses any other OS. On
+  `raspberry-pi-5-16gb-raspberry-pi-os`, record the release, desktop or Lite image, audio stack,
+  card and sink discovery, HDMI0 and HDMI1 playback, hotplug behaviour, and the settings after a
+  reboot (the owner's procedure, its "TODO: Raspberry Pi OS"). Then widen the role's OS check and
+  set `raspberry_pi_hdmi_audio_volume_percent` on that host.
+
 ## Sprite color profiles and a glyph generator (the owner, 2026-11-16)
 
 Being built: the approved master plan is `plans/2026-11-17-sprite-color-profiles.md`, on

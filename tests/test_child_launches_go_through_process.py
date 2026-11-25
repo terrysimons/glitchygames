@@ -70,6 +70,13 @@ ALLOWED_LAUNCHES: dict[str, tuple[frozenset[str], str]] = {
         frozenset({'subprocess.run', 'subprocess.Popen'}),
         'copied to a host and run alone, where the engine is not installed',
     ),
+    'ansible/roles/raspberry_pi_audio/files/apply_hdmi_audio.py': (
+        frozenset({'subprocess.run'}),
+        (
+            'copied to a Pi and run alone by the raspberry_pi_audio role (wpctl in the game '
+            "user's session), where the engine is not installed"
+        ),
+    ),
     'scripts/ai_behaviour/paired.py': (
         frozenset({'subprocess.Popen'}),
         'a long-lived child it talks to over pipes and stops itself',

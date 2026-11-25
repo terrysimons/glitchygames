@@ -1,0 +1,215 @@
+---
+# HDMI audio on the Ubuntu Raspberry Pi 5s: HDMI0 and HDMI1 each a usable stereo output, each
+# unmuted at raspberry_pi_hdmi_audio_volume_percent (75: the owner, 2026-11-20), and an HDMI
+# default for ordinary applications (an existing HDMI default kept; else HDMI0). No mirroring.
+# The owner's procedure, done declaratively: plans/2026-11-04-raspberry-pi-ci-runner.md, "HDMI
+# audio on the Ubuntu Pi 5s". A Pi that sets no raspberry_pi_hdmi_audio_volume_percent is left
+# alone, so every task waits for it. Two layers:
+# - A system-wide WirePlumber drop-in: the volume a sink starts at when WirePlumber remembers none
+#   for it (a new user, a port first seen), and HDMI0 ahead of HDMI1 when choosing a default. It
+#   is read when WirePlumber starts (the next login or reboot); nothing here restarts it, since
+#   that would cut off whatever is playing.
+# - The live state, set now with wpctl in each listed user's running session by
+#   apply_hdmi_audio.py. WirePlumber remembers what wpctl sets, and a remembered volume wins over
+#   the drop-in's, so this is what changes a sink already set (the reference Pi's HDMI0 was at
+#   100%). A user with no session is reported pending, not failed: their login gets the drop-in's
+#   defaults, and the next deploy sets what they remember.
+# Tests: tests/test_ansible_raspberry_pis.py
+
+- name: Refuse HDMI audio settings this role was not written for
+  ansible.builtin.assert:
+    that:
+      - raspberry_pi_hdmi_audio_volume_percent is integer
+      - raspberry_pi_hdmi_audio_volume_percent >= 0
+      - raspberry_pi_hdmi_audio_volume_percent <= 100
+      - raspberry_pi_board == 'pi5'
+      - raspberry_pi_os == 'ubuntu'
+    fail_msg: >-
+      {{ inventory_hostname }}: raspberry_pi_hdmi_audio_volume_percent must be a whole number
+      from 0 to 100, on an Ubuntu Raspberry Pi 5 (the procedure was proven there; Raspberry Pi OS
+      is a to-do in plans/future-work.md)
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+# The drop-in is SPA-JSON, which WirePlumber reads from 0.5 on; 0.4 took Lua files instead
+# (https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/migration.html).
+# Read 2026-11-20: 0.5.13 on Ubuntu 26.04, 0.5.17 on 26.10
+- name: Read WirePlumber's version
+  ansible.builtin.command:
+    cmd: wireplumber --version
+  register: raspberry_pi_wireplumber_version
+  changed_when: false
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+- name: Refuse a WirePlumber older than 0.5
+  ansible.builtin.assert:
+    that:
+      - raspberry_pi_wireplumber_version.stdout is regex('libwireplumber \\d+\\.\\d+')
+      # Jinja unescapes its string literals, so each backslash meant for the regex is doubled
+      - >-
+        raspberry_pi_wireplumber_version.stdout
+        | regex_search('libwireplumber (\\d+\\.\\d+(\\.\\d+)?)', '\\1') | first is version('0.5', '>=')
+    fail_msg: >-
+      {{ inventory_hostname }} runs {{ raspberry_pi_wireplumber_version.stdout_lines | last | default('no WirePlumber') }}:
+      the drop-in needs WirePlumber 0.5 or newer
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+- name: Create WirePlumber's system drop-in directory
+  ansible.builtin.file:
+    path: "{{ raspberry_pi_hdmi_audio_config_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+# Settings: device.routes.default-sink-volume is linear, the cube of wpctl's percentage
+# (WirePlumber's default is 0.4 ^ 3, "40% on the cubic scale":
+# https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/settings.html), so 75%
+# is 0.421875 and wpctl get-volume reads 0.75. Rules: monitor.alsa.rules' update-props on the
+# HDMI0 sink, matched by the card's alsa.id, which WirePlumber copies onto each node for rule
+# matching (/usr/share/wireplumber/scripts/monitors/alsa.lua, 0.5.13;
+# https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/alsa.html). A fragment's
+# settings merge into the main file's and its rules are appended to its
+# (https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/conf_file.html)
+- name: Install the HDMI audio defaults for every user's WirePlumber
+  ansible.builtin.copy:
+    dest: "{{ raspberry_pi_hdmi_audio_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by ansible/raspberry_pi_runner.yml (the raspberry_pi_audio role)
+      # HDMI sinks start unmuted at {{ raspberry_pi_hdmi_audio_volume_percent }}% (wpctl's cubic scale) when
+      # WirePlumber remembers no volume for them, and {{ raspberry_pi_hdmi_audio_preferred_card }} is preferred as
+      # the default sink when the user has chosen none. Read when WirePlumber starts.
+      wireplumber.settings = {
+        # {{ raspberry_pi_hdmi_audio_volume_percent }}% on wpctl's cubic scale: ({{ raspberry_pi_hdmi_audio_volume_percent }} / 100) ^ 3, linear
+        device.routes.default-sink-volume = {{ '%.6f' | format((raspberry_pi_hdmi_audio_volume_percent / 100) ** 3) }}
+      }
+
+      monitor.alsa.rules = [
+        {
+          matches = [
+            {
+              media.class = "Audio/Sink"
+              alsa.id = "{{ raspberry_pi_hdmi_audio_preferred_card }}"
+            }
+          ]
+          actions = {
+            update-props = {
+              priority.session = {{ raspberry_pi_hdmi_audio_preferred_priority }}
+            }
+          }
+        }
+      ]
+  become: true
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+- name: Create the directory for the Pi's own scripts
+  ansible.builtin.file:
+    path: "{{ raspberry_pi_hdmi_audio_script | dirname }}"
+    state: directory
+    mode: "0755"
+  become: true
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+- name: Install the HDMI audio script
+  ansible.builtin.copy:
+    src: apply_hdmi_audio.py
+    dest: "{{ raspberry_pi_hdmi_audio_script }}"
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+- name: Read the users' accounts
+  ansible.builtin.getent:
+    database: passwd
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+# The users whose sessions get the HDMI volume: the CI user, whose session the auto-login starts
+# and the runner's jobs play into (its unit's XDG_RUNTIME_DIR), and the deploy user (the owner),
+# who switches users to play GlitchyGames. Each user has their own PipeWire and WirePlumber, and
+# their own remembered volumes, so each is set in their own session. A user's PipeWire listens on
+# /run/user/<uid>/pipewire-0 while they have a session; logind removes the directory when their
+# last session ends
+- name: Read which users have a PipeWire session
+  ansible.builtin.stat:
+    path: /run/user/{{ ansible_facts.getent_passwd[item][1] }}/pipewire-0
+  loop:
+    - "{{ ci_user }}"
+    - "{{ deploy_user }}"
+  register: raspberry_pi_hdmi_audio_sessions
+  become: true
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+- name: Say which users' HDMI audio is pending
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}: pending: no active session for {{ item.item }}; their next login
+      gets the drop-in's defaults, and the next deploy sets their session
+  loop: "{{ raspberry_pi_hdmi_audio_sessions.results | default([]) | rejectattr('stat.exists') | list }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+# In each user's own session: the CI user's through sudo, the deploy user's as the login user
+# (become: false, the playbook's rule: tests/test_ci_config.py). The script does check mode itself
+# (--dry-run), so it runs in check mode too
+- name: Set each session's HDMI outputs to the volume, unmuted, with an HDMI default
+  ansible.builtin.command:
+    argv: >-
+      {{ ['/usr/bin/python3', raspberry_pi_hdmi_audio_script,
+      '--volume-percent', raspberry_pi_hdmi_audio_volume_percent | string]
+      + (['--dry-run'] if ansible_check_mode else []) }}
+  loop: "{{ raspberry_pi_hdmi_audio_sessions.results | default([]) | selectattr('stat.exists') | list }}"
+  loop_control:
+    label: "{{ item.item }}"
+  environment:
+    XDG_RUNTIME_DIR: /run/user/{{ ansible_facts.getent_passwd[item.item][1] }}
+  become: "{{ item.item == ci_user }}"
+  become_user: "{{ ci_user }}"
+  check_mode: false
+  register: raspberry_pi_hdmi_audio_applied
+  changed_when: (raspberry_pi_hdmi_audio_applied.stdout | from_json).changed
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+# Software checks only: whether each port is audible is the owner's to hear
+- name: Report each session's HDMI ports
+  ansible.builtin.debug:
+    msg: "{{ item.item.item }}: {{ item.stdout | from_json }}"
+  loop: "{{ raspberry_pi_hdmi_audio_applied.results | default([]) | rejectattr('skipped', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.item.item }}"
+  when: raspberry_pi_hdmi_audio_volume_percent is defined
+
+# A fresh read must find nothing left to change: every sink at the volume, unmuted, an HDMI default
+- name: Check each session's HDMI outputs held
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - "{{ raspberry_pi_hdmi_audio_script }}"
+      - --volume-percent
+      - "{{ raspberry_pi_hdmi_audio_volume_percent | string }}"
+      - --dry-run
+  loop: "{{ raspberry_pi_hdmi_audio_sessions.results | default([]) | selectattr('stat.exists') | list }}"
+  loop_control:
+    label: "{{ item.item }}"
+  environment:
+    XDG_RUNTIME_DIR: /run/user/{{ ansible_facts.getent_passwd[item.item][1] }}
+  become: "{{ item.item == ci_user }}"
+  become_user: "{{ ci_user }}"
+  register: raspberry_pi_hdmi_audio_check
+  changed_when: false
+  failed_when: >-
+    raspberry_pi_hdmi_audio_check.rc != 0
+    or (raspberry_pi_hdmi_audio_check.stdout | from_json).actions | length > 0
+  # WirePlumber publishes a new default a moment after wpctl asks for it
+  retries: 5
+  delay: 1
+  until: >-
+    raspberry_pi_hdmi_audio_check.rc == 0
+    and (raspberry_pi_hdmi_audio_check.stdout | from_json).actions | length == 0
+  when: raspberry_pi_hdmi_audio_volume_percent is defined and not ansible_check_mode
