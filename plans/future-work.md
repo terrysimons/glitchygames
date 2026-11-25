@@ -1736,10 +1736,11 @@ The two bugs it found are in the bugs table: Bitmappy's tile diverges at frame 0
   centre 3 dB down on each side). An instrument could render two channels: a pan per source
   (the feature spec's Game Boy-style profile has channels "hard-panned in stereo", M4), width
   (detuned copies left and right, a short one-sided delay), later stereo chorus and ping-pong
-  delay (with M4's delays); live voices would render stereo chunks. A stereo sound pans by the
-  balance law (centre at full, the far side turned down), chosen by what the sound is (mono or
-  stereo), as mixing desks do, never by a per-sound setting. Cost: a stereo sound holds twice
-  the samples in memory and in the disk cache; mono sounds, their keys and files, unchanged.
+  delay (with M4's delays); live voices already play stereo chunks (their pan is rendered in).
+  A stereo sound pans by the balance law (centre at full, the far side turned down), chosen by
+  what the sound is (mono or stereo), as mixing desks do, never by a per-sound setting. Cost: a
+  stereo sound holds twice the samples in memory and in the disk cache; mono sounds, their keys
+  and files, unchanged.
 - ~~**CLAUDE.md carries its old long Architecture Overview again**~~ **Done** 2026-11-14
   (#211, `chore/claude-md-and-hook-speedups`): the block is gone (CLAUDE.md is 333fcc0d's again
   plus later edits), and `tests/test_claude_md.py` fails on a repeated heading or component name

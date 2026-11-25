@@ -45,7 +45,7 @@ def rendered_chunks(mocker):
     """
     chunks = []
 
-    def fake_to_sound(samples, *, volume):
+    def fake_to_sound(samples, *, volume, side_gains):
         chunks.append(samples.copy())
         return mocker.Mock(name=f'sound{len(chunks)}')
 
@@ -718,13 +718,18 @@ class TestTheHandlesControls:
         assert not handle.is_paused
         assert not handle.resume()
 
-    def test_set_pan_takes_the_constant_power_law(self, channel, rendered_chunks):
+    def test_set_pan_takes_the_constant_power_law(self, channel, mocker):
+        """The next chunk ends at the new pan's gains."""
         from glitchygames.audio.voices import constant_power_gains
 
+        to_sound = mocker.patch.object(live, 'to_sound')
         handle = self._handle(channel)
 
         assert handle.set_pan(-0.5)
-        channel.set_volume.assert_called_with(*constant_power_gains(pan=-0.5, gain=1.0))
+        handle._voice.stream.update()
+
+        side_gains = to_sound.call_args.kwargs['side_gains']
+        np.testing.assert_allclose(side_gains[-1], constant_power_gains(pan=-0.5, gain=1.0))
 
     def test_every_control_on_a_stopped_or_silent_handle_answers_false(self, channel):
         from glitchygames.audio.live_instrument import LiveSoundHandle

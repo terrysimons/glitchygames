@@ -542,6 +542,8 @@ class LiveSoundHandle:
     def set_pan(self, pan: float) -> bool:
         """Pan it, -1 (left) to 1 (right), by the constant-power law every sound pans by.
 
+        Heard from the next chunk's start, ramped across it (``LiveStream.set_pan``).
+
         Returns:
             True when taken; False once finished, or for a silent handle.
         """
