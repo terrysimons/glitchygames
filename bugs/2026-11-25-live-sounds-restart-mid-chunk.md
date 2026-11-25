@@ -42,6 +42,7 @@
   | `pause` | SDL ignores a pause of an idle channel: the next chunk played (3700 loud samples) | waits for the callback first, and pauses again at each update |
   | `stop_now`, `update` with a chunk queued after the end callback looked | the chunk was stranded (queued, nothing playing): skipped, or left in the table | played, or dropped |
   | Two table reads with the callback between them | a chunk in neither read, so let go while pygame named it (#313's double free) | the queue is read first |
+  | A quit mixer (found in review) | `pause`, `resume`, `stop` of a paused voice and `stop_now` raised `pygame.error`, so a voice paused as the mixer quit ended the game at its resume | nothing is asked of the channel |
   | `FrameSilencer` (replay/silence.py) | a stop starts the queued chunk; an idle-looking channel was not stopped | stops twice, by the table |
 
 - **Test gap**: `test_underrun_recovers` pinned the bug: it set only `get_busy` False, on a mock whose
@@ -57,19 +58,25 @@
   most two. No event, draw, clock read or recorded value changed.
 - **Not changed**: `set_pan` reads the queue slot, and rewrites only a chunk still queued. With the
   callback pending that chunk is about to start, the race its record already describes (a small
-  step if it starts during the copy); no test showed more.
+  step if it starts during the copy); by reasoning, no test of that moment was made.
 - **Known limits**:
   - `is_playing` and `is_finished` are truer, but still follow the mixer's time
     (`2026-11-24-live-voice-answers-read-the-real-mixer.md`, open).
   - SDL_mixer's pause takes no lock: a chunk that ends as it is made lets the next one start, which
     the next update pauses (a frame of sound).
-  - A channel pygame names but SDL never plays would stay silent: nothing known makes one.
+  - A channel pygame names but SDL never plays again reads as playing. SDL_mixer's loop tail makes
+    one: a short finite loop can reach `playing` 0 and `looping` 0 with no callback (the reviewer,
+    raw pygame, a 512-sample buffer: 64 samples at `loops=1`, 128 at 2, 256 at 3; `get_busy` False,
+    `get_sound` still named, also after `unpause` and `stop`). A live chunk never loops, so no
+    voice is affected. For such a plain sound `channel_state` answers PLAYING until the channel's
+    next play, after eight unpauses a call, and a silencer stops it (nothing) every silent frame.
   - Not tested on Windows, Linux or in a browser, on an audible driver, or in a played game.
 - **Sweep** (`grep -rn "get_busy\|get_queue\|get_sound\|\.queue(" src/`): covered: everything in
   `audio/live.py` and `replay/silence.py`. Read and left: `VoiceTable` (`audio/voices.py`: library
-  voices never queue a chunk, so an idle reading is true but for a moment), `take_heard_set` and
-  `release_inner_context_channels` there (stopped twice; a stranded chunk could stay in the table,
-  silent, until the channel's next play), `AudioEngine._a_library_channel_sounds`,
+  voices never queue a chunk, so an idle reading is true but for a moment), `take_heard_set` there
+  (it stops a busy channel once, which is enough: only library voices play on a heard set, so none
+  ever has a queue), `release_inner_context_channels` (it stops its live pool's channels twice; a
+  stranded chunk could stay in the table, silent, until the channel's next play), `AudioEngine._a_library_channel_sounds`,
   `golden_traces` and `tests/harness.py` (stop twice already).
 - **Tests**: `tests/audio/test_live.py`: `TestChannelStateFromTheTable` on `TableChannel`, a model of
   pygame's and SDL_mixer's contract (its docstring cites the source lines) in which the callback

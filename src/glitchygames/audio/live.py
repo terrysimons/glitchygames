@@ -61,7 +61,8 @@ test harness can ask it, after every test, for each stream still holding chunks
 Only this module stores ``pygame.mixer.Channel`` objects, so only its table reads can outlive a
 mixer quit or restart (a fresh ``Channel(index)`` checks init and range itself). Every read goes
 through ``_channel_table_slots``, and a channel at or past ``get_num_channels()`` (a pool shrunk
-or restarted under a stale stream) is silent: nothing is played or queued on it.
+or restarted under a stale stream) is silent: nothing is played, queued, paused or stopped on it,
+since every such call raises on a quit mixer.
 
 An inner context's pool is the live pool its build took from the channels the host declared
 (``voices.inner_context_partition``; Arcade sub-plan 4, decision 4), never the default
@@ -505,7 +506,7 @@ class LiveStream:
         """
         if self._channel is None or self._state not in {VoiceState.PLAYING, VoiceState.PAUSED}:
             return False
-        if self._state is VoiceState.PAUSED:
+        if self._state is VoiceState.PAUSED and _channel_in_the_table(self._channel):
             self._channel.unpause()
         self._fade_total_samples = max(1, sample_count(fade_out, self._sample_rate))
         self._fade_remaining_samples = self._fade_total_samples
@@ -515,7 +516,8 @@ class LiveStream:
     def stop_now(self) -> None:
         """Silence immediately (``_stop_channel``)."""
         if self._channel is not None and self._state is not VoiceState.STOPPED:
-            _stop_channel(self._channel, held_chunks=self._held_chunks)
+            if _channel_in_the_table(self._channel):
+                _stop_channel(self._channel, held_chunks=self._held_chunks)
             self._let_go_of_chunks_played_out(self._channel)
         self._state = VoiceState.STOPPED
         self._held = False
@@ -535,7 +537,8 @@ class LiveStream:
     def resume(self) -> None:
         """Resume after pause()."""
         if self._channel is not None and self._state is VoiceState.PAUSED:
-            self._channel.unpause()
+            if _channel_in_the_table(self._channel):
+                self._channel.unpause()
             self._state = VoiceState.PLAYING
 
     @staticmethod
@@ -650,6 +653,10 @@ def channel_state(channel: pygame.mixer.Channel) -> ChannelState:
     channel is busy, so it is never resumed here. For any channel, a library voice's too
     (glitchygames/replay/silence.py).
 
+    A short finite loop (a few hundred samples, ``loops`` above 0; never a stream's chunk) may end
+    in SDL_mixer without its callback, ever: pygame names it until the channel's next play. It reads
+    as PLAYING, after every attempt.
+
     Returns:
         The state; ENDED for a channel pygame's table does not have.
     """
@@ -657,7 +664,9 @@ def channel_state(channel: pygame.mixer.Channel) -> ChannelState:
         playing, _queued = _channel_table_slots(channel)
         if playing is None or channel.get_busy():
             break
-        channel.unpause()  # the barrier: the callback runs before it returns
+        # The barrier: the callback runs before it returns. Only ever on an idle channel: on a busy
+        # one it would resume a paused sound and extend one played with a maxtime (Mix_Resume)
+        channel.unpause()
     playing, queued = _channel_table_slots(channel)
     if playing is None:
         return ChannelState.ENDED if queued is None else ChannelState.STRANDED

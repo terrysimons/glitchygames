@@ -838,6 +838,22 @@ class TestLiveStreamKeepsItsChunks:
         assert unraisable == []
         assert live.take_unreleased_live_stream_reports() == ()
 
+    @pytest.mark.parametrize('action', ['pause', 'resume', 'stop', 'stop_now', 'update'])
+    @pytest.mark.parametrize('paused_first', [False, True])
+    def test_a_voice_whose_mixer_quit_asks_its_channel_nothing(self, action, paused_first):
+        """The game goes on without sound: every mixer call on a quit mixer raises."""
+        stream = _voice(pygame.mixer.Channel(0), options=LONG_CHUNK).stream
+        stream.start()
+        if paused_first:
+            stream.pause()
+        stop_mixer()
+
+        getattr(stream, action)()
+        stream.stop_now()
+
+        assert stream.is_finished
+        assert stream.held_chunks == ()
+
     def test_a_voice_on_a_channel_past_a_shrunk_pool_is_silent(self, mocker):
         """A stale stream past ``get_num_channels()`` never reaches pygame's ``chan_play``.
 
@@ -1090,7 +1106,9 @@ class TableChannel:
 
 # Every state pygame and SDL can leave a channel in as Python reads it: (sound, queue, busy, the
 # pending callback). Busy with no playing slot is not one: the callback and chan_play fill the slot
-# with the GIL (TableChannel).
+# with the GIL (TableChannel). Nor is a named Sound that SDL neither plays nor has a callback pending
+# for: SDL_mixer leaves some short finite loops so, and a stream's chunks never loop
+# (test_a_short_loop_sdl_never_reports_ended_reads_as_playing_after_a_bounded_wait).
 CHANNEL_CASES = {
     'empty': (False, False, False, None),
     'playing': (True, False, True, None),
@@ -1188,6 +1206,17 @@ class TestChannelStateFromTheTable:
         channel_state(channel)
 
         assert channel.paused
+
+    def test_a_short_loop_sdl_never_reports_ended_reads_as_playing_after_a_bounded_wait(
+        self, mocker
+    ):
+        """Not a stream's chunk: a plain sound's finite loop, whose end SDL_mixer never reports."""
+        channel = TableChannel()
+        channel.sound = TableChunk('loop')
+        unpause = mocker.spy(channel, 'unpause')
+
+        assert channel_state(channel) is ChannelState.PLAYING
+        assert unpause.call_count == live.MAXIMUM_SETTLING_ATTEMPTS
 
     def test_a_channel_that_never_settles_is_read_from_the_table_after_a_bounded_wait(self, mocker):
         _, channel = self._stream_in('ended, callback pending', state=VoiceState.PLAYING)
@@ -1405,7 +1434,7 @@ class TestPendingEndCallback:
         stop_mixer()
 
     @staticmethod
-    def _started(*, chunk_seconds=0.1):
+    def _started(*, chunk_seconds=0.5):
         channel = WatchedChannel(0)
         stream = LiveStream(
             channel=channel,
@@ -1443,7 +1472,7 @@ class TestPendingEndCallback:
 
     def test_a_pause_stops_the_chunk_about_to_start(self):
         """Nothing plays on while another channel is heard to play more than a chunk's length."""
-        stream, channel = self._started(chunk_seconds=0.5)
+        stream, channel = self._started()
         with gil_held():
             until_idle_with_a_chunk_queued(channel, keep_queued=stream.update)
             about_to_start = channel.get_queue()

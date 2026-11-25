@@ -21,7 +21,7 @@ from tests.audio.pending_callback import gil_held, until_idle_with_a_chunk_queue
 if TYPE_CHECKING:
     from glitchygames.audio.synth import FloatArray
 
-CHUNK_SECONDS = 0.1
+CHUNK_SECONDS = 0.5
 CHUNK_SAMPLES = int(CHUNK_SECONDS * DEFAULT_SAMPLE_RATE)
 UPDATE_COUNT = 8
 LEVEL_STEP = 1.0 / 64.0

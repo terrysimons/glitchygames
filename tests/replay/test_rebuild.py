@@ -626,7 +626,7 @@ class TestFrameSilencer:
 
         """
         channel = pygame.mixer.Channel(0)
-        playing = pygame.mixer.Sound(buffer=bytes(4 * 8820))
+        playing = pygame.mixer.Sound(buffer=bytes(4 * 22050))
         queued = pygame.mixer.Sound(buffer=bytes(4 * 44100))
 
         def play_and_queue() -> None:
