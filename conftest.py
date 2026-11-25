@@ -22,7 +22,8 @@ suite needs are declared here; the shared test harness (tests/harness.py) is one
 # tests.per_test_limit stops a test's children before a per-test limit (the native run's
 # pytest-timeout, thread method) ends its worker; without that limit it does nothing
 # tests.import_failure_threads adds every live thread, the test that started it, and the recorded
-# sys.modules removals (tests/module_removals.py) to a test that fails inside the import machinery
+# sys.modules removals (tests/module_removals.py) and points of the import
+# (tests/import_load_probe.py) to a test that fails inside the import machinery
 # (bugs/2026-11-20-httpcore2-import-keyerror-on-windows.md)
 pytest_plugins = [
     'tests.harness',

@@ -2,8 +2,9 @@
 
 Triage tool for bugs/2026-11-20-httpcore2-import-keyerror-on-windows.md: CircleCI's Windows job
 once failed ``tests/test_ai_model_comparison.py`` with ``KeyError: 'httpcore2._synchronization'``
-raised from ``<frozen importlib._bootstrap>``. importlib raises that when a module's entry leaves
-``sys.modules`` while the module's own code is still running. Another thread can remove it (a
+raised from ``<frozen importlib._bootstrap>``, and three other imports have failed there since.
+importlib raises that when a module's entry is gone from ``sys.modules`` when its pop comes: it can
+leave while the module's own code is still running. Another thread can remove it (a
 ``sys.modules`` restore elsewhere reproduces the error exactly), and so can code the import itself
 runs on the same thread (the module's own, or a finalizer). The failure's traceback shows neither,
 so this plugin adds the rest:
@@ -13,11 +14,15 @@ so this plugin adds the rest:
 - While the run lasts, the known ways test code removes modules are recorded
   (tests/module_removals.py: what it records, and what it cannot see).
 - When a test's setup, call or teardown fails with an exception raised from the import machinery,
-  its report gains three sections: ``live threads at the import failure`` (each live thread's name,
-  whether it is a daemon, the test that started it, and its current stack), ``recorded sys.modules
-  removals`` (newest first, those overlapping an import marked) and ``sys.modules at the import
-  failure`` (tests/import_failure_state.py: what is there under the failed module's package, whether
-  the dictionary was rebound, and the garbage collector's state).
+  its report gains five sections: ``live threads at the import failure`` (each live thread's name,
+  whether it is a daemon, the test that started it, and its current stack; then every ident running
+  Python code, threading's or not), ``recorded sys.modules removals`` (newest first, those
+  overlapping an import marked), ``sys.modules at the import failure``
+  (tests/import_failure_state.py: what is there under the failed module's package, whether the
+  dictionary was rebound, and the garbage collector's state), ``recorded points of the failed
+  import`` (tests/import_load_probe.py: where in importlib's own steps the module's entry was lost,
+  the garbage collections meanwhile, and what each reading leaves open; evidence, not a fix, with
+  the caveat that watching may hide an interpreter fault) and ``the interpreter`` (its build).
 
 It adds nothing to a passing test, or to a failure raised elsewhere, and it logs nothing (warnings
 are errors in this suite). The stacks are taken when the report is made, just after the test's
@@ -35,7 +40,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from tests import import_failure_state, module_removals
+from tests import import_failure_state, import_load_probe, module_removals
 from tests.module_removals import OUTSIDE_ANY_TEST
 
 if TYPE_CHECKING:
@@ -52,6 +57,8 @@ IMPORT_MACHINERY_FILENAMES = frozenset({
 SECTION_TITLE = 'live threads at the import failure'
 REMOVALS_SECTION_TITLE = 'recorded sys.modules removals'
 STATE_SECTION_TITLE = 'sys.modules at the import failure'
+LOAD_SECTION_TITLE = 'recorded points of the failed import'
+INTERPRETER_SECTION_TITLE = 'the interpreter'
 
 # The attribute a started thread carries: the node id of the test that started it
 STARTED_DURING_ATTRIBUTE = '_glitchygames_started_during_test'
@@ -115,6 +122,43 @@ def live_thread_report(*, threads: Iterable[threading.Thread], frames: dict[int,
         stack = ''.join(traceback.format_stack(frame)) if frame is not None else '  (no stack)\n'
         blocks.append(f'{header}\n{stack}')
     return '\n'.join(blocks)
+
+
+def thread_ident_report(*, threads: Iterable[threading.Thread], frames: dict[int, Any]) -> str:
+    """List every ident running Python code, those threading does not know with their stacks.
+
+    Args:
+        threads: The threads threading knows (``threading.enumerate()``).
+        frames: Each thread's current frame by ident (``sys._current_frames()``).
+
+    Returns:
+        One line per ident, and the stack of each that is not a threading thread.
+
+    """
+    names = {thread.ident: thread.name for thread in threads}
+    lines = ['every ident running Python code (sys._current_frames()):']
+    for ident, frame in frames.items():
+        if ident in names:
+            lines.append(f'  {ident}: {names[ident]}')
+        else:
+            stack = ''.join(traceback.format_stack(frame))
+            lines.append(f'  {ident}: not a threading thread\n{stack}'.rstrip())
+    return '\n'.join(lines)
+
+
+def threads_section() -> str:
+    """Describe every live thread, threading's and others.
+
+    Returns:
+        The section's text.
+
+    """
+    threads = threading.enumerate()
+    frames = sys._current_frames()  # type: ignore[reportPrivateUsage]
+    return '\n'.join((
+        live_thread_report(threads=threads, frames=frames),
+        thread_ident_report(threads=threads, frames=frames),
+    ))
 
 
 class FaultAsLine:
@@ -236,12 +280,7 @@ def pytest_runtest_makereport(
         report.sections.extend((
             (
                 SECTION_TITLE,
-                section_text(
-                    lambda: live_thread_report(
-                        threads=threading.enumerate(),
-                        frames=sys._current_frames(),  # type: ignore[reportPrivateUsage]
-                    )
-                ),
+                section_text(threads_section),
             ),
             (
                 REMOVALS_SECTION_TITLE,
@@ -258,5 +297,17 @@ def pytest_runtest_makereport(
                     )
                 ),
             ),
+            (
+                LOAD_SECTION_TITLE,
+                section_text(
+                    lambda: import_load_probe.load_probe_report(
+                        probe=recorder.load_probe,
+                        failed_name=import_failure_state.failed_module(error),
+                        traceback_object=traceback_object,
+                    )
+                ),
+            ),
+            # Last: reading the build's settings can import, after everything else has been read
+            (INTERPRETER_SECTION_TITLE, section_text(import_load_probe.interpreter_report)),
         ))
     return report

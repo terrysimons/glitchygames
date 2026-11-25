@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 
 from tests.import_failure_threads import (
+    INTERPRETER_SECTION_TITLE,
+    LOAD_SECTION_TITLE,
     OUTSIDE_ANY_TEST,
     REMOVALS_SECTION_TITLE,
     SECTION_TITLE,
@@ -18,10 +20,19 @@ from tests.import_failure_threads import (
     raised_by_import_machinery,
     section_text,
     started_during,
+    thread_ident_report,
 )
 from tests.module_removals import NOT_RECORDED
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+ALL_SECTION_TITLES = (
+    SECTION_TITLE,
+    REMOVALS_SECTION_TITLE,
+    STATE_SECTION_TITLE,
+    LOAD_SECTION_TITLE,
+    INTERPRETER_SECTION_TITLE,
+)
 
 # A module that removes its own sys.modules entry while it runs: importlib then fails exactly as
 # CircleCI's Windows job did (KeyError from _load_unlocked's sys.modules.pop)
@@ -94,6 +105,17 @@ def test_a_thread_without_a_frame_reports_no_stack():
     )
 
 
+def test_an_ident_threading_does_not_know_is_named_with_its_stack():
+    """Every ident is listed; only the unknown one carries a stack."""
+    thread = threading.current_thread()
+    frame = sys._getframe()
+
+    report = thread_ident_report(threads=[thread], frames={thread.ident: frame, 7: frame})
+
+    assert f'  {thread.ident}: {thread.name}\n  7: not a threading thread\n' in report
+    assert report.count(__file__) >= 1
+
+
 def run_child_pytest(
     pytester, monkeypatch, test_source: str, *, conftest_source: str = ''
 ) -> pytest.RunResult:
@@ -155,7 +177,7 @@ def test_an_ordinary_failure_and_a_pass_report_no_threads(pytester, monkeypatch)
     )
 
     result.assert_outcomes(passed=1, failed=1)
-    for title in (SECTION_TITLE, REMOVALS_SECTION_TITLE, STATE_SECTION_TITLE):
+    for title in ALL_SECTION_TITLES:
         assert title not in result.stdout.str()
 
 
@@ -287,6 +309,56 @@ def test_a_direct_delete_during_an_import_is_said_not_to_be_recorded(pytester, m
     )
 
 
+def test_the_points_of_the_failed_import_are_reported_whole(pytester, monkeypatch):
+    """Through pytest: the verdict, the caveat, every thread's ident, and the interpreter."""
+    result = run_child_pytest(
+        pytester,
+        monkeypatch,
+        'import importlib\n'
+        'def test_import_fails(tmp_path, monkeypatch):\n'
+        f"    (tmp_path / 'leaves_mid_import.py').write_text({SELF_REMOVING_MODULE!r})\n"
+        '    monkeypatch.syspath_prepend(tmp_path)\n'
+        "    importlib.import_module('leaves_mid_import')\n",
+    )
+
+    result.assert_outcomes(failed=1)
+    output = result.stdout.str()
+    points = section(output, LOAD_SECTION_TITLE)
+    assert 'VERDICT for leaves_mid_import: the entry left between the store and the pop' in points
+    assert 'the probe may hide an interpreter fault' in points
+    assert 'Faults in the recording: 0' in points
+    assert 'every ident running Python code' in section(output, SECTION_TITLE)
+    assert 'sys.version: ' in section(output, INTERPRETER_SECTION_TITLE)
+
+
+def test_a_recorded_removal_falls_between_the_points_of_the_import(pytester, monkeypatch):
+    """Through pytest: a removal's events lie between the store and the pop of what it removed."""
+    result = run_child_pytest(
+        pytester,
+        monkeypatch,
+        PAUSED_IMPORT_TEST.format(
+            source=PAUSING_MODULE,
+            prepare='mocker.patch.dict(sys.modules)',
+            remove='mocker.stopall()',
+        ),
+    )
+
+    output = result.stdout.str()
+    orders = {
+        point: int(line.partition('#')[2].split()[0])
+        for line in section(output, LOAD_SECTION_TITLE).splitlines()
+        for point in ('after the store', "at the pop's line")
+        if line.startswith('#') and f'pauses_mid_import, {point}' in line
+    }
+    between = next(
+        line
+        for line in section(output, REMOVALS_SECTION_TITLE).splitlines()
+        if "between the load probe's events" in line
+    )
+    began, ended = (int(part.split(',')[0]) for part in between.split('#')[1:])
+    assert orders['after the store'] <= began <= ended < orders["at the pop's line"]
+
+
 @pytest.mark.parametrize(
     ('fixture_body', 'outcome'),
     [
@@ -297,7 +369,7 @@ def test_a_direct_delete_during_an_import_is_said_not_to_be_recorded(pytester, m
 def test_a_setup_or_teardown_failing_in_the_import_machinery_reports_too(
     pytester, monkeypatch, fixture_body, outcome
 ):
-    """A fixture's import failing gives its own phase's report all three sections, once."""
+    """A fixture's import failing gives its own phase's report every section, once."""
     result = run_child_pytest(
         pytester,
         monkeypatch,
@@ -313,7 +385,7 @@ def test_a_setup_or_teardown_failing_in_the_import_machinery_reports_too(
 
     result.assert_outcomes(errors=1, passed=1 if outcome == 'teardown' else 0)
     result.stdout.fnmatch_lines([f'*ERROR at {outcome} of test_uses_it*'])
-    for title in (SECTION_TITLE, REMOVALS_SECTION_TITLE, STATE_SECTION_TITLE):
+    for title in ALL_SECTION_TITLES:
         section(result.stdout.str(), title)
 
 
@@ -363,7 +435,7 @@ def test_an_interrupt_writing_a_section_goes_on():
 
 
 def test_a_fault_in_each_section_leaves_the_tests_own_report(pytester, monkeypatch):
-    """Through pytest: every writer broken, the failure is still reported, with three faults."""
+    """Through pytest: every writer broken, the failure is still reported, with a fault in each."""
     result = run_child_pytest(
         pytester,
         monkeypatch,
@@ -374,11 +446,14 @@ def test_a_fault_in_each_section_leaves_the_tests_own_report(pytester, monkeypat
         "    importlib.import_module('leaves_mid_import')\n",
         conftest_source=(
             'from tests import import_failure_state, import_failure_threads, module_removals\n'
+            'from tests import import_load_probe\n'
             'def fail(*args, **keywords):\n'
             "    raise ValueError('planted')\n"
             'import_failure_threads.live_thread_report = fail\n'
             'module_removals.removals_report = fail\n'
             'import_failure_state.modules_state_report = fail\n'
+            'import_load_probe.load_probe_report = fail\n'
+            'import_load_probe.interpreter_report = fail\n'
         ),
     )
 
@@ -386,7 +461,7 @@ def test_a_fault_in_each_section_leaves_the_tests_own_report(pytester, monkeypat
     output = result.stdout.str()
     assert 'INTERNALERROR' not in output
     assert "KeyError: 'leaves_mid_import'" in output
-    for title in (SECTION_TITLE, REMOVALS_SECTION_TITLE, STATE_SECTION_TITLE):
+    for title in ALL_SECTION_TITLES:
         assert 'this section could not be written: ValueError: planted' in section(output, title)
 
 
