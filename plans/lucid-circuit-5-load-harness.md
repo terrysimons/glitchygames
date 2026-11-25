@@ -121,7 +121,7 @@ service's REST API, so the game is exactly what a player runs.
 |---|---|
 | Games | PaddleSlap, and the busiest other game found by a quick measurement |
 | Model | 2B, 4B, 9B, 27B |
-| AI load | `--no-ai` (baseline); connected but idle; 25%, 50% and 100% of the time generating |
+| AI load | `--no-lucid-circuit` (baseline); connected but idle; 25%, 50% and 100% of the time generating |
 | Repeats | Three passes, in shuffled order, so warmth and drift don't favour one size |
 
 Each run records frame p50, p95, p99 and maximum, frames over 1 ms late, and processing time, plus the service's
@@ -159,7 +159,7 @@ Either way, it has to pass before any game runs an agent without being asked.
 ## Exit evidence
 
 - The table and side-by-side page above, with the owner's choice of default size recorded.
-- Frame figures on a real display against `--no-ai`, for each size and load.
+- Frame figures on a real display against `--no-lucid-circuit`, for each size and load.
 - The throttle tested as above.
 - The limits of a single Mac stated beside the results.
 

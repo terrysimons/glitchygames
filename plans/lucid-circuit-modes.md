@@ -44,7 +44,7 @@ games only; passive games keep every rule as it is.
 | The live game never waits for AI | The game waits at launch, behind the loading scene. During play no frame may stall, so AI answers still arrive asynchronously |
 | The service dying mid-play leaves the game running, with AI unavailable | A participating game fails, after a grace period (section 3) |
 | AI failure never changes the exit code | A participating game exits with `ExitCode.SERVICE_UNAVAILABLE` (69), which already means "a required service (the local AI service) ... cannot be reached" |
-| `--no-ai` turns AI off | For a participating game, `--no-ai` is refused with a clear message |
+| `--no-lucid-circuit` turns AI off | For a participating game, `--no-lucid-circuit` is refused with a clear message |
 | No AI in replays | Still true: AI answers are recorded as input, so a replay serves them back with no service running. The requirement check is skipped in replays |
 | No AI with `--headless`, in tests, or in the tools that record goldens | Tests and goldens for a participating game need a stand-in service or recorded AI answers |
 | No AI in the browser (it cannot start processes) | A participating game cannot run in the browser unless it reaches a service some other way |
@@ -101,7 +101,7 @@ stateDiagram-v2
     [*] --> CheckingRun
     CheckingRun --> Replaying: replay, audit or rebaseline
     Replaying --> [*]: recorded AI answers served, no service needed
-    CheckingRun --> Refused: --no-ai, or the browser
+    CheckingRun --> Refused: --no-lucid-circuit, or the browser
     CheckingRun --> Booting: live run
     state "Loading scene" as Loading {
         Booting --> Priming: link CONNECTED
@@ -167,7 +167,7 @@ mode's loading scene.
   something else).
 - How long the boot deadline and the mid-play grace period are, and what the player sees
   during the grace period.
-- Whether `--no-ai` on a participating game refuses with exit 64 (options refused) or 69.
+- Whether `--no-lucid-circuit` on a participating game refuses with exit 64 (options refused) or 69.
 - What the loading scene's contract is: what the engine provides, and what the game may
   override.
 - What "data priming" covers, and who supplies it: the game, or the platform.

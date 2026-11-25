@@ -877,6 +877,7 @@ class TestProcessAiResponse:
         assert editor.debug_text.text == DEFAULT_PROMPT_TEXT
         assert manager.last_conversation_history is None
 
+    @pytest.mark.usefixtures('live_run_with_the_ai_on')
     def test_invalid_response_is_retried_with_a_corrective_prompt(self):
         """An answer missing [colors] is retried under the same id with a correction."""
         editor = _editor()
@@ -951,6 +952,7 @@ class TestProcessAiResponse:
         assert 'anyway' not in caplog.text
         assert manager.pending_ai_requests == {}
 
+    @pytest.mark.usefixtures('live_run_with_the_ai_on')
     def test_bitmappy_retries_ragged_rows(self):
         """Rows that need repair are retried with the equal-widths correction."""
         editor = _editor()
@@ -1870,12 +1872,16 @@ class TestLucidCircuit:
         manager.cleanup()
 
     def test_a_request_the_ai_is_off_for_needs_no_debug_text(self):
+        """A worker's queues are there, so only the gate keeps the request out of them."""
         editor = _editor(with_debug_text=False)
         make_engine('--no-lucid-circuit')
+        manager = _manager_with_queues(editor)
 
-        AIManager(editor).on_text_submit_event('a ball')
+        manager.on_text_submit_event('a ball')
 
         assert not hasattr(editor, 'debug_text')
+        assert not manager.ai_request_queue.items
+        assert manager.pending_ai_requests == {}
 
     def test_the_log_says_why_at_setup_and_at_a_request(self, caplog):
         make_engine('--no-lucid-circuit')
@@ -1903,7 +1909,38 @@ class TestLucidCircuit:
         assert len(manager.ai_request_queue.items) == 1
         assert manager.editor.debug_text.text == off_message(reason=OFF_ON_THE_COMMAND_LINE_REASON)
 
-    def test_in_game_playback_is_a_replay_until_it_ends(self, live_run_with_the_ai_on):
+    @pytest.mark.parametrize(
+        'content',
+        [
+            pytest.param('[sprite]\nname = "x"\npixels = """\n#\n"""\n', id='invalid'),
+            pytest.param(RAGGED_SPRITE_TOML, id='ragged-rows'),
+        ],
+    )
+    @pytest.mark.parametrize('with_debug_text', [True, False])
+    def test_a_retry_asks_again(self, live_run_with_the_ai_on, content, with_debug_text, caplog):
+        """An answer that needs a retry, in a later run the AI is off in, drops its request."""
+        editor = _editor(with_debug_text=with_debug_text)
+        manager = _manager_with_queues(editor)
+        manager.on_text_submit_event('a ball')
+        (request,) = manager.ai_request_queue.items
+        manager.ai_request_queue.items.clear()
+        make_engine('--no-lucid-circuit')
+        caplog.clear()
+
+        with caplog.at_level(logging.INFO, logger=ai_link.LOG.name):
+            manager._process_ai_response(request.request_id, AIResponse(content=content))
+
+        message = off_message(reason=OFF_ON_THE_COMMAND_LINE_REASON)
+        assert not manager.ai_request_queue.items
+        assert manager.pending_ai_requests == {}
+        assert caplog.messages.count(message) == 1
+        assert hasattr(editor, 'debug_text') is with_debug_text
+        if with_debug_text:
+            assert editor.debug_text.text == message
+
+    def test_in_game_playback_is_a_replay_until_it_ends(
+        self, fake_process_class, live_run_with_the_ai_on
+    ):
         """A scene rebuilt from a recording inside a live run starts nothing and asks nothing."""
         engine = live_run_with_the_ai_on
         push_scoped_sources(
@@ -2142,8 +2179,13 @@ class TestRealWorker:
         assert exit_code == ExitCode.SUCCESS
         assert result == {'started': 0}
 
-    def test_a_recording_made_with_the_ai_on_matches_without_it(self, tmp_path):
-        """Its request started no worker and shows why: text, which a replay never compares."""
+    def test_a_recording_whose_request_got_no_answer_matches_without_the_ai(self, tmp_path):
+        """Its replay's request starts no worker and shows why: text, which is never compared.
+
+        Nothing answered as it was recorded (the AI service is nowhere), and it quit frames after
+        asking. A recording whose request was answered diverges: the answer, which changed the
+        canvas, is not recorded (bugs/2026-11-24-bitmappy-starts-an-ai-worker-in-a-replay.md).
+        """
         recording = str(tmp_path / 'asked.jsonl.gz')
         _, recorded = run_in_a_child(
             program=ASKING_RUN_PROGRAM,

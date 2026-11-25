@@ -29,7 +29,8 @@
   replay (in-game playback and a tile's included) and with no engine to ask: `ai_off_reason`
   (`src/apps/bitmappy/src/bitmappy/ai_manager.py`), through the engine link's own gate
   (`reason_lucid_circuit_is_off`, `src/glitchygames/ai_link.py`). It is asked at `setup()`, which
-  then starts no process, queue or thread, and at each request, which shows the reason.
+  then starts no process, queue or thread, and at each request and each retry of one, which show
+  the reason (a refused retry drops its request).
 - **Tests**: `src/apps/bitmappy/tests/test_bitmappy_ai_manager.py`: `TestRealWorker` (real
   processes, the reproduction above included) and `TestLucidCircuit`, which failed before the fix.
 - **Known limits**, all open:

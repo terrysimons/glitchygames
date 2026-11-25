@@ -50,7 +50,7 @@ choosing it; or a game has to change to keep running without AI.
 | Installs first for the owner, for players later | Session |
 | Adopt the exoneris LaunchAgent pattern (section 6), with its defects fixed | Session |
 | Wire the existing layers into this architecture | Session |
-| **`--ai` is on by default; `--no-ai` turns it off** | Session |
+| **`--lucid-circuit` is on by default; `--no-lucid-circuit` turns it off** (`--ai` and `--no-ai` until 2026-11-24) | Session |
 | **No model uses memory until a game loads; sizes are picked then, from the machine's real state** | Session |
 | **A model unloads after 30 idle minutes by default, and that's tunable** | Session |
 | **Models load when the game loads** (not on first use) | Session |
@@ -75,7 +75,7 @@ Each row in section 3 that departs from the brief is a recommendation until the 
 | 1 | Ship weights inside the `.pkg`, stored in Git LFS | The owner chose downloading. GitHub LFS rejects files over 2 GB on Free and Pro (5 GB at most on any plan), so `9b` (2.56 GB) and `27b` (7.63 GB) can't go in unsplit. `git lfs` isn't installed here, and this checkout is in Dropbox, which would sync the weights | Download from pinned revisions with SHA-256 checks. "Offline" means it runs offline once installed. No LFS. Keep the manifest fields (brief section 9) |
 | 2 | Admin-owned files in `/Library/...`, agents in `/Library/LaunchAgents` | The owner asked for a service that "installs as the user" | Per-user install, no root, using the brief's `~/Library/...` paths (section 6). An all-users install can come later if players need it |
 | 3 | A thin wrapper hosts AI hooks and is wrapped around each game | **`GameHost` is the wrapper, it's on every game, and it's frozen (owner, 2026-11-06).** All 12 game and demo entry points run `GameEngine(game=...)`, which builds a `GameHost` for live runs. The brief's "deferred instantiation" is in `GameEngine` (`game_engine.py:3687`). Its diagram's scene wrapping doesn't exist: no branch has a wrapper scene, and none is needed | Change nothing in `host.py`. AI is a subclass of `HostSources`, in the host's layer (section 4) |
-| 4 | Every wrapped game inherits AI | True only for desktop live runs: `GameEngine.host` is None in a replay, and a browser can't start processes (`AI_FEATURES_ENABLED`, `RESTARTS_AVAILABLE`) **On by default, `--no-ai` to turn it off (owner, 2026-11-06).** Never in replays or browsers, whatever the flag says. Tests and the tools that record goldens run with it off (section 4). With `--no-ai`, no worker starts, no AI module loads and no per-frame call is added |
+| 4 | Every wrapped game inherits AI | True only for desktop live runs: `GameEngine.host` is None in a replay, and a browser can't start processes (Lucid Circuit's flag, `RESTARTS_AVAILABLE`) **On by default, `--no-lucid-circuit` to turn it off (owner, 2026-11-06; the switch's name, 2026-11-24).** Never in replays or browsers, whatever the flag says. Tests and the tools that record goldens run with it off (section 4). With `--no-lucid-circuit`, no worker starts, no AI module loads and no per-frame call is added |
 | 5 | Startup indexes each game's TOML sprites, song notation and waveforms | `clockwork-keep`, `mr-muncher` and `paddleslap` have no sprite files; Brave Adventurer Papyrus has 5 and `drawing-fire` 1. Bitmappy has 71. **No game has a sound file in TOML, and no game uses the new `audio.sound()` API**: their sounds are Python recipes, numpy code or two WAVs. Note strings parse (`audio/spec.py`), but a song format is M5, not built | Index what exists and report the rest as "no assets". For code-drawn games the useful index is their capability catalog (Stage 7). Build a game's asset inventory before writing any experiment |
 | 6 | A mandatory engine loading scene before play | A pre-game scene would be recorded and shift frame numbers | Index in the background, so games show nothing. A game that needs indexing to finish first shows its own loading scene, built on a shared one, as an opt-in |
 | 7 | Audit an 11-way frame-capture matrix, including GPU readback | The engine draws to a CPU surface (`LayeredDirty`), and `SCALED` only adds a renderer for presenting. GPU readback, front/back buffers and shared textures don't apply to the frame the game draws. `FrameStream` (`replay/tools/compare.py`) already sends frames to another process | Shorten the audit to CPU options: a pooled shared-memory ring, downscaled copies and existing `tobytes`. Measure against `FrameStream` as the baseline. Note the rest as not applicable, with this reason. The game draws in place on the display surface, so a thread reading it would tear. `end_frame` should read frame N just after it's presented, with shake and overlays restored off the surface. Measured at 1080p (microbenchmark, GIL and contention not covered): a pooled blit takes about 0.17 ms and a shared-memory copy about 0.10 ms, against 1.3 ms for `tobytes`, so `FrameStream`'s method isn't the one to reuse |
@@ -116,7 +116,7 @@ doesn't change (owner, 2026-11-06).** It's a plain class with no base class, for
 
 **AI lives in that layer as a new subclass, `AiHostSources(HostSources)`, in `glitchygames/ai/`.** Its
 hooks are the doors `HostSources` already forwards. By default `GameEngine.__init__` builds it where it
-now builds `HostSources` (`game_engine.py:1397`); with `--no-ai` it builds `HostSources` as today, so
+now builds `HostSources` (`game_engine.py:1397`); with `--no-lucid-circuit` it builds `HostSources` as today, so
 that path adds no code to any frame. A replay has no host, so it never runs.
 
 **What "on by default" has to mean (proposed; Stage 3 proves it):**
@@ -130,13 +130,13 @@ that path adds no code to any frame. A replay has no host, so it never runs.
 | A live game, service not installed | Runs normally. A single check at startup, one log line, no worker, no retries during play |
 | Service dies during play | The game carries on; AI reports unavailable |
 | Replay, audit, rebaseline | No host, so no AI. The option is replay-local, so a recording's stored value is ignored |
-| Browser | Off, like `AI_FEATURES_ENABLED`: a browser can't start processes |
+| Browser | Off: Lucid Circuit's flag is unavailable there, as a browser can't start processes |
 | `--record-golden-trace`, `--record-session`, `verify`, `measure` | Forced off, so AI can never enter a golden or a timing |
 | The test suite | Off through the test harness; only AI's own tests turn it on |
 
 **The cost that default-on adds:** every ordinary launch now runs `AiHostSources` and starts a process,
 including for players who never use AI. Its per-frame cost when idle must be measured against
-`--no-ai` in the run ledger. That number is an acceptance test for Stage 3, and exceeding the budget
+`--no-lucid-circuit` in the run ledger. That number is an acceptance test for Stage 3, and exceeding the budget
 blocks the stage.
 
 Probed on real Bitmappy, headless, for 4 frames, with the subclass swapped in from outside the repo: a
@@ -151,7 +151,7 @@ AI only *uses* what they already offer:
 | `HostSources.end_frame` | Bounded result drain and observation capture, after the frame is presented. Receives the scene, frame number and dt | Runs after `_present_frame`, so this is the first point frame N is complete (read from the code, not yet tested) |
 | `HostSources.input_snapshot` | For games that poll input (Drawing Fire): posted events don't change polled state, so AI input has to be laid over the snapshot here | `PostedPolledInput` does the same for scripted sessions |
 | `HostSources.draws_overlay`, `draw_overlay` | AI status drawn over the presented frame, never recorded. **`draws_overlay` being true costs a full screen copy and flip each frame**, so it must be true only while something is showing | The `--compare-trace` ghost |
-| `registry.TOOLS` | Puts `--ai` and `--no-ai` on every game's command line. **It only parses the option**; `GameEngine` reads it to choose the subclass | Every tool flag already works this way |
+| `feature_flags.py` ([plan](2026-11-24-feature-flags-and-lucid-circuit-switch.md)) | Puts `--lucid-circuit` and `--no-lucid-circuit` on every game's command line. **It only says whether AI is wanted and possible**; `create_link` asks it, and `GameEngine` chooses the subclass by the link | Not a `Tool`: the engine refuses two tool flags at once (Stage 3) |
 
 **To prove in Stage 3:** the same behaviour while a game is paused, in transitions and in a playback
 scope (where other doors are pushed on top), `draws_overlay` changing during a run, and real frame
@@ -173,7 +173,7 @@ the game already handles, and ask for this only if they prove too limiting.
 | Existing layer | Role in this platform | Change needed |
 |---|---|---|
 | `GameHost`, `HostSources`, `TickPacer` (`host.py`) | The wrapper | **None. Frozen** |
-| `GameEngine.__init__` (`game_engine.py:1397`) | Builds the host's doors | Builds `AiHostSources` by default, `HostSources` with `--no-ai` |
+| `GameEngine.__init__` (`game_engine.py:1397`) | Builds the host's doors | Builds `AiHostSources` by default, `HostSources` with `--no-lucid-circuit` |
 | `Supervisor`, `post_input_event`, control events | Not the main path. Available for actions that need the supervisor slot | None |
 | `SceneManager.in_playback_scope`, `Scene.debug_subject` | Demos, instant replay and pause | The session holds proposals during a scope, and reads the paused game through `debug_subject` |
 | `process.py` (`start_command`, `stop_command`) | The engine's one subprocess launcher, with reaping | Runs `ai-service.sh start` as the game loads, if the service is installed. Agents run in the sidecar, so the engine starts no Python worker of its own |
@@ -184,7 +184,7 @@ the game already handles, and ask for this only if they prove too limiting.
 | `instant_replay.py`, `playback.py`, `ghosts.py` | In-memory frame journal and isolated playback | First source of "what just happened?" context (Stage 9) |
 | `--headless`, `record_scripted_session`, `PostedPolledInput` | Real games driven by repeatable input, live | The load harness (Stage 5) is built on these, not a new runner |
 | `processing_seconds`, `RunSummary`, the run ledger, `report` | Per-frame timing with percentiles, already recorded | Compare AI off against AI on with these. New measurement goes in the same format |
-| `registry.TOOLS`, `[tool.glitchygames]` | One definition per tool, on both front ends | `--ai` and `glitchygames ai-status` etc. are `Tool`s. Their settings go in the same table |
+| `registry.TOOLS`, `[tool.glitchygames]` | One definition per tool, on both front ends | `glitchygames ai-status` etc. are `Tool`s (`--lucid-circuit` is a feature flag). Their settings go in the same table |
 | `glitchygames.api` (`routes`, `client.py`, `services/`) | Existing FastAPI app, HTTP client and sprite service; used only by their own tests | The service is a new member (row 10, section 3). `SpriteGenerationService` can target the local API through its `aisuite` config if it's kept |
 | `src/apps/bitmappy` `ai_manager.py`, `ai_worker.py` | A working separate AI process, with `AI_MODEL` hardcoded to a remote provider | First real client: a setting that points it at local Bonsai. Its worker lessons move into the engine's pool, and it adopts that pool last |
 | `audio/voice_assistant.py`, `audio/tts.py`, `controller_audio.py`, `events/voice.py` | Push-to-talk to speaker pipeline, on threads in the game process | Stage 11: speech and AI move behind the API. The threads leave the game process |
@@ -364,9 +364,9 @@ small end-to-end result first, and proves frame safety before AI is on by defaul
 | 0 | **Measure first** (done, through `ai_validate`, except the reference check) | On this Mac at `b12167`: all four Bonsai sizes answered text and image questions correctly on Metal, with all layers on the GPU and `graph splits = 1`, so the `MUL_MAT_HADAMARD` concern didn't bite. Memory figures are in section 5. **Not done:** comparing Qwen's vectors with the reference implementation (only shape, norms and a similarity check so far) |
 | 1 | **Local service** ([sub-plan](lucid-circuit-1-local-service.md)) | **Done:** roles install and rerun cleanly; all the REST routes and the WebSocket, with real models; Scalar with the network blocked; everything stops when the last game leaves. **Not done:** agents surviving a crash and a reboot; the service in CI, the SBOM and the license check |
 | 2 | **Installer (owner)** | Unsigned `.pkg` installs and uninstalls with no root as the owner, its setup job downloads what's missing and starts nothing, and the picker was tried against faked memory figures by hand (**done**). **Not done:** a second user account with no developer tools; an automated test of the picker |
-| 3 | **Engine connection** ([sub-plan](lucid-circuit-3-engine-connection.md); its switch becomes `--lucid-circuit`: [plan](2026-11-24-feature-flags-and-lucid-circuit-switch.md)) | **Done:** no diff in `host.py`; a default run connects, and a run with no service plays normally; a proposal reaches the scene, is recorded, and replays with no service; crashes of the API, a model or the game all recover. Idle cost about 0.03-0.06 ms a frame on the dummy driver. **Not done:** a real display. The owner accepted that cost for prototyping (2026-11-06) |
+| 3 | **Engine connection** ([sub-plan](lucid-circuit-3-engine-connection.md); its switch is `--lucid-circuit` since 2026-11-24: [plan](2026-11-24-feature-flags-and-lucid-circuit-switch.md)) | **Done:** no diff in `host.py`; a default run connects, and a run with no service plays normally; a proposal reaches the scene, is recorded, and replays with no service; crashes of the API, a model or the game all recover. Idle cost about 0.03-0.06 ms a frame on the dummy driver. **Not done:** a real display. The owner accepted that cost for prototyping (2026-11-06) |
 | 4 | **First playable: read-only** ([sub-plan](lucid-circuit-4-console.md)) | **Done:** the ` key opens a console in every game with AI, with `/ask`, `/inspect`, `/ai`, `/cancel`, `/history`, `/clear`, `/help` and an AI debug panel. Real questions took 7-9 s on 27B in PaddleSlap. Typing reaches neither the game nor a recording. **Not done:** a real display. Bitmappy already uses local Bonsai (Stage 1), though its sprite requests still fail validation |
-| 4b | **The mirror game** ([sub-plan](lucid-circuit-4b-mirror.md)) | The AI works on a clone with the same seed and inputs, on the dummy driver, uncapped, preferably under 5 s behind. Frame times with the clone running against `--no-ai` on a real display; `/inspect` shows every sprite with no cap; events pump both ways across the AI socket, and one event from the clone is applied live, recorded, seen by the clone, and replays with no AI; killing the clone leaves the game playing |
+| 4b | **The mirror game** ([sub-plan](lucid-circuit-4b-mirror.md)) | The AI works on a clone with the same seed and inputs, on the dummy driver, uncapped, preferably under 5 s behind. Frame times with the clone running against `--no-lucid-circuit` on a real display; `/inspect` shows every sprite with no cap; events pump both ways across the AI socket, and one event from the clone is applied live, recorded, seen by the clone, and replays with no AI; killing the clone leaves the game playing |
 | 5 | **Sweet spot, load harness and throttle** ([sub-plan](lucid-circuit-5-load-harness.md)) | All four Bonsai sizes compared on the owner's Mac, the only one available (2026-11-06): answer quality, memory, and p50/p95/p99 frame times at fixed AI loads against AI off, on a real display. The owner picks the default size. Throttle backs off fast and recovers without oscillating. Must pass before any game runs an agent without being asked. Speed on smaller Macs moves to Stage 12 |
 | 6 | **Retrieval and agent loop** | Asset and capability index with versioned model identity; dense + BM25 + filters; a bounded agent loop that retrieves, plans in JSON, validates and stops on budget |
 | 7 | **Lucid Circuit** | Capability discovery on unannotated classes without running properties; validated field edits and one composed behaviour nobody wrote a command for, in two games; restoration tested; glitch manifest and `/augment`, `/undo`, `/glitch` |
@@ -420,7 +420,8 @@ Most important first. Each has a default this plan uses until told otherwise.
    says it ships in the installer with LFS; the session says download. Default: download.
 4. **Per-user or all-users.** Confirm per-user, no root, over the brief's `/Library` layout. Default:
    per-user.
-5. **Default-on behaviour.** Resolved 2026-11-06: `--ai` is on by default and `--no-ai` turns it off.
+5. **Default-on behaviour.** Resolved 2026-11-06: `--ai` is on by default and `--no-ai` turns it off
+   (`--lucid-circuit` and `--no-lucid-circuit` since 2026-11-24).
    Still to confirm: "on" starts an idle worker and makes no model requests until asked (section 4).
    Default: yes.
 6. **Which models players get.** All four Bonsai sizes (13.93 GB) or just their default, with others

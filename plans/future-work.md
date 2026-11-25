@@ -806,9 +806,9 @@ Design: `docs/specs/2026-10-27-glitchy-games-website-design.md` (2026-10-27/28).
   class prefers the performance cores, so: the game's threads user-interactive, the mirror
   utility, the model agents utility or background. Measure first: on a Mac, llama.cpp computes on
   the GPU (Metal) and uses little CPU, so the game may not suffer at all; compare its frame times
-  with the models busy against `--no-ai` before changing anything, and check that a background-class
-  llama-server doesn't slow the GPU work it feeds. Same rule as Linux: one record of the placement
-  (`setup.sh`), the engine applying the game's part itself, only for a live run with AI.
+  with the models busy against `--no-lucid-circuit` before changing anything, and check that a
+  background-class llama-server doesn't slow the GPU work it feeds. Same rule as Linux: one record
+  of the placement (`setup.sh`), the engine applying the game's part itself, only for a live run with AI.
 
 - **x86_64 Linux support for the AI service** (plans/lucid-circuit-linux.md 9.2, 2026-11-19): designed for, not
   supported until an x86_64 host is in the inventory (`linux` group, with its `host_memory_gb`) and has had the

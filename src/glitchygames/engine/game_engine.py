@@ -37,7 +37,7 @@ import pygame
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames import clock, events
-from glitchygames.ai_link import REPLAY_OFF_REASON, AiLink, create_link, log_no_link
+from glitchygames.ai_link import REPLAY_OFF_REASON, AiLink, create_link, log_lucid_circuit_off
 from glitchygames.argument_types import non_negative_int, unit_interval
 from glitchygames.backgrounds import (
     DEFAULT_BACKGROUND_PATTERN,
@@ -1738,7 +1738,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             )
             install_sources(sources=self.host.sources)
         else:
-            log_no_link(reason=REPLAY_OFF_REASON)
+            log_lucid_circuit_off(reason=REPLAY_OFF_REASON)
             install_sources(sources=self.replay_sources)
 
         # We are fully initialized now; the scene (self.game, set at the top) starts once
@@ -3917,8 +3917,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         Below the options, each feature flag's state and why it is off
         (glitchygames/feature_flags.py), as this engine was made: its option says only what was
         asked. The state is whether the feature is wanted and possible, no more: a feature's own
-        gate (Lucid Circuit's for ``--headless`` or a replay: ``ai_link.log_no_link``) logs its
-        reason itself.
+        gate (Lucid Circuit's for ``--headless`` or a replay: ``ai_link.log_lucid_circuit_off``)
+        logs its reason itself.
         """
         shown_options = {**self.options, 'random_seed': self.random_seed}
         flag_lines = [f'{OPTIONS_BLOCK_INDENT}{line}' for line in self._flag_state_lines]

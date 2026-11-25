@@ -8,7 +8,7 @@ that the script, run through the engine, draws its smiley.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self, override
+from typing import TYPE_CHECKING
 
 import pytest
 from scripts.demo_inputs import (
@@ -23,8 +23,8 @@ from scripts.demo_inputs import (
     bitmappy_demo_script,
 )
 
+from bitmappy import ai_manager
 from bitmappy.editor import BitmapEditorScene
-from glitchygames.feature_flags import take_flag_options
 from glitchygames.replay.tools.golden_traces import RANDOM_SEED, SCREEN_RESOLUTION, record_trace
 from tests.display_canvas import show_canvas_on_new_display
 
@@ -34,16 +34,6 @@ if TYPE_CHECKING:
 # The fewest pixels the demo's drawing holds, and the fewest colours (the brief of Task 6)
 MINIMUM_DRAWN_PIXELS = 20
 MINIMUM_DRAWN_COLORS = 2
-
-
-class EditorWithTheAiOff(BitmapEditorScene):
-    """The editor, in a run where Lucid Circuit is off (as with ``--no-lucid-circuit``)."""
-
-    @override
-    def setup(self: Self) -> None:
-        """Turn it off in the run's context, then set up."""
-        take_flag_options(options={'lucid_circuit': False})
-        super().setup()
 
 
 def build_editor(*, resolution: str) -> BitmapEditorScene:
@@ -120,12 +110,14 @@ def expected_canvas() -> dict[tuple[int, int], tuple[int, int, int]]:
 
 
 @pytest.mark.draws_frames
-def test_the_demo_script_draws_its_two_colour_smiley():
+def test_the_demo_script_draws_its_two_colour_smiley(mocker):
     """Run through the engine at the recorder's resolution, the script paints exactly its smiley.
 
-    The recorder's run is live and windowed, which starts an AI worker, so the scene turns Lucid
-    Circuit off for its run as it is set up; the demo makes no AI request.
+    The recorder's run is live and windowed, which starts an AI worker, so its command line turns
+    Lucid Circuit off; the demo makes no AI request. The worker's process is a stand-in, so a run
+    that did start one would start nothing real.
     """
+    worker_process_class = mocker.patch.object(ai_manager.multiprocessing, 'Process')
     drawn: dict[tuple[int, int], tuple[int, int, int]] = {}
 
     def read_the_canvas(*, frame_number: int, scene: Scene, sprite_ids: object) -> None:
@@ -143,13 +135,15 @@ def test_the_demo_script_draws_its_two_colour_smiley():
                 )
 
     record_trace(
-        scene_class=EditorWithTheAiOff,
+        scene_class=BitmapEditorScene,
         script=bitmappy_demo_script(),
         frame_count=BITMAPPY_DEMO_FRAME_COUNT,
         random_seed=RANDOM_SEED,
+        extra_arguments=['--no-lucid-circuit'],
         frame_observer=read_the_canvas,
     )
 
+    worker_process_class.assert_not_called()
     assert drawn == expected_canvas()
     assert len(drawn) >= MINIMUM_DRAWN_PIXELS
     assert len(set(drawn.values())) >= MINIMUM_DRAWN_COLORS

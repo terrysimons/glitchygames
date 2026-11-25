@@ -356,7 +356,7 @@ still touches the real world. The AI's disposable copies use the same mode.
 
 ## Exit evidence
 
-- The live game's frame times with the clone running, against `--no-ai`, on a real display.
+- The live game's frame times with the clone running, against `--no-lucid-circuit`, on a real display.
 - The clone keeps under 5 seconds behind on the games measured, or the limit is stated for those that don't.
 - `/inspect` shows every sprite in Mr. Muncher's scene, including the player.
 - One event goes clone to live and back, and a recording of that run replays exactly with no AI.

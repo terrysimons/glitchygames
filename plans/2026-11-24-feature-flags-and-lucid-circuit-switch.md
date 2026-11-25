@@ -1,7 +1,7 @@
 # Feature Flags, and Lucid Circuit's Switch
 
 - **Date:** 2026-11-24
-- **Status:** Approved by the owner, to be built by subagents. Nothing is built yet.
+- **Status:** Built (2026-11-24), all four tasks, on the branch below. Not merged yet.
 - **Master plan:** [lucid-circuit.md](lucid-circuit.md). The mirror's own plan is
   [lucid-circuit-4b-mirror.md](lucid-circuit-4b-mirror.md).
 - **Branch:** `feature/lucid-circuit-switch`
@@ -57,8 +57,9 @@ A source scan, beside the project's others (`tests/test_unseeded_randomness_guar
 that fails when engine or member code:
 
 - assigns a module- or class-level name ending `_ENABLED`, or starting `ENABLE_` or `FEATURE_`,
-  outside `feature_flags.py`;
-- calls `flag_state` at import (module or class level, or a default argument).
+  outside `feature_flags.py` (a private name too; two bits of `BallSpawnMode`, which switch nothing
+  by themselves, are allowed by name);
+- calls `flag_state` at import (module or class level, a decorator or a default argument).
 
 It is a test, not another kind of flag: it keeps the next feature from bringing back a constant.
 

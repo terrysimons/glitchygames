@@ -9,13 +9,14 @@ The rules:
 1. The frame loop never waits. ``start`` returns at once, and ``take_messages`` only looks at a
    deque, costing one truth test on a frame with nothing waiting. Everything that can block
    (starting the service, connecting, reading the socket) happens on the link's thread.
-2. Nothing runs unless it's wanted: ``create_link`` returns None when Lucid Circuit's flag is off
-   (``--no-lucid-circuit``, a browser: ``glitchygames/feature_flags.py``), with ``--headless``
-   (scripted sessions, golden traces, tools), and on a machine without the service, so those runs
-   build plain ``HostSources`` and never import ``websockets``. A replay never asks. Each says why
-   (``log_no_link``). Whatever else of a game uses Lucid Circuit asks the same gate
-   (``reason_lucid_circuit_is_off``), which is the run's part of this rule; where the service is
-   stays its own.
+2. Nothing runs unless it's wanted. ``reason_lucid_circuit_is_off`` is the run's gate, for this
+   link and whatever else of a game uses Lucid Circuit (Bitmappy's AI): off in a replay, when its
+   flag is off (``--no-lucid-circuit``, a browser: ``glitchygames/feature_flags.py``), when the
+   options hold no answer for the flag, and with ``--headless``. ``create_link`` returns None for
+   such a run, and on a machine without the service: the run then builds plain ``HostSources``
+   and never imports ``websockets``. A replay's engine has no host, and makes no link. Each says
+   why (``log_lucid_circuit_off``). Where the service is stays each user's own check, and so does
+   whether there is a run to ask.
 3. Starting the service is one attempt. Not enough free memory means no AI for this run: nothing is
    retried during play. A lost connection is retried slowly, as launchd restarts a crashed service.
 4. A service speaking another protocol version refuses the session, and the link stops. The game and
@@ -407,8 +408,8 @@ def lucid_circuit_off_message(*, reason: str) -> str:
     return f'Lucid Circuit is off: {reason}'
 
 
-def log_no_link(*, reason: str, level: int = logging.INFO) -> None:
-    """Say why a run has no link, or another use of Lucid Circuit (rule 2).
+def log_lucid_circuit_off(*, reason: str, level: int = logging.INFO) -> None:
+    """Log why a run may not use Lucid Circuit, or that this machine's service can't be (rule 2).
 
     Args:
         reason: The reason.
@@ -463,17 +464,17 @@ def create_link(*, options: Mapping[str, Any]) -> AiLink | None:
     # A replay's engine makes no link: it never asks (GameEngine.__init__)
     reason = reason_lucid_circuit_is_off(options=options, in_replay=False)
     if reason is not None:
-        log_no_link(reason=reason)
+        log_lucid_circuit_off(reason=reason)
         return None
     locations = service_locations()
     if locations is None:
-        log_no_link(reason=f'no AI service on the platform {sys.platform}')
+        log_lucid_circuit_off(reason=f'no AI service on the platform {sys.platform}')
         return None
     if not locations.control_script.is_file():
-        log_no_link(reason=f'the AI service is not installed at {locations.program_root}')
+        log_lucid_circuit_off(reason=f'the AI service is not installed at {locations.program_root}')
         return None
     if not locations.key_file.is_file():
-        log_no_link(
+        log_lucid_circuit_off(
             reason=f'the AI service at {locations.user_root} has no key', level=logging.WARNING
         )
         return None

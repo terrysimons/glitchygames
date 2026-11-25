@@ -31,7 +31,7 @@ from glitchygames.ai import (
 )
 from glitchygames.ai.sprite_generator import pixel_row_problems
 from glitchygames.ai_link import (
-    log_no_link,
+    log_lucid_circuit_off,
     lucid_circuit_off_message,
     reason_lucid_circuit_is_off,
 )
@@ -198,7 +198,7 @@ class AIManager:
         """
         off_reason = ai_off_reason()
         if off_reason is not None:
-            log_no_link(reason=off_reason)
+            log_lucid_circuit_off(reason=off_reason)
             return
         # Check if we are in the main process
         if multiprocessing.current_process().name == 'MainProcess':
@@ -447,17 +447,28 @@ class AIManager:
         if hasattr(self.editor, 'debug_text'):
             self.editor.debug_text.text = f'Processing AI request... (ID: {request_id})'
 
+    def _refuse_while_the_ai_is_off(self) -> bool:
+        """Ask ``ai_off_reason``, and log and show why when the AI is off.
+
+        Returns:
+            True when it is off: nothing may be asked of the worker.
+
+        """
+        off_reason = ai_off_reason()
+        if off_reason is None:
+            return False
+        log_lucid_circuit_off(reason=off_reason)
+        if hasattr(self.editor, 'debug_text'):
+            self.editor.debug_text.text = lucid_circuit_off_message(reason=off_reason)
+        return True
+
     def on_text_submit_event(self, text: str) -> None:
         """Handle text submission from MultiLineTextBox."""
         self.log.info("AI Sprite Generation Request: '%s'", text)
         self.log.debug('Text length: %s', len(text))
         self.log.debug('Text type: %s', type(text))
 
-        off_reason = ai_off_reason()
-        if off_reason is not None:
-            log_no_link(reason=off_reason)
-            if hasattr(self.editor, 'debug_text'):
-                self.editor.debug_text.text = lucid_circuit_off_message(reason=off_reason)
+        if self._refuse_while_the_ai_is_off():
             return
 
         if not self.ai_request_queue:
@@ -547,7 +558,8 @@ class AIManager:
             # Check if we can retry
             if request_state.retry_count < AI_VALIDATION_MAX_RETRIES:
                 self._retry_ai_request(request_id, request_state, validation_error)
-                # DON'T delete from pending_ai_requests - we're retrying
+                # DON'T delete from pending_ai_requests - we're retrying (a retry refused while
+                # the AI is off has dropped it)
                 return
             # Max retries reached: give up without loading. This used to say "loading sprite
             # anyway", but _load_ai_sprite validates the same content and rejects it, so nothing
@@ -607,7 +619,15 @@ class AIManager:
     def _retry_ai_request(
         self, request_id: str, request_state: AIRequestState, validation_error: str
     ) -> None:
-        """Queue the request again, under the same id, with a correction for the error."""
+        """Queue the request again, under the same id, with a correction for the error.
+
+        While the AI is off (a later run in the same process turned it off) the request is dropped
+        instead, and the reason shown.
+        """
+        if self._refuse_while_the_ai_is_off():
+            self.pending_ai_requests.pop(request_id, None)
+            return
+
         request_state.retry_count += 1
         request_state.last_error = validation_error
 

@@ -92,6 +92,7 @@ usage: Bitrot Adventures version 0.0.0 [-h] [-f TARGET_FPS] [--fps-log-interval-
                                        [--screen-shake-intensity SCREEN_SHAKE_INTENSITY] [--rumble-intensity RUMBLE_INTENSITY]
                                        [--live-voice-pool LIVE_VOICE_POOL] [--default-background {test-pattern,channel-3}]
                                        [--video-driver {cocoa,offscreen,dummy}] [--headless]
+                                       [--lucid-circuit | --no-lucid-circuit]
                                        [--input-mode {auto,joystick,controller}] [--font-name FONT_NAME] [--font-size FONT_SIZE]
                                        [--font-bold] [--font-italic] [--font-antialias | --no-font-antialias] [--font-dpi FONT_DPI]
                                        [--font-system {pygame,freetype}] [-l {debug,info,warning,error,critical}]
@@ -174,6 +175,11 @@ Diagnostics Options:
   --headless            run on SDL's dummy video and audio drivers: no window, no sound. With --replay-trace the replay also
                         runs unpaced and prints its report to stdout (exit 0 when it matches, 1 when it diverges, 65 for a
                         truncated recording)
+
+Feature Flags:
+  --lucid-circuit, --no-lucid-circuit
+                        Lucid Circuit, the local AI: it needs the AI service installed, and is never used with --headless or in a
+                        replay (default: on)
 
 Controller Options:
   --input-mode {auto,joystick,controller}

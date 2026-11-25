@@ -6,13 +6,15 @@ plans/2026-11-24-feature-flags-and-lucid-circuit-switch.md is the design. Rules:
    as this module is imported). Each is an option of every game, ``--NAME`` / ``--no-NAME``,
    generated from its declaration (``add_flag_arguments``).
 2. ``flag_state(name=...)`` answers for the current engine context, at each call: read it where
-   it is used, never at import. A flag is off, with the reason, when it is unavailable here
-   (whatever was asked), else when its parent is off (whatever was asked), else as its option
-   was given, else as its default.
+   it is used, never at import (tests/test_feature_flag_source_guard.py). A flag is off, with the
+   reason, when it is unavailable here (whatever was asked), else when its parent is off
+   (whatever was asked), else as its option was given, else as its default.
 3. A flag says whether a feature is wanted and possible, no more. Whether a run may use it now
-   stays the feature's own decision (``ai_link.create_link``: never with ``--headless``, never
-   in a replay, only where the service is installed), which fails closed: options that hold no
-   answer for the flag turn nothing on there.
+   stays the feature's own gate, one for all that uses it (Lucid Circuit's,
+   ``ai_link.reason_lucid_circuit_is_off``: never in a replay, never with ``--headless``), asked
+   at each use, as Bitmappy's AI asks it. It fails closed: with no engine to ask, or options that
+   hold no answer for the flag, nothing is on. Where the AI service is installed is
+   ``ai_link.create_link``'s to check.
 4. A flag is local to the run: each engine keeps what its own command line asked
    (``take_flag_options``, before it reads a recording), and ``REPLAY_LOCAL_OPTIONS`` holds every
    flag's option, so a recording never sets one.
