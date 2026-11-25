@@ -36,6 +36,7 @@ from collections.abc import Callable, Generator, Sequence
 from pathlib import Path
 from typing import Any, cast
 
+import httpcore2  # ruff: ignore[unused-import]  # httpx2 lazy-imports this inside HTTPTransport.__init__; pre-load it to avoid a Windows/Python 3.15 import-lock race under threading
 import httpx2
 from pydantic import BaseModel, ConfigDict, Field
 
