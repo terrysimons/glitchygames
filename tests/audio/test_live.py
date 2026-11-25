@@ -6,6 +6,11 @@ start, one chunk queued, fades, pause, underruns, the pool's owner rules, live p
 engine context.
 """
 
+import gc
+import logging
+import sys
+import weakref
+
 import numpy as np
 import pygame
 import pytest
@@ -20,7 +25,7 @@ from glitchygames.audio.voices import inner_context_partition, reserve_inner_gam
 from glitchygames.engine_context import EngineContext
 from glitchygames.randomness import numpy_stream, reset_streams
 from tests.audio.library_support import stop_mixer
-from tests.audio.voice_support import start_reserved_mixer
+from tests.audio.voice_support import LIBRARY_CHANNELS, LIVE_POOL, start_reserved_mixer
 
 RATE = 44100
 LIVE_STREAM_TEST_SEED = 78
@@ -53,7 +58,7 @@ def channel(mocker):
         The mocked channel.
 
     """
-    mocked_channel = mocker.Mock()
+    mocked_channel = mocker.Mock(id=0)  # pygame.mixer.Channel.id: the stream reads its table
     mocked_channel.get_queue.return_value = None
     mocked_channel.get_busy.return_value = True
     return mocked_channel
@@ -405,6 +410,8 @@ class TestLiveVoicesOnLivePools:
         assert busy == [partitioned_mixer.live[0], block.live[0]]
         assert tile_stream.is_playing
         assert default_stream.is_playing
+        tile_stream.stop_now()
+        default_stream.stop_now()
 
     def test_a_silent_contexts_chunks_play_at_volume_zero_and_a_heard_ones_at_full(
         self, partitioned_mixer
@@ -432,6 +439,7 @@ class TestLiveVoicesOnLivePools:
         assert silent_queued_volume == 0.0
         assert heard_volume == 1.0
         assert not pygame.mixer.Channel(partitioned_mixer.live[0]).get_busy()
+        tile_stream.stop_now()
 
     def test_releasing_every_voice_stops_them_and_frees_the_pool(self):
         """A finished tile's live voices: stopped, their channels idle and back in the pool."""
@@ -608,3 +616,320 @@ class TestLiveStreamControls:
         equal = make(50)  # ties: the earliest made of the lowest (the first stealer) goes
         assert stealer.state is VoiceState.STOPPED
         assert equal.state is VoiceState.PLAYING
+
+
+# A long chunk, so the chunk playing is still playing when the test plays over it: the queued
+# chunk is freed by pygame's re-entrant callback only while the one before it still plays
+LONG_CHUNK = LiveVoiceOptions(chunk_seconds=0.5)
+
+
+def _channel_slots(channel):
+    """The Sounds pygame's channel table names for a channel: playing, then queued.
+
+    Returns:
+        The named Sounds, None left out.
+    """
+    return [sound for sound in (channel.get_sound(), channel.get_queue()) if sound is not None]
+
+
+def _assert_the_stream_holds_every_chunk_its_channel_names(stream):
+    """The invariant: the table never holds the last reference to a stream's chunk, bounded."""
+    held = stream.held_chunks
+    for named in _channel_slots(stream.channel):
+        assert any(named is chunk for chunk in held), 'a chunk on the channel is not held'
+    assert len(held) <= live.MAXIMUM_HELD_CHUNKS
+
+
+class TestLiveStreamKeepsItsChunks:
+    """A live voice holds every chunk it plays or queues until its channel has moved past it.
+
+    pygame-ce 2.5.8's mixer frees a queued Sound twice when ``Channel.play`` lands on a channel
+    still playing one chunk with another queued and pygame's table holds the only references
+    (bugs/2026-11-24-pygame-mixer-frees-a-queued-sound-twice.md; docs/quality/upstream_issues.md).
+    Real mixer on the dummy driver: the bug is in pygame's C table, which no mock has.
+    """
+
+    @pytest.fixture(autouse=True)
+    def mixer(self):
+        """A partitioned stereo mixer on the dummy driver, stopped after.
+
+        Yields:
+            The partition.
+        """
+        yield start_reserved_mixer()
+        if pygame.mixer.get_init() is not None:
+            pygame.mixer.stop()
+        stop_mixer()
+
+    def test_a_voice_started_over_another_voices_queued_chunk_frees_no_chunk_too_soon(self):
+        """The golden test's hand-off: a second voice starts on a channel the first left playing.
+
+        The first voice's playing and queued chunks must still be alive after the second
+        voice's ``Channel.play``: before the fix pygame freed the queued one inside that call.
+        """
+        channel = pygame.mixer.Channel(0)
+        first = _voice(channel, options=LONG_CHUNK)
+        first.stream.start()
+        first.stream.update()
+        queued = channel.get_queue()
+        assert queued is not None, 'the first chunk must still be playing, one queued'
+        freed = []
+        watch = weakref.ref(queued, lambda _reference: freed.append(True))
+        del queued
+
+        second = _voice(channel, options=LONG_CHUNK)
+        second.stream.start()
+
+        assert freed == []
+        assert watch() is not None
+        assert first.stream.state is VoiceState.PLAYING
+        second.stream.stop_now()
+        first.stream.stop_now()
+
+    def test_every_chunk_on_the_channel_is_held_by_the_voice_at_each_step(self):
+        """Start, queue, the queue promoted, an underrun's restart, then stop_now: held, bounded."""
+        channel = pygame.mixer.Channel(0)
+        stream = _voice(channel, options=LONG_CHUNK).stream
+
+        stream.start()
+        _assert_the_stream_holds_every_chunk_its_channel_names(stream)
+        stream.update()  # one chunk queued
+        _assert_the_stream_holds_every_chunk_its_channel_names(stream)
+        channel.stop()  # the queued chunk starts (the module's channel facts)
+        stream.update()  # the one it moved past is let go, a new one queued
+        _assert_the_stream_holds_every_chunk_its_channel_names(stream)
+        assert len(stream.held_chunks) == 2
+        channel.stop()
+        channel.stop()  # idle: an underrun
+        stream.update()  # restarts on the idle channel
+        _assert_the_stream_holds_every_chunk_its_channel_names(stream)
+        assert len(stream.held_chunks) == 1
+        stream.stop_now()
+
+        assert stream.held_chunks == ()
+        assert _channel_slots(channel) == []
+
+    def test_a_draining_voice_lets_go_of_the_chunks_its_channel_has_finished(self):
+        """A drained voice's update keeps nothing the channel no longer names."""
+        channel = pygame.mixer.Channel(0)
+        stream = _voice(channel, options=LONG_CHUNK).stream
+        stream.start()
+        stream.stop(fade_out=0.01)
+        stream.update()  # the fade is rendered into the queued chunk: draining
+        assert stream.state is VoiceState.DRAINING
+        channel.stop()
+        channel.stop()
+
+        stream.update()
+
+        assert stream.held_chunks == ()
+
+    def test_a_voice_dropped_while_playing_stops_its_channel_before_letting_go(self, monkeypatch):
+        """No one stopped it: its chunks go only once its channel names none of them.
+
+        Its finalizer finishes without raising and reports the missing release through the log,
+        which the harness reads.
+        """
+        unraisable = []
+        monkeypatch.setattr(sys, 'unraisablehook', unraisable.append)
+        channel = pygame.mixer.Channel(0)
+        voice = _voice(channel, options=LONG_CHUNK)
+        voice.stream.start()
+        voice.stream.update()
+        queued = channel.get_queue()
+        assert queued is not None
+        slots_when_freed = []
+        watch = weakref.ref(
+            queued, lambda _reference: slots_when_freed.append(len(_channel_slots(channel)))
+        )
+        del queued
+
+        del voice
+        gc.collect()
+
+        assert watch() is None
+        assert slots_when_freed == [0]
+        assert not channel.get_busy()
+        assert unraisable == []
+        assert [
+            (report.stream_name, report.held_chunk_count)
+            for report in live.take_unreleased_live_stream_reports()
+        ] == [('str on channel 0', 2)]
+
+    def test_a_voice_dropped_after_the_mixer_quit_lets_go_without_the_mixer(self, monkeypatch):
+        """A quit mixer has no table left: the chunks simply go, and nothing raises."""
+        unraisable = []
+        monkeypatch.setattr(sys, 'unraisablehook', unraisable.append)
+        voice = _voice(pygame.mixer.Channel(0), options=LONG_CHUNK)
+        voice.stream.start()
+        held = weakref.ref(voice.stream.held_chunks[0])
+        pygame.mixer.stop()
+        stop_mixer()
+
+        del voice
+        gc.collect()
+
+        assert held() is None
+        assert unraisable == []
+        assert len(live.take_unreleased_live_stream_reports()) == 1
+
+    def test_a_voice_dropped_after_a_mixer_restart_lets_go_without_reading_the_table(
+        self, monkeypatch
+    ):
+        """A restarted mixer's table is 8 long: a pool channel past it is never read.
+
+        pygame reads its table unchecked, so the read would be past the table's end: a crash, or
+        garbage taken for a Sound, by luck. Nothing raises and the chunks go.
+        """
+        unraisable = []
+        monkeypatch.setattr(sys, 'unraisablehook', unraisable.append)
+        voice = _voice(pygame.mixer.Channel(LIVE_POOL + LIBRARY_CHANNELS), options=LONG_CHUNK)
+        voice.stream.start()
+        held = weakref.ref(voice.stream.held_chunks[0])
+        pygame.mixer.stop()
+        stop_mixer()
+        pygame.mixer.init(frequency=RATE, size=-16, channels=2, buffer=512)
+
+        del voice
+        gc.collect()
+
+        assert held() is None
+        assert unraisable == []
+        assert len(live.take_unreleased_live_stream_reports()) == 1
+
+    def test_the_registry_finds_a_stream_holding_chunks_even_once_its_dict_exists(self, mocker):
+        """Exact enumeration: patching a stream (which makes its ``__dict__``) hides nothing."""
+        voice = _voice(pygame.mixer.Channel(0), options=LONG_CHUNK)
+        voice.stream.start()
+        voice.stream.update()
+        mocker.patch.object(voice.stream, 'pause')
+
+        holding = live.live_streams_holding_chunks()
+
+        assert any(stream is voice.stream for stream in holding)
+        del holding
+        voice.stream.stop_now()
+        assert live.live_streams_holding_chunks() == ()
+
+    def test_a_finalizers_report_reaches_the_registry_whatever_the_logger_levels(self, caplog):
+        """A test's logger levels cannot hide a missing release: the report is not a log record."""
+        caplog.set_level(logging.ERROR, logger='game')
+        voice = _voice(pygame.mixer.Channel(0), options=LONG_CHUNK)
+        voice.stream.start()
+
+        del voice
+        gc.collect()
+
+        reports = live.take_unreleased_live_stream_reports()
+        assert [(report.stream_name, report.held_chunk_count) for report in reports] == [
+            ('str on channel 0', 1)
+        ]
+        assert live.take_unreleased_live_stream_reports() == ()
+
+    def test_a_voice_stopped_before_it_is_dropped_reports_nothing(self, monkeypatch):
+        """A released voice holds no chunk, so its finalizer has nothing to report."""
+        unraisable = []
+        monkeypatch.setattr(sys, 'unraisablehook', unraisable.append)
+        voice = _voice(pygame.mixer.Channel(0), options=LONG_CHUNK)
+        voice.stream.start()
+        voice.stream.update()
+        voice.stream.stop_now()
+
+        del voice
+        gc.collect()
+
+        assert unraisable == []
+        assert live.take_unreleased_live_stream_reports() == ()
+
+    def test_a_voice_on_a_channel_past_a_shrunk_pool_is_silent(self, mocker):
+        """A stale stream past ``get_num_channels()`` never reaches pygame's ``chan_play``.
+
+        pygame indexes its table with SDL's -1 when SDL refuses the channel: a write before the
+        table. The stream renders nothing and plays nothing there.
+        """
+        stale_index = pygame.mixer.get_num_channels() - 1
+        playing = _voice(pygame.mixer.Channel(stale_index), options=LONG_CHUNK).stream
+        playing.start()
+        never_started = _voice(pygame.mixer.Channel(stale_index), options=LONG_CHUNK).stream
+        rendered = mocker.patch.object(playing, '_next_chunk', wraps=playing._next_chunk)
+        rendered_unstarted = mocker.patch.object(
+            never_started, '_next_chunk', wraps=never_started._next_chunk
+        )
+        pygame.mixer.set_num_channels(stale_index)  # stops the shrunk-off channel: an underrun
+
+        playing.update()
+        never_started.start()
+
+        rendered.assert_not_called()
+        rendered_unstarted.assert_not_called()
+        assert playing.held_chunks == ()
+        assert never_started.held_chunks == ()
+
+
+class TestChunksTheChannelNames:
+    """Which Sounds a channel names, read only where pygame's unchecked table has the channel.
+
+    Only ``live.py`` stores ``Channel`` objects, so only its reads can outlive a mixer quit or
+    restart: a fresh ``pygame.mixer.Channel(index)`` checks init and range itself.
+    """
+
+    @staticmethod
+    def _channel_that_must_not_be_read(mocker, *, index):
+        """A channel whose table reads fail the test: pygame would read outside its table.
+
+        Returns:
+            The channel.
+        """
+        unread = AssertionError("read outside pygame's channel table")
+        return mocker.Mock(
+            id=index,
+            get_sound=mocker.Mock(side_effect=unread),
+            get_queue=mocker.Mock(side_effect=unread),
+        )
+
+    def test_a_quit_mixer_names_nothing_and_its_table_is_not_read(self, mocker):
+        if pygame.mixer.get_init() is not None:
+            stop_mixer()
+        channel = self._channel_that_must_not_be_read(mocker, index=0)
+
+        assert live._channel_table_slots(channel) == (None, None)
+
+    def test_a_channel_past_a_restarted_mixers_table_names_nothing_and_is_not_read(self, mocker):
+        start_reserved_mixer()
+        try:
+            pygame.mixer.set_reserved(0)
+            pygame.mixer.quit()
+            pygame.mixer.init(frequency=RATE, size=-16, channels=2, buffer=512)
+            channel = self._channel_that_must_not_be_read(
+                mocker, index=pygame.mixer.get_num_channels()
+            )
+
+            assert live._channel_table_slots(channel) == (None, None)
+        finally:
+            stop_mixer()
+
+    def test_a_channel_inside_the_table_names_what_plays_and_what_is_queued(self):
+        start_reserved_mixer()
+        try:
+            channel = pygame.mixer.Channel(0)
+            stream = _voice(channel, options=LONG_CHUNK).stream
+            stream.start()
+            stream.update()
+
+            assert live._channel_table_slots(channel) == stream.held_chunks
+            stream.stop_now()
+            assert live._channel_table_slots(channel) == (None, None)
+        finally:
+            stop_mixer()
+
+    def test_an_update_never_reads_the_table_past_its_end(self, mocker):
+        """A busy-looking channel past the table: update asks pygame's table nothing."""
+        channel = self._channel_that_must_not_be_read(mocker, index=pygame.mixer.get_num_channels())
+        channel.get_busy.return_value = True
+        stream = _voice(channel, options=LONG_CHUNK).stream
+        stream._state = VoiceState.PLAYING  # started before the pool shrank
+
+        stream.update()
+
+        channel.queue.assert_not_called()
+        channel.play.assert_not_called()
