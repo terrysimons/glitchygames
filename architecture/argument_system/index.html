@@ -3238,7 +3238,7 @@ adds layers 1 and 2, the Bitmappy box layer 3, and argparse's <code>ArgumentPars
 
     INIT-&gt;&gt;PARSER: ArgumentParser("Bitmappy version 1.0")
     INIT-&gt;&gt;ENGINE: GameEngine.args(parser)
-    Note over ENGINE: Layer 1&lt;br/&gt;Graphics Options (20)&lt;br/&gt;Diagnostics Options (62, 3 hidden)
+    Note over ENGINE: Layer 1&lt;br/&gt;Graphics Options (20)&lt;br/&gt;Diagnostics Options (62, 3 hidden)&lt;br/&gt;Feature Flags (1)
     loop for each of the 12
         ENGINE-&gt;&gt;MANAGERS: manager.args(parser)
     end
@@ -3256,17 +3256,18 @@ the order of the layers. The layers mirror the engine's architecture.</p>
 <pre class="mermaid"><code>%%{init: {"flowchart": {"wrappingWidth": 500}}}%%
 flowchart TB
     subgraph ENGINE_ARGUMENT_LAYERS["Engine"]
-        L1["&lt;b&gt;Layer 1: the engine&lt;/b&gt; (GameEngine.args)&lt;br/&gt;Graphics Options, Diagnostics Options"]
+        L1["&lt;b&gt;Layer 1: the engine&lt;/b&gt; (GameEngine.args)&lt;br/&gt;Graphics Options, Diagnostics Options, Feature Flags"]
         L2["&lt;b&gt;Layer 2: event managers and fonts&lt;/b&gt; (each one's args)&lt;br/&gt;Controller Options, Font Options, Game Options, Midi Options,&lt;br/&gt;and 8 reserved groups with no options yet"]
     end
     subgraph GAME_ARGUMENT_LAYERS["Your game"]
         L3["&lt;b&gt;Layer 3: your game&lt;/b&gt; (its scene's args)&lt;br/&gt;GameName vX.Y Options"]
     end
     L1 --&gt; L2 --&gt; L3</code></pre>
-<p>In <code>--help</code> (Bitmappy's or Paddle Slap's) the groups hold 20 Graphics, 59 Diagnostics (3 more
-hidden), 2 Controller, 7 Font, 4 Game and 2 Midi options, then the game's own; the eight empty groups
-are left out. Most of the Diagnostics options are the recording, replay and measurement tools'
-(<a href="#tool-flags">Tool flags</a>). The <a href="#complete-flag-reference">Complete Flag Reference</a> lists them all.</p>
+<p>In <code>--help</code> (Bitmappy's or Paddle Slap's) the groups hold 19 Graphics, 59 Diagnostics (3 more
+hidden), 1 Feature Flags, 2 Controller, 7 Font, 4 Game and 2 Midi options, then the game's own; the
+eight empty groups are left out. Most of the Diagnostics options are the recording, replay and
+measurement tools' (<a href="#tool-flags">Tool flags</a>). The
+<a href="#complete-flag-reference">Complete Flag Reference</a> lists them all.</p>
 <h2 id="how-games-add-arguments">How Games Add Arguments<a class="headerlink" href="#how-games-add-arguments" title="Permanent link">#</a></h2>
 <p>A game adds arguments by defining a <code>@classmethod</code> called <code>args()</code> on its scene class.
 The engine discovers this method via <code>getattr(game, 'args', None)</code> and calls it with
@@ -3382,6 +3383,7 @@ nested mapping is indented below its name. Path options (the tools' and the engi
 recording's header stores) are shown relative to the project root when inside it and absolute
 otherwise. An option whose name holds key, token, secret, password or credential, in any case,
 shows <code>&lt;redacted&gt;</code>. The environment is never read. A replay's options are the recorded run's.
+Below the options the same record lists each feature flag's state, and why it is off.
 <code>random_seed</code> is the seed the run uses, rolled or given (the owner, 2026-10-28: "The seed should
 definitely be in the options"), never None, so <code>--random-seed</code> with it plays the run again.</p>
 <h2 id="complete-flag-reference">Complete Flag Reference<a class="headerlink" href="#complete-flag-reference" title="Permanent link">#</a></h2>
@@ -3394,7 +3396,6 @@ each with its type and default, then its help text.</p>
 <li><code>-f, --target-fps TARGET_FPS</code> (<code>float</code>): cap the framerate (default: the game's TARGET_FPS, else 60.01; 0 = uncapped)</li>
 <li><code>--fps-log-interval-ms FPS_LOG_INTERVAL_MS</code> (<code>float</code>): how often to log the <abbr title="Frames per second">FPS</abbr> counter in ms (default: 1000)</li>
 <li><code>-w, --windowed, --no-windowed</code> (<code>bool</code>): run in a window; --no-windowed runs fullscreen (default: windowed)</li>
-<li><code>--ai, --no-ai</code> (<code>bool</code>): connect to the local <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> service if it is installed, starting its models as the game loads; --no-ai never touches it (default: on, but never with --headless or in a replay)</li>
 <li><code>-r, --resolution RESOLUTION</code> (<code>str</code>): the resolution to use (default: 800x480)</li>
 <li><code>--use-gfxdraw</code> (<code>store_true</code>, default <code>False</code>): not used yet: stored, but nothing draws with pygame.gfxdraw because of it</li>
 <li><code>--update-type {update,flip}</code> (<code>choice</code>): update or flip (default: update)</li>
@@ -3490,8 +3491,22 @@ read are <code>[tool.glitchygames]</code> in <code>pyproject.toml</code> (its <c
 </div>
 </div>
 </div>
-<p><code>--ai</code> is the one engine flag not in the registry: two tool flags at once are refused, and <code>--ai</code>
-is on by default.</p>
+<h4 id="feature-flags">Feature Flags<a class="headerlink" href="#feature-flags" title="Permanent link">#</a></h4>
+<p>Added by <code>add_flag_arguments()</code> in <code>src/glitchygames/feature_flags.py</code> (whose docstring is the
+contract), one per flag declared in <code>FEATURE_FLAGS</code>. <code>flag_state(name=...)</code> says whether a flag is
+on in the current engine context and, when it is off, why. Each is local to the run: a recording
+never sets one.</p>
+<ul>
+<li><code>--lucid-circuit, --no-lucid-circuit</code> (<code>bool</code>, default on): Lucid Circuit, the local <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr>: it needs the <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> service installed, and is never used with --headless or in a replay; unavailable in the browser, which cannot start processes</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Wanted and possible, no more</p>
+<p>Whether a run may use a feature is the feature's own gate. Lucid Circuit's is
+<code>reason_lucid_circuit_is_off()</code> in <code>src/glitchygames/ai_link.py</code>: the engine's <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> link and
+Bitmappy's <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> ask it, and each run it is off in logs why at INFO.</p>
+</div>
+<p>A feature switch is never a constant, and a flag is never read as a module is imported:
+<code>tests/test_feature_flag_source_guard.py</code> scans the engine's and every member's source for both.</p>
 <h3 id="layer-2-event-managers-and-fonts">Layer 2: event managers and fonts<a class="headerlink" href="#layer-2-event-managers-and-fonts" title="Permanent link">#</a></h3>
 <h4 id="controller-options">Controller Options<a class="headerlink" href="#controller-options" title="Permanent link">#</a></h4>
 <p>Added by <code>ControllerEventManager.args()</code> in <code>src/glitchygames/events/controller.py</code> (see
@@ -3662,10 +3677,10 @@ leaves them out.</p>
 </table>
 <h2 id="what-help-looks-like">What <code>--help</code> Looks Like<a class="headerlink" href="#what-help-looks-like" title="Permanent link">#</a></h2>
 <p><code>uv run bitmappy --help</code> prints a usage line, the <code>options:</code> group (<code>-h, --help</code>), then each
-group in the order the layers add them: Graphics, Diagnostics, Controller, Font and Game
-Options, then <code>Bitmappy v1.0 Options</code>. argparse leaves out groups with no arguments (App, Sound
-Mixer and the other reserved groups). Every option it prints, with its help text, is listed in
-<a href="#complete-flag-reference">Complete Flag Reference</a>.</p>
+group in the order the layers add them: Graphics and Diagnostics Options, Feature Flags,
+Controller, Font, Game and Midi Options, then <code>Bitmappy v1.0 Options</code>. argparse leaves out groups
+with no arguments (App, Sound Mixer and the other reserved groups). Every option it prints, with its
+help text, is listed in <a href="#complete-flag-reference">Complete Flag Reference</a>.</p>
 <h2 id="how-to-add-arguments-to-a-new-event-manager">How to Add Arguments to a New Event Manager<a class="headerlink" href="#how-to-add-arguments-to-a-new-event-manager" title="Permanent link">#</a></h2>
 <p>If you are adding arguments to a currently-empty event manager group, follow the
 existing pattern:</p>
@@ -3746,7 +3761,7 @@ the <code>--help</code> output, separate from all engine-level flags.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 04:58:02 UTC">November 25, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 05:53:19 UTC">November 25, 2026</span>
   </span>
 
     

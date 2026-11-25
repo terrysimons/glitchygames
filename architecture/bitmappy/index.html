@@ -3153,6 +3153,12 @@ the remedy; <code>--replay-trace OLD --rebaseline NEW --headless</code> converts
   <code>src/apps/bitmappy/src/bitmappy/resources/</code>.</li>
 <li><strong>Its tests</strong> are in <code>src/apps/bitmappy/tests/</code>, with no <code>__init__.py</code>. Every test module is
   named <code>test_bitmappy*.py</code>; <code>conftest.py</code> and the helper <code>film_strip_support.py</code> sit beside them.</li>
+<li><strong>Its <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr></strong> follows Lucid Circuit's feature flag (<code>--no-lucid-circuit</code>, off in a browser), and
+  stays off with <code>--headless</code>, in a replay (a tile's, and in-game playback, included) and with no
+  engine to ask: <code>ai_off_reason</code> (<code>src/apps/bitmappy/src/bitmappy/ai_manager.py</code>), through the
+  engine's own gate, <code>reason_lucid_circuit_is_off</code> (<code>src/glitchygames/ai_link.py</code>). It is asked at
+  <code>setup()</code>, where nothing then starts, and at each request and each retry of one, which show the
+  reason (a refused retry's answer is the last: it is loaded if its rows only need repair).</li>
 <li><strong>The Load and Save dialogs</strong> (the engine's <code>glitchygames.ui</code> dialog scenes) treat every file the
   same: the name is used as given, with surrounding whitespace trimmed, and a sprite in the
   library is opened by its path. The <code>example:</code> prefix they once understood is gone, and Save
@@ -3218,7 +3224,7 @@ is the editor's own code (<code>src/apps/bitmappy/src/bitmappy/</code>); the Eng
     BES-&gt;&gt;BES: FilmStripCoordinator.setup_film_strips()
     GE-&gt;&gt;GE: _initialize_event_managers()
     GE-&gt;&gt;SM: scene_manager.switch_to_scene(game)
-    SM-&gt;&gt;BES: setup() (AIManager.setup() starts the AI worker)
+    SM-&gt;&gt;BES: setup() (AIManager.setup() starts the AI worker, unless the AI is off)
     GE-&gt;&gt;SM: scene_manager.start()
 
     loop Main Game Loop (while active_scene is not None)
@@ -3684,7 +3690,7 @@ workarounds are in <code>CONTROLLER_CONTROLS_README.md</code> at the repository 
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 11:42:55 UTC">November 24, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 05:53:19 UTC">November 25, 2026</span>
   </span>
 
     

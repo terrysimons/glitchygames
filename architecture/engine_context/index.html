@@ -3042,7 +3042,7 @@
 <p>An engine context is the state one running game owns, so several games can run in one process
 (the Arcade's demo tiles; design: <code>plans/2026-10-25-engine-context.md</code>). Ordinary games never
 create one: they run in the default context, exactly as before.</p>
-<p>What is per game today: the twenty-one slots below, and the engine's and the scene manager's own
+<p>What is per game today: the twenty-two slots below, and the engine's and the scene manager's own
 attributes (an engine's <code>options</code>, <code>game</code>, <code>running_game</code>, <code>event_handlers</code> and its event
 bookkeeping; a scene manager's <code>engine_options</code>), which belong to the object, so two engines
 never share them. The old class-level names of that state (<code>GameEngine.OPTIONS</code>,
@@ -3092,7 +3092,7 @@ item 1).</p>
 </div>
 <h2 id="what-belongs-to-a-context-today">What belongs to a context today<a class="headerlink" href="#what-belongs-to-a-context-today" title="Permanent link">#</a></h2>
 <details class="note" open="open">
-<summary>The twenty-one slots, with their public functions</summary>
+<summary>The twenty-two slots, with their public functions</summary>
 <table>
 <thead>
 <tr>
@@ -3206,6 +3206,11 @@ item 1).</p>
 <td><code>'glitchygames.audio.voices.inner_channels'</code></td>
 <td><code>src/glitchygames/audio/voices.py</code></td>
 <td><code>inner_context_partition</code>, <code>take_heard_set</code>, <code>give_back_heard_set</code>, <code>heard_set_start</code>, <code>release_inner_context_channels</code>, <code>plain_plays_followed</code>, <code>plain_play_channel_indices</code>, <code>stop_plain_plays_and_mute_the_live_pool</code>, <code>current_inner_context_channel_indices</code> (an inner context's channels: its partition, live pool, heard set while heard, and the plain plays it started while heard)</td>
+</tr>
+<tr>
+<td><code>'glitchygames.feature_flags.options'</code></td>
+<td><code>src/glitchygames/feature_flags.py</code></td>
+<td><code>flag_state</code>, <code>flag_state_lines</code>, <code>take_flag_options</code> (what the context's latest engine was asked of each feature flag)</td>
 </tr>
 </tbody>
 </table>
@@ -3551,7 +3556,8 @@ machine's one-minute load 3.2 to 3.7): ten <code>DemoPlayer</code>s of the real 
   for a log line even at <code>--log-level error</code>). That join waits up to
   <code>AI_WORKER_JOIN_TIMEOUT_SECONDS</code> (2 s) and then 1 s more after terminating, so a slow worker
   start costs about 3 s: the likely reading of the 3.1 s build the plan's first measurement saw
-  (neither that 3.1 s nor its 73 to 180 ms readings is reproduced here).</li>
+  (neither that 3.1 s nor its 73 to 180 ms readings is reproduced here). Since 2026-11-24 a tile's
+  Bitmappy starts no worker (its <abbr title="Artificial intelligence: here, the local AI service's language models">AI</abbr> is off in a replay); its builds were not measured again.</li>
 <li><strong>The ten posters' fast-forward</strong> (seed 5, the 11 ms budget shared each Arcade frame): about
   2.6 s in total (three rounds, 2.60 to 2.68 s), 180 Arcade frames (3 s at 60 Hz) before every
   tile stands at its poster.</li>
@@ -3578,7 +3584,7 @@ a build in the browser (Pyodide).</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 24, 2026 22:18:59 UTC">November 24, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 05:53:19 UTC">November 25, 2026</span>
   </span>
 
     
