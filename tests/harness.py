@@ -80,6 +80,7 @@ from tests.display_canvas import (
     show_canvas_on_new_display,
 )
 from tests.engine_source import ENGINE_DIRECTORY
+from tests.faulthandler_guard import faulthandler_left_on
 from tests.garbage_collection import (
     process_memory_release,
     release_raised_parameters,
@@ -484,6 +485,13 @@ def restore_signal_handlers():
     exit_on_signal installed for the rest of the worker's tests.
     """
     with preserved_signal_handlers():
+        yield
+
+
+@pytest.fixture(autouse=True)
+def faulthandler_stays_on():
+    """Fail a test that leaves faulthandler off (tests/faulthandler_guard.py)."""
+    with faulthandler_left_on():
         yield
 
 

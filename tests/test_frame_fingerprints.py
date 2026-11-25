@@ -137,14 +137,21 @@ def no_recording_variables(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def inner_tests(pytester: pytest.Pytester) -> Iterator[pytest.Pytester]:
+def inner_tests(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[pytest.Pytester]:
     """A pytester directory holding the inner tests, the display shown again afterwards.
+
+    The inner runs have no faulthandler plugin: one ended by a usage error while it is configured
+    would turn the worker's faulthandler off for good (tests/faulthandler_guard.py).
 
     Yields:
         The pytester.
 
     """
     pytester.makepyfile(test_inner=INNER_TESTS)
+    outer = os.environ.get('PYTEST_ADDOPTS', '')
+    monkeypatch.setenv('PYTEST_ADDOPTS', f'{outer} -p no:faulthandler'.strip())
     yield pytester
     show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
 
