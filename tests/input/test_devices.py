@@ -30,7 +30,11 @@ from glitchygames.input.devices import (
 from glitchygames.input.stand_in_devices import StandInPortMidiError
 from glitchygames.input.state import InputSnapshot, set_current_input
 from glitchygames.live_sources import LiveSources
-from glitchygames.sources import active_sources
+from glitchygames.sources import (
+    active_sources,
+    observe_device_answers,
+    stop_observing_device_answers,
+)
 from tests.input.stand_in_devices import (
     STAND_IN_PAD,
     STAND_IN_STICK,
@@ -1573,3 +1577,110 @@ def test_a_midi_constructor_failure_message_is_text_whatever_was_raised(mocker, 
         LiveDeviceRegistry().open_midi_input(port_id=0)
 
     assert str(caught.value) == message
+
+
+class DeviceAnswerListener:
+    """Keeps every answer the devices door gives, with what it opened (DeviceAnswerObserver)."""
+
+    def __init__(self):
+        """Start with nothing heard."""
+        self.heard = []
+
+    def on_device_answer(self, *, answer, opened) -> None:
+        """Keep the answer and the opened descriptor."""
+        self.heard.append((answer.call, answer.device_index, answer.error, opened))
+
+
+@pytest.fixture
+def device_answers():
+    """Listen to the devices door for the test.
+
+    Yields:
+        What was heard: (call, port, error, opened), in order.
+
+    """
+    listener = DeviceAnswerListener()
+    observe_device_answers(observer=listener)
+    yield listener.heard
+    stop_observing_device_answers(observer=listener)
+
+
+def _midi_registry(*, kind, mocker):
+    """Return a live, stand-in or replay registry with Keys (port 0) and Synth (port 1)."""
+    if kind == 'live':
+        _patch_portmidi_ports(mocker)
+        return LiveDeviceRegistry()
+    if kind == 'stand-in':
+        return stand_in_registry(descriptors=[], midi_ports=[KEYS_PORT, SYNTH_PORT])
+    return ReplayDeviceRegistry(
+        descriptors=[],
+        enumeration_answers=[],
+        midi_ports=[KEYS_DESCRIPTOR, SYNTH_DESCRIPTOR],
+    )
+
+
+@pytest.mark.parametrize('kind', ['live', 'stand-in', 'replay'])
+def test_observers_are_told_which_port_an_open_opened_or_handed_back(mocker, device_answers, kind):
+    """Every open names its port, a second open of it too: a journal holds each port asked for.
+
+    A port is opened once per registry, so a scene opening one an earlier scene opened is handed
+    it back: without the descriptor its journal would not know the port.
+    """
+    registry = _midi_registry(kind=kind, mocker=mocker)
+    midi_input = registry.open_midi_input(port_id=0)
+    midi_output = registry.open_midi_output(port_id=1)
+
+    assert registry.open_midi_input(port_id=0) is midi_input
+    assert registry.open_midi_output(port_id=1) is midi_output
+
+    opens = [
+        ('open_midi_input', 0, None, KEYS_DESCRIPTOR),
+        ('open_midi_output', 1, None, SYNTH_DESCRIPTOR),
+    ]
+    assert device_answers == [*opens, *opens]
+
+
+@pytest.mark.parametrize('kind', ['live', 'stand-in'])
+def test_a_port_handed_back_is_recorded_once(mocker, kind):
+    """Only observers hear of the second open: the recorder takes one answer and one port."""
+    registry = _midi_registry(kind=kind, mocker=mocker)
+    registry.open_midi_input(port_id=0)
+    registry.open_midi_input(port_id=0)
+
+    assert [answer.call for answer in registry.take_enumeration_answers()] == ['open_midi_input']
+    assert registry.take_opened_midi_ports() == [KEYS_DESCRIPTOR]
+
+
+def test_an_adopted_midi_port_is_the_one_an_open_hands_back(device_answers):
+    """An instant replay's ports: adopting asks no answer; opening one gets the same stand-in."""
+    registry = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+
+    midi_input = registry.adopt_midi_port(descriptor=KEYS_DESCRIPTOR)
+    midi_output = registry.adopt_midi_port(descriptor=SYNTH_DESCRIPTOR)
+
+    assert isinstance(midi_input, ReplayMidiInput)
+    assert isinstance(midi_output, ReplayMidiOutput)
+    assert device_answers == []
+    assert registry.take_opened_midi_ports() == []
+    assert registry.midi_input_for_port(port_id=0) is midi_input
+    assert registry.midi_output_for_port(port_id=1) is midi_output
+    assert registry.open_midi_input(port_id=0) is midi_input
+    assert registry.open_midi_output(port_id=1) is midi_output
+    # Kept apart by direction: port 0 was adopted as an input only
+    assert registry.midi_output_for_port(port_id=0) is None
+
+
+def test_a_defect_in_our_conversion_surfaces_and_drops_no_port(mocker):
+    """Only the port's own poll and read are contained: a bug of ours is not a failing port."""
+    keys = FakePortMidiInput(messages=[([0x90, 60, 100, 0], 1)])
+    midi_module = _patch_portmidi_inputs(mocker, inputs_by_port={0: keys})
+    registry = LiveDeviceRegistry()
+    registry.open_midi_input(port_id=0)
+    midi_module.midis2events = mocker.Mock(side_effect=TypeError('our defect'))
+
+    with pytest.raises(TypeError, match='our defect'):
+        registry.read_midi_input()
+
+    midi_module.midis2events = pygame.midi.midis2events
+    keys.messages.append(([0x80, 60, 0, 0], 2))
+    assert _timestamps(registry.read_midi_input()) == [2]

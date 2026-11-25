@@ -624,6 +624,27 @@ def _midi_port_descriptor(
     return MidiPortDescriptor(kind=kind, port_id=port_id, name=info.name, interface=info.interface)
 
 
+def _notify_midi_port_handed_back(*, call: str, descriptor: MidiPortDescriptor) -> None:
+    """Tell the observers an open handed back a port that was open already.
+
+    A port is opened once per registry, so a scene that opens one an earlier scene opened gets it
+    back: its instant-replay journal must hold the port all the same (glitchygames/
+    instant_replay.py, rule 2). Only observers are told: a recorder holds the first open, and a
+    replay hands the port back as live play does.
+
+    Args:
+        call: ``OPEN_MIDI_INPUT_CALL`` or ``OPEN_MIDI_OUTPUT_CALL``.
+        descriptor: The port.
+
+    """
+    notify_device_answer(
+        answer=EnumerationAnswer(
+            call=call, device_index=descriptor.port_id, value=descriptor.port_id
+        ),
+        opened=descriptor,
+    )
+
+
 class MidiPortReadable(Protocol):
     """What the frame reads of an opened MIDI input (pygame.midi.Input, ReplayMidiInput)."""
 
@@ -706,34 +727,37 @@ class MidiInputReader:
         for port_id in sorted(inputs):
             if port_id in self._dropped_port_ids:
                 continue
-            try:
-                # Appends as it reads: what a port gave before it failed is still delivered
-                self._read_port(
-                    midi_module=midi_module, port_id=port_id, port=inputs[port_id], events=events
-                )
-            except Exception:
-                # PortMidi's Poll and Read raise a plain Exception (pypm.pyx), not MidiException
-                self._dropped_port_ids.add(port_id)
-                LOG.exception(
-                    'MIDI input port %d (%s) failed and is no longer read',
-                    port_id,
-                    port_names[port_id],
-                )
+            messages = self._waiting_messages(
+                port_id=port_id, port=inputs[port_id], port_name=port_names[port_id]
+            )
+            if messages:
+                # Outside the port's own failures: a defect in the conversion surfaces
+                events.extend(midi_module.midis2events(messages, port_id))
         return events
 
-    @staticmethod
-    def _read_port(
-        *,
-        midi_module: ModuleType,
-        port_id: int,
-        port: MidiPortReadable,
-        events: list[pygame.event.Event],
-    ) -> None:
-        while port.poll():
-            messages = port.read(MIDI_READ_BATCH)
-            if not messages:
-                break
-            events.extend(midi_module.midis2events(messages, port_id))
+    def _waiting_messages(
+        self: Self, *, port_id: int, port: MidiPortReadable, port_name: str
+    ) -> list[Any]:
+        """Take everything waiting on a port; what it gave before it failed is kept.
+
+        Returns:
+            PortMidi's messages, oldest first.
+
+        """
+        messages: list[Any] = []
+        try:
+            while port.poll():
+                batch = port.read(MIDI_READ_BATCH)
+                if not batch:
+                    break
+                messages.extend(batch)
+        except Exception:
+            # PortMidi's Poll and Read raise a plain Exception (pypm.pyx), not MidiException
+            self._dropped_port_ids.add(port_id)
+            LOG.exception(
+                'MIDI input port %d (%s) failed and is no longer read', port_id, port_name
+            )
+        return messages
 
 
 class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every DeviceRegistry member
@@ -753,6 +777,8 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         self._midi_inputs: dict[int, PygameMidiInput] = {}
         self._midi_outputs: dict[int, PygameMidiOutput] = {}
         self._new_midi_ports: list[MidiPortDescriptor] = []
+        # What each opened port was opened as, by kind and port id (told when it is handed back)
+        self._midi_port_descriptors: dict[tuple[str, int], MidiPortDescriptor] = {}
         self._midi_input_reader = MidiInputReader()
         # Each opened input port's name, kept from its open for the log if it fails
         self._midi_input_names: dict[int, str] = {}
@@ -959,6 +985,10 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         """
         opened = self._midi_inputs.get(port_id)
         if opened is not None:
+            _notify_midi_port_handed_back(
+                call=OPEN_MIDI_INPUT_CALL,
+                descriptor=self._midi_port_descriptors[MIDI_INPUT_KIND, port_id],
+            )
             return opened
         midi_module, descriptor = self._prepare_midi_open(
             call=OPEN_MIDI_INPUT_CALL, kind=MIDI_INPUT_KIND, port_id=port_id
@@ -988,6 +1018,10 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         """
         opened = self._midi_outputs.get(port_id)
         if opened is not None:
+            _notify_midi_port_handed_back(
+                call=OPEN_MIDI_OUTPUT_CALL,
+                descriptor=self._midi_port_descriptors[MIDI_OUTPUT_KIND, port_id],
+            )
             return opened
         midi_module, descriptor = self._prepare_midi_open(
             call=OPEN_MIDI_OUTPUT_CALL, kind=MIDI_OUTPUT_KIND, port_id=port_id
@@ -1076,6 +1110,7 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
             self._midi_inputs.clear()
             self._midi_outputs.clear()
             self._midi_input_names.clear()
+            self._midi_port_descriptors.clear()
             self._midi_initialized = False
             midi_module.quit()
 
@@ -1389,7 +1424,13 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         self: Self, *, call: str, descriptor: MidiPortDescriptor
     ) -> None:
         self._new_midi_ports.append(descriptor)
-        self._remember_answer(call=call, device_index=descriptor.port_id, value=descriptor.port_id)
+        self._midi_port_descriptors[descriptor.kind, descriptor.port_id] = descriptor
+        self._remember_answer(
+            call=call,
+            device_index=descriptor.port_id,
+            value=descriptor.port_id,
+            opened=descriptor,
+        )
 
     def _remember_answer(
         self: Self,
@@ -1397,7 +1438,7 @@ class LiveDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Devic
         call: str,
         device_index: int | None,
         value: EnumerationValue,
-        opened: DeviceDescriptor | None = None,
+        opened: DeviceDescriptor | MidiPortDescriptor | None = None,
     ) -> None:
         answer = EnumerationAnswer(call=call, device_index=device_index, value=value)
         self._new_answers.append(answer)
@@ -2128,6 +2169,8 @@ class ReplayDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Dev
                 call=OPEN_MIDI_INPUT_CALL, kind=MIDI_INPUT_KIND, port_id=port_id
             )
             stand_in = self._midi_inputs[port_id] = self._new_midi_input(descriptor=descriptor)
+        else:
+            _notify_midi_port_handed_back(call=OPEN_MIDI_INPUT_CALL, descriptor=stand_in.descriptor)
         return stand_in
 
     def _new_midi_input(self: Self, *, descriptor: MidiPortDescriptor) -> ReplayMidiInput:
@@ -2155,6 +2198,10 @@ class ReplayDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Dev
                 call=OPEN_MIDI_OUTPUT_CALL, kind=MIDI_OUTPUT_KIND, port_id=port_id
             )
             stand_in = self._midi_outputs[port_id] = ReplayMidiOutput(descriptor=descriptor)
+        else:
+            _notify_midi_port_handed_back(
+                call=OPEN_MIDI_OUTPUT_CALL, descriptor=stand_in.descriptor
+            )
         return stand_in
 
     def midi_input_for_port(self: Self, *, port_id: int) -> ReplayMidiInput | None:
@@ -2244,6 +2291,30 @@ class ReplayDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Dev
             descriptors_by_instance=self._opened_descriptors_by_instance, descriptor=descriptor
         )
         return device
+
+    def adopt_midi_port(
+        self: Self, *, descriptor: MidiPortDescriptor
+    ) -> ReplayMidiInput | ReplayMidiOutput:
+        """Make a stand-in for a MIDI port the recording held as it began, asking no answer.
+
+        As ``adopt_device`` does for a joystick: an instant replay's playback scope adopts its
+        journal's ports (``MidiEventManager.adopt_midi_ports``). A later open of the port, or a
+        lookup by its id, finds this stand-in.
+
+        Args:
+            descriptor: The port.
+
+        Returns:
+            The stand-in: a ``ReplayMidiInput`` or a ``ReplayMidiOutput``, by its kind.
+
+        """
+        if descriptor.kind == MIDI_INPUT_KIND:
+            midi_input = self._new_midi_input(descriptor=descriptor)
+            self._midi_inputs[descriptor.port_id] = midi_input
+            return midi_input
+        midi_output = ReplayMidiOutput(descriptor=descriptor)
+        self._midi_outputs[descriptor.port_id] = midi_output
+        return midi_output
 
     def descriptor_for_instance(self: Self, *, instance_id: int) -> DeviceDescriptor | None:
         """Return the recorded descriptor of an opened stand-in by instance id, or None.
@@ -2428,7 +2499,8 @@ class ReplayDeviceRegistry:  # ruff: ignore[too-many-public-methods] - every Dev
                 interface='Unrecorded',
             )
         notify_device_answer(
-            answer=EnumerationAnswer(call=call, device_index=port_id, value=port_id), opened=None
+            answer=EnumerationAnswer(call=call, device_index=port_id, value=port_id),
+            opened=descriptor,
         )
         return descriptor
 

@@ -11,7 +11,9 @@ A named port that is not present, or that fails to open, is logged once (naming 
 the run goes on without it. The answers are the door's, so they are recorded and a replay gives
 them again: a replay takes the recorded options, so it opens the ports the recording named
 whatever ports its own command line names (``--midi-input`` is not a ``REPLAY_LOCAL_OPTIONS``
-member).
+member). A playback scope holds ports of its own (``GameEngine.enter_playback_devices``): a played
+recording file's, opened by the names it recorded, or an instant replay's, adopted from its
+journal; the live ports wait untouched and come back as the scope ends.
 
 ``pygame.midi`` is optional: pygame's WebAssembly builds (Pyodide, pygbag) have no PortMidi, and
 there the door answers "no ports", so a named port is simply absent.
@@ -44,7 +46,11 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from glitchygames.events import HashableEvent
-    from glitchygames.input.devices import OpenedMidiInput, OpenedMidiOutput
+    from glitchygames.input.devices import (
+        OpenedMidiInput,
+        OpenedMidiOutput,
+        ReplayDeviceRegistry,
+    )
 
 log = logging.getLogger('game.midi')
 log.addHandler(logging.NullHandler())
@@ -147,8 +153,11 @@ class MidiEventManager(ResourceManager):
     ) -> dict[tuple[str, int], MidiEventManager.MidiEventProxy]:
         """Open the named ports through the devices door, as new proxies.
 
-        With no name the door is asked nothing. A name that matches no port of its kind, or whose
-        port fails to open, is logged (naming it) and skipped. A port named twice is opened once.
+        ``__init__`` holds what this returns; a playback scope opens its recording's ports with
+        it, by the recorded names, through the scope's door
+        (``GameEngine.enter_playback_devices``). With no name the door is asked nothing. A name
+        that matches no port of its kind, or whose port fails to open, is logged (naming it) and
+        skipped. A port named twice is opened once.
 
         Args:
             input_names: Names of the MIDI input ports to open.
@@ -163,6 +172,31 @@ class MidiEventManager(ResourceManager):
             for name in names:
                 self._open_named_port(kind=kind, name=name, proxies=proxies)
         return proxies
+
+    def adopt_midi_ports(
+        self: Self, *, descriptors: Sequence[MidiPortDescriptor], registry: ReplayDeviceRegistry
+    ) -> dict[tuple[str, int], MidiEventManager.MidiEventProxy]:
+        """Make proxies for the MIDI ports an instant replay's journal holds, asking no answer.
+
+        Its playback scope's door holds a stand-in for each from here on
+        (``ReplayDeviceRegistry.adopt_midi_port``; ``GameEngine.enter_playback_devices``).
+
+        Args:
+            descriptors: The ports.
+            registry: The scope's devices door.
+
+        Returns:
+            The proxies, by ``(kind, port id)``.
+
+        """
+        return {
+            (descriptor.kind, descriptor.port_id): MidiEventManager.MidiEventProxy(
+                game=self.game,
+                port=registry.adopt_midi_port(descriptor=descriptor),
+                descriptor=descriptor,
+            )
+            for descriptor in descriptors
+        }
 
     def _open_named_port(
         self: Self,

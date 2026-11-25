@@ -47,17 +47,20 @@ from typing import TYPE_CHECKING, Any, Protocol, Self
 import pygame
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.input.devices import DeviceDescriptor
+from glitchygames.input.devices import DeviceDescriptor, MidiPortDescriptor
 from glitchygames.input.state import current_input
 from glitchygames.sources import active_sources
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Iterable, Iterator, Mapping
 
     from glitchygames.input.devices import OpenedController, OpenedJoystick
 
 LOG = logging.getLogger('game.input.input_devices')
 LOG.addHandler(logging.NullHandler())
+
+# The key of scene_start_devices_record's MIDI ports (absent: none)
+MIDI_PORTS_KEY = 'midi_ports'
 
 # The input events each layer dispatches (device events are not input: they always pass)
 JOYSTICK_INPUT_EVENT_TYPES: frozenset[int] = frozenset({
@@ -95,28 +98,45 @@ class RecordedDevices:
         scene_start_devices: The devices its scene started with, adopted as stand-ins (an
             instant replay's journal), or None to open the recording's devices through its
             devices door as the recorded engine did (a recording file).
+        scene_start_midi_ports: The MIDI ports its scene started with, adopted as stand-ins (an
+            instant replay's journal; empty when it holds none), or None to open the
+            recording's named ports through its devices door (a recording file).
+        midi_input_names: The MIDI input ports the recorded run named (``--midi-input``; a
+            recording file's, none for a journal).
+        midi_output_names: The MIDI output ports it named (``--midi-output``).
 
     """
 
     input_mode: InputMode
     scene_start_devices: tuple[DeviceDescriptor, ...] | None
+    scene_start_midi_ports: tuple[MidiPortDescriptor, ...] | None = None
+    midi_input_names: tuple[str, ...] = ()
+    midi_output_names: tuple[str, ...] = ()
 
 
-def scene_start_devices_record(*, input_devices: InputDevices) -> dict[str, Any]:
+def scene_start_devices_record(
+    *, input_devices: InputDevices, midi_ports: Iterable[MidiPortDescriptor] = ()
+) -> dict[str, Any]:
     """Return the live devices as an instant-replay journal records them as its scene starts.
 
     Args:
         input_devices: The engine's devices (``GameEngine.input_devices``).
+        midi_ports: The MIDI ports the engine's MIDI manager holds (``MidiEventManager.ports``).
 
     Returns:
-        The header field's value: the input mode and every device's descriptor (a game
-        controller's is ``CONTROLLER_KIND``), in ``input_devices`` order.
+        The header field's value: the input mode, every device's descriptor (a game
+        controller's is ``CONTROLLER_KIND``), in ``input_devices`` order, and, only when there
+        are any, the MIDI ports' (``midi_ports``).
 
     """
-    return {
+    record: dict[str, Any] = {
         'input_mode': input_devices.input_mode.value,
         'devices': [device.descriptor.to_json() for device in input_devices],
     }
+    midi_port_records = [descriptor.to_json() for descriptor in midi_ports]
+    if midi_port_records:
+        record[MIDI_PORTS_KEY] = midi_port_records
+    return record
 
 
 def recorded_devices(
@@ -130,9 +150,10 @@ def recorded_devices(
             journal: ``scene_start_devices_record``), or None.
 
     Returns:
-        The journal's mode and devices when it has them; else the options' ``input_mode`` and
-        no devices to adopt. ``InputMode.AUTO`` (the default) when neither names a mode, or
-        names one this engine does not know (logged).
+        The journal's mode, devices and MIDI ports (none without the key) when it has them; else
+        the options' ``input_mode`` and MIDI port names, and nothing to adopt.
+        ``InputMode.AUTO`` (the default) when neither names a mode, or names one this engine
+        does not know (logged).
 
     """
     if scene_start_devices is not None:
@@ -142,10 +163,18 @@ def recorded_devices(
                 DeviceDescriptor.from_json(record)
                 for record in scene_start_devices.get('devices', [])
             ),
+            scene_start_midi_ports=tuple(
+                MidiPortDescriptor.from_json(record)
+                for record in scene_start_devices.get(MIDI_PORTS_KEY, [])
+            ),
         )
-    recorded_mode = None if options is None else options.get('input_mode')
+    recorded_options: Mapping[str, Any] = {} if options is None else options
     return RecordedDevices(
-        input_mode=_known_input_mode(recorded=recorded_mode), scene_start_devices=None
+        input_mode=_known_input_mode(recorded=recorded_options.get('input_mode')),
+        scene_start_devices=None,
+        # A recording made before the options named no port
+        midi_input_names=tuple(recorded_options.get('midi_input') or ()),
+        midi_output_names=tuple(recorded_options.get('midi_output') or ()),
     )
 
 

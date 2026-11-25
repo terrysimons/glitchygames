@@ -23,7 +23,9 @@ from glitchygames.events.midi import MidiEventManager
 from glitchygames.input.devices import (
     MIDI_INPUT_KIND,
     MIDI_OUTPUT_KIND,
+    MidiPortDescriptor,
     MidiPortInfo,
+    ReplayDeviceRegistry,
     import_midi_module,
 )
 from glitchygames.live_sources import LiveSources
@@ -625,6 +627,37 @@ class TestNamedMidiPorts:
 
         proxy.on_midi_in_event(event)
         proxy.on_midi_out_event(event)
+
+
+class TestAdoptedMidiPorts:
+    """An instant replay's ports: stand-ins the scope's door holds, asking it nothing."""
+
+    def test_adopted_ports_are_the_registrys_stand_ins_and_the_managers_own_stay(self):
+        """One proxy per descriptor, by kind and port id; ``ports`` is the caller's to change."""
+        manager = MidiEventManager(game=MidiRecordingScene())
+        registry = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+        # The same port id in both directions: kept apart by kind
+        keys = MidiPortDescriptor(
+            kind=MIDI_INPUT_KIND, port_id=0, name='Keys', interface='CoreMIDI'
+        )
+        synth = MidiPortDescriptor(
+            kind=MIDI_OUTPUT_KIND, port_id=0, name='Synth', interface='CoreMIDI'
+        )
+
+        adopted = manager.adopt_midi_ports(descriptors=[keys, synth], registry=registry)
+
+        assert list(adopted) == [(MIDI_INPUT_KIND, 0), (MIDI_OUTPUT_KIND, 0)]
+        assert adopted[MIDI_INPUT_KIND, 0].port is registry.midi_input_for_port(port_id=0)
+        assert adopted[MIDI_OUTPUT_KIND, 0].port is registry.midi_output_for_port(port_id=0)
+        assert adopted[MIDI_OUTPUT_KIND, 0].get_device_info() == (b'CoreMIDI', b'Synth', 0, 1, 1)
+        assert adopted[MIDI_INPUT_KIND, 0].game is manager.game
+        assert manager.ports == {}
+
+    def test_adopting_no_port_makes_no_proxy(self):
+        manager = MidiEventManager(game=MidiRecordingScene())
+        registry = ReplayDeviceRegistry(descriptors=[], enumeration_answers=[])
+
+        assert manager.adopt_midi_ports(descriptors=(), registry=registry) == {}
 
 
 class TestMidiOptions:

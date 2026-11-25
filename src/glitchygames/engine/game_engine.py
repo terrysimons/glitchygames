@@ -618,6 +618,7 @@ class LiveDevicesBehindScope:
             joystick mode).
         controllers: That controller manager's ``controllers`` as the scope began (None
             without one).
+        midi_ports: ``midi_manager.ports`` as the scope began.
         input_devices: ``GameEngine.input_devices`` as the scope began.
         scope_made_the_controller_manager: True when the scope made a controller manager of
             its own (the recording had one, the live game has none): released as it ends.
@@ -627,6 +628,7 @@ class LiveDevicesBehindScope:
     joysticks: dict[int, JoystickEventManager.JoystickEventProxy]
     controller_manager: ControllerEventManager | None
     controllers: dict[int, ControllerEventManager.ControllerEventProxy] | None
+    midi_ports: dict[tuple[str, int], MidiEventManager.MidiEventProxy]
     input_devices: InputDevices
     scope_made_the_controller_manager: bool
 
@@ -2318,12 +2320,15 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
         devices are opened through the scope's devices door as the recorded engine opened them
         at startup (the same calls, so the answers it gave are taken in order); an instant
         replay's are adopted from its journal (``recorded.scene_start_devices``) asking the door
-        nothing, since its answers are the scene's own. The managers stay the same shared
-        instances; only the devices they hold change. No scene is told: the played scene is
-        rebuilt and reads ``input_devices`` as the recorded one did.
+        nothing, since its answers are the scene's own. MIDI ports go the same way: a recording
+        file's open by the names it recorded (none named asks the door nothing), an instant
+        replay's are adopted (``recorded.scene_start_midi_ports``). The managers stay the same
+        shared instances; only the devices they hold change. No scene is told: the played scene
+        is rebuilt and reads ``input_devices`` as the recorded one did.
 
         Args:
-            recorded: The recording's input mode and, for an instant replay, its devices.
+            recorded: The recording's input mode and MIDI port names or, for an instant
+                replay, its devices and MIDI ports.
             registry: The scope's devices door (the played recording's).
 
         Raises:
@@ -2341,6 +2346,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             controllers=(
                 None if live_controller_manager is None else live_controller_manager.controllers
             ),
+            midi_ports=self.midi_manager.ports,
             input_devices=self.input_devices,
             scope_made_the_controller_manager=(
                 live_controller_manager is None and input_mode is not InputMode.JOYSTICK
@@ -2374,6 +2380,16 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             if adopted is None
             else self.joystick_manager.adopt_joysticks(descriptors=adopted)
         )
+        adopted_midi_ports = recorded.scene_start_midi_ports
+        self.midi_manager.ports = (
+            self.midi_manager.open_connected_midi_ports(
+                input_names=recorded.midi_input_names, output_names=recorded.midi_output_names
+            )
+            if adopted_midi_ports is None
+            else self.midi_manager.adopt_midi_ports(
+                descriptors=adopted_midi_ports, registry=registry
+            )
+        )
         self.input_devices = InputDevices(input_mode=input_mode)
         # The journal says which of its devices are game controllers: the door is not asked
         self._follow_the_managers_devices(controllers_complete=adopted is not None)
@@ -2391,6 +2407,7 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             return
         self._live_devices_behind_scope = None
         self.joystick_manager.joysticks = live.joysticks
+        self.midi_manager.ports = live.midi_ports
         if live.scope_made_the_controller_manager:
             ControllerEventManager.release_shared_instance()
         self.controller_manager = live.controller_manager
@@ -3652,7 +3669,8 @@ class GameEngine(events.EventManager, metaclass=ReadOnlyViews):  # ruff: ignore[
             self.ai_console.stop()
         if self.ai_link is not None:
             self.ai_link.stop()
-        # A failing close is logged and the teardown goes on (as the audio's below)
+        # A failing close is logged and the teardown goes on; the exit code is unchanged (unlike
+        # the audio's below, whose failure propagates)
         try:
             self._close_midi_ports()
         except Exception:

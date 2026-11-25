@@ -711,7 +711,14 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         self._instant_replay_journal = InstantReplayJournal(
             scene=scene,
             game=game_engine.running_game.instance if game_engine is not None else None,
-            scene_start_devices=scene_start_devices_record(input_devices=self.input_devices),
+            scene_start_devices=scene_start_devices_record(
+                input_devices=self.input_devices,
+                midi_ports=(
+                    ()
+                    if game_engine is None
+                    else [proxy.descriptor for proxy in game_engine.midi_manager.ports.values()]
+                ),
+            ),
         )
 
     def _journal_frame(self: Self, *, frame_dt: float) -> None:

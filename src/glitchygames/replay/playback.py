@@ -31,8 +31,9 @@ Demos and instant replays run inside a playback scope, not a new engine run
    and the recording's take their place, in the input mode it was recorded in
    (``GameEngine.enter_playback_devices``: a recording file's are opened through the scope's
    devices door as its engine opened them at startup, an instant replay's adopted from its
-   journal's ``scene_start_devices``), so its device events (JOYDEVICEADDED, ...) change only
-   the scope's and the live ones come back untouched as it ends (BUGS.md #184.3; a recording
+   journal's ``scene_start_devices``; the MIDI ports go with them, a recording file's opened by
+   the names it recorded), so its device events (JOYDEVICEADDED, ...) change only the scope's
+   and the live ones come back untouched as it ends (BUGS.md #184.3; a recording
    played from a later frame than its first knows only the devices it started with); a
    ``playback`` control event is
    recorded (a marker: replaying the session starts the scope again from the recorded input,
@@ -127,7 +128,11 @@ Demos and instant replays run inside a playback scope, not a new engine run
      The scope's code's own input posts (a supervisor the played scene added again) are
      dropped: the recording holds them as external and the replay serves them, so each
      arrives once. External events reach only the exit check, never the
-     scene; presses and motion are dropped. The batch is the
+     scene; presses and motion are dropped. Live MIDI input is in the installed doors' batch
+     (its ports are read in every pump, the scope's included, so none waits for the scope's
+     end) and is the player's as a joystick's is, told by its message: a note played is a press,
+     a note-off, a switch pedal's off and a channel's all-off are releases, anything else is
+     motion. The batch is the
      replay's (recorded external events, matched internal ones) without any QUIT (a QUIT in
      it ends the scope: ``recording_quit``), then the kept QUIT.
    - ``input_snapshot``: the installed doors' snapshot is read (a recording of the session
@@ -327,6 +332,19 @@ PLAYBACK_HELD_EVENT_TYPES: Final = frozenset({
 })
 
 
+# The kinds of MIDI message (a status byte's high half) a scope tells apart
+MIDI_NOTE_OFF: Final = 0x80
+MIDI_NOTE_ON: Final = 0x90
+MIDI_CONTROL_CHANGE: Final = 0xB0
+_MIDI_KIND_MASK: Final = 0xF0
+# Controllers 64-69 are switch pedals (sustain, portamento, sostenuto, soft, legato, hold 2): on
+# from 64 up. 120 (all sound off), 121 (reset all controllers) and 123-127 (the modes that turn
+# every note off) let go whatever their value (the MIDI 1.0 specification, control changes)
+MIDI_SWITCH_PEDAL_CONTROLLERS: Final = frozenset(range(64, 70))
+MIDI_SWITCH_ON_VALUE: Final = 64
+MIDI_LETTING_GO_CONTROLLERS: Final = frozenset({120, 121, *range(123, 128)})
+
+
 class PlaybackOptions(BaseModel):
     """How a playback scope plays (read-only).
 
@@ -372,6 +390,42 @@ def _is_sdl_event_type(*, event_type: int) -> bool:
 
     """
     return event_type < pygame.USEREVENT
+
+
+def _is_midi_note_press(*, event: pygame.event.Event) -> bool:
+    """Report whether ``event`` is a MIDI note played (a note-on at velocity 0 is a note-off).
+
+    Returns:
+        True for a press, as a button's.
+
+    """
+    return (
+        event.type == pygame.MIDIIN
+        and event.dict.get('status', 0) & _MIDI_KIND_MASK == MIDI_NOTE_ON
+        and event.dict.get('data2', 0) > 0
+    )
+
+
+def _is_midi_release(*, event: pygame.event.Event) -> bool:
+    """Report whether ``event`` is MIDI input that lets something go (a note, a pedal, a channel).
+
+    The live game may hold what it lets go: without it a note would sound on after the scope.
+
+    Returns:
+        True for a release, as a button's.
+
+    """
+    if event.type != pygame.MIDIIN:
+        return False
+    kind = event.dict.get('status', 0) & _MIDI_KIND_MASK
+    if kind == MIDI_NOTE_ON:
+        return event.dict.get('data2', 0) == 0
+    if kind != MIDI_CONTROL_CHANGE:
+        return kind == MIDI_NOTE_OFF
+    controller = event.dict.get('data1', 0)
+    if controller in MIDI_SWITCH_PEDAL_CONTROLLERS:
+        return event.dict.get('data2', 0) < MIDI_SWITCH_ON_VALUE
+    return controller in MIDI_LETTING_GO_CONTROLLERS
 
 
 def _is_served_live_input_post(*, event: pygame.event.Event, origin: str) -> bool:
@@ -677,15 +731,19 @@ class PlaybackSources:
         Releases, device and window events are held for the live game
         (``PLAYBACK_HELD_EVENT_TYPES``); a press ends a scope that exits on input
         (``PLAYBACK_EXIT_EVENT_TYPES``); anything else (a press without exit on input, motion)
-        reaches nothing. A live input post of an SDL type is sorted here too (rule 5).
+        reaches nothing. MIDI input is sorted by its message: a note played is a press, a note,
+        pedal or channel let go a release, the rest motion. A live input post of an SDL type is
+        sorted here too (rule 5).
 
         Args:
             event: The external event.
 
         """
-        if event.type in PLAYBACK_HELD_EVENT_TYPES:
+        if event.type in PLAYBACK_HELD_EVENT_TYPES or _is_midi_release(event=event):
             self.held_live_events.append((event, EXTERNAL_ORIGIN))
-        elif self.exit_on_input and event.type in PLAYBACK_EXIT_EVENT_TYPES:
+        elif self.exit_on_input and (
+            event.type in PLAYBACK_EXIT_EVENT_TYPES or _is_midi_note_press(event=event)
+        ):
             self.exit_requested = True
             self._note_end(reason='exit_input')
 

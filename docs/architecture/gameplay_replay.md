@@ -1123,8 +1123,10 @@ instant replays and ghosts. Demos and instant replays run in a **playback scope*
 engine run (`src/glitchygames/replay/playback.py`'s docstring is the contract): the scene is
 rebuilt from its start (see Scene starts above) on scoped doors that serve the recording, the
 live scene is stashed untouched, saves are a sandbox, the random streams, clocks and FPS timer
-are put back afterwards, and the live game's own posts and the player's releases, device and
-window events are held and handed back when the scope ends. A `--record-trace` session that
+are put back afterwards, and the live game's own posts and the player's releases (MIDI note-offs
+among them), device and window events are held and handed back when the scope ends. The live
+controllers and MIDI ports wait while the scope holds stand-ins of its own, so nothing it rumbles
+or writes reaches a device. A `--record-trace` session that
 plays a scope records it, and replays it exactly. An error inside the scope ends the scope
 (logged) and the live game goes on. `scene_manager.last_playback_outcome` says how the last
 scope ended (its kind, reason and frames played).
