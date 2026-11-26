@@ -62,6 +62,7 @@ class ModelState(StrEnum):
 
     STOPPED = 'stopped'
     READY = 'ready'
+    # Not answering yet: still loading, or too busy to answer its health check in time
     LOADING = 'loading'
 
 

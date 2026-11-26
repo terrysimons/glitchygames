@@ -95,13 +95,17 @@ class Workers:
             model: The model.
 
         Returns:
-            Stopped if nothing answers, loading on a 503, else ready.
+            Stopped if nothing is there or it fails, loading on a 503 or no answer in time, else
+            ready.
 
         """
         try:
             response = await self.client.get(
                 f'{self.base_url(model=model)}/health', timeout=HEALTH_TIMEOUT_SECONDS
             )
+        except httpx2.ReadTimeout:
+            # It took the connection, so it is running; one that times out connecting is not
+            return ModelState.LOADING
         except httpx2.TransportError:
             return ModelState.STOPPED
         if response.status_code == HTTP_LOADING:
