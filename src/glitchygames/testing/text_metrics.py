@@ -31,10 +31,7 @@ Two ways to read it:
   and tests/test_suite_collection.py refuses it.)
 """
 
-# No ``from __future__ import annotations``: pydantic reads these models' field types when it
-# builds them, from the module named by ``__module__``, and a module run as ``__main__`` inside
-# another program (runpy, as the tests run it) is not ``sys.modules['__main__']``. Every type is
-# defined above its first use instead.
+from __future__ import annotations
 
 import platform
 import sys

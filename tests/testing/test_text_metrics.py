@@ -7,6 +7,7 @@ that its numbers agree with each other.
 
 from __future__ import annotations
 
+import os
 import sys
 from typing import TYPE_CHECKING
 
@@ -14,14 +15,17 @@ import pygame
 import pytest
 
 from glitchygames.fonts import font_manager
+from glitchygames.process import OutputCapture, run_command
 from glitchygames.testing import text_metrics
-from glitchygames.testing.entry_points import run_package_as_main
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 # A character neither font has a glyph for
 MISSING_CHARACTER = '中'
+
+# Starting Python, pygame and the engine, then measuring: about a second here
+CHILD_TIMEOUT_SECONDS = 120
 
 
 @pytest.fixture(scope='module')
@@ -111,12 +115,26 @@ class TestTheReport:
             assert measurement.glyphs == [None]
             assert measurement.advance_sum == 0
 
-    def test_run_as_a_program_it_prints_the_report_as_json(self, capsys, monkeypatch):
-        # The module, not a package: take it out of sys.modules (restored after the test), or runpy
-        # warns that it is already imported
-        monkeypatch.delitem(sys.modules, text_metrics.__name__)
-        run_package_as_main(package=text_metrics.__name__)
+    def test_main_prints_the_report_as_json(self, capsys):
+        text_metrics.main()
         printed = text_metrics.TextMetricsReport.model_validate_json(capsys.readouterr().out)
+        assert tuple(measurement.text for measurement in printed.fonts[0].texts) == (
+            text_metrics.HUD_TEXTS
+        )
+
+    def test_python_dash_m_prints_the_report_as_json(self):
+        # A child process, not runpy in this one: CI tests the installed copy, whose every
+        # glitchygames module pytest marks for assertion rewriting (the distribution declares a
+        # pytest11 plugin), and runpy cannot run a module through that loader (it has no
+        # get_code). The documented command hides pygame's banner, as here.
+        result = run_command(
+            command=[sys.executable, '-m', text_metrics.__name__],
+            environment={**os.environ, 'PYGAME_HIDE_SUPPORT_PROMPT': '1'},
+            timeout_seconds=CHILD_TIMEOUT_SECONDS,
+            capture_output=OutputCapture.APART,
+        )
+        assert result.returncode == 0, result.stderr
+        printed = text_metrics.TextMetricsReport.model_validate_json(result.stdout)
         assert tuple(measurement.text for measurement in printed.fonts[0].texts) == (
             text_metrics.HUD_TEXTS
         )
