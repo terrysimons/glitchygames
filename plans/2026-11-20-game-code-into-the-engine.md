@@ -291,6 +291,16 @@ once). Measured gain from no longer calling `Font.render` six to nine times a fr
   the measurement says. **The HUD stays on top** (the owner, 2026-11-20): Brave's post-draw pass
   (the pit fill, the enemies in a pit, the player's re-blit) leaves the label rects alone, so a
   label is never drawn under anything, as today, and the check stays strict.
+- **The font is the bundled Vera Bold at 16** (the owner, 2026-11-26), not pygame's default
+  font at 28. The default font (freesansbold) has no hinting of its own, so FreeType autohints
+  it on macOS and Linux and Windows laid it out unhinted, a pixel narrower: #328's recordings
+  diverged at frame 0 on Windows only (CircleCI run 1559, measured by
+  `glitchygames.testing.text_metrics`). Vera hints itself and measured the same on all three.
+  The other default-font users (Brave's title cards, `ui/sliders.py`, the game-over scene, the
+  font manager's fallback) move on a later branch. Re-recording for the new font is the first
+  re-record of sprites the recordings already hold, drawn differently, so part C's check gained
+  two allowances (the owner, 2026-11-26): sprites whose rect may change, and tests whose frames
+  may differ only inside named boxes, judged from saved images.
 
 **B. `Scene.pause()` replaces the hand-built pause scenes** at Brave 813 (`_pause_game`),
 Clockwork 1050 (focus loss) and 1065, and Mr. Muncher `game.py:1262`: the same `next_scene =
