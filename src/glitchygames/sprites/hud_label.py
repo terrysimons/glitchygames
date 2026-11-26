@@ -118,6 +118,13 @@ class HudLabel(Sprite):
         self._show(image=image)
 
     @property
+    def sprites_in_draw_order(self: Self) -> tuple[HudLabel, ...]:
+        """The label's sprites as its group draws them: its shadow (if it has one), then itself."""
+        if self.shadow is None:
+            return (self,)
+        return (self.shadow, self)
+
+    @property
     def text(self: Self) -> str:
         """The text the label shows; setting other text renders it (and the shadow's)."""
         return self._text

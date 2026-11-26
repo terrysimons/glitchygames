@@ -1155,9 +1155,7 @@ class BraveAdventurerSceneBase(Scene):
         for label in (self.score_label, self.lives_label):
             if label is None:
                 continue
-            for label_sprite in (label.shadow, label):
-                if label_sprite is None:
-                    continue
+            for label_sprite in label.sprites_in_draw_order:
                 label_rect = screen.get_rect().clip(label_sprite.rect)
                 if label_rect.collidelist(rects) != -1:
                     covered.append((label_rect, screen.subsurface(label_rect).copy()))
