@@ -429,25 +429,28 @@ def check_the_recording_replays_to_its_end(*, game: StandInGame, recording: Path
 
 
 @pytest.fixture
-def color_game(tmp_path, monkeypatch, mocker, recorded_old) -> ColorGame:
+def color_game(tmp_path, monkeypatch, recorded_old) -> Iterator[ColorGame]:
     """Install the color game for this test and its children, with its own copy of OLD.
 
-    Returns:
+    Yields:
         The color game.
 
     """
     game = install_color_game(install_directory=tmp_path / 'site-packages')
     use_stand_in_game(install_directory=game.install_directory, monkeypatch=monkeypatch)
-    # Imported here for the watched replays; gone from sys.modules after the test
-    mocker.patch.dict(sys.modules)
+    # Imported here for the watched replays; gone from sys.modules after the test.
+    # Targeted cleanup avoids a whole-dict restore racing with concurrent imports on Windows
+    # (bugs/2026-11-20-httpcore2-import-keyerror-on-windows.md).
     module = importlib.import_module(PACKAGE)
     old = copy_recording(recording=recorded_old, path=tmp_path / 'old.jsonl.gz')
-    return ColorGame(
+    yield ColorGame(
         game=game,
         scene_class=getattr(module, SCENE_NAME),
         old=old,
         old_frame_count=recorded_frame_count(path=old),
     )
+    for key in [k for k in sys.modules if k == PACKAGE or k.startswith(f'{PACKAGE}.')]:
+        del sys.modules[key]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -514,7 +517,7 @@ def test_watched_recordings_have_steady_frame_times(color_game, tmp_path):
 
 @pytest.mark.draws_frames
 def test_a_steadied_recording_replays_however_slow_the_machine_recording_it(
-    tmp_path, monkeypatch, mocker
+    tmp_path, monkeypatch, mocker, request
 ):
     """OLD's arguments, recorded on a machine managing 5 frames a second, steady and replay.
 
@@ -532,8 +535,15 @@ def test_a_steadied_recording_replays_however_slow_the_machine_recording_it(
     )
     write_steady_frame_times(recording=recording)
     use_stand_in_game(install_directory=game.install_directory, monkeypatch=monkeypatch)
-    mocker.patch.dict(sys.modules)
     module = importlib.import_module(PACKAGE)
+    # Targeted cleanup: remove only what we added, not the whole sys.modules snapshot
+    # (bugs/2026-11-20-httpcore2-import-keyerror-on-windows.md).
+
+    def _remove_package() -> None:
+        for key in [k for k in sys.modules if k == PACKAGE or k.startswith(f'{PACKAGE}.')]:
+            del sys.modules[key]
+
+    request.addfinalizer(_remove_package)
 
     replay = replay_through_engine(
         mocker=mocker, scene_class=getattr(module, SCENE_NAME), path=recording

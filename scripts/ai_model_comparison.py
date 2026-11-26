@@ -36,6 +36,7 @@ from collections.abc import Callable, Generator, Sequence
 from pathlib import Path
 from typing import Any, cast
 
+import httpcore2  # ruff: ignore[unused-import] — httpx2 lazy-imports this; force eager load to avoid a first-import race (Windows, Python 3.15)
 import httpx2
 from pydantic import BaseModel, ConfigDict, Field
 
