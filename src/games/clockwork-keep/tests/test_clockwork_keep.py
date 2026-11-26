@@ -1243,6 +1243,23 @@ class TestHud:
         assert clockwork_scene.score_label is None
         assert not [s for s in clockwork_scene.all_sprites if isinstance(s, HudLabel)]
 
+    def test_every_label_is_in_the_bundled_vera_bold_at_16(self, clockwork_scene):
+        """A font with its own hinting measures the same on every platform (PR #328).
+
+        pygame's default font has none, so Windows laid it out a pixel narrower than macOS and
+        Linux, and the recordings' HUD sprites differed there.
+        """
+        clockwork_scene.setup()
+        labels = [s for s in clockwork_scene.all_sprites if isinstance(s, HudLabel)]
+        assert labels
+        for label in labels:
+            font = label.style.font
+            assert (font.name, font.style_name, font.point_size) == (
+                'Bitstream Vera Sans',
+                'Bold',
+                16,
+            )
+
     def test_after_setup_the_labels_are_on_the_top_layer_in_the_huds_order(self, clockwork_scene):
         clockwork_scene.setup()
         score = clockwork_scene.score_label

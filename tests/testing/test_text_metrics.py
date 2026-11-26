@@ -52,10 +52,12 @@ class TestTheReport:
         kept = report_path.read_text(encoding='utf-8')
         assert text_metrics.TextMetricsReport.model_validate_json(kept) == report
 
-    def test_the_report_measures_every_hud_text_in_both_fonts(self, report):
+    def test_the_report_measures_every_hud_text_in_every_font(self, report):
+        # The HUDs' font before PR #328, Vera, and the HUDs' font since
         assert [(fonts.font, fonts.point_size) for fonts in report.fonts] == [
-            ('default', text_metrics.HUD_POINT_SIZE),
-            (font_manager.DEFAULT_FONT_NAME, text_metrics.HUD_POINT_SIZE),
+            ('default', 28),
+            ('Vera', 28),
+            ('Vera Bold', 16),
         ]
         for fonts in report.fonts:
             assert tuple(measurement.text for measurement in fonts.texts) == text_metrics.HUD_TEXTS
@@ -72,13 +74,18 @@ class TestTheReport:
                 assert measurement.advance_sum == sum(glyph.advance for glyph in glyphs)
 
     def test_the_sizes_are_what_pygame_measures_for_the_same_font(self, report):
-        font = pygame.font.Font(None, text_metrics.HUD_POINT_SIZE)
-        default_font = report.fonts[0]
-        for measurement in default_font.texts:
-            assert measurement.size == font.size(measurement.text)
-            assert measurement.rendered_size_aliased == (
-                font.render(measurement.text, antialias=False, color=(255, 255, 255)).get_size()
-            )
+        # Each font opened here as the engine opens it, not through the report's own table
+        fonts = (
+            pygame.font.Font(None, 28),
+            font_manager.bundled_font(bold=False, size=28),
+            font_manager.bundled_font(bold=True, size=16),
+        )
+        for font, measured in zip(fonts, report.fonts, strict=True):
+            for measurement in measured.texts:
+                assert measurement.size == font.size(measurement.text)
+                assert measurement.rendered_size_aliased == (
+                    font.render(measurement.text, antialias=False, color=(255, 255, 255)).get_size()
+                )
 
     def test_the_report_names_the_versions_it_can_read_and_says_which_it_cannot(self, report):
         pygame.font.init()

@@ -7,7 +7,8 @@ font file is the same in every wheel, so the difference is in how each platform'
 the text out. This module measures that, the same way on every machine, so two platforms'
 reports can be compared line by line.
 
-For each font (pygame's default and the engine's bundled Vera) and each text in ``HUD_TEXTS`` it
+For each font in ``MEASURED_FONTS`` (pygame's default at 28, the HUDs' font before PR #328 moved
+them to the bundled Vera Bold at 16; Vera at 28; Vera Bold at 16) and each text in ``HUD_TEXTS`` it
 records ``Font.size()``, the rendered surface's size with and without antialiasing, every
 glyph's ``Font.metrics()`` (min x, max x, min y, max y, advance) and the sum of the advances.
 SDL_ttf makes a line's width from the advances, and from the glyphs' ink where that reaches
@@ -41,9 +42,6 @@ import pygame.freetype
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.fonts import font_manager
-
-# The point size both games' HUDs use
-HUD_POINT_SIZE = 28
 
 # The texts measured: both games' HUD texts as their first frames show them, the numbers around
 # them, Clockwork Keep's floor names (clockwork_keep/levels.py; the engine never imports a game)
@@ -91,6 +89,46 @@ class GlyphMetrics(BaseModel):
     advance: int
 
 
+class MeasuredFont(BaseModel):
+    """A font the report measures.
+
+    Attributes:
+        name: The report's name for it.
+        bundled_font_name: Its bundled file's name (``font_manager.BUNDLED_FONT_FILE_NAMES``), or
+            None for pygame's default font (freesansbold).
+        point_size: The size it is opened at.
+
+    """
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    name: str
+    bundled_font_name: str | None
+    point_size: int
+
+    def open(self) -> pygame.font.Font:
+        """Open the font at its size.
+
+        Returns:
+            The font.
+
+        """
+        if self.bundled_font_name is None:
+            return pygame.font.Font(None, self.point_size)
+        file_name = font_manager.BUNDLED_FONT_FILE_NAMES[self.bundled_font_name]
+        return pygame.font.Font(font_manager.BUNDLED_FONT_DIRECTORY / file_name, self.point_size)
+
+
+# The fonts measured, in report order
+MEASURED_FONTS: tuple[MeasuredFont, ...] = (
+    # Brave Adventurer's and Clockwork Keep's HUD font until PR #328: no hinting of its own
+    MeasuredFont(name='default', bundled_font_name=None, point_size=28),
+    MeasuredFont(name='Vera', bundled_font_name='vera', point_size=28),
+    # Their HUD font since PR #328
+    MeasuredFont(name='Vera Bold', bundled_font_name='verabd', point_size=16),
+)
+
+
 class TextMeasurement(BaseModel):
     """What one font measures for one text.
 
@@ -118,7 +156,7 @@ class FontMeasurements(BaseModel):
     """One font's measurements of every text.
 
     Attributes:
-        font: Which font: ``default`` (pygame's freesansbold) or ``Vera`` (bundled).
+        font: The ``MeasuredFont``'s name.
         point_size: The size it was opened at.
         texts: One measurement per text, in ``HUD_TEXTS`` order.
 
@@ -185,30 +223,34 @@ def _measure_text(*, font: pygame.font.Font, text: str) -> TextMeasurement:
     )
 
 
+def _measure_font(*, measured_font: MeasuredFont, texts: tuple[str, ...]) -> FontMeasurements:
+    font = measured_font.open()
+    return FontMeasurements(
+        font=measured_font.name,
+        point_size=measured_font.point_size,
+        texts=[_measure_text(font=font, text=text) for text in texts],
+    )
+
+
 def _version(version: tuple[int, ...]) -> tuple[int, int, int]:
     major, minor, patch = version
     return (major, minor, patch)
 
 
 def measure_text_metrics(
-    *, texts: tuple[str, ...] = HUD_TEXTS, point_size: int = HUD_POINT_SIZE
+    *, texts: tuple[str, ...] = HUD_TEXTS, fonts: tuple[MeasuredFont, ...] = MEASURED_FONTS
 ) -> TextMetricsReport:
-    """Measure each text in pygame's default font and the bundled Vera.
+    """Measure each text in each font.
 
     Args:
         texts: The texts to measure.
-        point_size: The size to open both fonts at.
+        fonts: The fonts to measure them in.
 
     Returns:
         The report.
 
     """
     pygame.font.init()
-    vera_path = font_manager.BUNDLED_FONT_DIRECTORY / font_manager.BUNDLED_FONT_FILE_NAMES['vera']
-    fonts = {
-        'default': pygame.font.Font(None, point_size),
-        font_manager.DEFAULT_FONT_NAME: pygame.font.Font(vera_path, point_size),
-    }
     return TextMetricsReport(
         platform=platform.platform(),
         machine=platform.machine(),
@@ -218,14 +260,7 @@ def measure_text_metrics(
         sdl_ttf_version=_version(pygame.font.get_sdl_ttf_version(linked=True)),
         sdl_ttf_built_in_libraries=SDL_TTF_BUILT_IN_LIBRARIES,
         pygame_freetype_version=_version(pygame.freetype.get_version(linked=True)),
-        fonts=[
-            FontMeasurements(
-                font=name,
-                point_size=point_size,
-                texts=[_measure_text(font=font, text=text) for text in texts],
-            )
-            for name, font in fonts.items()
-        ],
+        fonts=[_measure_font(measured_font=measured_font, texts=texts) for measured_font in fonts],
     )
 
 

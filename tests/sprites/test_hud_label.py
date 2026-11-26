@@ -28,10 +28,10 @@ def font() -> pygame.font.Font:
     """Return the font both games' HUDs use.
 
     Returns:
-        The default font at 28 points.
+        The bundled Vera Bold at 16 points.
 
     """
-    return pygame.font.Font(None, 28)
+    return font_manager.bundled_font(bold=True, size=16)
 
 
 @pytest.fixture
