@@ -26,6 +26,7 @@ from brave_adventurer_core.constants import (
     GAME_OVER_RUMBLE_HIGH,
     GAME_OVER_RUMBLE_LOW,
     GROUND_Y,
+    HUD_FONT_SIZE,
     HUD_SHADOW_COLOR,
     HUD_TEXT_COLOR,
     LAYER_FAR_BACKGROUND,
@@ -63,6 +64,7 @@ from glitchygames.collision.solids import (
     world_x_flush_left_of,
     world_x_flush_right_of,
 )
+from glitchygames.fonts import font_manager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
@@ -268,7 +270,7 @@ class BraveAdventurerSceneBase(Scene):
     def setup(self: Self) -> None:
         """Set up the game scene."""
         super().setup()
-        self.hud_font = pygame.font.Font(None, 28)
+        self.hud_font = font_manager.bundled_font(bold=True, size=HUD_FONT_SIZE)
         self._add_hud_labels(font=self.hud_font)
         # The engine aims the camera at the player each frame (x only: the camera stays at the
         # top of the world) and places every world sprite from it
@@ -1154,9 +1156,7 @@ class BraveAdventurerSceneBase(Scene):
         for label in (self.score_label, self.lives_label):
             if label is None:
                 continue
-            for label_sprite in (label.shadow, label):
-                if label_sprite is None:
-                    continue
+            for label_sprite in label.sprites_in_draw_order:
                 label_rect = screen.get_rect().clip(label_sprite.rect)
                 if label_rect.collidelist(rects) != -1:
                     covered.append((label_rect, screen.subsurface(label_rect).copy()))

@@ -28,10 +28,10 @@ def font() -> pygame.font.Font:
     """Return the font both games' HUDs use.
 
     Returns:
-        The default font at 28 points.
+        The bundled Vera Bold at 16 points.
 
     """
-    return pygame.font.Font(None, 28)
+    return font_manager.bundled_font(bold=True, size=16)
 
 
 @pytest.fixture
@@ -191,6 +191,19 @@ class TestTheSprite:
         label = _label(font, group)
         assert label.shadow is None
         assert group.sprites() == [label]
+
+    def test_a_shadowed_label_lists_its_shadow_then_itself_as_the_group_draws_them(
+        self, font, group
+    ):
+        label = _label(font, group, shadow_color=SHADOW_COLOR, layer=HUD_LAYER)
+        assert label.shadow is not None
+        assert label.sprites_in_draw_order == (label.shadow, label)
+        assert list(label.sprites_in_draw_order) == group.sprites()
+
+    def test_a_label_without_a_shadow_lists_only_itself(self, font, group):
+        label = _label(font, group)
+        assert label.sprites_in_draw_order == (label,)
+        assert list(label.sprites_in_draw_order) == group.sprites()
 
     def test_a_label_is_screen_space_redrawn_every_frame_and_a_root_sprite(self, font, group):
         label = _label(font, group)

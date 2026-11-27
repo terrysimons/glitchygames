@@ -38,6 +38,7 @@ from clockwork_keep.constants import (
     GEAR_PLATFORM,
     GEAR_PLATFORM_TOP,
     GROUND_SNAP_TOLERANCE,
+    HUD_FONT_SIZE,
     HUD_SHADOW_COLOR,
     HUD_TEXT_COLOR,
     LAYER_COLLECTIBLES,
@@ -63,6 +64,7 @@ from glitchygames.collision.layers import collision_rect_offset, get_sprite_coll
 from glitchygames.collision.solids import feet_land_on_surface
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
+from glitchygames.fonts import font_manager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
@@ -484,7 +486,7 @@ class ClockworkKeepScene(Scene):
     def setup(self: Self) -> None:
         """Set up the floor scene."""
         super().setup()
-        self.hud_font = hud_font = pygame.font.Font(None, 28)
+        self.hud_font = hud_font = font_manager.bundled_font(bold=True, size=HUD_FONT_SIZE)
         self._add_hud_labels(font=hud_font)
         # The engine aims the camera at the player each frame (both axes; the bounds above
         # keep it from scrolling sideways) and places every world sprite from it

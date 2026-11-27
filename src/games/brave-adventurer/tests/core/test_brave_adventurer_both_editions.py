@@ -1155,6 +1155,23 @@ class TestHud:
         assert real_scene.lives_label is None
         assert not [sprite for sprite in real_scene.all_sprites if isinstance(sprite, HudLabel)]
 
+    def test_every_label_is_in_the_bundled_vera_bold_at_16(self, real_scene):
+        """A font with its own hinting measures the same on every platform (PR #328).
+
+        pygame's default font has none, so Windows laid it out a pixel narrower than macOS and
+        Linux, and the recordings' HUD sprites differed there.
+        """
+        real_scene.setup()
+        labels = [sprite for sprite in real_scene.all_sprites if isinstance(sprite, HudLabel)]
+        assert labels
+        for label in labels:
+            font = label.style.font
+            assert (font.name, font.style_name, font.point_size) == (
+                'Bitstream Vera Sans',
+                'Bold',
+                16,
+            )
+
     def test_after_setup_the_labels_show_the_score_and_lives_on_the_top_layer(self, real_scene):
         real_scene.setup()
         score, lives = real_scene.score_label, real_scene.lives_label

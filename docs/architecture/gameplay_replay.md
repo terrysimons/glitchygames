@@ -891,10 +891,12 @@ inputs and `dt`, so every difference between OLD and NEW is the code's. Before N
 OLD, the check proves that the change altered only what it was meant to:
 
 1. Rebaseline each recording into a scratch folder, keeping OLD where it is.
-2. Write a plan (TOML) naming each pair and what may differ: new sprite ids, new internal
-   event types, named header or frame fields with a reason each, and the tests the change adds,
-   renames or removes, which run in only one of the two suites in step 3 (the script's
-   docstring has the format). Write Windows paths in single quotes or with forward slashes: in
+2. Write a plan (TOML) naming each pair and what may differ: new sprite ids, sprites OLD
+   already has whose rect changes (drawn at another size or place), new internal event types,
+   named header or frame fields with a reason each, the tests the change adds, renames or
+   removes, which run in only one of the two suites in step 3, and the tests whose frames the
+   change alters on purpose, with the boxes they may differ in (the script's docstring has the
+   format). Write Windows paths in single quotes or with forward slashes: in
    double quotes TOML reads their backslashes as escapes.
 3. Record the suite's frames under the frame fingerprints plugin on the commit before the
    change and on the change (`pytest -p glitchygames.testing.frame_fingerprints
@@ -906,11 +908,17 @@ uv run python -m scripts.check_rebaselined_recordings --plan PLAN.toml \
     --fingerprints-before BEFORE --fingerprints-after AFTER
 ```
 
+5. When the plan names tests whose frames change, the fingerprints (hashes) cannot say where:
+   run step 4 with `--write-image-request FILE`, re-run those tests on each commit with
+   `--frame-images-request FILE --frame-fingerprints DIR`, and run the check again with
+   `--images-before DIR --images-after DIR`. Each such test must present as many frames as
+   before with the same outcome, and every differing frame must differ only inside its boxes.
+
 The pixel step is required: an allowed sprite's records are not compared, so a new sprite one
 pixel off would pass the recordings' part, and the frames are what show where it is drawn. It
 fails (exit 1) on any difference the plan does not name, on an allowance that matched nothing,
-on any test whose frames differ between the two runs, and on a test in one run only that
-the plan does not name; its report counts every allowed difference per recording and the
+on any test whose frames differ between the two runs (outside its boxes, for a test the plan
+names as changed), and on a test in one run only that the plan does not name; its report counts every allowed difference per recording and the
 frames it compared, which goes in the PR. The
 comparison is `src/glitchygames/replay/recording_differences.py`, whose docstring says what it
 compares and what it leaves out (the measurement histories, the header fields a rebaseline

@@ -251,6 +251,65 @@ class TestSprites:
         assert comparison.unused_allowances == ['sprite HudLabel#0', 'sprite HudLabel#1']
 
 
+ROCK_RECT_CHANGES = RecordingAllowances(sprite_ids_whose_rect_changes=frozenset({'Rock#0'}))
+
+
+def _with_rock_resized(frames: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return the frames with the rock drawn narrower and shorter, a pixel to the right."""
+    resized = copy.deepcopy(frames)
+    for frame in resized:
+        frame['sprites'][1]['rect'] = [11, 50, 14, 15]
+    return resized
+
+
+class TestSpritesWhoseRectChanges:
+    """A sprite both recordings have may change its rect, and only its rect, when allowed."""
+
+    def test_an_allowed_sprites_new_rect_passes_counted_per_frame(self, old_recording, tmp_path):
+        new = _new(tmp_path, frames=_with_rock_resized(_frames()))
+        comparison = compare_recordings(old=old_recording, new=new, allowances=ROCK_RECT_CHANGES)
+        assert comparison.passed, comparison.report()
+        assert comparison.allowed_counts == {'sprite rect Rock#0': 4}
+        assert 'allowed: sprite rect Rock#0 in 4 frames' in comparison.report()
+
+    def test_its_visibility_is_still_compared(self, old_recording, tmp_path):
+        frames = _with_rock_resized(_frames())
+        frames[2]['sprites'][1]['visible'] = False
+        comparison = compare_recordings(
+            old=old_recording, new=_new(tmp_path, frames=frames), allowances=ROCK_RECT_CHANGES
+        )
+        assert [difference.where for difference in comparison.differences] == [
+            ('frame', 2, 'sprites', 'Rock#0', 'visible')
+        ]
+
+    def test_it_must_still_be_in_both_recordings(self, old_recording, tmp_path):
+        frames = _with_rock_resized(_frames())
+        del frames[3]['sprites'][1]
+        comparison = compare_recordings(
+            old=old_recording, new=_new(tmp_path, frames=frames), allowances=ROCK_RECT_CHANGES
+        )
+        assert [difference.where for difference in comparison.differences] == [
+            ('frame', 3, 'sprites', 'Rock#0')
+        ]
+
+    def test_another_sprites_rect_is_still_compared(self, old_recording, tmp_path):
+        frames = _with_rock_resized(_frames())
+        frames[1]['sprites'][0]['rect'][2] += 1
+        comparison = compare_recordings(
+            old=old_recording, new=_new(tmp_path, frames=frames), allowances=ROCK_RECT_CHANGES
+        )
+        assert [difference.where for difference in comparison.differences] == [
+            ('frame', 1, 'sprites', 'Ship#0', 'rect')
+        ]
+
+    def test_an_allowance_whose_rect_never_changes_fails(self, old_recording, tmp_path):
+        comparison = compare_recordings(
+            old=old_recording, new=_new(tmp_path), allowances=ROCK_RECT_CHANGES
+        )
+        assert not comparison.passed
+        assert comparison.unused_allowances == ['sprite rect Rock#0']
+
+
 class TestTheSession:
     """Frames, scenes, served input, dt, saves, devices and internal events, record by record."""
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from enum import Enum, auto
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -43,6 +44,16 @@ HEALTH_TIMEOUT_SECONDS = 2.0
 START_TIMEOUT_SECONDS = 60.0
 READY_TIMEOUT_SECONDS = 120.0
 READY_POLL_SECONDS = 0.25
+
+
+class Readiness(Enum):
+    """What a readiness check found."""
+
+    READY = auto()
+    # It accepted the check and did not answer in time: running, so it is waited for
+    SLOW = auto()
+    # It is stopped or its models are not answering yet: the control script starts it
+    NOT_READY = auto()
 
 
 class LocalAIServiceError(Exception):
@@ -321,28 +332,29 @@ class LocalAIClient:
             message = f'The local AI service has no key at {self.key_file}'
             raise LocalAIServiceNotInstalledError(message) from error
 
-    def _is_ready(self) -> bool:
+    def _readiness(self) -> Readiness:
         """Ask whether the models are answering.
 
         Returns:
-            Whether they are. A service that isn't up, or is still loading, isn't ready.
+            What the check found. Only a read that times out is slow: a connection that times out
+            is a stopped service (Windows ends a connect to a closed port that way).
 
         """
         try:
             response = httpx2.get(f'{self.base_url}/health/ready', timeout=HEALTH_TIMEOUT_SECONDS)
+        except httpx2.ReadTimeout:
+            return Readiness.SLOW
         except httpx2.HTTPError:
-            return False
-        return response.status_code == HTTPStatus.OK
+            return Readiness.NOT_READY
+        return Readiness.READY if response.status_code == HTTPStatus.OK else Readiness.NOT_READY
 
-    def _ensure_ready(self) -> None:
-        """Start the service if it isn't up, and wait until the models answer.
+    def _start(self) -> None:
+        """Run the control script's start.
 
         Raises:
-            LocalAIServiceError: If there isn't the memory, it won't start, or it never gets ready.
+            LocalAIServiceError: If there isn't the memory, or it won't start.
 
         """
-        if self._is_ready():
-            return
         LOG.info('Starting the local AI service')
         result = process.run_command(
             command=[str(self.control_script), 'start'],
@@ -356,10 +368,31 @@ class LocalAIClient:
         if result.returncode != 0:
             message = f'The local AI service would not start ({result.returncode}): {result.stdout}'
             raise LocalAIServiceError(message)
+
+    def _ensure_ready(self) -> None:
+        """Start the service if it isn't up, and wait until the models answer.
+
+        A slow service is waited for, and started only if a later check finds it isn't up.
+
+        Raises:
+            LocalAIServiceError: If there isn't the memory, it won't start, or it never gets ready.
+
+        """
+        readiness = self._readiness()
+        if readiness is Readiness.READY:
+            return
+        started = readiness is Readiness.NOT_READY
+        if started:
+            self._start()
         deadline = clock.raw_counter_seconds() + READY_TIMEOUT_SECONDS
         while clock.raw_counter_seconds() < deadline:
-            if self._is_ready():
+            readiness = self._readiness()
+            if readiness is Readiness.READY:
                 return
+            if readiness is Readiness.NOT_READY and not started:
+                self._start()
+                started = True
+                deadline = clock.raw_counter_seconds() + READY_TIMEOUT_SECONDS
             (clock.raw_sleep if self.sleep is None else self.sleep)(READY_POLL_SECONDS)
         message = f'The local AI service was not ready after {READY_TIMEOUT_SECONDS} s'
         raise LocalAIServiceError(message)

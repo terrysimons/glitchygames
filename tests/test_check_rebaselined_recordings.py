@@ -10,12 +10,18 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING, Any
 
+import pygame
 import pytest
 import tomli_w
 from scripts.check_rebaselined_recordings import main, run
 
 from glitchygames.exit_codes import ExitCode
-from glitchygames.testing.frame_fingerprints import FrameFingerprint, RecordedFrames
+from glitchygames.testing.frame_fingerprints import (
+    FrameFingerprint,
+    FrameImageRequest,
+    RecordedFrames,
+    frame_image_path,
+)
 from glitchygames.tracing import TraceWriter
 
 if TYPE_CHECKING:
@@ -390,6 +396,216 @@ class TestPixels:
         with pytest.raises(SystemExit) as raised:
             run(arguments=arguments)
         assert raised.value.code == ExitCode.ARGUMENT_PARSER_ERROR
+
+
+IMAGE_SIZE = (20, 10)
+BACKGROUND = (40, 90, 160)
+LABEL_BOX = [2, 1, 8, 4]
+
+
+def _image(
+    directory: Path,
+    nodeid: str,
+    position: int,
+    *,
+    painted: tuple[int, int, int, int] | None = None,
+    size: tuple[int, int] = IMAGE_SIZE,
+) -> None:
+    """Save a frame as a re-run saves it: the background, with one rect painted white."""
+    surface = pygame.Surface(size)
+    surface.fill(BACKGROUND)
+    if painted is not None:
+        surface.fill((255, 255, 255), pygame.Rect(painted))
+    path = frame_image_path(directory=directory, nodeid=nodeid, position=position)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pygame.image.save(surface, path)
+
+
+class TestPixelsThatChangeInsideBoxes:
+    """A test whose frames may differ, but only inside named boxes, judged from saved images."""
+
+    def _plan(self, tmp_path, *, nodeid=NODE_A, within=None) -> Path:
+        changed = {
+            'nodeid': nodeid,
+            'reason': 'the HUD in another font',
+            'within': [LABEL_BOX] if within is None else within,
+        }
+        return _labelled_plan(tmp_path, pixels={'changed': [changed]})
+
+    def _check(self, plan, tmp_path, *, before, after, extra=None) -> ExitCode:
+        """Run the check; ``extra`` replaces the image runs' options (None: give them)."""
+        if extra is None:
+            extra = (
+                '--images-before',
+                str(tmp_path / 'images-before'),
+                '--images-after',
+                str(tmp_path / 'images-after'),
+            )
+        return run(
+            arguments=[
+                '--plan',
+                str(plan),
+                '--fingerprints-before',
+                str(_fingerprints(tmp_path / 'before', before)),
+                '--fingerprints-after',
+                str(_fingerprints(tmp_path / 'after', after)),
+                *extra,
+            ]
+        )
+
+    def test_frames_differing_only_inside_the_boxes_pass_counted(self, tmp_path, capsys):
+        _image(tmp_path / 'images-before', NODE_A, 1, painted=(2, 1, 6, 4))
+        _image(tmp_path / 'images-after', NODE_A, 1, painted=(2, 1, 8, 3))
+        exit_code = self._check(
+            self._plan(tmp_path),
+            tmp_path,
+            before=[_record(NODE_A, 'red', 'score in Free Sans')],
+            after=[_record(NODE_A, 'red', 'score in Vera')],
+        )
+        output = capsys.readouterr().out
+        assert exit_code is ExitCode.SUCCESS, output
+        assert 'PASS pixels: 1 tests, 2 frames compared, none differ' in output
+        # Before: columns 2-7 of rows 1-4 white; after: columns 2-9 of rows 1-3. They differ in
+        # columns 8-9 of rows 1-3 (6) and columns 2-7 of row 4 (6)
+        assert (
+            f'  allowed changed: {NODE_A} (1 frames, 12 pixels differ, all inside its boxes; '
+            'the HUD in another font)'
+        ) in output
+
+    def test_a_pixel_outside_the_boxes_fails_naming_the_frame(self, tmp_path, capsys):
+        _image(tmp_path / 'images-before', NODE_A, 1, painted=(2, 1, 6, 4))
+        _image(tmp_path / 'images-after', NODE_A, 1, painted=(2, 1, 6, 6))
+        exit_code = self._check(
+            self._plan(tmp_path),
+            tmp_path,
+            before=[_record(NODE_A, 'red', 'score')],
+            after=[_record(NODE_A, 'red', 'score, a row too low')],
+        )
+        assert exit_code is ExitCode.REPLAY_DIVERGED
+        output = capsys.readouterr().out
+        assert 'FAIL pixels' in output
+        # Rows 5 and 6 of columns 2-7: 12 pixels, below the box's rows 1-4
+        assert f'  changed outside its boxes: {NODE_A} frame 1: 12 pixels' in output
+
+    def test_every_differing_frame_is_judged_not_only_the_first(self, tmp_path, capsys):
+        for position, after_box in ((1, (2, 1, 8, 3)), (2, (12, 1, 4, 4))):
+            _image(tmp_path / 'images-before', NODE_A, position, painted=(2, 1, 6, 4))
+            _image(tmp_path / 'images-after', NODE_A, position, painted=after_box)
+        exit_code = self._check(
+            self._plan(tmp_path),
+            tmp_path,
+            before=[_record(NODE_A, 'red', 'score', 'score')],
+            after=[_record(NODE_A, 'red', 'score in Vera', 'score moved away')],
+        )
+        assert exit_code is ExitCode.REPLAY_DIVERGED
+        assert f'  changed outside its boxes: {NODE_A} frame 2: 16 pixels' in (
+            capsys.readouterr().out
+        )
+
+    def test_a_missing_image_fails(self, tmp_path, capsys):
+        _image(tmp_path / 'images-before', NODE_A, 1)
+        exit_code = self._check(
+            self._plan(tmp_path),
+            tmp_path,
+            before=[_record(NODE_A, 'red', 'score')],
+            after=[_record(NODE_A, 'red', 'score in Vera')],
+        )
+        assert exit_code is ExitCode.REPLAY_DIVERGED
+        assert f'  changed, no image to judge: {NODE_A} frame 1 (after)' in capsys.readouterr().out
+
+    def test_images_of_another_size_fail(self, tmp_path, capsys):
+        _image(tmp_path / 'images-before', NODE_A, 1)
+        _image(tmp_path / 'images-after', NODE_A, 1, size=(20, 12))
+        exit_code = self._check(
+            self._plan(tmp_path),
+            tmp_path,
+            before=[_record(NODE_A, 'red', 'score')],
+            after=[_record(NODE_A, 'red', 'score in Vera')],
+        )
+        assert exit_code is ExitCode.REPLAY_DIVERGED
+        assert f'  changed size: {NODE_A} frame 1: 20x10 -> 20x12' in capsys.readouterr().out
+
+    def test_without_images_it_fails_and_writes_the_request_for_every_differing_frame(
+        self, tmp_path, capsys
+    ):
+        request_path = tmp_path / 'image-request.json'
+        exit_code = self._check(
+            self._plan(tmp_path),
+            tmp_path,
+            before=[_record(NODE_A, 'red', 'score', 'score')],
+            after=[_record(NODE_A, 'red', 'score in Vera', 'score in Vera')],
+            extra=('--write-image-request', str(request_path)),
+        )
+        assert exit_code is ExitCode.REPLAY_DIVERGED
+        assert f'  changed, no images given: {NODE_A} (2 frames)' in capsys.readouterr().out
+        request = FrameImageRequest.model_validate_json(request_path.read_text(encoding='utf-8'))
+        assert request == FrameImageRequest(positions_by_test={NODE_A: (1, 2)})
+
+    def test_a_final_frame_that_did_not_change_is_not_requested(self, tmp_path):
+        request_path = tmp_path / 'image-request.json'
+        self._check(
+            self._plan(tmp_path),
+            tmp_path,
+            before=[_record(NODE_A, 'red', 'score', 'game over')],
+            after=[_record(NODE_A, 'red', 'score in Vera', 'game over')],
+            extra=('--write-image-request', str(request_path)),
+        )
+        request = FrameImageRequest.model_validate_json(request_path.read_text(encoding='utf-8'))
+        assert request == FrameImageRequest(positions_by_test={NODE_A: (1,)})
+
+    @pytest.mark.parametrize(
+        ('before', 'after'),
+        [
+            (_record(NODE_A, 'red', 'score'), _record(NODE_A, 'red', 'score', 'score')),
+            (
+                _record(NODE_A, 'red', 'score'),
+                _record(NODE_A, 'red', 'score in Vera').model_copy(update={'outcome': 'failed'}),
+            ),
+        ],
+        ids=['another present count', 'another outcome'],
+    )
+    def test_a_test_that_changed_more_than_its_pixels_fails(self, tmp_path, capsys, before, after):
+        exit_code = self._check(self._plan(tmp_path), tmp_path, before=[before], after=[after])
+        assert exit_code is ExitCode.REPLAY_DIVERGED
+        assert f'  changed more than its pixels: {NODE_A}' in capsys.readouterr().out
+
+    def test_an_allowance_for_a_test_whose_frames_are_the_same_fails_as_not_met(
+        self, tmp_path, capsys
+    ):
+        records = [_record(NODE_A, 'red', 'score')]
+        exit_code = self._check(self._plan(tmp_path), tmp_path, before=records, after=records)
+        assert exit_code is ExitCode.REPLAY_DIVERGED
+        assert f'  allowance not met: changed {NODE_A}' in capsys.readouterr().out
+
+    def test_it_does_not_cover_another_test(self, tmp_path, capsys):
+        _image(tmp_path / 'images-before', NODE_A, 1, painted=(2, 1, 6, 4))
+        _image(tmp_path / 'images-after', NODE_A, 1, painted=(2, 1, 8, 3))
+        exit_code = self._check(
+            self._plan(tmp_path),
+            tmp_path,
+            before=[_record(NODE_A, 'red', 'score'), _record(NODE_B, 'blue')],
+            after=[_record(NODE_A, 'red', 'score in Vera'), _record(NODE_B, 'magenta')],
+        )
+        assert exit_code is ExitCode.REPLAY_DIVERGED
+        assert f'  differs: {NODE_B}' in capsys.readouterr().out
+
+    def test_a_box_must_have_four_numbers(self, tmp_path, capsys):
+        plan = self._plan(tmp_path, within=[[2, 1, 8]])
+        exit_code = self._check(
+            plan, tmp_path, before=[_record(NODE_A, 'red')], after=[_record(NODE_A, 'red')]
+        )
+        assert exit_code is ExitCode.UNUSABLE_INPUT
+        assert 'unusable plan' in capsys.readouterr().err
+
+    @pytest.mark.parametrize('given', ['--images-before', '--images-after'])
+    def test_images_are_given_for_both_runs_or_neither(
+        self, labelled_pair, tmp_path, capsys, given
+    ):
+        arguments = ['--plan', str(labelled_pair), *_same_frames(tmp_path), given, str(tmp_path)]
+        with pytest.raises(SystemExit) as raised:
+            run(arguments=arguments)
+        assert raised.value.code == ExitCode.ARGUMENT_PARSER_ERROR
+        assert 'give --images-before and --images-after together' in capsys.readouterr().err
 
 
 def test_main_exits_with_the_checks_exit_code(labelled_pair, mocker):
