@@ -136,3 +136,67 @@ def test_an_event_left_queued_fails_only_the_test_that_left_it(
         '*ERROR test_leaves.py::test_a_leaves_an_event*',
     ])
     result.stdout.no_fnmatch_line('*ERROR*test_b_finds_the_queue_empty*')
+
+
+STARTS_EMPTY_FIRST_AND_AFTER_A_RESIZE = """
+import pygame
+
+
+def queued_event_names():
+    return [pygame.event.event_name(event.type) for event in pygame.event.get()]
+
+
+def test_a_first_on_its_worker_starts_with_an_empty_queue():
+    assert queued_event_names() == []
+
+
+def test_b_resizes_the_display():
+    pygame.display.set_mode((320, 240)).fill((40, 80, 120))
+    pygame.display.flip()
+    # Its own window events are taken, so the end-of-test check has nothing to report
+    pygame.event.get()
+
+
+def test_c_after_a_resize_starts_with_an_empty_queue():
+    assert queued_event_names() == []
+"""
+
+
+def test_every_test_starts_with_an_empty_queue(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Neither SDL's start-up notifications nor the harness's display restore reach a test.
+
+    The first test on a worker would otherwise find SDL's start-up events (audio device added,
+    window shown, focus), and a test after one that resized the display would find the window
+    events the harness's restore queued after its end-of-test check (2026-11-27: on main
+    7991846cc, test_without_a_display_there_is_no_queue_to_read failed when run alone).
+    """
+    monkeypatch.setenv('PYTHONPATH', str(PROJECT_ROOT))
+    monkeypatch.setenv('SDL_VIDEODRIVER', 'dummy')
+    monkeypatch.setenv('SDL_AUDIODRIVER', 'dummy')
+    tests = pytester.makepyfile(test_starts_empty=STARTS_EMPTY_FIRST_AND_AFTER_A_RESIZE)
+
+    result = pytester.runpytest_subprocess(
+        '-c',
+        str(PROJECT_ROOT / 'pyproject.toml'),
+        '--rootdir',
+        str(pytester.path),
+        '--confcutdir',
+        str(pytester.path),
+        '-p',
+        'tests.harness',
+        '-p',
+        'no:cacheprovider',
+        '-p',
+        'no:xdist',
+        '-p',
+        'no:randomly',
+        '-o',
+        'addopts=',
+        '-rf',
+        str(tests),
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+    )
+
+    result.assert_outcomes(passed=3)

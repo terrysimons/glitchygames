@@ -1177,7 +1177,8 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
     pygame stays initialized for the whole run: quitting and re-initializing it after every
     test cost about 30 ms per test (most of a serial run). Before each test, pygame and the
     800x600 display are started again if a test quit them, and the canvas is drawn and presented
-    (the test display rule, tests/display_canvas.py). After each test, SDL's event queue is
+    (the test display rule, tests/display_canvas.py); SDL's event queue is then emptied, so
+    every test starts with none of SDL's own notifications queued. After each test, the queue is
     emptied, failing the test if it left an event a later test would act on
     (end_of_test_event_queue_problems), every mixer channel is stopped, so no sound plays on
     into the next test (audibly, on a real audio driver), and a display a test resized is set
@@ -1200,6 +1201,11 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
     # The canvas: a test that draws nothing shows the pattern, and no test sees an earlier
     # test's drawing (the guard in pytest_runtest_call fails a test that ends on all black)
     show_canvas()
+    # Every test starts with an empty queue. What is queued now is SDL's own: its start-up
+    # notifications on a worker's first test, the window events of the display the last test's
+    # teardown put back (read after its check, below), and the canvas just shown. Taken
+    # unreported: whatever a test leaves was reported at the end of the test that left it
+    events_left_for_the_next_test()
 
     yield
 
