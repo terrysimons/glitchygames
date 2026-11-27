@@ -1,6 +1,7 @@
 # Pausing is not leaving: `Scene.pause()` and `Scene.unpause()`
 
-> **Status: built (2026-11-25), not pushed.** Stacked on `refactor/engine-hud-labels`.
+> **Status: built (2026-11-25); PR #333 (2026-11-27).** Built stacked on
+> `refactor/engine-hud-labels`; that branch merged as #328, and this one merged it and main.
 
 **Goal:** A paused scene stays set up. Pausing runs no `cleanup()`, and unpausing runs no
 `setup()` or `load_resources()`: each runs once in a scene's life.
