@@ -3871,7 +3871,7 @@ holds the game's own scenes (<code>MrMuncherGameOverScene</code> extends the eng
         Pause : PauseScene
     }
     Reel --&gt; Pause : ESC, P, Start or focus lost&lt;br/&gt;next_scene = PauseScene
-    Pause --&gt; Reel : SPACE, Start or A released&lt;br/&gt;(setup() runs again)
+    Pause --&gt; Reel : SPACE, Start or A released&lt;br/&gt;unpause()
     Reel --&gt; NextReel : CUT! then flash&lt;br/&gt;next_scene = new scene
     NextReel --&gt; Reel : the same flow
     Reel --&gt; GameOver : THE END shown for 2.5 s&lt;br/&gt;transition_to(..., FadeTransition(1 s))
@@ -3888,12 +3888,11 @@ checks that <code>next_scene</code> is still <code>None</code>).</dd>
 <dd><code>_show_game_over_screen</code> fades (1 s <code>FadeTransition</code>) to
 <code>MrMuncherGameOverScene</code>. This screen shows the engine's GAME OVER layout (score and high
 score table) plus a headline, either <code>NEW HIGH SCORE!  Reel N</code> or <code>You reached reel N</code>.
-<code>resume()</code> always starts a new game with <code>switch_to_scene(MrMuncherScene(...))</code>, because the
+<code>play_again()</code> always starts a new game with <code>switch_to_scene(MrMuncherScene(...))</code>, because the
 previous scene depends on how the screen was reached.</dd>
 <dt>Pause</dt>
-<dd>The engine's <code>PauseScene</code> shows a frozen screenshot of the game. When play
-resumes, the scene's <code>setup()</code> runs again. That is why <code>setup()</code> shows the ready message only
-while the phase is still <code>READY</code>.</dd>
+<dd>The engine's <code>PauseScene</code> shows a frozen screenshot of the game. The reel
+stays set up behind it, its projector held, and <code>unpause()</code> plays on.</dd>
 </dl>
 <h3 id="scene-classes">Scene classes<a class="headerlink" href="#scene-classes" title="Permanent link">#</a></h3>
 <p>Mr. Muncher's scenes are two classes in <code>src/games/mr-muncher/src/mr_muncher/game.py</code>:
@@ -3934,7 +3933,7 @@ pointing at the base class; dotted arrows are how the game uses an engine class.
             level_reached : int
             setup()
             replay_arguments()
-            resume()
+            play_again()
         }
     }
 
@@ -4876,7 +4875,7 @@ generated for every workspace member's package (<code>scripts/gen_ref_pages.py</
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 09:57:58 UTC">November 25, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 12:04:32 UTC">November 27, 2026</span>
   </span>
 
     

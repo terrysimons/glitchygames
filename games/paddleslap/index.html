@@ -3644,11 +3644,11 @@ scope the demo runs in); the PaddleSlap box holds the game's own scenes.</p>
 
     [*] --&gt; Game : GameEngine(game=Game).start()
     Game --&gt; PauseScene : Space released&lt;br/&gt;Scene.pause() sets next_scene
-    PauseScene --&gt; Game : Space, Start or A, or focus regained&lt;br/&gt;resume() switches back to the same Game
+    PauseScene --&gt; Game : Space, Start or A, or focus regained&lt;br/&gt;unpause() switches back to the same Game
     Game --&gt; GameOver : last ball gone&lt;br/&gt;_show_game_over() sets next_scene
     GameOver --&gt; Demo : 10 s of game time idle&lt;br/&gt;play_recording(then=self)
     Demo --&gt; GameOver : any key or button,&lt;br/&gt;or the demo's end
-    GameOver --&gt; NewGame : Space, Start or A&lt;br/&gt;resume()
+    GameOver --&gt; NewGame : Space, Start or A&lt;br/&gt;play_again()
     NewGame --&gt; Game
     Game --&gt; [*] : Q or Esc
     PauseScene --&gt; [*] : Q or Esc
@@ -3658,13 +3658,13 @@ scope the demo runs in); the PaddleSlap box holds the game's own scenes.</p>
 <p>Both set <code>next_scene</code> instead of switching at once, so the scene manager switches after the
 frame renders. Pausing during event processing would otherwise freeze the previous frame's
 picture (the comment on <code>Scene.pause()</code>). <code>PauseScene</code> shows <code>previous_scene.screenshot</code>;
-<code>resume()</code> switches back to the same <code>Game</code> object, so the rally goes on where it was.</p>
+<code>unpause()</code> switches back to the same <code>Game</code> object, so the rally goes on where it was.</p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">A new game is always a <code>Game</code></p>
-<p><code>GameOverScene.resume()</code> restarts the type of the scene manager's <code>previous_scene</code>, which a
+<p><code>GameOverScene.play_again()</code> restarts the type of the scene manager's <code>previous_scene</code>, which a
 playback scope could change (BUGS.md #81, resolved: the scope now restores it), so
-<code>PaddleSlapGameOverScene.resume()</code> names <code>Game</code> explicitly.</p>
+<code>PaddleSlapGameOverScene.play_again()</code> names <code>Game</code> explicitly.</p>
 </div>
 <dl>
 <dt>Rebuilding the game-over screen</dt>
@@ -3761,7 +3761,7 @@ dotted arrows are how the game uses an engine class.</p>
             idle_since_game_time : float
             dt_tick(dt)
             replay_arguments()
-            resume()
+            play_again()
         }
     }
 
@@ -3772,11 +3772,11 @@ dotted arrows are how the game uses an engine class.</p>
 
     Game ..&gt; PauseScene : SPACE calls the inherited pause
     Game ..&gt; PaddleSlapGameOverScene : next_scene when the last ball is gone
-    PaddleSlapGameOverScene ..&gt; Game : resume starts a new Game</code></pre>
+    PaddleSlapGameOverScene ..&gt; Game : play_again starts a new Game</code></pre>
 <p><code>Game</code> never names <code>PauseScene</code>: its pause action calls <code>Scene.pause()</code>, which it inherits, and
 that requests the engine's <code>PauseScene</code> for the end of the frame. PaddleSlap's game-over screen
 extends the engine's, adding the attract-mode demo after an idle wait and always restarting a new
-<code>Game</code> (the engine's <code>resume()</code> restarts whatever scene came before, which depends on how the screen was reached: BUGS.md #81).</p>
+<code>Game</code> (the engine's <code>play_again()</code> restarts whatever scene came before, which depends on how the screen was reached: BUGS.md #81).</p>
 <h3 id="sprites">Sprites<a class="headerlink" href="#sprites" title="Permanent link">#</a></h3>
 <pre class="mermaid"><code>classDiagram
     direction TB
@@ -4479,7 +4479,7 @@ quits diverges.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 05:53:19 UTC">November 25, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 12:04:32 UTC">November 27, 2026</span>
   </span>
 
     
