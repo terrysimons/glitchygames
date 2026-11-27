@@ -62,6 +62,7 @@ from glitchygames.engine_context import current_context
 from glitchygames.events import AUDIO_EVENTS, WINDOW_EVENTS
 from glitchygames.input.stand_in_devices import StandInDeviceSources, stand_in_registry
 from glitchygames.logical_names import logical_name
+from glitchygames.recording import discard_events_left_at_the_runs_end
 from glitchygames.replay.driver import RANDOM_SEED_HEADER_FIELD
 from glitchygames.scenes import Scene, SceneManager
 from glitchygames.scenes.scene import SCENE_MANAGERS_SLOT
@@ -449,7 +450,14 @@ class GoldenTraceSceneManager(SceneManager):
 
     @classmethod
     def uninstall(cls) -> None:
-        """Clear the singleton so the next game starts from a fresh scene manager."""
+        """End the game: empty its event queue, then clear the singleton for a fresh manager.
+
+        The harness steps frames itself and never reaches ``end_frames``, which empties the
+        queue in a real run, so the last frame's own posts (an FPSEVENT posted after its pump,
+        depending on how long the run took) would reach the next game in this process, or the
+        next test (bugs/2026-11-26-a-test-left-its-event-for-the-next-one.md).
+        """
+        discard_events_left_at_the_runs_end()
         SceneManager._reset()
         cls._reset()
 

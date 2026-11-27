@@ -57,7 +57,11 @@ from glitchygames.engine.game_engine import (
     report_fatal_signals_with_faulthandler,
 )
 from glitchygames.engine_context import current_context, default_context
-from glitchygames.events.base import SHARED_INSTANCES_SLOT, UNHANDLED_EVENT_TYPES_SLOT
+from glitchygames.events.base import (
+    NAMED_CUSTOM_EVENT_TYPES,
+    SHARED_INSTANCES_SLOT,
+    UNHANDLED_EVENT_TYPES_SLOT,
+)
 from glitchygames.feature_flags import FLAG_OPTIONS_SLOT
 from glitchygames.fonts import FontManager
 from glitchygames.fonts.font_manager import FONT_OPTIONS_SLOT
@@ -1088,6 +1092,48 @@ def unreleased_live_stream_problems() -> list[str]:
     return problems
 
 
+def events_left_for_the_next_test() -> list[pygame.event.Event]:
+    """Take every event a test left in SDL's queue; none without a running display.
+
+    Returns:
+        The events, in queue order (the queue is then empty).
+
+    """
+    if not (pygame.get_init() and pygame.display.get_init()):
+        return []
+    return pygame.event.get()
+
+
+def end_of_test_event_queue_problems() -> list[str]:
+    """Empty SDL's queue after a test; describe what it left that a later test would act on.
+
+    SDL's queue is process-wide, so an event a test posts and never takes is still queued when
+    the worker's next test runs. A replay merges every queued event at or above USEREVENT into
+    its batch as the game's own post, and takes a QUIT for the window's close; a live engine
+    dispatches both. 2026-11-26: the AI console's spawn event, left by
+    test_a_sprite_named_like_a_path_is_saved_in_the_sprites_folder, reached the next test's
+    replay batch (CircleCI job 6258, seed 1289560758;
+    bugs/2026-11-26-a-test-left-its-event-for-the-next-one.md).
+
+    Every event is taken, so none reaches the next test. SDL's own notifications (window
+    shown, resized, focused; audio device added) are taken without a report: SDL queues them
+    whenever a display or the mixer starts, so no test is at fault for them. Input events are
+    taken without a report too: on a real driver they can come from the machine itself.
+
+    Returns:
+        One description per event a test left behind; empty when it left none.
+
+    """
+    names_by_type = {event_type: name for name, event_type in NAMED_CUSTOM_EVENT_TYPES.items()}
+    return [
+        f'left {names_by_type.get(event.type, pygame.event.event_name(event.type))} '
+        f"(type {event.type}, fields {sorted(event.dict)}) in pygame's event queue, where the "
+        "worker's next test would take it: take every event the test posts"
+        for event in events_left_for_the_next_test()
+        if event.type >= pygame.USEREVENT or event.type == pygame.QUIT
+    ]
+
+
 def end_of_test_sound_problems() -> list[str]:
     """Check a test's sound as it ends, then silence the mixer; return every problem found.
 
@@ -1131,9 +1177,11 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
     pygame stays initialized for the whole run: quitting and re-initializing it after every
     test cost about 30 ms per test (most of a serial run). Before each test, pygame and the
     800x600 display are started again if a test quit them, and the canvas is drawn and presented
-    (the test display rule, tests/display_canvas.py). After each test, every mixer
-    channel is stopped, so no sound plays on into the next test (audibly, on a real audio
-    driver), and a display a test resized is set back to the default size, showing the canvas.
+    (the test display rule, tests/display_canvas.py). After each test, SDL's event queue is
+    emptied, failing the test if it left an event a later test would act on
+    (end_of_test_event_queue_problems), every mixer channel is stopped, so no sound plays on
+    into the next test (audibly, on a real audio driver), and a display a test resized is set
+    back to the default size, showing the canvas.
     The SDL driver variables, display and mixer a test moved off the run's drivers (an engine
     run with --headless moves them to 'dummy') are put back on them, showing the canvas
     (tests/sdl_driver_isolation.py); a test that changed none of them costs a few reads.
@@ -1155,9 +1203,10 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
 
     yield
 
-    # Every sound problem is gathered first, silencing included (end_of_test_sound_problems), and
-    # reported after the rest of the teardown, so a failing check never leaves drivers behind
-    sound_problems = end_of_test_sound_problems()
+    # Every problem is gathered first (the queue emptied, the mixer silenced) and reported after
+    # the rest of the teardown, so a failing check never leaves drivers behind. The queue is read
+    # before the drivers are put back: restoring a display queues SDL's own window events
+    problems = end_of_test_event_queue_problems() + end_of_test_sound_problems()
     restore_run_sdl_drivers(
         run_environment=SDL_DRIVER_ENVIRONMENT_FOR_RUN,
         run_state=run_sdl_driver_state,
@@ -1170,8 +1219,8 @@ def ensure_pygame_graceful_quit(run_sdl_driver_state: SdlDriverState):
             # driver it would stay black (under the last scene's caption) while the worker waits
             # for its next test, or for the run to end
             show_canvas_on_new_display(size=TEST_DISPLAY_SIZE)
-    if sound_problems:
-        pytest.fail('\n'.join(sound_problems))
+    if problems:
+        pytest.fail('\n'.join(problems))
 
 
 @pytest.fixture

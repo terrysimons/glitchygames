@@ -213,6 +213,8 @@ def test_unpaced_frame_steps_never_touch_the_timer_or_the_pacing_clock(monkeypat
     sm.pacing_fallback_clock.tick.assert_not_called()
     # Each frame's dt is measured start to start, as in the paced loop
     assert sm.dt > 0
+    # As an outer driver ends its run: the last frame's own posts are taken off the queue
+    sm.end_frames()
 
 
 @pytest.mark.draws_frames

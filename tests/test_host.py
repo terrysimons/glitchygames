@@ -20,6 +20,7 @@ import pygame
 import pytest
 
 from glitchygames.audio.accounting import AudioFrameAccount
+from glitchygames.events import FPSEVENT
 from glitchygames.game_frames import restart_game_frame_clock
 from glitchygames.host import (
     TICKS_BEFORE_LOGGING_RATE,
@@ -722,6 +723,44 @@ class TestGameHost:
         # Frame 1 on tick 1, then every second tick: frame 10 on tick 19
         assert len(ticks) == 19
         assert manager.active_scene is None
+
+    @pytest.mark.draws_frames
+    def test_a_blocking_run_leaves_none_of_its_posts_queued(self, hosted_scene_manager, mocker):
+        """Every frame posts FPSEVENT after its pump; the run's end takes the last one away.
+
+        The last frame's FPSEVENT is posted after that frame's pump, so no frame takes it: left
+        queued, it reached the worker's next test, on a machine slow enough to post one at all
+        (CircleCI job 6275; bugs/2026-11-26-a-test-left-its-event-for-the-next-one.md).
+        """
+        manager, host = hosted_scene_manager
+        manager.game_engine.options['fps_log_interval_ms'] = 0
+        posts = mocker.spy(manager, '_post_fps_event')
+        manager.switch_to_scene(HostedCountingScene())
+
+        host.run(scene_manager=manager)
+
+        assert posts.call_count == HostedCountingScene.QUIT_AFTER_FRAMES
+        assert pygame.event.get(FPSEVENT) == []
+
+    @pytest.mark.draws_frames
+    def test_an_async_run_leaves_none_of_its_posts_queued(self, hosted_scene_manager, mocker):
+        """As the blocking run: the async run's end takes its last frame's FPSEVENT away."""
+        manager, host = hosted_scene_manager
+        manager.game_engine.options['fps_log_interval_ms'] = 0
+        posts = mocker.spy(manager, '_post_fps_event')
+        manager.switch_to_scene(HostedCountingScene())
+        ticks: list[float] = []
+
+        async def wait_for_tick() -> float:
+            await asyncio.sleep(0)
+            ticks.append(len(ticks) * HUNDRED_TWENTY_HERTZ_SECONDS)
+            limited(ticks)
+            return ticks[-1]
+
+        asyncio.run(host.run_async(scene_manager=manager, wait_for_tick=wait_for_tick))
+
+        assert posts.call_count == HostedCountingScene.QUIT_AFTER_FRAMES
+        assert pygame.event.get(FPSEVENT) == []
 
     @pytest.mark.draws_frames
     def test_run_async_logs_the_measured_tick_rate_once(self, hosted_scene_manager, mocker, caplog):
