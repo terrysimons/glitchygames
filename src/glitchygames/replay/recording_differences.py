@@ -10,7 +10,10 @@ the only differences are the ones its ``RecordingAllowances`` name:
   event batches (external input and internal events, record by record), the saves and devices
   opened, the polled-input changes, the scene start, and every other field a frame holds.
 - The same sprites in every frame (id, rect, visible, draw order), once the allowed sprite ids
-  are set aside; each allowed id must appear in NEW and never in OLD.
+  are set aside; each allowed id must appear in NEW and never in OLD. A sprite both have may be
+  allowed a new rect (``sprite_ids_whose_rect_changes``: drawn at another size or place, such as
+  a HUD label in another font); everything else about it is still compared, and its rect must
+  differ somewhere.
 - The same header fields.
 - Values compare by type as well as value (``5`` and ``5.0`` differ), as a recording reads back
   with exactly the types it was written with (glitchygames/tracing.py).
@@ -69,6 +72,7 @@ from glitchygames.replay.rebaseline import (
 )
 from glitchygames.tracing import (
     BOOKMARKED_COPY_OF_HEADER_FIELD,
+    RECT_FIELD,
     SPRITES_FIELD,
     TraceReader,
 )
@@ -148,6 +152,10 @@ class RecordingAllowances(pydantic.BaseModel):
 
     # Sprite ids NEW alone has (a new sprite's records are not compared; its pixels are)
     sprite_ids: frozenset[str] = frozenset()
+    # Sprite ids both have whose rect may differ (a sprite drawn at another size or place: its
+    # visibility, draw order and presence in every frame are still compared; its pixels are the
+    # pixel check's)
+    sprite_ids_whose_rect_changes: frozenset[str] = frozenset()
     # Custom event types (names in NEW's custom_event_types header) whose internal events NEW
     # alone posts
     internal_event_types: frozenset[str] = frozenset()
@@ -251,6 +259,8 @@ def _count_phrase(*, label: str, count: int) -> str:
 
 
 _SPRITE_LABEL = 'sprite '
+# Starts with _SPRITE_LABEL, so a report counts it in frames too
+_SPRITE_RECT_LABEL = 'sprite rect '
 _EVENT_LABEL = 'internal event '
 
 
@@ -410,22 +420,49 @@ class _Comparison:
             self.differ(where=difference_where, old=old_value, new=new_value)
 
     def differ(self: Self, *, where: Where, old: object, new: object) -> None:
-        """Record a difference, unless an allowed field covers it."""
+        """Record a difference, unless an allowed sprite rect or an allowed field covers it."""
+        rect_label = self._allowed_rect_label(where=where)
+        if rect_label is not None:
+            self.counts[rect_label] += 1
+            return
         for allowed in self.allowances.fields:
             if where[: len(allowed.where)] == allowed.where:
                 self.counts[allowed.label] += 1
                 return
         self.differences.append(RecordingDifference(where=where, old=old, new=new))
 
+    def _allowed_rect_label(self: Self, *, where: Where) -> str | None:
+        """Return the allowance covering a difference at a sprite's rect, if there is one.
+
+        Returns:
+            ``sprite rect <id>`` for ``('frame', N, 'sprites', <id>, 'rect', ...)`` when the id's
+            rect may change, else None.
+
+        """
+        match where:
+            case ('frame', int(), str() as field, str() as sprite_id, str() as rect_field, *_) if (
+                field == SPRITES_FIELD
+                and rect_field == RECT_FIELD
+                and sprite_id in self.allowances.sprite_ids_whose_rect_changes
+            ):
+                return _SPRITE_RECT_LABEL + sprite_id
+            case _:
+                return None
+
     def _labels(self: Self) -> list[str]:
         """Return every allowance's label, in report order.
 
         Returns:
-            Sprite ids, then event types (each sorted), then fields as declared.
+            Sprite ids, sprites whose rect changes, then event types (each sorted), then fields
+            as declared.
 
         """
         return [
             *(_SPRITE_LABEL + sprite_id for sprite_id in sorted(self.allowances.sprite_ids)),
+            *(
+                _SPRITE_RECT_LABEL + sprite_id
+                for sprite_id in sorted(self.allowances.sprite_ids_whose_rect_changes)
+            ),
             *(_EVENT_LABEL + name for name in sorted(self.allowances.internal_event_types)),
             *(allowed.label for allowed in self.allowances.fields),
         ]

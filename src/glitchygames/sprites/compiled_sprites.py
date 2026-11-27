@@ -25,14 +25,14 @@ from __future__ import annotations
 import hashlib
 import threading
 from collections import OrderedDict
-from types import MappingProxyType  # ruff: ignore[typing-only-standard-library-import] - pydantic resolves CompiledSprite's read-only mappings at runtime
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final
 
 import pygame
 from pydantic import BaseModel, ConfigDict
 
-from glitchygames.sprites.animated import FrameAnchor  # ruff: ignore[typing-only-first-party-import] - pydantic resolves CompiledSprite.frame_anchor at runtime
-from glitchygames.sprites.frame import SpriteFrame  # ruff: ignore[typing-only-first-party-import] - pydantic resolves CompiledSprite.animations at runtime
+from glitchygames.sprites.animated import FrameAnchor
+from glitchygames.sprites.frame import SpriteFrame
 
 if TYPE_CHECKING:
     from glitchygames.sprites.animated import AnimatedSprite

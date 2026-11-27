@@ -40,7 +40,7 @@ import dataclasses
 import json
 import logging
 import threading
-from collections.abc import Callable  # ruff: ignore[typing-only-standard-library-import] - pydantic reads it at runtime
+from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING, Any
 

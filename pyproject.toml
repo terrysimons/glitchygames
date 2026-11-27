@@ -730,6 +730,12 @@ line-ending = "lf"
 allow-star-arg-any = true
 ignore-fully-untyped = false
 
+[tool.ruff.lint.flake8-type-checking]
+# pydantic reads a model's field types when it builds the class, so an import a field's type
+# needs is a runtime import, not a TYPE_CHECKING one (the owner, 2026-11-25: HudLabelStyle's
+# pygame.font.Font field)
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
 [tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
 inline-quotes = "single"

@@ -63,6 +63,8 @@ LAYER_FAR_BACKGROUND = 0
 LAYER_TERRAIN = 4
 LAYER_COLLECTIBLES = 5
 LAYER_PLAYER = 7
+# The score, lives and floor labels, over everything
+LAYER_HUD = 8
 
 # ---------------------------------------------------------------------------
 # Animation
@@ -131,10 +133,14 @@ PLAYER_BOOTS = (60, 40, 20)
 PLAYER_WRENCH = (160, 160, 170)
 
 # ---------------------------------------------------------------------------
-# HUD colors
+# HUD colors and font
 # ---------------------------------------------------------------------------
 HUD_TEXT_COLOR = (240, 220, 180)
 HUD_SHADOW_COLOR = (40, 30, 20)
+# The HUD's font is the bundled Vera Bold at this size: Vera hints itself, so it measures the same
+# on every platform (pygame's default font has no hinting of its own and laid out a pixel
+# narrower on Windows: PR #328)
+HUD_FONT_SIZE = 16
 
 # ---------------------------------------------------------------------------
 # Elevator ride feel (tuned by eye and ear)

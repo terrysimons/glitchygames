@@ -21,6 +21,7 @@ from clockwork_keep.constants import (
     HUD_TEXT_COLOR,
     JUMP_VELOCITY,
     JUMP_VELOCITY_RUNNING,
+    LAYER_HUD,
     LAYER_TERRAIN,
     MAX_FALL_SPEED,
     PIT_DEATH_THRESHOLD,
@@ -63,6 +64,7 @@ from glitchygames.replay.tools.golden_traces import (
 )
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene
 from glitchygames.scenes.builtin_scenes.pause_scene import PauseScene
+from glitchygames.sprites.hud_label import HudLabel
 from glitchygames.state import DiskSaveManager
 from glitchygames.testing.keys import qwerty_scancode
 from glitchygames.transitions import FadeTransition
@@ -1232,6 +1234,74 @@ class TestDeathAndHighScores:
 
     def test_no_saved_scores_load_as_none(self, saving_scene):
         assert saving_scene._load_high_scores() == []
+
+
+class TestHud:
+    """The score, lives and floor name are sprites in the scene's group, on top of everything."""
+
+    def test_before_setup_the_scene_has_no_hud_labels(self, clockwork_scene):
+        assert clockwork_scene.score_label is None
+        assert not [s for s in clockwork_scene.all_sprites if isinstance(s, HudLabel)]
+
+    def test_every_label_is_in_the_bundled_vera_bold_at_16(self, clockwork_scene):
+        """A font with its own hinting measures the same on every platform (PR #328).
+
+        pygame's default font has none, so Windows laid it out a pixel narrower than macOS and
+        Linux, and the recordings' HUD sprites differed there.
+        """
+        clockwork_scene.setup()
+        labels = [s for s in clockwork_scene.all_sprites if isinstance(s, HudLabel)]
+        assert labels
+        for label in labels:
+            font = label.style.font
+            assert (font.name, font.style_name, font.point_size) == (
+                'Bitstream Vera Sans',
+                'Bold',
+                16,
+            )
+
+    def test_after_setup_the_labels_are_on_the_top_layer_in_the_huds_order(self, clockwork_scene):
+        clockwork_scene.setup()
+        score = clockwork_scene.score_label
+        lives = clockwork_scene.lives_label
+        floor = clockwork_scene.floor_label
+        assert score is not None
+        assert lives is not None
+        assert floor is not None
+        labels = [s for s in clockwork_scene.all_sprites if isinstance(s, HudLabel)]
+        assert labels == [score.shadow, score, lives.shadow, lives, floor.shadow, floor]
+        assert {clockwork_scene.all_sprites.get_layer_of_sprite(label) for label in labels} == {
+            LAYER_HUD
+        }
+        assert clockwork_scene.all_sprites.get_top_layer() == LAYER_HUD
+        assert floor.text == f'Floor: {clockwork_scene.floor_data.name}'
+
+    def test_setup_again_on_resuming_from_pause_keeps_one_set_of_labels(self, clockwork_scene):
+        """Resuming runs setup() again: a second set of labels would draw the HUD twice."""
+        clockwork_scene.setup()
+        labels = [s for s in clockwork_scene.all_sprites if isinstance(s, HudLabel)]
+        clockwork_scene.setup()
+        assert [s for s in clockwork_scene.all_sprites if isinstance(s, HudLabel)] == labels
+
+    def test_the_floor_name_is_centred_as_before(self, clockwork_scene):
+        """(screen width - text width) // 2, the shadow a pixel right and down."""
+        clockwork_scene.setup()
+        floor = clockwork_scene.floor_label
+        assert floor is not None
+        assert floor.shadow is not None
+        floor_x = (clockwork_scene.screen_width - floor.rect.width) // 2
+        assert floor.rect.topleft == (floor_x, 10)
+        assert floor.shadow.rect.topleft == (floor_x + 1, 11)
+
+    def test_each_frame_shows_that_frames_score_and_lives(self, clockwork_scene):
+        clockwork_scene.setup()
+        clockwork_scene.player.score = 4200
+        clockwork_scene.player.lives = 2
+        clockwork_scene.render(pygame.Surface((800, 480)))
+        assert clockwork_scene.score_label is not None
+        assert clockwork_scene.lives_label is not None
+        assert clockwork_scene.score_label.text == 'Score: 4200'
+        assert clockwork_scene.lives_label.text == 'Lives: 2'
 
 
 class TestFloorInput:

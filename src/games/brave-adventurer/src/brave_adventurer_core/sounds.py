@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Final
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.audio.effects import Effect, Tone
-from glitchygames.audio.library import Sound  # ruff: ignore[typing-only-first-party-import] - pydantic checks BraveAdventurerSounds' fields at runtime
+from glitchygames.audio.library import Sound
 from glitchygames.audio.synth import Envelope, Waveform
 
 if TYPE_CHECKING:

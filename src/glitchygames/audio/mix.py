@@ -25,11 +25,11 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from glitchygames.audio.instrument import (
-    Instrument,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MixPart.instrument at runtime
+    Instrument,
 )
 from glitchygames.audio.render import render_sound, rendered_frame_count
 from glitchygames.audio.spec import (
-    SoundSpec,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MixedPart.spec at runtime
+    SoundSpec,
 )
 
 if TYPE_CHECKING:

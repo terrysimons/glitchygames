@@ -40,13 +40,13 @@ from typing import TYPE_CHECKING, Any, Self, cast
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from glitchygames.build_info import (
-    SourceRevision,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.source_revision at runtime
+    SourceRevision,
 )
 from glitchygames.machine_state import (
-    MachineState,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.machine_state at runtime
+    MachineState,
 )
 from glitchygames.timing import (
-    PacingTimer,  # ruff: ignore[typing-only-first-party-import] - pydantic resolves MeasurementRun.pacing_timer at runtime
+    PacingTimer,
 )
 
 if TYPE_CHECKING:

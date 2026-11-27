@@ -44,6 +44,8 @@ LAYER_TERRAIN = 4
 LAYER_COLLECTIBLES = 5
 LAYER_ENEMIES = 6
 LAYER_PLAYER = 7
+# The score and lives labels, over everything
+LAYER_HUD = 8
 
 # Animation tuning
 # Speed: radians per second for sin-based animation (~0.8 cycles/sec)
@@ -84,6 +86,10 @@ OASIS_TRUNK = (100, 70, 30)
 OASIS_WATER = (70, 130, 170)
 HUD_TEXT_COLOR = (255, 255, 255)
 HUD_SHADOW_COLOR = (0, 0, 0)
+# The HUD's font is the bundled Vera Bold at this size: Vera hints itself, so it measures the same
+# on every platform (pygame's default font has no hinting of its own and laid out a pixel
+# narrower on Windows: PR #328)
+HUD_FONT_SIZE = 16
 
 # Rock and grass detail colors
 ROCK_COLOR = (160, 145, 125)

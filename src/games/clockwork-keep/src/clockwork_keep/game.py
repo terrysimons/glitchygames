@@ -38,10 +38,12 @@ from clockwork_keep.constants import (
     GEAR_PLATFORM,
     GEAR_PLATFORM_TOP,
     GROUND_SNAP_TOLERANCE,
+    HUD_FONT_SIZE,
     HUD_SHADOW_COLOR,
     HUD_TEXT_COLOR,
     LAYER_COLLECTIBLES,
     LAYER_FAR_BACKGROUND,
+    LAYER_HUD,
     PARALLAX_FAR,
     PIT_DEATH_THRESHOLD,
 )
@@ -62,11 +64,12 @@ from glitchygames.collision.layers import collision_rect_offset, get_sprite_coll
 from glitchygames.collision.solids import feet_land_on_surface
 from glitchygames.effects.shake import RumbleSettings, Shake, ShakeAxis, ShakeStyle, ShakeTarget
 from glitchygames.engine import GameEngine
-from glitchygames.fonts import FontManager
+from glitchygames.fonts import font_manager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import GameOverScene, TextSprite
 from glitchygames.sprites import Sprite
+from glitchygames.sprites.hud_label import HudAnchor, HudLabel, HudLabelStyle
 from glitchygames.state import SaveManager, open_saves
 from glitchygames.state.high_scores import (
     HighScoreEntry,
@@ -340,8 +343,12 @@ class ClockworkKeepScene(Scene):
         # Input
         self.actions = self._create_action_map(options=self.options)
 
-        # HUD
+        # HUD font, and the score, lives and floor labels (sprites in the scene's group, made in
+        # setup)
         self.hud_font: pygame.font.Font | None = None
+        self.score_label: HudLabel | None = None
+        self.lives_label: HudLabel | None = None
+        self.floor_label: HudLabel | None = None
 
     def _build_platforms(
         self: Self, *, platform_color: tuple[int, int, int], top_color: tuple[int, int, int]
@@ -479,7 +486,9 @@ class ClockworkKeepScene(Scene):
     def setup(self: Self) -> None:
         """Set up the floor scene."""
         super().setup()
-        self.hud_font = pygame.font.Font(None, 28)
+        self.hud_font = hud_font = font_manager.bundled_font(bold=True, size=HUD_FONT_SIZE)
+        if self.score_label is None:
+            self._add_hud_labels(font=hud_font)
         # The engine aims the camera at the player each frame (both axes; the bounds above
         # keep it from scrolling sideways) and places every world sprite from it
         self.camera.follow(target=self.player, axes=FollowAxes.BOTH)
@@ -1165,44 +1174,89 @@ class ClockworkKeepScene(Scene):
         """
         # Set in __init__ (the setter takes no None); the getter is typed for before Scene.__init__
         screen.fill(required(self.background_color, what='the scene background colour'))
+        self._show_score_and_lives()
+        # The HUD labels are in the top layer, so the group draws them last
         self.all_sprites.clear(screen, self.background)
         self.all_sprites.draw(screen)
-        self._draw_hud(screen)
         self.rects = None  # Full screen update
 
-    def _draw_hud(self: Self, screen: pygame.Surface) -> None:
-        """Draw score, lives, and floor indicator.
+    def _add_hud_labels(self: Self, *, font: pygame.font.Font) -> None:
+        """Add the score, lives and floor labels to the group (once: resuming runs setup again).
 
         Args:
-            screen: Display surface.
+            font: The HUD font.
 
         """
-        if self.hud_font is None:
-            return
+        # Each label's shadow is its own sprite, added just before it: score, lives and floor,
+        # each shadow first, the order the HUD was blitted in before it became sprites
+        self.score_label = self._hud_label(font=font, text=self._score_text(), position=(10, 10))
+        self.lives_label = self._hud_label(
+            font=font, text=self._lives_text(), position=(self.screen_width - 110, 10)
+        )
+        self.floor_label = self._hud_label(
+            font=font,
+            text=f'Floor: {self.floor_data.name}',
+            position=(self.screen_width // 2, 10),
+            anchor=HudAnchor.TOP_CENTER,
+        )
 
-        antialias = FontManager.antialias()
-        score_text = f'Score: {self.player.score}'
-        lives_text = f'Lives: {self.player.lives}'
-        floor_text = f'Floor: {self.floor_data.name}'
+    def _hud_label(
+        self: Self,
+        *,
+        font: pygame.font.Font,
+        text: str,
+        position: tuple[int, int],
+        anchor: HudAnchor = HudAnchor.TOP_LEFT,
+    ) -> HudLabel:
+        """Return a shadowed HUD label in the scene's group, on the top layer.
 
-        # Score (top left)
-        shadow = self.hud_font.render(score_text, antialias, HUD_SHADOW_COLOR)
-        screen.blit(shadow, (11, 11))
-        text = self.hud_font.render(score_text, antialias, HUD_TEXT_COLOR)
-        screen.blit(text, (10, 10))
+        Args:
+            font: The HUD font.
+            text: The text to show first.
+            position: Where the anchor point is.
+            anchor: Which point of the text ``position`` names.
 
-        # Lives (top right)
-        shadow = self.hud_font.render(lives_text, antialias, HUD_SHADOW_COLOR)
-        screen.blit(shadow, (self.screen_width - 109, 11))
-        text = self.hud_font.render(lives_text, antialias, HUD_TEXT_COLOR)
-        screen.blit(text, (self.screen_width - 110, 10))
+        Returns:
+            The label (its shadow is added just before it).
 
-        # Floor name (top center)
-        shadow = self.hud_font.render(floor_text, antialias, HUD_SHADOW_COLOR)
-        floor_x = (self.screen_width - shadow.get_width()) // 2
-        screen.blit(shadow, (floor_x + 1, 11))
-        text = self.hud_font.render(floor_text, antialias, HUD_TEXT_COLOR)
-        screen.blit(text, (floor_x, 10))
+        """
+        return HudLabel(
+            groups=self.all_sprites,
+            text=text,
+            position=position,
+            style=HudLabelStyle(
+                font=font,
+                color=HUD_TEXT_COLOR,
+                anchor=anchor,
+                shadow_color=HUD_SHADOW_COLOR,
+                layer=LAYER_HUD,
+            ),
+        )
+
+    def _score_text(self: Self) -> str:
+        """Return the score label's text.
+
+        Returns:
+            ``Score: N``.
+
+        """
+        return f'Score: {self.player.score}'
+
+    def _lives_text(self: Self) -> str:
+        """Return the lives label's text.
+
+        Returns:
+            ``Lives: N``.
+
+        """
+        return f'Lives: {self.player.lives}'
+
+    def _show_score_and_lives(self: Self) -> None:
+        """Give the HUD labels this frame's score and lives (each renders only when it changes)."""
+        if self.score_label is not None:
+            self.score_label.text = self._score_text()
+        if self.lives_label is not None:
+            self.lives_label.text = self._lives_text()
 
 
 class ClockworkKeepVictoryScene(GameOverScene):

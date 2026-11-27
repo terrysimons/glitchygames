@@ -23,6 +23,7 @@ import dataclasses
 import difflib
 import logging
 import tomllib
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -87,7 +88,7 @@ from glitchygames.effects.easing import get_easing
 from glitchygames.engine_context import EngineContext
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
 
 log: logging.Logger = logging.getLogger('game.audio.assets')
 
