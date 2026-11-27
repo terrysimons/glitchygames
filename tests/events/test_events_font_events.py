@@ -17,6 +17,7 @@ from glitchygames.events import (
     UnhandledEventError,
 )
 from glitchygames.fonts import FontManager
+from glitchygames.fonts.font_manager import bundled_font_path
 from glitchygames.scenes import Scene
 from tests.harness import imported_engine_directory
 
@@ -451,8 +452,12 @@ class TestFontManagerCoverage:
 
         system_font_lookup.assert_called_once_with('arial', 16, bold=False, italic=False)
         assert isinstance(result, pygame.font.Font)
-        # pygame's default font at the requested size
-        assert result.get_height() == pygame.font.Font(None, 16).get_height()
+        # The bundled Vera at the requested size, never pygame's default font (laid out
+        # differently on Windows: tests/test_text_uses_bundled_fonts.py)
+        assert (
+            result.get_height()
+            == pygame.font.Font(bundled_font_path(font_name='Vera'), 16).get_height()
+        )
 
     def test_pygame_font_method_default_config(self, mocker):
         """Test pygame_font method with default configuration."""

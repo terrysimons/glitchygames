@@ -42,7 +42,9 @@
   `src/games/brave-adventurer/src/brave_adventurer_modes/title.py`,
   `src/games/clockwork-keep/src/clockwork_keep/game.py`, `src/games/mr-muncher/src/mr_muncher/game.py`,
   `scripts/ai_behaviour/recordings/*.jsonl.gz`, `tests/test_text_uses_bundled_fonts.py`,
-  `tests/fonts/test_font_manager.py`, `src/games/clockwork-keep/tests/test_clockwork_keep.py`.
+  `tests/fonts/test_font_manager.py`, `tests/events/test_events_font_events.py`,
+  `src/games/clockwork-keep/tests/test_clockwork_keep.py`, `tests/test_suite_collection.py` (the
+  guard is a source guard over the members, so it may reach `scripts/`).
 - **Siblings (swept)**: `pygame.freetype` fonts come only from `FontManager` (bundled by default)
   and the shared helpers; tests may use the default font (not scanned, not shipped). Covered: all
   shipped code. Not covered: recordings outside goldens and demos are still replayed by nothing.
