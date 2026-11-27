@@ -53,6 +53,7 @@ from glitchygames.display_mode import set_display_mode
 from glitchygames.effects.shake import Shake, ShakeStyle, ShakeTarget
 from glitchygames.events.base import HashableEvent
 from glitchygames.exit_codes import ExitCode
+from glitchygames.fonts import font_manager
 from glitchygames.pixel_snap import PixelSnapMode, snap_to_pixel
 from glitchygames.replay.tools.golden_traces import (
     GoldenTraceEngine,
@@ -1679,7 +1680,12 @@ class TestClockFaceVictory:
         victory.setup()
 
         antialias = True
-        title_size = pygame.font.Font(None, 48).render('VICTORY!', antialias, (0, 0, 0)).get_size()
+        title_size = (
+            font_manager
+            .bundled_font(bold=True, size=28)
+            .render('VICTORY!', antialias, (0, 0, 0))
+            .get_size()
+        )
         assert victory.text_sprite is not None
         assert victory.text_sprite.image.get_size() == title_size
         assert victory.text_sprite in victory.all_sprites

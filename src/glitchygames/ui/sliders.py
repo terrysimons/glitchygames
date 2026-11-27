@@ -14,7 +14,7 @@ import pygame
 from pygame import Rect
 
 from glitchygames.color import MAX_COLOR_CHANNEL_VALUE, RGBA_COMPONENT_COUNT
-from glitchygames.fonts import FontManager
+from glitchygames.fonts import FontManager, font_manager
 from glitchygames.opacity import make_opaque
 from glitchygames.sprites import (
     BitmappySprite,
@@ -52,6 +52,10 @@ MAX_COLOR_TEXT_INPUT_LENGTH = 3
 DECIMAL_INPUT_FORMAT = '%d'
 HEX_INPUT_FORMAT = '%X'
 HEX_DIGIT_LETTERS = 'abcdef'
+
+# The tabs' labels: the bundled Vera Bold at the height pygame's default font had at 16 (a
+# default-font size draws at 0.6875 of itself, and Vera Bold is taller per point)
+TAB_FONT_SIZE = 9
 
 
 class ColorChannel(StrEnum):
@@ -636,7 +640,7 @@ class TabControlSprite(BitmappySprite):
                 # Draw tab text
                 try:
                     if self._tab_font is None:
-                        self._tab_font = pygame.font.Font(None, 16)
+                        self._tab_font = font_manager.bundled_font(bold=True, size=TAB_FONT_SIZE)
                     text_surface = self._tab_font.render(
                         tab_text, FontManager.antialias(), self.text_color
                     )

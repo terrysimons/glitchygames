@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 import pygame
 
 from glitchygames.color import BLACK
-from glitchygames.fonts import FontManager
+from glitchygames.fonts import FontManager, font_manager
 from glitchygames.scenes import Scene
 
 if TYPE_CHECKING:
@@ -67,7 +67,7 @@ class GameOverScene(Scene):
             'GAME OVER',
             (center_x, current_y),
             color=(255, 0, 0),
-            font_size=48,
+            font_size=28,
         )
         self.all_sprites.add(self.text_sprite)
         current_y += 60
@@ -78,7 +78,7 @@ class GameOverScene(Scene):
                 f'Score: {self.final_score}',
                 (center_x, current_y),
                 color=(255, 255, 100),
-                font_size=32,
+                font_size=18,
             )
             self.all_sprites.add(score_sprite)
             current_y += 50
@@ -89,7 +89,7 @@ class GameOverScene(Scene):
                 'HIGH SCORES',
                 (center_x, current_y),
                 color=(200, 200, 200),
-                font_size=28,
+                font_size=16,
             )
             self.all_sprites.add(header)
             current_y += 35
@@ -101,7 +101,7 @@ class GameOverScene(Scene):
                     f'{rank}. {score_value}',
                     (center_x, current_y),
                     color=(180, 180, 180),
-                    font_size=24,
+                    font_size=13,
                 )
                 self.all_sprites.add(entry_sprite)
                 current_y += 30
@@ -112,7 +112,7 @@ class GameOverScene(Scene):
             'Press SPACE or START to restart, ESC or BACK to quit',
             (center_x, current_y),
             color=(255, 255, 255),
-            font_size=24,
+            font_size=13,
         )
         self.all_sprites.add(subtitle)
         log.info('GameOverScene setup() completed')
@@ -246,7 +246,7 @@ class TextSprite(Sprite):
         text: str,
         position: tuple[int, int],
         color: tuple[int, int, int] = (255, 255, 255),
-        font_size: int = 24,
+        font_size: int = 13,
         **kwargs: Any,
     ) -> None:
         """Initialize the text sprite.
@@ -255,12 +255,14 @@ class TextSprite(Sprite):
             text: The text to display.
             position: The position of the text (x, y).
             color: The color of the text.
-            font_size: The size of the font.
+            font_size: The point size of the bundled Vera Bold it is drawn in.
             **kwargs: Additional keyword arguments.
 
         """
-        # Create a font
-        font = pygame.font.Font(None, font_size)
+        # The bundled Vera Bold, never pygame's default font: SDL_ttf lays the default font out
+        # differently on Windows (1 px narrower at 28 points, PR #328), and this sprite's rect is
+        # the text's size, so a recording made on one platform diverged on another
+        font = font_manager.bundled_font(bold=True, size=font_size)
 
         # Render the text
         text_surface = font.render(text, FontManager.antialias(), color)

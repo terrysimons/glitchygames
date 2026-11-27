@@ -588,8 +588,11 @@ class FontManager(ResourceManager, metaclass=ReadOnlyViews):
                 ),
             )
         except TypeError, FileNotFoundError:
-            # Fall back to default font
-            fallback_font = pygame.font.Font(None, settings.pygame_font_size)
+            # Fall back to the bundled default (Vera), never pygame's own default font, which
+            # SDL_ttf lays out differently on Windows (PR #328)
+            fallback_font = pygame.font.Font(
+                bundled_font_path(font_name=DEFAULT_FONT_NAME), settings.pygame_font_size
+            )
             fallback_font.set_bold(settings.bold)
             fallback_font.set_italic(settings.italic)
             loaded_font = cast('GameFont', fallback_font)

@@ -1488,7 +1488,7 @@ class MrMuncherGameOverScene(GameOverScene):
                 headline,
                 (self.screen_width // 2, self.screen_height // 4 - 50),
                 color=TITLE_COLOR,
-                font_size=28,
+                font_size=16,
             )
         )
 

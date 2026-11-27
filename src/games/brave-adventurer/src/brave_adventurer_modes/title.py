@@ -32,7 +32,7 @@ from brave_adventurer_core.constants import HUD_SHADOW_COLOR, HUD_TEXT_COLOR, SK
 from brave_adventurer_core.drawing import draw_pyramids, draw_sky
 from brave_adventurer_core.sounds import EFFECTS
 from brave_adventurer_papyrus.game import PapyrusBraveAdventurerScene
-from glitchygames.fonts import FontManager
+from glitchygames.fonts import FontManager, font_manager
 from glitchygames.input import ActionMap
 from glitchygames.scenes import Scene
 from glitchygames.scenes.builtin_scenes.game_over_scene import TextSprite
@@ -48,15 +48,15 @@ log = logging.getLogger('game')
 
 # The title, and the line of help under the cards
 TITLE_TEXT = 'BRAVE ADVENTURER'
-TITLE_FONT_SIZE = 72
+TITLE_FONT_SIZE = 42
 TITLE_CENTER_Y = 70
 # Drawn this far down and right of the title, in HUD_SHADOW_COLOR, so it reads over the sky
 TITLE_SHADOW_OFFSET = 3
 SUBTITLE_TEXT = 'Choose your adventure'
-SUBTITLE_FONT_SIZE = 30
+SUBTITLE_FONT_SIZE = 17
 SUBTITLE_CENTER_Y = 120
 HELP_TEXT = 'Arrows or D-pad: choose    Return, Space or A: start    Q or Back: quit'
-HELP_FONT_SIZE = 24
+HELP_FONT_SIZE = 13
 HELP_BOTTOM_MARGIN = 28
 
 # The cards: one per game, stacked, centred
@@ -64,8 +64,8 @@ CARD_SIZE = (620, 96)
 CARD_TOP_Y = 160
 CARD_GAP = 20
 CARD_PADDING = 16
-CARD_NAME_FONT_SIZE = 40
-CARD_DESCRIPTION_FONT_SIZE = 26
+CARD_NAME_FONT_SIZE = 23
+CARD_DESCRIPTION_FONT_SIZE = 14
 CARD_BORDER_RADIUS = 10
 # The chosen card: a darker panel with a gold border and a gold name; the other is fainter
 CHOSEN_PANEL_COLOR = (20, 16, 8, 190)
@@ -186,8 +186,10 @@ class GameChoiceCard(Sprite):
         )
         self.choice = choice
         self.selected = selected
-        self._name_font = pygame.font.Font(None, CARD_NAME_FONT_SIZE)
-        self._description_font = pygame.font.Font(None, CARD_DESCRIPTION_FONT_SIZE)
+        self._name_font = font_manager.bundled_font(bold=True, size=CARD_NAME_FONT_SIZE)
+        self._description_font = font_manager.bundled_font(
+            bold=True, size=CARD_DESCRIPTION_FONT_SIZE
+        )
         self._draw()
 
     def select(self: Self, *, selected: bool) -> None:
