@@ -300,7 +300,9 @@ once). Measured gain from no longer calling `Font.render` six to nine times a fr
   font manager's fallback) move on a later branch. Re-recording for the new font is the first
   re-record of sprites the recordings already hold, drawn differently, so part C's check gained
   two allowances (the owner, 2026-11-26): sprites whose rect may change, and tests whose frames
-  may differ only inside named boxes, judged from saved images.
+  may differ only inside named boxes, judged from saved images. That re-record's plan file is
+  `quality/re-records/2026-11-26-hud-vera-bold-16.toml` (committed at the owner's word,
+  2026-11-26; its header says how to put OLD back and run it from the repository root).
 
 **B. `Scene.pause()` replaces the hand-built pause scenes** at Brave 813 (`_pause_game`),
 Clockwork 1050 (focus loss) and 1065, and Mr. Muncher `game.py:1262`: the same `next_scene =
