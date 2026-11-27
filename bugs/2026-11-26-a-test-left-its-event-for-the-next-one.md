@@ -32,8 +32,24 @@
   starts, so no test is at fault) and input events (on a real driver they can come from the
   machine itself). An event posted by a thread after its test ended would be reported on the test
   that was running when it arrived.
+- **Timed posts (found by #331's CI)**: CircleCI job 6275 (macOS, `846d5d7f8`) failed
+  `tests/test_host.py::TestGameHost::test_run_is_the_blocking_loop` on an FPSEVENT. A frame posts
+  FPSEVENT at the end of `_finish_frame`, after its own pump, once half of `fps_log_interval_ms`
+  has passed on the frame clock, so the last frame of a run can leave one that no frame takes, and
+  only on a machine slow enough to cross that time. Reproduced every time with the interval at 0.
+  The engine already emptied the queue at a run's end (`discard_events_left_at_the_runs_end`,
+  BUGS.md #276), but only in `GameEngine`'s teardown, which a stand-in engine never reaches. Now
+  `SceneManager.end_frames` empties it too, where every driver of the frame loop ends (`start`,
+  the host, an inner game, the replay viewer), and so does the golden-trace harness's
+  `GoldenTraceSceneManager.uninstall`, which steps frames itself. To find every test that could
+  leave a timed post, the whole suite ran with every frame posting FPSEVENT: three more did
+  (`test_frame_seconds_sets_dt`, ended now by `uninstall`; the timer-pacing and benchmark frame
+  steppers, which now end their runs with `end_frames`). That run also hung two workers in
+  `tests/inner_game_tiles.py` (an FPSEVENT every frame, never a real setting): not investigated.
 - **Files**: `tests/harness.py`, `tests/test_harness_empties_the_event_queue.py`,
-  `tests/test_ai_console.py`.
+  `tests/test_ai_console.py`, `src/glitchygames/scenes/scene.py`,
+  `src/glitchygames/replay/tools/golden_traces.py`, `tests/test_host.py`,
+  `tests/scenes/test_scene_timer_pacing.py`, `tests/benchmarks/test_engine_context_benchmarks.py`.
 - **Siblings (swept)**: The private event queue of an inner game and the record of pending internal
   posts are context slots, isolated per test (`tests/test_engine_context.py`). Blocked event types
   are put back after each test (`tests/engine_written_state.py`). `pygame.time.set_timer` never
