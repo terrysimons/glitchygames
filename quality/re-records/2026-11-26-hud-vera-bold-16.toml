@@ -25,10 +25,10 @@ new = "src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz
 
 [pair.allowances]
 sprite_ids_whose_rect_changes = [
-    "HudLabel#0",
-    "HudLabel#1",
-    "HudLabel#2",
-    "HudLabel#3",
+  "HudLabel#0",
+  "HudLabel#1",
+  "HudLabel#2",
+  "HudLabel#3",
 ]
 
 [[pair]]
@@ -37,10 +37,10 @@ new = "src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz
 
 [pair.allowances]
 sprite_ids_whose_rect_changes = [
-    "HudLabel#0",
-    "HudLabel#1",
-    "HudLabel#2",
-    "HudLabel#3",
+  "HudLabel#0",
+  "HudLabel#1",
+  "HudLabel#2",
+  "HudLabel#3",
 ]
 
 [[pair]]
@@ -49,10 +49,10 @@ new = "src/games/brave-adventurer/src/brave_adventurer_modes/demos/classic.jsonl
 
 [pair.allowances]
 sprite_ids_whose_rect_changes = [
-    "HudLabel#0",
-    "HudLabel#1",
-    "HudLabel#2",
-    "HudLabel#3",
+  "HudLabel#0",
+  "HudLabel#1",
+  "HudLabel#2",
+  "HudLabel#3",
 ]
 
 [[pair]]
@@ -61,10 +61,10 @@ new = "src/games/brave-adventurer/src/brave_adventurer_modes/demos/papyrus.jsonl
 
 [pair.allowances]
 sprite_ids_whose_rect_changes = [
-    "HudLabel#0",
-    "HudLabel#1",
-    "HudLabel#2",
-    "HudLabel#3",
+  "HudLabel#0",
+  "HudLabel#1",
+  "HudLabel#2",
+  "HudLabel#3",
 ]
 
 [[pair]]
@@ -73,12 +73,12 @@ new = "src/games/clockwork-keep/tests/fixtures/replays/golden.jsonl.gz"
 
 [pair.allowances]
 sprite_ids_whose_rect_changes = [
-    "HudLabel#0",
-    "HudLabel#1",
-    "HudLabel#2",
-    "HudLabel#3",
-    "HudLabel#4",
-    "HudLabel#5",
+  "HudLabel#0",
+  "HudLabel#1",
+  "HudLabel#2",
+  "HudLabel#3",
+  "HudLabel#4",
+  "HudLabel#5",
 ]
 
 [[pair]]
@@ -87,12 +87,12 @@ new = "src/games/clockwork-keep/src/clockwork_keep/demos/climb.jsonl.gz"
 
 [pair.allowances]
 sprite_ids_whose_rect_changes = [
-    "HudLabel#0",
-    "HudLabel#1",
-    "HudLabel#2",
-    "HudLabel#3",
-    "HudLabel#4",
-    "HudLabel#5",
+  "HudLabel#0",
+  "HudLabel#1",
+  "HudLabel#2",
+  "HudLabel#3",
+  "HudLabel#4",
+  "HudLabel#5",
 ]
 
 [[pixels.only_after]]
@@ -111,682 +111,682 @@ reason = "a new test: the HUD's font is Vera Bold 16"
 nodeid = "src/games/brave-adventurer/tests/classic/test_brave_adventurer_classic.py::TestVoiceAssistantNeverStartsInAReplay::test_a_replay_discovers_no_voice_assistant"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/core/test_brave_adventurer_both_editions.py::TestMain::test_main_replays_the_golden_recording[golden-classic-brave_adventurer.game]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/core/test_brave_adventurer_both_editions.py::TestMain::test_main_replays_the_golden_recording[golden-papyrus-brave_adventurer_papyrus.game]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/core/test_brave_adventurer_both_editions.py::TestQuitKey::test_quit_position_ends_the_run[brave_adventurer]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/core/test_brave_adventurer_both_editions.py::TestQuitKey::test_quit_position_ends_the_run[brave_adventurer_papyrus]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestRecordings::test_a_recording_starts_its_own_game[golden0-brave_adventurer.game]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestRecordings::test_a_recording_starts_its_own_game[golden1-brave_adventurer_papyrus.game]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_a_recording_made_from_the_launcher_replays_through_it"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[13-classic]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[13-down-down]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[13-down]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[13-left-wraps]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[13-right]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[13-up-wraps]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[32-classic]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[32-down-down]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[32-down]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[32-left-wraps]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[32-right]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/brave-adventurer/tests/test_brave_adventurer_modes.py::TestTheTitleScreen::test_choosing_on_the_title_screen_starts_that_game[32-up-wraps]"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        102,
-        21,
-    ],
-    [
-        10,
-        10,
-        102,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
+  [
+    11,
+    11,
+    102,
+    21,
+  ],
+  [
+    10,
+    10,
+    102,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/clockwork-keep/tests/test_clockwork_keep.py::TestFloorInput::test_the_quit_key_ends_the_run"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        89,
-        21,
-    ],
-    [
-        10,
-        10,
-        89,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
-    [
-        313,
-        11,
-        176,
-        21,
-    ],
-    [
-        312,
-        10,
-        176,
-        21,
-    ],
+  [
+    11,
+    11,
+    89,
+    21,
+  ],
+  [
+    10,
+    10,
+    89,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
+  [
+    313,
+    11,
+    176,
+    21,
+  ],
+  [
+    312,
+    10,
+    176,
+    21,
+  ],
 ]
 
 [[pixels.changed]]
 nodeid = "src/games/clockwork-keep/tests/test_clockwork_keep.py::test_main_runs_the_game_through_the_engine"
 reason = "the HUD is Vera Bold 16: only the labels' pixels change"
 within = [
-    [
-        11,
-        11,
-        89,
-        21,
-    ],
-    [
-        10,
-        10,
-        89,
-        21,
-    ],
-    [
-        691,
-        11,
-        73,
-        21,
-    ],
-    [
-        690,
-        10,
-        73,
-        21,
-    ],
-    [
-        313,
-        11,
-        176,
-        21,
-    ],
-    [
-        312,
-        10,
-        176,
-        21,
-    ],
+  [
+    11,
+    11,
+    89,
+    21,
+  ],
+  [
+    10,
+    10,
+    89,
+    21,
+  ],
+  [
+    691,
+    11,
+    73,
+    21,
+  ],
+  [
+    690,
+    10,
+    73,
+    21,
+  ],
+  [
+    313,
+    11,
+    176,
+    21,
+  ],
+  [
+    312,
+    10,
+    176,
+    21,
+  ],
 ]
