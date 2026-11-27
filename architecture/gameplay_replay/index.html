@@ -4729,10 +4729,12 @@ inputs and <code>dt</code>, so every difference between OLD and NEW is the code'
 OLD, the check proves that the change altered only what it was meant to:</p>
 <ol>
 <li>Rebaseline each recording into a scratch folder, keeping OLD where it is.</li>
-<li>Write a plan (<abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr>) naming each pair and what may differ: new sprite ids, new internal
-   event types, named header or frame fields with a reason each, and the tests the change adds,
-   renames or removes, which run in only one of the two suites in step 3 (the script's
-   docstring has the format). Write Windows paths in single quotes or with forward slashes: in
+<li>Write a plan (<abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr>) naming each pair and what may differ: new sprite ids, sprites OLD
+   already has whose rect changes (drawn at another size or place), new internal event types,
+   named header or frame fields with a reason each, the tests the change adds, renames or
+   removes, which run in only one of the two suites in step 3, and the tests whose frames the
+   change alters on purpose, with the boxes they may differ in (the script's docstring has the
+   format). Write Windows paths in single quotes or with forward slashes: in
    double quotes <abbr title="Tom's Obvious, Minimal Language: the sprite and settings file format">TOML</abbr> reads their backslashes as escapes.</li>
 <li>Record the suite's frames under the frame fingerprints plugin on the commit before the
    change and on the change (<code>pytest -p glitchygames.testing.frame_fingerprints
@@ -4742,11 +4744,18 @@ OLD, the check proves that the change altered only what it was meant to:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>scripts.check_rebaselined_recordings<span class="w"> </span>--plan<span class="w"> </span>PLAN.toml<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span>--fingerprints-before<span class="w"> </span>BEFORE<span class="w"> </span>--fingerprints-after<span class="w"> </span>AFTER
 </span></code></pre></div>
+<ol>
+<li>When the plan names tests whose frames change, the fingerprints (hashes) cannot say where:
+   run step 4 with <code>--write-image-request FILE</code>, re-run those tests on each commit with
+   <code>--frame-images-request FILE --frame-fingerprints DIR</code>, and run the check again with
+   <code>--images-before DIR --images-after DIR</code>. Each such test must present as many frames as
+   before with the same outcome, and every differing frame must differ only inside its boxes.</li>
+</ol>
 <p>The pixel step is required: an allowed sprite's records are not compared, so a new sprite one
 pixel off would pass the recordings' part, and the frames are what show where it is drawn. It
 fails (exit 1) on any difference the plan does not name, on an allowance that matched nothing,
-on any test whose frames differ between the two runs, and on a test in one run only that
-the plan does not name; its report counts every allowed difference per recording and the
+on any test whose frames differ between the two runs (outside its boxes, for a test the plan
+names as changed), and on a test in one run only that the plan does not name; its report counts every allowed difference per recording and the
 frames it compared, which goes in the PR. The
 comparison is <code>src/glitchygames/replay/recording_differences.py</code>, whose docstring says what it
 compares and what it leaves out (the measurement histories, the header fields a rebaseline
@@ -5307,7 +5316,7 @@ play: they have no hitbox and change nothing the game does.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 25, 2026 04:58:02 UTC">November 25, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 27, 2026 10:05:20 UTC">November 27, 2026</span>
   </span>
 
     
