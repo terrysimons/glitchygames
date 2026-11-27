@@ -5,6 +5,7 @@
 # Run from the repository root. OLD is each recording as it was on b86f61f19, the commit before
 # the font change (f3b1459e7); NEW is the recording in the tree since f41d3c2c7. To put OLD back:
 #
+#   mkdir -p build/re-record/old
 #   git archive b86f61f19 \
 #       src/games/brave-adventurer/tests/fixtures/replays/golden-classic.jsonl.gz \
 #       src/games/brave-adventurer/tests/fixtures/replays/golden-papyrus.jsonl.gz \
