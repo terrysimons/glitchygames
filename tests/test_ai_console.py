@@ -1914,6 +1914,7 @@ def test_sprite_never_waits_on_the_frame(tmp_path, scene):
     assert console.running is not None
     held_client(console).hold.set()
     wait_for(console, 'heart.toml')
+    assert [spawn.sprite_name for spawn in posted_spawns()] == ['heart']
 
 
 def test_sprite_refuses_an_empty_description(tmp_path, scene):
@@ -1937,6 +1938,7 @@ def test_sprite_refuses_while_a_request_runs(tmp_path, scene):
     assert '#1 is still running: /cancel to stop it' in transcript(console)
     held_client(console).hold.set()
     wait_for(console, 'heart.toml')
+    assert [spawn.sprite_name for spawn in posted_spawns()] == ['heart']
 
 
 def test_sprite_refuses_with_no_scene(tmp_path):
@@ -2072,6 +2074,7 @@ def test_the_sprite_service_is_built_when_first_used(tmp_path, scene, mocker):
 
     assert console._sprite_service is not None
     assert len(client.requests) == 1
+    assert [spawn.sprite_name for spawn in posted_spawns()] == ['heart']
 
 
 def test_a_game_with_no_folder_says_the_sprite_was_not_saved(tmp_path):
@@ -2149,3 +2152,4 @@ def test_a_sprite_named_like_a_path_is_saved_in_the_sprites_folder(tmp_path, sce
 
     assert [path.name for path in (tmp_path / 'sprites').iterdir()] == ['evil.toml']
     assert not (tmp_path.parent / 'evil.toml').exists()
+    assert len(posted_spawns()) == 1
