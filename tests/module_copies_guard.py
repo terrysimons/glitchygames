@@ -43,6 +43,11 @@ MODULES_LOADED_TWICE_ADVICE = (
     '`coverage report --include=<path>`.'
 )
 
+# A package's __main__ is run as a script, never imported by name, and run afresh each time
+# (glitchygames.testing.entry_points.run_package_as_main takes the last run's out of sys.modules
+# first): its earlier runs' copies are expected, and hold no state anything else reads
+SCRIPT_MODULE_SUFFIX = '.__main__'
+
 # How many of the modules' names the message lists
 NAMES_LISTED = 5
 
@@ -80,6 +85,7 @@ def modules_loaded_twice(*, roots: Iterable[Path]) -> list[str]:
             if (
                 isinstance(value, types.ModuleType)
                 and _is_under(module=value, roots=resolved_roots)
+                and not value.__name__.endswith(SCRIPT_MODULE_SUFFIX)
                 and sys.modules.get(value.__name__) is not value
             ):
                 twice.add(value.__name__)

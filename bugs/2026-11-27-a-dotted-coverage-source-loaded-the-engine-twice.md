@@ -37,5 +37,10 @@
   run ended OK).
 - **Files**: `tests/module_copies_guard.py`, `tests/harness.py`, `tests/test_module_copies_guard.py`.
 - **Siblings (swept)**: Tests that remove modules on purpose (tests/test_import_failure_state.py,
-  pytester's in-process runs) do it inside a test, after the check. A member's dotted source under
+  pytester's in-process runs) do it inside a test, after the check, but an in-process inner run
+  starts a session of its own: the first full run failed 7 such tests in
+  tests/test_engine_written_state.py on an earlier `python -m` run's
+  `zombies_aint_my_neighbors.__main__` (`run_package_as_main` takes it out of `sys.modules` on
+  purpose). A package's `__main__` is run, never imported by name, so its copies are not
+  reported. A member's dotted source under
   `nox -s test` (installed members are outside the roots) is not covered.

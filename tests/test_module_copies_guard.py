@@ -64,6 +64,19 @@ def test_one_copy_and_modules_elsewhere_are_not_reported(tmp_path, monkeypatch):
     assert modules_loaded_twice(roots=(tmp_path,)) == []
 
 
+def test_an_earlier_run_of_a_packages_main_is_not_reported(tmp_path, monkeypatch):
+    """``python -m package`` runs ``__main__`` afresh each time; an earlier copy is expected."""
+    package = module(name='script_package', file=tmp_path / 'script_package' / '__init__.py')
+    earlier_run = module(
+        name='script_package.__main__', file=tmp_path / 'script_package' / '__main__.py'
+    )
+    vars(package)['__main__'] = earlier_run
+    monkeypatch.setitem(sys.modules, 'script_package', package)
+    monkeypatch.delitem(sys.modules, 'script_package.__main__', raising=False)
+
+    assert modules_loaded_twice(roots=(tmp_path,)) == []
+
+
 def test_this_run_loads_each_project_module_once():
     """The run these tests are in passed the check at its start, and nothing split since."""
     assert modules_loaded_twice(roots=(PROJECT_ROOT / 'src', PROJECT_ROOT / 'tests')) == []
