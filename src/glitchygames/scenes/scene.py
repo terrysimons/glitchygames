@@ -48,6 +48,7 @@ from glitchygames.randomness import restore_stream_states
 from glitchygames.read_only_views import ReadOnlyView, ReadOnlyViews
 from glitchygames.recording import (
     SCENE_START_DEVICES_HEADER_FIELD,
+    discard_events_left_at_the_runs_end,
     is_input_post,
     is_live_game_post,
     live_game_code_running,
@@ -1990,8 +1991,16 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         )
 
     def end_frames(self: Self) -> None:
-        """End the run's frames: log why they ended and terminate the scene manager."""
+        """End the run's frames: log why they ended, empty the run's queue, terminate.
+
+        The queue is emptied here, where every driver of the frame loop ends (``start``, the
+        host, an inner game, the replay viewer), and not only in ``GameEngine``'s teardown: a
+        frame posts some events after its own pump (FPSEVENT, at the end of ``_finish_frame``),
+        so the last frame can leave one that no frame will take, depending on how long the run
+        took (bugs/2026-11-26-a-test-left-its-event-for-the-next-one.md).
+        """
         self._log_quit_info()
+        discard_events_left_at_the_runs_end()
         self.terminate()
 
     def _present_held_frame(self: Self) -> None:

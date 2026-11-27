@@ -137,6 +137,8 @@ def test_run_frame_step_per_call(benchmark):
 
     assert manager.active_scene is scene
     assert manager.dt > 0
+    # As an outer driver ends its run: the last frame's own posts are taken off the queue
+    manager.end_frames()
 
 
 def test_reading_an_engine_attribute(benchmark):

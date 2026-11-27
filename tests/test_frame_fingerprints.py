@@ -132,7 +132,13 @@ def colour_fingerprint(*, color: tuple[int, int, int], size: tuple[int, int]) ->
 @pytest.fixture(autouse=True)
 def no_recording_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     """Clear the recording variables a comparing run sets (in-process runs here read them)."""
-    for name in (FINGERPRINTS_VARIABLE, SEED_VARIABLE, OWNER_VARIABLE):
+    for name in (
+        FINGERPRINTS_VARIABLE,
+        SEED_VARIABLE,
+        OWNER_VARIABLE,
+        # A comparing run records only its draws_frames tests (#287): the inner runs here record all
+        frame_fingerprints.DRAWING_ONLY_VARIABLE,
+    ):
         monkeypatch.delenv(name, raising=False)
 
 
