@@ -271,8 +271,7 @@ class BraveAdventurerSceneBase(Scene):
         """Set up the game scene."""
         super().setup()
         self.hud_font = font_manager.bundled_font(bold=True, size=HUD_FONT_SIZE)
-        if self.score_label is None:
-            self._add_hud_labels(font=self.hud_font)
+        self._add_hud_labels(font=self.hud_font)
         # The engine aims the camera at the player each frame (x only: the camera stays at the
         # top of the world) and places every world sprite from it
         self.camera.follow(target=self.player, axes=FollowAxes.X)
@@ -281,7 +280,7 @@ class BraveAdventurerSceneBase(Scene):
         log.info('%s setup complete', self.NAME)
 
     def _add_hud_labels(self: Self, *, font: pygame.font.Font) -> None:
-        """Add the score and lives labels to the scene's group (once: resuming runs setup again).
+        """Add the score and lives labels to the scene's group.
 
         Args:
             font: The HUD font.

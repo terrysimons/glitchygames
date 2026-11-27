@@ -1284,7 +1284,7 @@ class TestSceneMouseEventHandlers:
 
 
 class TestScenePauseAndResume:
-    """Test Scene pause/resume/game_over methods."""
+    """Test Scene pause/unpause/game_over methods."""
 
     def test_pause_requests_a_pause_scene_after_this_frame(self, mocker):
         """pause() sets next_scene instead of switching mid-frame.
@@ -1394,26 +1394,14 @@ class TestScenePauseAndResume:
 
         assert scene_manager.active_scene is first_real_scene
 
-    def test_resume_switches_to_previous_scene(self, mocker):
-        """Test resume() switches back to the previous scene."""
+    def test_unpause_switches_to_the_scene_itself(self, mocker):
+        """unpause() is the paused scene's own: it makes that scene active."""
         scene = Scene()
-        previous = Scene()
-        scene.scene_manager.previous_scene = previous
         scene.scene_manager.switch_to_scene = mocker.Mock()
 
-        scene.resume()
+        scene.unpause()
 
-        scene.scene_manager.switch_to_scene.assert_called_once_with(previous)
-
-    def test_resume_without_previous_scene(self, mocker):
-        """Test resume() when no previous scene exists."""
-        scene = Scene()
-        scene.scene_manager.previous_scene = None
-        scene.scene_manager.switch_to_scene = mocker.Mock()
-
-        scene.resume()
-
-        scene.scene_manager.switch_to_scene.assert_not_called()
+        scene.scene_manager.switch_to_scene.assert_called_once_with(scene)
 
     def test_game_over_creates_game_over_scene(self, mocker):
         """Test game_over() creates and switches to GameOverScene."""

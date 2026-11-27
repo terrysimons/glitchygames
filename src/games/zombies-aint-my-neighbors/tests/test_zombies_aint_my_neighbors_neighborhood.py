@@ -481,7 +481,7 @@ def test_moving_the_camera_down_moves_the_checkerboard():
 
 
 def test_resuming_after_a_pause_lays_no_second_yard():
-    """Setting the scene up again (a resume) keeps its one yard layer."""
+    """Setting the scene up again keeps its one yard layer."""
     scene = neighborhood()
     sprites_before = set(scene.all_sprites.sprites())
 

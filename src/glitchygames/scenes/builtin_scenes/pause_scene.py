@@ -53,6 +53,7 @@ class PauseScene(Scene):
 
     # It presents the paused scene, so it cannot be rebuilt on its own (glitchygames/scene_start.py)
     CAPTURES_SCENE_START: ClassVar[bool] = False
+    PAUSES_PREVIOUS_SCENE: ClassVar[bool] = True
 
     def __init__(self: Self, **kwargs: Any) -> None:
         """Initialize the pause scene.
@@ -100,6 +101,13 @@ class PauseScene(Scene):
 
         self.log.info('Pause scene setup complete')
 
+    def _unpause_game(self: Self) -> None:
+        """Unpause the paused scene, through its own ``unpause()``."""
+        if self._paused_scene is None:
+            self.log.warning('No paused scene found to unpause')
+            return
+        self._paused_scene.unpause()
+
     @property
     @override
     def debug_subject(self: Self) -> Scene:
@@ -135,7 +143,7 @@ class PauseScene(Scene):
             # Spacebar was pressed and now released - resume the game
             self._space_pressed = False
             self.log.info('Resuming game...')
-            self.resume()
+            self._unpause_game()
         else:
             super().on_key_up_event(event)
 
@@ -202,7 +210,7 @@ class PauseScene(Scene):
         """
         if self._gamepad_buttons.button_released(event) is GamepadChoice.CONTINUE:
             self.log.info('Resuming game...')
-            self.resume()
+            self._unpause_game()
 
     @override
     def on_window_focus_gained_event(self: Self, event: WindowEvent) -> None:
@@ -221,4 +229,4 @@ class PauseScene(Scene):
         min_pause_duration = 0.5
         if self.dt_timer > min_pause_duration:
             self.log.info('Window focus regained — auto-resuming')
-            self.resume()
+            self._unpause_game()

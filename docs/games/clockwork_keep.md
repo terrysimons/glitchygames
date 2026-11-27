@@ -113,10 +113,10 @@ flowchart TB
 |---|---|---|
 | Next floor | `_check_elevator` → `_go_to_next_floor` | `transition_to(next_scene, ElevatorTransition(...))`; the engine starts the transition after the frame is presented |
 | Pause | `on_key_down_event` (`pause`), `on_window_focus_lost_event` | `self.next_scene = PauseScene(options=...)`; focus loss after game over does not pause |
-| Resume | `PauseScene.resume()` | Switches back to the paused floor, which keeps all its state |
+| Unpause | `Scene.unpause()`, from the pause screen | Switches back to the paused floor, which keeps all its state |
 | Game over | `_player_die` on the last life | `transition_to(GameOverScene(final_score=..., high_scores=...), FadeTransition(duration=1.0))` |
 | Victory | `_win`, when the Tinker stands on `victory_platform` (the Clock Face's highest platform) | Saves the high score, then `transition_to(ClockworkKeepVictoryScene(final_score=..., high_scores=...), FadeTransition(duration=1.0))`: the engine's `GameOverScene` with its title replaced by VICTORY! |
-| Restart | `GameOverScene.resume()` (also the victory screen's) | `type(previous_scene)(options=...)`: a fresh first floor (the `--floor` one), score 0, 3 lives |
+| Restart | `GameOverScene.play_again()` (also the victory screen's) | `type(previous_scene)(options=...)`: a fresh first floor (the `--floor` one), score 0, 3 lives |
 | Quit | `scene_manager.quit()` | Posts QUIT; the run ends after teardown (BUGS.md #202) |
 
 !!! warning "Never quit with `next_scene = None`"

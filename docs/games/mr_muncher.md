@@ -137,7 +137,7 @@ stateDiagram-v2
         Pause : PauseScene
     }
     Reel --> Pause : ESC, P, Start or focus lost<br/>next_scene = PauseScene
-    Pause --> Reel : SPACE, Start or A released<br/>(setup() runs again)
+    Pause --> Reel : SPACE, Start or A released<br/>unpause()
     Reel --> NextReel : CUT! then flash<br/>next_scene = new scene
     NextReel --> Reel : the same flow
     Reel --> GameOver : THE END shown for 2.5 s<br/>transition_to(..., FadeTransition(1 s))
@@ -156,13 +156,12 @@ Game over
 :   `_show_game_over_screen` fades (1 s `FadeTransition`) to
     `MrMuncherGameOverScene`. This screen shows the engine's GAME OVER layout (score and high
     score table) plus a headline, either `NEW HIGH SCORE!  Reel N` or `You reached reel N`.
-    `resume()` always starts a new game with `switch_to_scene(MrMuncherScene(...))`, because the
+    `play_again()` always starts a new game with `switch_to_scene(MrMuncherScene(...))`, because the
     previous scene depends on how the screen was reached.
 
 Pause
-:   The engine's `PauseScene` shows a frozen screenshot of the game. When play
-    resumes, the scene's `setup()` runs again. That is why `setup()` shows the ready message only
-    while the phase is still `READY`.
+:   The engine's `PauseScene` shows a frozen screenshot of the game. The reel
+    stays set up behind it, its projector held, and `unpause()` plays on.
 
 ### Scene classes
 
@@ -206,7 +205,7 @@ classDiagram
             level_reached : int
             setup()
             replay_arguments()
-            resume()
+            play_again()
         }
     }
 

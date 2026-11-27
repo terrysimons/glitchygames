@@ -339,14 +339,14 @@ class TestGameOverSceneRestart:
 
     @pytest.mark.draws_frames
     def test_restart_without_a_previous_scene_warns_and_stays(self, caplog):
-        """With no previous scene to restart, resume logs a warning and switches nowhere."""
+        """With no previous scene to restart, play_again logs a warning and switches nowhere."""
         scene = GameOverScene()
         scene_manager = SceneManager()
         scene_manager.switch_to_scene(scene)
         assert scene_manager.previous_scene is None
 
         with caplog.at_level('WARNING'):
-            scene.resume()
+            scene.play_again()
 
         assert scene_manager.active_scene is scene
         assert 'No previous scene found to restart' in caplog.text

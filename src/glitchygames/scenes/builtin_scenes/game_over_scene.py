@@ -153,7 +153,7 @@ class GameOverScene(Scene):
         if event.key == pygame.K_SPACE and self._space_pressed:
             # Spacebar was pressed and now released - restart the game
             self._space_pressed = False
-            self.resume()
+            self.play_again()
         else:
             # Let the base Scene class handle other keys
             super().on_key_up_event(event)
@@ -220,16 +220,10 @@ class GameOverScene(Scene):
 
         """
         if self._gamepad_buttons.button_released(event) is GamepadChoice.CONTINUE:
-            self.resume()
+            self.play_again()
 
-    @override
-    def resume(self: Self) -> None:
-        """Resume by creating a new game instance.
-
-        Override the default resume behavior to create a fresh game
-        instead of switching back to the previous scene.
-
-        """
+    def play_again(self: Self) -> None:
+        """Start a new game: a new instance of the previous scene's class, same options."""
         # Get the game class from the previous scene
         if self.scene_manager.previous_scene:
             game_class = type(self.scene_manager.previous_scene)

@@ -343,6 +343,9 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         self.active_scene: Scene | None = None
         self.next_scene: Scene | None = self.active_scene
         self.previous_scene: Scene | None = self.active_scene
+        # The scene behind the pause screen (Scene.PAUSES_PREVIOUS_SCENE): still set up, never
+        # cleaned up while it waits; cleaned up once if it is left without being unpaused
+        self._paused_scene: Scene | None = None
         self.quit_requested: bool = False
         # Frames finished this run; the doors' end_frame receives each frame's number
         self.frame_number: int = 0
@@ -370,6 +373,9 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         self.rumble: RumbleController = RumbleController()
         # The live game's rumble controller while a playback scope plays on its own
         self._live_rumble_behind_scope: RumbleController | None = None
+        # The live game's paused scene while a playback scope plays: the scope's own switches pause
+        # and leave only its own scenes
+        self._live_paused_scene_behind_scope: Scene | None = None
         self._live_audio: LiveAudio | None = None
         # This context's performance manager (glitchygames.performance.adaptive_clamping): the
         # scene manager and it are both per engine context, so it is looked up once here and
@@ -692,7 +698,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         """Make the journal of a scene that offers instant replay, as it is first set up.
 
         Called before its ``setup()`` (glitchygames/instant_replay.py, rule 2). A later setup
-        (resuming it from the pause screen) keeps its journal; a scene whose start is not
+        (of a scene returned to) keeps its journal; a scene whose start is not
         captured and a scene a playback scope builds keep none.
 
         Args:
@@ -952,9 +958,13 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         # Set up the new scene (off-screen) so we can capture it
         self.previous_scene = self.active_scene
         self._clear_outgoing_scene_pending_switch()
-        self._cleanup_current_scene()
         scene = next_scene
-        self._setup_new_scene(scene)
+        self._leave_current_scene(next_scene=scene)
+        unpausing = scene is not None and scene is self._paused_scene
+        if unpausing:
+            self._unpause_scene(scene=scene)
+        else:
+            self._setup_new_scene(scene)
         # Its first logic frame comes after the ride, which its playback repeats the arrival of
         # (glitchygames/scene_start.py, rule 7)
         start_capture = scene.scene_start_capture if scene is not None else None
@@ -965,7 +975,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         ):
             start_capture.arrived_by_transition = True
         self.active_scene = scene
-        self._configure_active_scene()
+        self._configure_active_scene(loads_resources=not unpausing)
 
         new_surface = self._capture_arriving_scene()
 
@@ -1684,20 +1694,26 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             self._clear_outgoing_scene_pending_switch()
             self._reset_scene_timers()
             self._log_scene_switch(scene)
-            self._cleanup_current_scene()
+            self._leave_current_scene(next_scene=scene)
             self._activate_new_scene(scene)
 
     def _activate_new_scene(self: Self, scene: Scene | None) -> None:
-        """Set a scene up and make it active (a switch, and a playback scope's rebuilt scene).
+        """Make a scene active (a switch, and a playback scope's rebuilt scene).
+
+        It is set up first, unless it is the paused scene: that one still is.
 
         Args:
             scene: The scene (None ends the run).
 
         """
-        self._setup_new_scene(scene)
+        unpausing = scene is not None and scene is self._paused_scene
+        if unpausing:
+            self._unpause_scene(scene=scene)
+        else:
+            self._setup_new_scene(scene)
         self._log_blocked_events(scene)
         self.active_scene = scene
-        self._configure_active_scene()
+        self._configure_active_scene(loads_resources=not unpausing)
         self._track_scene_performance(scene)
 
     @staticmethod
@@ -2393,6 +2409,8 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         # The playback's rumble (its scene's pulses and shakes) goes to a controller of its own
         # that reaches no device (_update_frame_services), so the live game's waits untouched.
         # First of all: _exit_playback needs it back whatever fails below (the devices' opening)
+        self._live_paused_scene_behind_scope = self._paused_scene
+        self._paused_scene = None
         self._live_rumble_behind_scope = self.rumble
         self.rumble = RumbleController(intensity=self.rumble.intensity)
         # The played scene sees the recording's devices, opened through the scope's devices
@@ -2481,8 +2499,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             LOG.warning('%s diverged: %s', session.kind, result.divergence.describe())
         try:
             # The live scene is active only when the scope failed before its scene was
-            if self.active_scene is not None and self.active_scene is not session.live_scene:
-                self._cleanup_current_scene()
+            self._cleanup_playback_scenes(live_scene=session.live_scene)
         except Exception:
             LOG.exception('The playback scene failed to clean up')
         finally:
@@ -2503,6 +2520,7 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             self._previous_fps_event_seconds = session.saved_fps_event_seconds
             # The playback's own scene switches set it to playback scenes
             self.previous_scene = session.saved_previous_scene
+            self._restore_live_paused_scene()
             # _enter_playback sets it right after the session, before anything that can fail (the
             # devices' opening comes after)
             self.rumble = required(
@@ -2583,6 +2601,25 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             post for post in posts_since_scope if is_live_game_post(post=post)
         ]
         return scope_posts, queued_live_game_posts
+
+    def _cleanup_playback_scenes(self: Self, *, live_scene: Scene) -> None:
+        """Clean up the playback's active scene, and a game the playback itself paused.
+
+        Args:
+            live_scene: The stashed live scene, active only when the scope failed before its
+                own scene was: never cleaned up here.
+
+        """
+        try:
+            if self.active_scene is not None and self.active_scene is not live_scene:
+                self._cleanup_current_scene()
+        finally:
+            self._cleanup_paused_scene()
+
+    def _restore_live_paused_scene(self: Self) -> None:
+        """Put the live game's paused scene back behind its pause screen (a scope's end)."""
+        self._paused_scene = self._live_paused_scene_behind_scope
+        self._live_paused_scene_behind_scope = None
 
     def _resume_live_scene(self: Self, *, scene: Scene) -> None:
         """Make a stashed scene active again as it was: no setup(), only what is drawn anew.
@@ -2985,17 +3022,71 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
         """Log scene switch information."""
         self.log.info('Switching to scene "%s" from scene "%s"', next_scene, self.active_scene)
 
+    @staticmethod
+    def _keep_screenshot(*, scene: Scene) -> None:
+        """Keep the picture of a scene being left or paused (a pause screen shows it).
+
+        Args:
+            scene: The scene.
+
+        """
+        scene._screenshot = scene.screenshot  # pyright: ignore[reportPrivateUsage]
+
     def _cleanup_current_scene(self) -> None:
         """Cleanup the current active scene."""
         if self.active_scene:
-            self.active_scene._screenshot = self.active_scene.screenshot  # pyright: ignore[reportPrivateUsage]
+            self._keep_screenshot(scene=self.active_scene)
             self.log.info('Cleaning up active scene %s.', self.active_scene)
             self.active_scene.cleanup()
+
+    def _leave_current_scene(self: Self, *, next_scene: Scene | None) -> None:
+        """Leave the active scene for another: pause it behind a pause screen, else clean it up.
+
+        A scene already paused waits on while the next scene is it (unpausing) or another pause
+        screen; left for any other, it is cleaned up, once, whatever the pause screen's own
+        cleanup does.
+
+        Args:
+            next_scene: The scene about to become active (None ends the run).
+
+        """
+        pausing = next_scene is not None and next_scene.PAUSES_PREVIOUS_SCENE
+        if pausing and self._paused_scene is None and self.active_scene is not None:
+            self.log.info('Pausing scene %s.', self.active_scene)
+            self._keep_screenshot(scene=self.active_scene)
+            self._paused_scene = self.active_scene
+            return
+        try:
+            self._cleanup_current_scene()
+        finally:
+            if not pausing and next_scene is not self._paused_scene:
+                self._cleanup_paused_scene()
+
+    def _cleanup_paused_scene(self: Self) -> None:
+        """Clean up the scene behind the pause screen (nothing if none waits there)."""
+        paused_scene, self._paused_scene = self._paused_scene, None
+        if paused_scene is not None:
+            self.log.info('Cleaning up paused scene %s.', paused_scene)
+            paused_scene.cleanup()
+
+    def _unpause_scene(self: Self, *, scene: Scene | None) -> None:
+        """Take the scene from behind the pause screen: no setup(), it never was cleaned up.
+
+        Args:
+            scene: The paused scene.
+
+        """
+        unpaused = required(scene, what='the paused scene')
+        self._paused_scene = None
+        # A press recorded before the pause (the key that paused it, released in the pause
+        # scene) must not let a later release quit
+        unpaused.forget_key_presses()
+        self._activate_scene_snap_mode(unpaused)
 
     def _setup_new_scene(self, next_scene: Scene | None) -> None:
         """Set up the new scene.
 
-        Every switch and transition (including resuming a paused scene) passes through here, so
+        Every switch and transition passes through here but unpausing (``_unpause_scene``), so
         the incoming scene also forgets the key presses it recorded while it was last active.
         """
         if next_scene:
@@ -3003,11 +3094,10 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             # Ensure the new scene has access to the game engine (a bare SceneManager has none)
             if self.game_engine:
                 next_scene.game_engine = self.game_engine  # type: ignore[attr-defined] # ty: ignore[invalid-assignment]
-            # A press recorded before the scene was left (an ESC that paused it, released in
-            # the pause scene) must not let a later release quit
+            # A press recorded before the scene was left must not let a later release quit
             next_scene.forget_key_presses()
-            # Complete the scene's start before its first setup() (a later setup, resuming it
-            # from the pause screen, keeps the first); glitchygames/scene_start.py
+            # Complete the scene's start before its first setup() (a later setup, of a scene
+            # returned to, keeps the first); glitchygames/scene_start.py
             start_capture = next_scene.scene_start_capture
             if start_capture is not None:
                 start_capture.complete(scene=next_scene)
@@ -3056,8 +3146,13 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
                 ', '.join(blocked_event_names) if blocked_event_names else 'None',
             )
 
-    def _configure_active_scene(self) -> None:
-        """Configure the active scene after switching."""
+    def _configure_active_scene(self, *, loads_resources: bool = True) -> None:
+        """Configure the active scene after switching.
+
+        Args:
+            loads_resources: False for a scene just unpaused, which has its resources.
+
+        """
         if self.active_scene:
             # A new scene has not ticked yet; its first frame receives the real frame time
             self.active_scene.dt = 0.0
@@ -3065,7 +3160,8 @@ class SceneManager(SceneInterface, events.EventManager, metaclass=ReadOnlyViews)
             # Don't call setup() here - it's already called in _setup_new_scene()
 
             self._set_display_caption()
-            self.active_scene.load_resources()
+            if loads_resources:
+                self.active_scene.load_resources()
             self._configure_scene_fps()
             self._log_scene_rendering_info()
             self._setup_event_proxies()
@@ -3191,6 +3287,9 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
     # False for a scene that cannot be rebuilt on its own from replay_arguments() (PauseScene
     # presents another scene): its start is never captured (glitchygames/scene_start.py)
     CAPTURES_SCENE_START: ClassVar[bool] = True
+    # True for a pause screen: the scene it is switched to from is paused, still set up, rather
+    # than left (SceneManager._leave_current_scene)
+    PAUSES_PREVIOUS_SCENE: ClassVar[bool] = False
     # Seconds an instant replay of this scene shows, or None for no instant replay. Set, the
     # scene manager keeps the scene's frames in memory from its start (glitchygames/
     # instant_replay.py) and its start is captured in plain live play too
@@ -4598,18 +4697,15 @@ class Scene(SceneInterface, SpriteInterface, events.AllEventStubs):
 
         self.log.info('Scene pause requested')
 
-    def resume(self: Self) -> None:
-        """Resume the current scene.
+    def unpause(self: Self) -> None:
+        """Make this paused scene active again, as it was: it is not set up again.
 
-        Default implementation switches back to the previous scene.
-        Scenes can override this method to provide custom resume behavior.
+        The pause screen calls it on the scene it paused. A scene that must catch up with what
+        happened meanwhile overrides it and calls ``super().unpause()``.
 
         """
-        if self.scene_manager.previous_scene:
-            self.scene_manager.switch_to_scene(self.scene_manager.previous_scene)
-            self.log.info('Scene resumed')
-        else:
-            self.log.warning('No previous scene found to resume')
+        self.scene_manager.switch_to_scene(self)
+        self.log.info('Scene unpaused')
 
     def game_over(self: Self) -> None:
         """Handle game over for the current scene.

@@ -7,12 +7,10 @@
 - **Root Cause**: `setup()` is not run once per scene: the scene manager runs it again when a paused scene becomes active. The HUD as blits kept no state, so running `setup()` twice was harmless; as sprites it was not.
 - **Fix**: each scene adds its labels only when it has none (`if self.score_label is None`).
 - **Test gap**: the HUD tests ran `setup()` once.
-- **Regression tests**: `TestHud::test_setup_again_on_resuming_from_pause_keeps_one_set_of_labels` in `src/games/brave-adventurer/tests/core/test_brave_adventurer_both_editions.py` (both editions) and `src/games/clockwork-keep/tests/test_clockwork_keep.py`. All three cases failed before the fix.
-- **Class**: a pausable scene's `setup()` run again must not add sprites it already added.
-- **Sweep** (2026-11-25, by reading: every scene in `src/` that calls `Scene.pause()` and its `setup()`):
-  - Guarded: Brave Adventurer, Clockwork Keep (this fix), Zombies' `NeighborhoodScene` (`_yard_drawn`), Mr. Muncher (shows its message only in `Phase.READY`).
-  - Adds no sprites in `setup()`: Zombies' `RosterScene`; PaddleSlap has no `setup()` of its own.
-  - Not covered: scenes that never call `pause()`, and no test holds the property for every pausable scene.
+- **Root fix** (2026-11-25, branch `feature/scene-pause-unpause`): a paused scene stays set up. Pausing runs no `cleanup()` and unpausing no `setup()`, so the guards above are gone.
+- **Regression tests**: `TestHud::test_pausing_and_unpausing_keeps_one_set_of_labels` in `src/games/brave-adventurer/tests/core/test_brave_adventurer_both_editions.py` (both editions) and `src/games/clockwork-keep/tests/test_clockwork_keep.py`, through a real pause. They replace the tests of the guards, and fail when the pause screen no longer pauses.
+- **Class**: a scene's `setup()` and `cleanup()` run on a pause. `TestAPausedSceneStaysSetUp` in `tests/scenes/builtin_scenes/test_pause_screen.py` holds it for every scene paused behind a `PauseScene`.
+- **Not covered**: Bitmappy's dialogs, which switch away from the editor and back without pausing, so each still cleans it up and sets it up again.
 - **Reporter**: Claude
 - **Date Reported**: 2026-11-22
 - **Files**: `src/games/brave-adventurer/src/brave_adventurer_core/scene.py`, `src/games/clockwork-keep/src/clockwork_keep/game.py`

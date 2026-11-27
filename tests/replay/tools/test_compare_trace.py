@@ -177,7 +177,7 @@ class AutoResumingPause(PauseScene):
         super().dt_tick(dt)
         self.pause_frames += 1
         if self.pause_frames == PAUSE_FRAMES:
-            self.resume()
+            self.debug_subject.unpause()
 
 
 class Backdrop(pygame.sprite.DirtySprite):
