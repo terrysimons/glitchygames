@@ -43,6 +43,7 @@ from tests.audio.channel_fade_analysis import (
     MINIMUM_DELAYED_STEAL_TRIALS,
     RECORDING_ATTEMPTS,
     action_chunk,
+    check_on_the_chunk_grid,
     chunk_levels,
     delayed_steal_trials,
     levels_after_the_action,
@@ -72,13 +73,23 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(scope='module')
-def recordings(tmp_path_factory):
+def shared_recordings_directory(tmp_path_factory):
+    """The directory this run's workers share for the recordings (``recording_directory``).
+
+    Returns:
+        The directory; a case's recording is ``<case>.raw`` in it once made.
+    """
+    return recording_directory(tmp_path_factory.getbasetemp())
+
+
+@pytest.fixture(scope='module')
+def recordings(shared_recordings_directory):
     """Each case's recording, made once for the run (a few seconds each).
 
     Returns:
         A function from a case to its left channel.
     """
-    directory = recording_directory(tmp_path_factory.getbasetemp())
+    directory = shared_recordings_directory
     made: dict[str, np.ndarray] = {}
 
     def recording(case: str) -> np.ndarray:
@@ -90,7 +101,9 @@ def recordings(tmp_path_factory):
 
 
 @pytest.mark.parametrize('case', [STEAL_IMMEDIATE, STEAL_DELAYED, BUS_FADE, CRT_SKIP])
-def test_the_mixer_changes_a_channels_level_only_between_chunks(recordings, case):
+def test_the_mixer_changes_a_channels_level_only_between_chunks(
+    recordings, shared_recordings_directory, case
+):
     """Every step the recording shows falls on a mixer chunk boundary.
 
     The file starts on a chunk boundary, so a step between samples k - 1 and k is at a boundary
@@ -101,14 +114,24 @@ def test_the_mixer_changes_a_channels_level_only_between_chunks(recordings, case
     """
     samples = recordings(case)
     steps = np.flatnonzero(np.abs(np.diff(samples)) > own_largest_step(case)) + 1
-    spikes = find_discontinuities(samples)
 
     assert steps.size > 0
-    assert all(step % DEFAULT_BUFFER_SAMPLES == 0 for step in steps)
-    assert spikes
-    assert all(
-        spike % DEFAULT_BUFFER_SAMPLES in {0, DEFAULT_BUFFER_SAMPLES - 1} for spike in spikes
+    assert find_discontinuities(samples)
+    # Names every off-grid position and keeps the recording under test-results/ when one is off
+    check_on_the_chunk_grid(
+        samples, case=case, recording=shared_recordings_directory / f'{case}.raw'
     )
+
+
+@pytest.mark.parametrize('case', [STEAL_IMMEDIATE, STEAL_DELAYED, BUS_FADE, CRT_SKIP])
+def test_every_recording_is_whole_mixer_chunks(recordings, case):
+    """The disk driver writes whole chunks from the file's start, so a recording is whole chunks.
+
+    Every check of where a level changes counts chunks from the file's start; a lost or repeated
+    part of a chunk would shift every later sample off the grid and fail them for the recording's
+    sake, not the mixer's (bugs/2026-11-24-channel-fade-step-off-a-chunk-boundary-on-windows.md).
+    """
+    assert recordings(case).size % DEFAULT_BUFFER_SAMPLES == 0
 
 
 @pytest.mark.xfail(
@@ -404,3 +427,80 @@ def test_a_probe_that_fails_is_not_recorded_again(tmp_path):
     assert recorder.attempts == 1
     assert 'RuntimeError: boom' in failed.read_text(encoding='utf-8')
     assert not path.exists()
+
+
+def stepped_samples(*, steps_at: list[int], frames: int) -> np.ndarray:
+    """A made-up recording: silence, then a full-level step at each given frame, alternating.
+
+    Returns:
+        The left channel, -1..1.
+    """
+    samples = np.zeros(frames)
+    level = 0.0
+    for step in steps_at:
+        level = 0.9 if level == 0.0 else 0.0
+        samples[step:] = level
+    return samples
+
+
+def written_recording(samples: np.ndarray, *, path: Path) -> Path:
+    """Write samples as the disk driver's raw signed 16-bit stereo file.
+
+    Returns:
+        The file.
+    """
+    left = np.round(samples * 32767).astype('<i2')
+    np.stack([left, left], axis=1).tofile(path)
+    return path
+
+
+def test_a_recording_on_the_chunk_grid_passes_and_keeps_nothing(tmp_path):
+    """Steps on chunk boundaries pass, and nothing is copied."""
+    samples = stepped_samples(
+        steps_at=[2 * DEFAULT_BUFFER_SAMPLES, 5 * DEFAULT_BUFFER_SAMPLES],
+        frames=8 * DEFAULT_BUFFER_SAMPLES,
+    )
+    recording = written_recording(samples, path=tmp_path / 'bus-fade.raw')
+
+    check_on_the_chunk_grid(
+        samples, case=BUS_FADE, recording=recording, kept_directory=tmp_path / 'kept'
+    )
+
+    assert not (tmp_path / 'kept').exists()
+
+
+def test_an_off_grid_step_is_named_with_its_chunk_and_offset_and_the_recording_kept(tmp_path):
+    """A failure names each off-grid position and keeps the recording byte for byte.
+
+    CircleCI's Windows failures (jobs 5594, 6450) said only ``assert False`` and kept nothing.
+    """
+    samples = stepped_samples(
+        steps_at=[2 * DEFAULT_BUFFER_SAMPLES, 5 * DEFAULT_BUFFER_SAMPLES + 3],
+        frames=8 * DEFAULT_BUFFER_SAMPLES,
+    )
+    recording = written_recording(samples, path=tmp_path / 'bus-fade.raw')
+    kept_directory = tmp_path / 'kept'
+
+    with pytest.raises(AssertionError) as failure:
+        check_on_the_chunk_grid(
+            samples, case=BUS_FADE, recording=recording, kept_directory=kept_directory
+        )
+
+    message = str(failure.value)
+    assert f'1 (frame {5 * DEFAULT_BUFFER_SAMPLES + 3}: chunk 5 + 3) of 2 steps' in message
+    assert '8 whole chunks' in message
+    kept = kept_directory / 'channel-fade-bus-fade.raw'
+    assert str(kept) in message
+    assert kept.read_bytes() == recording.read_bytes()
+
+
+def test_a_recording_of_part_chunks_is_named_as_one(tmp_path):
+    """A length that is not whole chunks is named, so a shifted recording is told from the mixer."""
+    frames = 8 * DEFAULT_BUFFER_SAMPLES - 100
+    samples = stepped_samples(steps_at=[2 * DEFAULT_BUFFER_SAMPLES + 7], frames=frames)
+    recording = written_recording(samples, path=tmp_path / 'bus-fade.raw')
+
+    with pytest.raises(AssertionError, match=r'7 chunks and 412 frames \(not whole'):
+        check_on_the_chunk_grid(
+            samples, case=BUS_FADE, recording=recording, kept_directory=tmp_path / 'kept'
+        )
