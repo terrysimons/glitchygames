@@ -1,16 +1,18 @@
 """Every committed recording names its game and scenes by logical names that resolve.
 
 And every recording in the repository is replayed by a test (a golden replay or a bundled demo)
-or listed in ``RECORDINGS_NOT_REPLAYED`` with what reads it.
+or listed in ``RECORDINGS_NOT_REPLAYED`` with the test that reads it.
 """
 
 from __future__ import annotations
 
+import ast
 import importlib
 import tomllib
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel, ConfigDict
 from scripts.git_checkout import files_not_ignored, run_git
 from scripts.workspace_packages import workspace_members
 
@@ -41,20 +43,50 @@ COMMITTED_RECORDINGS = sorted([
 # The golden traces' baselines (tests/world/test_golden_traces.py), compared sprite by sprite
 # but never replayed as recordings: left out of the replayed-recordings check whole
 GOLDEN_TRACES_DIRECTORY = Path('tests') / 'world' / 'golden'
+
+
+class RecordingReader(BaseModel):
+    """The test that reads a recording neither the golden plugin nor the demo test replays."""
+
+    model_config = ConfigDict(frozen=True, extra='forbid')
+
+    # The test, as pytest names it from the repository root: ``tests/path.py::test_name``. A
+    # test, never a script: a recording only a script read went stale unnoticed (#328 broke
+    # brave-adventurer-hazards, which only scripts/ai_behaviour/capture.py replayed)
+    test: str
+    why: str
+
+
 # Committed recordings that are neither a golden replay nor a bundled demo, by repository path,
-# each with what reads it instead of replaying it
+# each with the test that reads it instead (test_every_listed_recording_names_a_test_that_exists)
 RECORDINGS_NOT_REPLAYED = {
     'tests/fixtures/provenance/clockwork-keep-golden-before-game-source-revision.jsonl.gz': (
-        "tests/replay/tools/test_provenance.py reads its runs: a frozen copy of Clockwork Keep's "
-        'golden from before game_source_revision existed'
+        RecordingReader(
+            test=(
+                'tests/replay/tools/test_provenance.py::'
+                'test_a_recording_without_game_source_revision_still_loads_and_uses_the_engines'
+            ),
+            why=(
+                "reads its runs: a frozen copy of Clockwork Keep's golden from before "
+                'game_source_revision existed'
+            ),
+        )
     ),
-    'scripts/ai_behaviour/recordings/brave-adventurer-hazards.jsonl.gz': (
-        "scripts/ai_behaviour/capture.py replays it to snapshot the AI behaviour tests' moments: "
-        "Brave Adventurer's walls, pits, one missed jump and a cobra (record_brave_adventurer.py)"
+    'scripts/ai_behaviour/recordings/brave-adventurer-hazards.jsonl.gz': RecordingReader(
+        test='tests/test_ai_behaviour.py::test_every_ai_behaviour_recording_replays_to_its_end',
+        why=(
+            'replays it to its end; scripts/ai_behaviour/capture.py snapshots the AI behaviour '
+            "tests' moments from it: Brave Adventurer's walls, pits, one missed jump and a cobra "
+            '(record_brave_adventurer.py)'
+        ),
     ),
-    'scripts/ai_behaviour/recordings/paddleslap-no-input.jsonl.gz': (
-        "scripts/ai_behaviour/capture.py replays it to snapshot the AI behaviour tests' moments: "
-        "PaddleSlap's game-over screen and the demo it plays, with no input"
+    'scripts/ai_behaviour/recordings/paddleslap-no-input.jsonl.gz': RecordingReader(
+        test='tests/test_ai_behaviour.py::test_every_ai_behaviour_recording_replays_to_its_end',
+        why=(
+            'replays it to its end; scripts/ai_behaviour/capture.py snapshots the AI behaviour '
+            "tests' moments from it: PaddleSlap's game-over screen and the demo it plays, with no "
+            'input'
+        ),
     ),
 }
 
@@ -195,6 +227,38 @@ def test_every_committed_recording_is_replayed_by_a_test():
     )
 
 
+def test_every_listed_recording_names_a_test_that_exists():
+    """Each listed recording's reader is a test function in a test file of the repository.
+
+    A reader that is not a test (``scripts/ai_behaviour/capture.py``, run by hand) let a
+    recording go stale unnoticed: #328 changed Brave Adventurer's HUD and its AI behaviour
+    recording diverged at frame 0 until #334 rebaselined it.
+    """
+    missing: list[str] = []
+    for recording, reader in RECORDINGS_NOT_REPLAYED.items():
+        file_name, separator, function_name = reader.test.partition('::')
+        test_file = PROJECT_ROOT / file_name
+        defined = (
+            {
+                node.name
+                for node in ast.walk(ast.parse(test_file.read_text(encoding='utf-8')))
+                if isinstance(node, ast.FunctionDef)
+            }
+            if test_file.is_file()
+            else set()
+        )
+        if not (
+            separator
+            and Path(file_name).name.startswith('test_')
+            and function_name.startswith('test_')
+            and function_name in defined
+        ):
+            missing.append(f'{recording}: {reader.test}')
+
+    assert RECORDINGS_NOT_REPLAYED, 'nothing listed: this check would pass on zero'
+    assert not missing, f'listed recordings whose reader is not an existing test: {missing}'
+
+
 def stray_recordings_message(*, unreplayed: list[str]) -> str:
     """Tell a developer what to do with recordings no test replays.
 
@@ -211,8 +275,9 @@ def stray_recordings_message(*, unreplayed: list[str]) -> str:
         f'Recordings no test replays: {strays or "none"}; listed in RECORDINGS_NOT_REPLAYED but '
         f"replayed or gone: {gone or 'none'}. For each stray: commit it as a golden (a member's "
         'tests/fixtures/replays/) or a bundled demo (<package>/demos/), list it in '
-        'RECORDINGS_NOT_REPLAYED with what reads it, or move it into test-results/, which git '
-        'ignores. Take a listed one that is gone or now replayed out of RECORDINGS_NOT_REPLAYED'
+        'RECORDINGS_NOT_REPLAYED with the test that reads it, or move it into test-results/, '
+        'which git ignores. Take a listed one that is gone or now replayed out of '
+        'RECORDINGS_NOT_REPLAYED'
     )
 
 
