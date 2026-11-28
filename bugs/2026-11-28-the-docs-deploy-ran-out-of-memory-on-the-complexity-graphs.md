@@ -34,7 +34,9 @@
 - **Siblings (swept)**: `join_moved_paths` reads and rewrites one revision file at a time (the
   probe's peak before `wily_revisions`, 1.34 GB, includes it). Not measured: the performance
   graphs' and browser build's memory (they now log it on their stage lines).
-- **Near miss, not fixed here**: eb7deb256's stage ran 599.7 s with nothing printed (the
-  generator's own log lines are not mkdocs' and do not appear), and CircleCI kills a step after
-  600 s with no output. The wily build's time still grows with the history. Today's kills were
-  memory (job 6400 died at 579 s, under the silence limit), but the silence limit is next.
+- **Not a near miss**: eb7deb256's stage ran 599.7 s with nothing printed (the generator's own
+  log lines do not reach mkdocs' output), close to CircleCI's default 10-minute limit on a
+  silent step. The deploy step sets `no_output_timeout: 60m` (.circleci/continue_config.yml), so
+  that limit is an hour; the strict docs build in `checks-linux`, where 10 minutes did kill a
+  build (job 5089, #261), writes a placeholder and never generates. wily's build time still
+  grows with the history, and the stage lines now log it.
