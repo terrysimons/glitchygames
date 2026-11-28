@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import collections
-import contextlib
 import json
 import sys
 from pathlib import Path
@@ -32,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict
 
 from glitchygames.ai_introspection import ReadOptions, read_object
+from glitchygames.exit_codes import ExitCode
 from glitchygames.replay import driver
 from glitchygames.replay.tools.children import game_entry_point
 from glitchygames.tracing import StableSpriteIds
@@ -45,6 +45,8 @@ if TYPE_CHECKING:
 
 PACKAGE_DIRECTORY = Path(__file__).parent
 FIXTURES_DIRECTORY = PACKAGE_DIRECTORY / 'fixtures'
+# The recordings only these tests use (their moments' other recordings are goldens)
+RECORDINGS_DIRECTORY = PACKAGE_DIRECTORY / 'recordings'
 PROJECT_ROOT = PACKAGE_DIRECTORY.parent.parent
 OPTIONS = ReadOptions(include_properties=True)
 WINDOW_FRAMES = 60
@@ -174,6 +176,25 @@ def loggable(state: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in state.items() if not isinstance(value, float)}
 
 
+def recordings_replayed() -> list[tuple[str, Path]]:
+    """Return the recordings kept for these tests (``RECORDINGS_DIRECTORY``), each with its game.
+
+    They are neither goldens nor bundled demos, so nothing else replays them:
+    tests/test_ai_behaviour.py replays each to its end, as a golden is.
+
+    Returns:
+        ``(console script, recording path)`` for every moment's recording in
+        ``RECORDINGS_DIRECTORY``, once each, sorted.
+
+    """
+    return sorted({
+        (moment.console_script, PROJECT_ROOT / moment.recording)
+        for moments in MOMENTS.values()
+        for moment in moments
+        if (PROJECT_ROOT / moment.recording).parent == RECORDINGS_DIRECTORY
+    })
+
+
 def capture(*, moments: tuple[Moment, ...], output: Path) -> list[Path]:
     """Replay each recording once, saving a snapshot at each of its moments.
 
@@ -246,18 +267,41 @@ def replay_and_snapshot(
     arguments = [console_script, '--replay-trace', recording, '--headless', '--log-level', 'error']
     saved_argv = sys.argv
     sys.argv = arguments
+    # The game's entry point ends with SystemExit carrying the replay's exit code
+    exit_code: object = ExitCode.SUCCESS
     try:
-        with contextlib.suppress(SystemExit):
-            game_entry_point(console_script=console_script).load()()
+        game_entry_point(console_script=console_script).load()()
+    except SystemExit as stop:
+        exit_code = ExitCode.SUCCESS if stop.code is None else stop.code
     finally:
         sys.argv = saved_argv
         driver.ReplaySources.end_frame = real_end
         driver.ReplaySources.pump_events = real_pump
+    if exit_code != ExitCode.SUCCESS:
+        # A headless replay stops at its first divergence (replay/driver.py, rule 8): the game
+        # no longer draws what the recording holds, and every later moment would be missing
+        message = (
+            f'{recording} no longer replays: the replay exited {exit_code_name(exit_code)} (its '
+            'report is above); rebaseline it (--replay-trace RECORDING --rebaseline NEW)'
+        )
+        raise ValueError(message)
     missing = sorted(set(recorder.frames_wanted) - recorder.frames_written)
     if missing:
         message = f'{recording} ended before frames {missing}'
         raise ValueError(message)
     return recorder.written
+
+
+def exit_code_name(code: object) -> str:
+    """Return a replay's exit code by its ``ExitCode`` name when it has one.
+
+    Returns:
+        ``REPLAY_DIVERGED (1)``, or the code as it is when it is no ``ExitCode``.
+
+    """
+    if isinstance(code, int) and code in ExitCode:
+        return f'{ExitCode(code).name} ({int(code)})'
+    return repr(code)
 
 
 class SnapshotRecorder:
