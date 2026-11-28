@@ -37,6 +37,7 @@ from tests.sdl_defaults import SDL_VARIABLES_DEFAULTED_AT_STARTUP  # isort: skip
 
 import pygame
 
+import glitchygames
 from glitchygames import engine_context, pixel_snap, process, randomness, sources
 from glitchygames.audio.engine import AUDIO_ENGINE_SLOT
 from glitchygames.audio.instruments import registry as instruments_registry
@@ -99,6 +100,7 @@ from tests.leaked_state_guard import (
     leak_message,
     watch_process_state,
 )
+from tests.module_copies_guard import stop_if_modules_are_loaded_twice
 from tests.sdl_defaults import SDL_DRIVER_ENVIRONMENT_FOR_RUN
 from tests.sdl_driver_isolation import (
     SdlDriverState,
@@ -357,6 +359,28 @@ def pytest_configure(config):
     )
     if CANVAS_PATTERN is not DEFAULT_BACKGROUND_PATTERN:
         config.option.frame_markers_report_only = True
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Stop the run before any test when a project module is loaded twice.
+
+    Two copies of a module keep two copies of its state, so this harness's resets miss the
+    state the code under test reads (a dotted --cov does it; tests/module_copies_guard.py).
+    The engine's own directory is checked as well as the checkout's ``src`` and ``tests``:
+    ``nox -s test`` runs an installed copy.
+
+    Args:
+        session: The run (unused).
+
+    """
+    del session
+    stop_if_modules_are_loaded_twice(
+        roots=(
+            PROJECT_ROOT / 'src',
+            PROJECT_ROOT / 'tests',
+            Path(glitchygames.__file__).resolve().parent,
+        )
+    )
 
 
 # Optional: a run may load the harness without the frame fingerprints plugin that specifies the
