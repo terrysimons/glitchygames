@@ -13,7 +13,15 @@ from threading import Thread
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytest
-from scripts.ai_behaviour.capture import FIXTURES_DIRECTORY, loggable
+from scripts.ai_behaviour import capture
+from scripts.ai_behaviour.capture import (
+    FIXTURES_DIRECTORY,
+    RECORDINGS_DIRECTORY,
+    Moment,
+    loggable,
+    recordings_replayed,
+    replay_and_snapshot,
+)
 from scripts.ai_behaviour.paired import (
     PROJECT_ROOT,
     VERSIONS,
@@ -57,6 +65,9 @@ from scripts.ai_behaviour.tools import (
     with_motion,
 )
 from scripts.ai_model_comparison import AskedOf
+
+from glitchygames.exit_codes import ExitCode
+from glitchygames.replay.tools.children import replay_recording_headless
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -1030,3 +1041,71 @@ def test_runs_that_were_not_paired_get_no_paired_section(tmp_path, capsys):
     assert report_main([str(tmp_path / 'first'), str(tmp_path / 'second')]) == 0
 
     assert 'Paired:' not in capsys.readouterr().out
+
+
+# The recordings the AI behaviour tests snapshot (capture.py), each with its game: nothing else
+# replays them (they are neither goldens nor bundled demos), and #328 broke one unnoticed
+AI_BEHAVIOUR_RECORDINGS = recordings_replayed()
+
+
+def test_every_recording_in_the_directory_is_one_a_moment_snapshots():
+    """The replayed set is exactly the recordings directory: none is kept that nothing replays.
+
+    An empty set would make the replay test below skip, not fail; this cannot pass on zero.
+    """
+    kept = sorted(RECORDINGS_DIRECTORY.glob('*.jsonl.gz'))
+
+    assert kept, 'no recording found: this check would pass on zero'
+    assert sorted(path for _console_script, path in AI_BEHAVIOUR_RECORDINGS) == kept
+
+
+@pytest.mark.parametrize(
+    ('console_script', 'recording'),
+    AI_BEHAVIOUR_RECORDINGS,
+    ids=[path.name for _console_script, path in AI_BEHAVIOUR_RECORDINGS],
+)
+def test_every_ai_behaviour_recording_replays_to_its_end(console_script, recording):
+    """The game still reproduces the recording frame for frame (a headless replay exits SUCCESS).
+
+    A change to what a game draws (#328's HUD font) makes the recording diverge; without this,
+    the first to notice was whoever next ran capture.py, days later.
+    """
+    completed = replay_recording_headless(console_script=console_script, path=recording)
+
+    assert completed.returncode == ExitCode.SUCCESS, completed.stdout
+
+
+def test_capture_says_a_recording_that_no_longer_replays_diverged(tmp_path, mocker):
+    """A replay that stops on a divergence is named as one, with its exit code, not as too short.
+
+    The replay runs in this process and ends with SystemExit; capture.py swallowed it, so a
+    diverged recording was reported as having ended before the moments' frames.
+    """
+    game = mocker.Mock()
+    game.load.return_value.side_effect = SystemExit(ExitCode.REPLAY_DIVERGED)
+    mocker.patch.object(capture, 'game_entry_point', return_value=game)
+    moment = Moment(name='late', console_script='paddleslap', recording='stale.jsonl.gz', frame=50)
+
+    with pytest.raises(ValueError, match=r'stale\.jsonl\.gz no longer replays: .*REPLAY_DIVERGED'):
+        replay_and_snapshot(
+            console_script='paddleslap',
+            recording='stale.jsonl.gz',
+            moments=[moment],
+            output=tmp_path,
+        )
+
+
+def test_capture_still_says_a_recording_that_matched_ended_too_soon(tmp_path, mocker):
+    """A replay that matched to its end before a moment's frame is a recording too short."""
+    game = mocker.Mock()
+    game.load.return_value.side_effect = SystemExit(ExitCode.SUCCESS)
+    mocker.patch.object(capture, 'game_entry_point', return_value=game)
+    moment = Moment(name='late', console_script='paddleslap', recording='short.jsonl.gz', frame=50)
+
+    with pytest.raises(ValueError, match=r'short\.jsonl\.gz ended before frames \[50\]'):
+        replay_and_snapshot(
+            console_script='paddleslap',
+            recording='short.jsonl.gz',
+            moments=[moment],
+            output=tmp_path,
+        )
