@@ -12,6 +12,7 @@ from __future__ import annotations
 import dataclasses
 import operator
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Protocol
@@ -22,6 +23,7 @@ from glitchygames import clock
 from glitchygames.audio.diagnostics import (
     DEFAULT_BUFFER_SAMPLES,
     DEFAULT_SAMPLE_RATE,
+    find_discontinuities,
     find_silent_gaps,
 )
 from glitchygames.process import OutputCapture, run_command
@@ -32,6 +34,16 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 # Where the steal benchmarks write each run's per-trial reports (test-results/ is untracked, as
 # for every test artifact; the same place as tests/benchmarks/test_logging_cost.py's report)
 TRIAL_REPORT_DIRECTORY = REPOSITORY_ROOT / 'test-results'
+# Where a recording that fails the chunk grid is kept (check_on_the_chunk_grid): CI stores
+# test-results/ as an artifact, so a failure on a CircleCI machine can be analysed afterwards
+FAILED_RECORDING_DIRECTORY = TRIAL_REPORT_DIRECTORY / 'channel-fade-failed'
+# Where a step and a discontinuity spike may fall within a mixer chunk: a step between samples
+# k - 1 and k is at a boundary when k is a multiple of the chunk, and diagnostics' second-difference
+# spikes are centred on k - 1 and k
+STEP_OFFSETS = frozenset({0})
+SPIKE_OFFSETS = frozenset({0, DEFAULT_BUFFER_SAMPLES - 1})
+# How many off-grid positions a failure lists (all are counted)
+LISTED_OFF_GRID_POSITIONS = 10
 # Feature spec 16.1's metric: no step larger than the tones' own largest (the spec names no
 # number; tests/test_crt_power_on_sound.py uses the same threshold)
 DISCONTINUITY_THRESHOLD = 1.0
@@ -398,3 +410,85 @@ def write_trial_report(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding='utf-8')
     return path, text
+
+
+def off_grid(positions: np.ndarray | list[int], *, allowed_offsets: frozenset[int]) -> list[int]:
+    """Return the positions whose offset within a mixer chunk is not one of ``allowed_offsets``.
+
+    Returns:
+        The off-grid positions, in order.
+    """
+    return [
+        int(position)
+        for position in positions
+        if int(position) % DEFAULT_BUFFER_SAMPLES not in allowed_offsets
+    ]
+
+
+def check_on_the_chunk_grid(
+    samples: np.ndarray,
+    *,
+    case: str,
+    recording: Path,
+    kept_directory: Path = FAILED_RECORDING_DIRECTORY,
+) -> None:
+    """Fail, keeping the recording and naming every off-grid position, unless all are on the grid.
+
+    Every level step must fall on a mixer chunk boundary and every discontinuity spike beside
+    one. A failure on CircleCI's Windows machines (jobs 5594 and 6450,
+    bugs/2026-11-24-channel-fade-step-off-a-chunk-boundary-on-windows.md) said only ``assert
+    False``: this names each off-grid position with its chunk and offset, and the recording's
+    length in chunks. A healthy recording is whole chunks (the disk driver writes whole chunks
+    from the file's start), so a length that is not tells a lost or repeated partial chunk, which
+    shifts everything after it, from a mixer changing a level inside a chunk.
+
+    Args:
+        samples: The recording's left channel (``read_recording``).
+        case: The probe case.
+        recording: The recording's file, copied into ``kept_directory`` on a failure.
+        kept_directory: Where a failing recording is kept (``FAILED_RECORDING_DIRECTORY``).
+
+    Raises:
+        AssertionError: A step or spike is off the grid; the message names them and where the
+            recording was kept.
+
+    """
+    steps = np.flatnonzero(np.abs(np.diff(samples)) > own_largest_step(case)) + 1
+    off_grid_steps = off_grid(steps, allowed_offsets=STEP_OFFSETS)
+    off_grid_spikes = off_grid(find_discontinuities(samples), allowed_offsets=SPIKE_OFFSETS)
+    if not off_grid_steps and not off_grid_spikes:
+        return
+    kept_directory.mkdir(parents=True, exist_ok=True)
+    kept = kept_directory / f'channel-fade-{case}.raw'
+    shutil.copyfile(recording, kept)
+    whole_chunks, remainder = divmod(samples.size, DEFAULT_BUFFER_SAMPLES)
+    length = (
+        f'{whole_chunks} whole chunks'
+        if remainder == 0
+        else f'{whole_chunks} chunks and {remainder} frames (not whole: part of a chunk was '
+        'lost or repeated)'
+    )
+    message = (
+        f'{case}: off the {DEFAULT_BUFFER_SAMPLES}-frame chunk grid: '
+        f'{off_grid_text(off_grid_steps)} of {steps.size} steps, '
+        f'{off_grid_text(off_grid_spikes)} spikes. The recording is {samples.size} frames, '
+        f'{length}; kept at {kept}'
+    )
+    raise AssertionError(message)
+
+
+def off_grid_text(positions: list[int]) -> str:
+    """Describe off-grid positions: how many, then the first few with their chunk and offset.
+
+    Returns:
+        ``0``, or ``2 (frame 1029: chunk 2 + 5, frame 2050: chunk 4 + 2)``.
+    """
+    if not positions:
+        return '0'
+    listed = ', '.join(
+        f'frame {position}: chunk {position // DEFAULT_BUFFER_SAMPLES} + '
+        f'{position % DEFAULT_BUFFER_SAMPLES}'
+        for position in positions[:LISTED_OFF_GRID_POSITIONS]
+    )
+    more = ', ...' if len(positions) > LISTED_OFF_GRID_POSITIONS else ''
+    return f'{len(positions)} ({listed}{more})'
