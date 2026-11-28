@@ -1544,6 +1544,7 @@ REPOSITORY_TEST_FILES: dict[str, str] = {
     'tests/test_suite_collection.py': (
         "the suite's own collection and import guards, over every test root"
     ),
+    'tests/test_text_uses_bundled_fonts.py': SOURCE_GUARD_REASON,
     'tests/test_unseeded_randomness_guard.py': SOURCE_GUARD_REASON,
     'tests/test_workspace_config.py': (
         "checks the workspace's configuration (members, extras, docs)"

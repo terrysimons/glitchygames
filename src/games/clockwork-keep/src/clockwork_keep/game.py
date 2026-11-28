@@ -1278,7 +1278,7 @@ class ClockworkKeepVictoryScene(GameOverScene):
             'VICTORY!',
             (round(title_center_x), round(title_center_y)),
             color=self.VICTORY_TITLE_COLOR,
-            font_size=48,
+            font_size=28,
         )
         self.all_sprites.add(self.text_sprite)
 

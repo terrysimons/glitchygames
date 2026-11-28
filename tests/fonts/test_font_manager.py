@@ -412,17 +412,18 @@ class TestFontManagerCompareFontSystems:
 
 
 class TestFontManagerPygameFontFallback:
-    """FontManager.pygame_font falls back to pygame's own font when SysFont fails."""
+    """FontManager.pygame_font falls back to the bundled Vera when SysFont fails."""
 
     @pytest.mark.parametrize('system_font_error', [TypeError, FileNotFoundError])
-    def test_pygame_font_fallback_to_default(self, mocker, system_font_error):
+    def test_pygame_font_falls_back_to_the_bundled_vera(self, mocker, system_font_error):
+        """Never pygame's default font, which SDL_ttf lays out differently on Windows."""
         real_font_class = pygame.font.Font
         mocker.patch.object(pygame.font, 'SysFont', side_effect=system_font_error('no font'))
         file_font = mocker.spy(pygame.font, 'Font')
 
         loaded_font = FontManager.pygame_font({'font_name': 'nonexistent_font', 'font_size': 16})
 
-        file_font.assert_called_once_with(None, 16)
+        file_font.assert_called_once_with(bundled_font_path(font_name='Vera'), 16)
         assert isinstance(loaded_font, real_font_class)
 
 
@@ -733,9 +734,9 @@ class TestTheAntialiasSetting:
     def test_the_game_over_text_follows_the_setting(self, display, antialias):
         """The game-over scene's text used to be antialiased whatever the option said."""
         FontManager.OPTIONS['font_antialias'] = antialias
-        expected_text = pygame.font.Font(None, 48).render('GAME OVER', antialias, (255, 0, 0))
+        expected_text = bundled_font(bold=True, size=28).render('GAME OVER', antialias, (255, 0, 0))
 
-        text_sprite = TextSprite('GAME OVER', (160, 120), color=(255, 0, 0), font_size=48)
+        text_sprite = TextSprite('GAME OVER', (160, 120), color=(255, 0, 0), font_size=28)
 
         assert pygame.image.tobytes(text_sprite.image, 'RGBA') == pygame.image.tobytes(
             expected_text, 'RGBA'
