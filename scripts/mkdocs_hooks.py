@@ -64,6 +64,11 @@ from typing import TYPE_CHECKING, Literal, Protocol, override
 from mkdocs.exceptions import PluginError
 
 from glitchygames import clock
+
+try:
+    import resource
+except ImportError:  # Windows has no resource module
+    resource = None
 from glitchygames.process import run_command
 from glitchygames.replay.tools.performance_pages import UnreadableLedgerError
 
@@ -142,6 +147,9 @@ def logged_stage(name: str) -> Generator[None]:
     At INFO on the hook's logger, which mkdocs prints: a build is never silent for the whole of
     a stage, and its log shows where the time went. CircleCI kills a step after 10 minutes with
     no output (job 5089, #261: the graphs generated silently inside the strict docs build).
+    The end also gives the process's peak memory so far (``peak_memory_text``), so a stage
+    growing toward the machine's memory shows in the log before the kernel kills the build
+    (jobs 6400 and 6415: the complexity graphs reached 9.66 GB on an 8 GB machine, exit -9).
 
     Args:
         name: The stage, as the lines name it.
@@ -155,9 +163,36 @@ def logged_stage(name: str) -> Generator[None]:
     try:
         yield
     except BaseException:
-        LOG.info('%s: failed after %.1f s', name, clock.measured_seconds() - started)
+        LOG.info(
+            '%s: failed after %.1f s, %s',
+            name,
+            clock.measured_seconds() - started,
+            peak_memory_text(),
+        )
         raise
-    LOG.info('%s: done in %.1f s', name, clock.measured_seconds() - started)
+    LOG.info('%s: done in %.1f s, %s', name, clock.measured_seconds() - started, peak_memory_text())
+
+
+def peak_memory_text(*, platform: str = sys.platform) -> str:
+    """Return this process's peak memory so far, for a stage's log line.
+
+    The peak is the process's largest resident size since it started (``getrusage``'s
+    ``ru_maxrss``), not the stage's own: a stage that raised it shows it on its line.
+
+    Args:
+        platform: The platform whose ``ru_maxrss`` unit applies (``sys.platform``).
+
+    Returns:
+        ``peak memory 9.66 GB``, or ``peak memory unknown`` where there is no ``resource``
+        module (Windows).
+
+    """
+    if resource is None:
+        return 'peak memory unknown'
+    # ru_maxrss is bytes on macOS and kibibytes on Linux
+    scale = 1 if platform == 'darwin' else 1024
+    peak_bytes = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * scale
+    return f'peak memory {peak_bytes / 1e9:.2f} GB'
 
 
 def load_script(*, path: Path, module_name: str) -> ModuleType:

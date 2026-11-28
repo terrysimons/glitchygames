@@ -434,6 +434,49 @@ def test_wily_revisions_name_windows_paths_with_slashes(tmp_path):
     assert packages_at_head(revisions=revisions) == ['src/glitchygames']
 
 
+def test_wily_revisions_keep_only_what_the_explorer_draws(tmp_path):
+    """Each revision keeps only the metrics' totals for RANKED_PACKAGE's paths, nothing else.
+
+    wily's revision files hold every function's measurements for every file in the repository
+    (435 files, 4.57 GB on 2026-11-28); keeping them whole took the docs deploy past CircleCI's
+    8 GB and the kernel killed it, so only what the explorer draws is kept.
+    """
+    archiver_directory = tmp_path / 'git'
+    archiver_directory.mkdir()
+    index = [{'key': 'only', 'date': 10, 'message': 'Only'}]
+    (archiver_directory / 'index.json').write_text(json.dumps(index), encoding='utf-8')
+    measured = {
+        'operator_data': {
+            'raw': {
+                'src/glitchygames/scene.py': {
+                    'total': {'loc': 30, 'comments': 4},
+                    'detailed': {'Scene.update': {'loc': 12}},
+                },
+                'src/glitchygames': {'total': {'loc': 30}},
+                'src/games/paddleslap/game.py': {'total': {'loc': 99}},
+            },
+            'cyclomatic': {
+                'src/glitchygames/scene.py': {
+                    'total': {'complexity': 7},
+                    'detailed': {'Scene.update': {'complexity': 3}},
+                },
+            },
+            'unlisted': {'src/glitchygames/scene.py': {'total': {'thing': 1}}},
+        }
+    }
+    (archiver_directory / 'only.json').write_text(json.dumps(measured), encoding='utf-8')
+
+    revisions = wily_revisions(cache_directory=tmp_path)
+
+    assert revisions[0]['operator_data'] == {
+        'raw': {
+            'src/glitchygames/scene.py': {'total': {'loc': 30}},
+            'src/glitchygames': {'total': {'loc': 30}},
+        },
+        'cyclomatic': {'src/glitchygames/scene.py': {'total': {'complexity': 7}}},
+    }
+
+
 def test_measurement_reads_a_paths_total_rounded_or_none():
     """A path's total, rounded; None for an unmeasured path, operator or non-number."""
     operator_data = {
@@ -766,10 +809,11 @@ def test_the_mkdocs_hook_generates_the_graphs_before_a_deploy(fixture_repository
 
 
 # A stage's lines from the hook's logger (INFO, which mkdocs prints): its start, and its end with
-# the seconds it took
+# the seconds it took and the process's peak memory (unknown only on Windows: no resource module)
+PEAK_MEMORY = r'peak memory unknown' if sys.platform == 'win32' else r'peak memory \d+\.\d\d GB'
 STAGE_STARTED = r'^{stage}: started$'
-STAGE_DONE = r'^{stage}: done in \d+\.\d s$'
-STAGE_FAILED = r'^{stage}: failed after \d+\.\d s$'
+STAGE_DONE = rf'^{{stage}}: done in \d+\.\d s, {PEAK_MEMORY}$'
+STAGE_FAILED = rf'^{{stage}}: failed after \d+\.\d s, {PEAK_MEMORY}$'
 
 
 def hook_messages(caplog: pytest.LogCaptureFixture) -> list[str]:
@@ -830,6 +874,23 @@ def test_a_failed_graph_stage_logs_how_long_it_ran(tmp_path, mocker, caplog):
     messages = hook_messages(caplog)
     assert re.fullmatch(STAGE_STARTED.format(stage='Complexity graphs'), messages[0])
     assert re.fullmatch(STAGE_FAILED.format(stage='Complexity graphs'), messages[-1]), messages
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='Windows has no resource module')
+def test_a_stages_peak_memory_reads_the_process_peak_in_each_platforms_unit(mocker):
+    """ru_maxrss is bytes on macOS and kibibytes on Linux; both read as gigabytes."""
+    usage = mocker.Mock(ru_maxrss=9_437_184)
+    mocker.patch.object(mkdocs_hooks.resource, 'getrusage', return_value=usage)
+
+    assert mkdocs_hooks.peak_memory_text(platform='linux') == 'peak memory 9.66 GB'
+    assert mkdocs_hooks.peak_memory_text(platform='darwin') == 'peak memory 0.01 GB'
+
+
+def test_a_stages_peak_memory_is_unknown_without_a_resource_module(mocker):
+    """Windows has no resource module: the line says so instead of a number."""
+    mocker.patch.object(mkdocs_hooks, 'resource', None)
+
+    assert mkdocs_hooks.peak_memory_text() == 'peak memory unknown'
 
 
 def test_the_mkdocs_hook_stops_the_build_when_the_generation_fails(tmp_path, mocker):

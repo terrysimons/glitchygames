@@ -21,13 +21,16 @@ build generate. Running this script regenerates the data unconditionally and rec
    the files the newest measured revision changed, which ranked whatever the last commit
    happened to touch.);
 3. build a wily cache of the whole git history, in a temporary directory (``wily build -n``
-   with the commit count; about a minute for this repository's history);
+   with the commit count; it grows with the history: on 2026-11-28, 434 commits took about two
+   minutes on an M-series Mac and the whole generation about ten on CircleCI's Linux machine);
 4. join each moved module's history (``join_moved_paths``): wily keys its history by file
    path, so a module that moved (the engine's ``glitchygames/`` became ``src/glitchygames/``,
    ``MOVED_PATH_PREFIXES``) would start a new series at the move. Each revision's measurements
    under a former path are renamed to the current path in the cache, so the module's series
    runs through the whole history;
-5. read each metric in ``METRICS`` from the cache for every ranked module and every package
+5. read the cache one revision at a time, keeping only ``METRICS``' totals of ``RANKED_PACKAGE``'s
+   paths (``drawn_measurements``: the whole revisions reached 9.66 GB), then each metric in
+   ``METRICS`` for every ranked module and every package
    (directory) of ``RANKED_PACKAGE`` at HEAD, keeping only the commits that changed a value
    (``complexity_history``), and write it as ``EXPLORER_DATA_NAME``: docs/js/complexity.js draws
    it with plotly.js (``PLOTLY_JS_URL``, the version the performance pages load), one line per
@@ -148,7 +151,7 @@ STAGING_DIRECTORY_PREFIX = '.staging-'
 
 # How long one git or radon command may take
 TOOL_TIMEOUT_SECONDS = 300.0
-# How long the wily cache build may take (about a minute for this repository's history)
+# How long the wily cache build may take (about two minutes locally for 434 commits, 2026-11-28)
 WILY_BUILD_TIMEOUT_SECONDS = 1800.0
 
 
@@ -429,14 +432,60 @@ def wily_revisions(*, cache_directory: Path) -> list[dict[str, Any]]:
         if not revision_path.is_file():
             continue
         revision = json.loads(revision_path.read_text(encoding='utf-8'))
-        # wily names paths with the platform's separator (backslashes on Windows); the modules
-        # and packages they are looked up by are /-separated (measure_ranked_modules)
-        operator_data = {
-            operator: {path.replace('\\', '/'): value for path, value in measurements.items()}
-            for operator, measurements in revision['operator_data'].items()
-        }
-        revisions.append({**entry, 'operator_data': operator_data})
+        revisions.append({
+            **entry,
+            'operator_data': drawn_measurements(operator_data=revision['operator_data']),
+        })
+        # The whole file is dropped here, before the next is read: only one is held at a time
+        del revision
     return sorted(revisions, key=itemgetter('date'))
+
+
+def drawn_measurements(*, operator_data: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Return the part of a revision's measurements the explorer draws.
+
+    A wily revision file holds every function's measurements (``detailed``) and every total of
+    every operator, for every file in the repository: 4.57 GB over 435 revisions on 2026-11-28.
+    Kept whole, the revisions took the deploy's docs build to a 9.66 GB peak, past CircleCI's
+    8 GB, and the kernel killed it (exit -9, jobs 6400 and 6415). Only ``METRICS``' totals of
+    ``RANKED_PACKAGE``'s paths are read (``measurement``), so only they are kept.
+
+    Args:
+        operator_data: The revision's measurements: each operator's, by path, as wily wrote
+            them.
+
+    Returns:
+        Each ``METRICS`` operator's measurements (an operator the revision lacks is left out),
+        by ``/``-separated path (wily names paths with the platform's separator, backslashes on
+        Windows; the modules and packages are looked up ``/``-separated), only for
+        ``RANKED_PACKAGE`` and the paths in it, each holding only ``total`` with only the
+        metrics' keys the revision has.
+
+    """
+    keys_by_operator: dict[str, set[str]] = {}
+    for metric, _label in METRICS:
+        operator, key = metric.split('.', maxsplit=1)
+        keys_by_operator.setdefault(operator, set()).add(key)
+    drawn: dict[str, dict[str, Any]] = {}
+    for operator, keys in keys_by_operator.items():
+        if operator not in operator_data:
+            continue
+        kept: dict[str, Any] = {}
+        for wily_path, entry in operator_data[operator].items():
+            path = wily_path.replace('\\', '/')
+            if path != RANKED_PACKAGE and not path.startswith(f'{RANKED_PACKAGE}/'):
+                continue
+            # wily's JSON: each level is a dict of strings to whatever wily wrote, checked as read
+            if not isinstance(entry, dict):
+                continue
+            totals: object = cast('dict[str, object]', entry).get('total')
+            if isinstance(totals, dict):
+                total_values = cast('dict[str, object]', totals)
+                kept[path] = {
+                    'total': {key: total_values[key] for key in keys if key in total_values}
+                }
+        drawn[operator] = kept
+    return drawn
 
 
 def measurement(
